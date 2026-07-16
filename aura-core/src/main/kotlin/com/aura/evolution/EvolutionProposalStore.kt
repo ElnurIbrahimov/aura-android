@@ -3,6 +3,7 @@ package com.aura.evolution
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.aura.evolution.EvolutionMetrics
 
 /**
  * Creates and resolves evolution proposals. Keeps the candidate-to-proposal
@@ -13,6 +14,7 @@ class EvolutionProposalStore @Inject constructor(
     private val proposalDao: EvolutionProposalDao,
     private val revisionDao: EvolutionRevisionDao,
     private val candidateDao: EvolutionCandidateDao,
+    private val metrics: EvolutionMetrics,
 ) {
     /**
      * Create a proposal from a high-confidence candidate. The caller is

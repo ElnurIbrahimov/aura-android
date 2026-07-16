@@ -1,7 +1,7 @@
 package com.aura.evolution
 
-import javax.inject.Inject
 import javax.inject.Singleton
+import javax.inject.Inject
 
 /**
  * Reverts an applied proposal by restoring the latest revision's
@@ -12,6 +12,7 @@ import javax.inject.Singleton
 class EvolutionRollbackManager @Inject constructor(
     private val proposalDao: EvolutionProposalDao,
     private val revisionDao: EvolutionRevisionDao,
+    private val metrics: EvolutionMetrics,
 ) {
     suspend fun rollback(proposalId: kotlin.String): RollbackResult {
         val proposal = proposalDao.getById(proposalId)
@@ -35,6 +36,7 @@ class EvolutionRollbackManager @Inject constructor(
             return RollbackResult.Error("no before-ciphertext captured")
         }
         proposalDao.resolve(proposalId, ProposalStatus.ROLLED_BACK.name, "rolled back to revision ${latest.id}")
+        metrics.record("proposal.rolled_back")
         return RollbackResult.Ok(latest.snapshotCiphertext)
     }
 
@@ -52,6 +54,7 @@ class EvolutionRollbackManager @Inject constructor(
             return RollbackResult.Error("no before-ciphertext captured")
         }
         proposalDao.resolve(proposalId, ProposalStatus.ROLLED_BACK.name, "force-rolled back to revision ${latest.id}")
+        metrics.record("proposal.force_rolled_back")
         return RollbackResult.Ok(latest.snapshotCiphertext)
     }
 

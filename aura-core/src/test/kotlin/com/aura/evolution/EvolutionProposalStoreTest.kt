@@ -27,8 +27,8 @@ class EvolutionProposalStoreTest {
         db = Room.inMemoryDatabaseBuilder(context, EvolutionDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        store = EvolutionProposalStore(db.proposalDao(), db.revisionDao(), db.candidateDao())
-        rollback = EvolutionRollbackManager(db.proposalDao(), db.revisionDao())
+        store = EvolutionProposalStore(db.proposalDao(), db.revisionDao(), db.candidateDao(), EvolutionMetrics())
+        rollback = EvolutionRollbackManager(db.proposalDao(), db.revisionDao(), EvolutionMetrics())
     }
 
     @After
