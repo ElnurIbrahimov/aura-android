@@ -49,6 +49,8 @@ object ToolsModule {
         deepResearch: DeepResearchTool,
         vision: VisionTool,
         imageGen: ImageGenTool,
+        imageGenCapability: ImageGenCapabilityTool,
+        webSearchCapability: WebSearchCapabilityTool,
         transcription: TranscriptionTool,
         runHand: RunHandTool,
         knowledgeGraph: KnowledgeGraphTool,
@@ -99,6 +101,8 @@ object ToolsModule {
         registry.register(deepResearch.tool)
         registry.register(vision.tool)
         registry.register(imageGen.tool)
+        registry.register(imageGenCapability.tool)
+        registry.register(webSearchCapability.tool)
         registry.register(transcription.tool)
         registry.register(runHand.tool)
         registry.register(knowledgeGraph.tool)
