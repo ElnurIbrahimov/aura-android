@@ -38,6 +38,22 @@ object ProactiveEventModule {
         }
     }
 
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS proactive_interactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    eventId INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    feedback TEXT NOT NULL DEFAULT '',
+                    timestamp INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_proactive_interactions_eventId ON proactive_interactions(eventId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_proactive_interactions_timestamp ON proactive_interactions(timestamp)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ProactiveEventDatabase =
@@ -45,9 +61,12 @@ object ProactiveEventModule {
             context,
             ProactiveEventDatabase::class.java,
             "aura-proactive.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4),
         ).build()
 
     @Provides
     fun provideProactiveEventDao(db: ProactiveEventDatabase): ProactiveEventDao = db.proactiveEventDao()
+
+    @Provides
+    fun provideProactiveInteractionDao(db: ProactiveEventDatabase): ProactiveInteractionDao = db.proactiveInteractionDao()
 }

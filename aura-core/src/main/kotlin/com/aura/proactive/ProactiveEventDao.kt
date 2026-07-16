@@ -40,3 +40,21 @@ interface ProactiveEventDao {
     @Query("DELETE FROM proactive_events WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
 }
+
+@Dao
+interface ProactiveInteractionDao {
+    @Insert
+    suspend fun insert(interaction: ProactiveInteractionEntity): Long
+
+    @Query("SELECT * FROM proactive_interactions WHERE eventId = :eventId ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun forEvent(eventId: Long, limit: Int = 20): List<ProactiveInteractionEntity>
+
+    @Query("SELECT action, COUNT(*) as count FROM proactive_interactions GROUP BY action")
+    suspend fun summary(): List<ActionCount>
+}
+
+/** Row returned by [ProactiveInteractionDao.summary]. */
+data class ActionCount(
+    val action: String,
+    val count: Int,
+)

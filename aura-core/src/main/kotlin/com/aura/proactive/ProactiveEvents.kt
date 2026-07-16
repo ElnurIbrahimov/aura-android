@@ -133,6 +133,28 @@ class ProactiveEvents(
         }
     }
 
+    /**
+     * Record a user interaction with a proactive event. Called by the
+     * notification/history UI when the user dismisses, taps, snoozes, or
+     * acts on a proactive card. The action history feeds the policy engine.
+     */
+    suspend fun recordInteraction(
+        interactionDao: ProactiveInteractionDao,
+        eventId: Long,
+        action: String,
+        feedback: String = "",
+    ) {
+        runCatching {
+            interactionDao.insert(
+                ProactiveInteractionEntity(
+                    eventId = eventId,
+                    action = action,
+                    feedback = feedback,
+                )
+            )
+        }
+    }
+
     private fun ProactiveEventEntity.toEvent(): ProactiveEventBus.Event? {
         return when (eventType) {
             "MorningBriefReady" -> ProactiveEventBus.Event.MorningBriefReady(title, body, timestamp)

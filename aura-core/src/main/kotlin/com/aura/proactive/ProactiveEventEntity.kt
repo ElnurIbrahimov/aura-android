@@ -16,3 +16,19 @@ data class ProactiveEventEntity(
     val timestamp: Long,
     val payload: String = "",
 )
+
+
+@Entity(
+    tableName = "proactive_interactions",
+    indices = [Index(value = ["eventId"]), Index(value = ["timestamp"])],
+)
+data class ProactiveInteractionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** The proactive event this interaction is about. */
+    val eventId: Long,
+    /** "dismissed", "tapped", "snoozed", "acted". */
+    val action: String,
+    /** Optional user text feedback. */
+    val feedback: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+)
