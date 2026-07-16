@@ -51,6 +51,7 @@ object ToolsModule {
         imageGen: ImageGenTool,
         imageGenCapability: ImageGenCapabilityTool,
         webSearchCapability: WebSearchCapabilityTool,
+        mediaCapability: MediaCapabilityTools,
         transcription: TranscriptionTool,
         runHand: RunHandTool,
         knowledgeGraph: KnowledgeGraphTool,
@@ -63,6 +64,7 @@ object ToolsModule {
         creativeReadProject: CreativeReadProjectTool,
         creativeAddWorldItem: CreativeAddWorldItemTool,
         creativeEngine: CreativeEngineTool,
+        canonQuery: CanonQueryTool,
         useSkill: UseSkillTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
@@ -104,6 +106,9 @@ object ToolsModule {
         registry.register(imageGen.tool)
         registry.register(imageGenCapability.tool)
         registry.register(webSearchCapability.tool)
+        registry.register(mediaCapability.ttsTool)
+        registry.register(mediaCapability.videoTool)
+        registry.register(mediaCapability.world3dTool)
         registry.register(transcription.tool)
         registry.register(runHand.tool)
         registry.register(knowledgeGraph.tool)
@@ -116,6 +121,7 @@ object ToolsModule {
         registry.register(creativeReadProject.tool)
         registry.register(creativeAddWorldItem.tool)
         registry.register(creativeEngine.tool)
+        registry.register(canonQuery.tool)
         registry.register(useSkill.tool)
         return registry
     }
