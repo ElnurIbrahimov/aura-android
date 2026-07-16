@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.creative.CreativeMode
 import com.aura.creative.CreativeProject
+import com.aura.creative.CouncilRole
 import com.aura.creative.WritingTemplates
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
@@ -96,7 +97,7 @@ fun CreativeProjectScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
-                listOf("World", "Write", "Simulate").forEachIndexed { index, label ->
+                listOf("World", "Write", "Simulate", "Council").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -127,7 +128,8 @@ fun CreativeProjectScreen(
                     when (selectedTab) {
                         0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
                         1 -> WritingRoom(state.output, state.generating, viewModel::generate, viewModel::cancelGeneration)
-                        else -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
+                        2 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
+                        else -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
                     }
                 }
             }
@@ -143,6 +145,57 @@ fun CreativeProjectScreen(
                 viewModel.saveMetadata(name, description, genre, tone, template)
             },
         )
+    }
+}
+
+@Composable
+private fun CouncilRoom(
+    output: String,
+    generating: Boolean,
+    onRunCouncil: (String, List<CouncilRole>) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var brief by remember { mutableStateOf("") }
+    var selectedRoles by remember { mutableStateOf(CouncilRole.full) }
+    Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+        Text("Creative Council", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Run a multi-role review: producers draft, critics refine, the director synthesizes.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+        )
+        OutlinedTextField(
+            value = brief,
+            onValueChange = { brief = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            label = { Text("Brief") },
+            placeholder = { Text("Ask the council to design the opening scene, review a chapter, or resolve a plot hole.") },
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(CouncilRole.entries) { role ->
+                val included = role in selectedRoles
+                FilterChip(
+                    selected = included,
+                    onClick = {
+                        selectedRoles = if (included) selectedRoles - role else selectedRoles + role
+                    },
+                    label = { Text(role.displayName) },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+            if (generating) {
+                OutlinedButton(onClick = onCancel) {
+                    Icon(Icons.Filled.Stop, contentDescription = null)
+                    Text("Stop")
+                }
+            }
+            Button(enabled = brief.isNotBlank() && !generating, onClick = { onRunCouncil(brief, selectedRoles) }) {
+                Text("Run council")
+            }
+        }
+        GenerationOutput(output = output, generating = generating)
     }
 }
 

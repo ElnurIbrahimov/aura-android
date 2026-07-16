@@ -2,11 +2,19 @@ package com.aura.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aura.capabilities.CapabilityRouter
+import com.aura.creative.CouncilResult
+import com.aura.creative.CouncilRole
+import com.aura.creative.CouncilSessionRequest
+import com.aura.creative.CreativeCouncil
 import com.aura.creative.CreativeEngine
 import com.aura.creative.CreativeMode
 import com.aura.creative.CreativeProject
 import com.aura.creative.CreativeProjectStore
 import com.aura.creative.WorldBible
+import com.aura.providers.ChatOptions
+import com.aura.providers.ProviderMessage
+import com.aura.providers.ProviderRegistry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,12 +33,16 @@ data class CreativeStudioUiState(
     val error: String? = null,
     val message: String? = null,
     val createdProjectId: String? = null,
+    val councilResult: CouncilResult? = null,
 )
 
 @HiltViewModel
 class CreativeStudioViewModel @Inject constructor(
     private val store: CreativeProjectStore,
     private val engine: CreativeEngine,
+    private val council: CreativeCouncil,
+    private val providerRegistry: ProviderRegistry,
+    private val capabilityRouter: CapabilityRouter,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -127,6 +139,67 @@ class CreativeStudioViewModel @Inject constructor(
             val refreshed = store.get(project.id)
             _state.update { it.copy(selectedProject = refreshed ?: it.selectedProject, generating = false) }
         }
+    }
+
+    fun runCouncil(brief: String, roles: List<CouncilRole>) {
+        val project = _state.value.selectedProject ?: return
+        generationJob?.cancel()
+        generationJob = viewModelScope.launch {
+            _state.update { it.copy(generating = true, output = "", error = null, councilResult = null) }
+            runCatching {
+                val result = council.run(
+                    request = CouncilSessionRequest(
+                        projectId = project.id,
+                        brief = brief,
+                        roles = roles,
+                    ),
+                    executor = { task ->
+                        val modelId = resolveSubagentModel(task.spec.modelRole)
+                        val messages = listOf(
+                            ProviderMessage(role = ProviderMessage.Role.system, content = task.spec.objective),
+                            ProviderMessage(role = ProviderMessage.Role.user, content = brief),
+                        )
+                        val start = System.currentTimeMillis()
+                        val output = StringBuilder()
+                        providerRegistry.chat(modelId, messages, ChatOptions(maxTokens = 2_048, temperature = 0.7)).collect { chunk ->
+                            chunk.error?.let { throw IllegalStateException(it.message) }
+                            chunk.text?.takeIf(String::isNotEmpty)?.let { output.append(it) }
+                        }
+                        com.aura.agents.SubagentResult(
+                            taskId = task.id,
+                            success = true,
+                            output = output.toString(),
+                            rationale = "Executed via model role ${task.spec.modelRole}.",
+                            durationMs = System.currentTimeMillis() - start,
+                        )
+                    },
+                )
+                _state.update {
+                    it.copy(
+                        output = result.directorOutput.ifBlank { result.proposals.joinToString("\n\n---\n\n") { p -> "${p.role.displayName}: ${p.content}" } },
+                        councilResult = result,
+                        generating = false,
+                    )
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Council failed.", generating = false) }
+            }
+        }
+    }
+
+    private suspend fun resolveSubagentModel(modelRole: String): String {
+        // Map council role to a configured capability provider if possible.
+        val capability = runCatching {
+            val provider = when (modelRole) {
+                "CREATIVE_DRAFT" -> capabilityRouter.resolve(com.aura.capabilities.CapabilityKind.ImageGeneration)
+                "DEEP_RESEARCH" -> capabilityRouter.resolve(com.aura.capabilities.CapabilityKind.WebSearch)
+                else -> null
+            }
+            provider?.prefix
+        }.getOrNull()
+        // prefix is just a label here; the subagent executor needs a chat model.
+        // Fall back to the default conversation model.
+        return capability ?: "default"
     }
 
     fun cancelGeneration() {
