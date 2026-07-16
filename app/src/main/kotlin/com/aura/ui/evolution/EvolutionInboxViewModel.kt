@@ -2,18 +2,20 @@ package com.aura.ui.evolution
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aura.data.UserPreferences
 import com.aura.evolution.EvolutionDomain
 import com.aura.evolution.EvolutionProposalDao
 import com.aura.evolution.EvolutionProposalEntity
 import com.aura.evolution.EvolutionProposalStore
+import com.aura.evolution.EvolutionRollbackManager
 import com.aura.evolution.EvolutionSettingsDao
 import com.aura.evolution.EvolutionSettingsEntity
-import com.aura.evolution.EvolutionRollbackManager
 import com.aura.evolution.ProposalStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -27,6 +29,7 @@ class EvolutionInboxViewModel @Inject constructor(
     private val proposalStore: EvolutionProposalStore,
     private val settingsDao: EvolutionSettingsDao,
     private val rollbackManager: EvolutionRollbackManager,
+    private val userPreferences: UserPreferences,
 ) : ViewModel() {
 
     private val _proposals = MutableStateFlow<List<EvolutionProposalEntity>>(emptyList())
@@ -35,17 +38,28 @@ class EvolutionInboxViewModel @Inject constructor(
     private val _settings = MutableStateFlow<List<EvolutionSettingsEntity>>(emptyList())
     val settings: StateFlow<List<EvolutionSettingsEntity>> = _settings.asStateFlow()
 
-    fun rollback(proposalId: String) {
-        viewModelScope.launch {
-            rollbackManager.rollback(proposalId)
-            load()
-        }
-    }
+    private val _showOnboarding = MutableStateFlow(false)
+    val showOnboarding: StateFlow<Boolean> = _showOnboarding.asStateFlow()
 
     fun load() {
         viewModelScope.launch {
             _proposals.value = proposalDao.open()
             _settings.value = EvolutionDomain.entries.map { settingsDao.get(it.name) ?: EvolutionSettingsEntity(it.name) }
+            _showOnboarding.value = !userPreferences.evolutionOnboardingShown.first() && _proposals.value.isEmpty()
+        }
+    }
+
+    fun dismissOnboarding() {
+        viewModelScope.launch {
+            userPreferences.setEvolutionOnboardingShown(true)
+            _showOnboarding.value = false
+        }
+    }
+
+    fun rollback(proposalId: String) {
+        viewModelScope.launch {
+            rollbackManager.rollback(proposalId)
+            load()
         }
     }
 

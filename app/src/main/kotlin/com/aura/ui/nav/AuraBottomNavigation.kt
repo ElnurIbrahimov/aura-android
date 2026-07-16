@@ -24,9 +24,11 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -64,12 +66,14 @@ sealed class TopLevelRoute(
     )
     data object Memory : TopLevelRoute("memory", "Memory", Icons.Filled.Memory, Icons.Outlined.Memory)
     data object Settings : TopLevelRoute("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+    data object Evolution : TopLevelRoute("evolution", "Evolve", Icons.Filled.AutoFixHigh, Icons.Outlined.AutoFixHigh)
 }
 
 internal val topLevelRoutes = listOf(
     TopLevelRoute.Home,
     TopLevelRoute.Chat,
     TopLevelRoute.Memory,
+    TopLevelRoute.Evolution,
     TopLevelRoute.Settings,
 )
 

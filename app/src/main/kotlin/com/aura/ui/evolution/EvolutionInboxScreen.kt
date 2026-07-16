@@ -42,6 +42,7 @@ fun EvolutionInboxScreen(
     var selectedProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
     val proposals = viewModel.proposals.collectAsState().value
     val settings = viewModel.settings.collectAsState().value
+    val showOnboarding = viewModel.showOnboarding.collectAsState().value
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -80,6 +81,19 @@ fun EvolutionInboxScreen(
                 )
             }
         }
+    }
+
+    if (showOnboarding) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissOnboarding() },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissOnboarding() }) {
+                    Text("Start evolving")
+                }
+            },
+            title = { Text("Evolution") },
+            text = { Text("Aura can learn from your conversations and propose skill, memory, and proactive improvements. Approved changes run through a safety gate, and you can roll back anything later.") },
+        )
     }
 
     selectedProposal?.let { proposal ->
