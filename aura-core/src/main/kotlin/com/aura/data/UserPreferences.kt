@@ -321,6 +321,7 @@ class UserPreferences @Inject constructor(
     private val KEY_VERIFIER_MODEL = stringPreferencesKey("verifier_model")
     private val KEY_FAST_MODEL = stringPreferencesKey("fast_model")
     private val KEY_REASONING_MODEL = stringPreferencesKey("reasoning_model")
+    private val KEY_EVOLUTION_MODEL = stringPreferencesKey("evolution_model")
 
     /** Flow of the user's preferred model for a [com.aura.providers.ModelRole]. */
     fun forRole(role: com.aura.providers.ModelRole): Flow<kotlin.String?> = when (role) {
@@ -334,6 +335,7 @@ class UserPreferences @Inject constructor(
         com.aura.providers.ModelRole.PLANNER -> optionalModel(KEY_PLANNER_MODEL)
         com.aura.providers.ModelRole.VERIFIER -> optionalModel(KEY_VERIFIER_MODEL)
         com.aura.providers.ModelRole.EMBEDDING -> optionalModel(KEY_EMBEDDING_MODEL)
+        com.aura.providers.ModelRole.EVOLUTION -> optionalModel(KEY_EVOLUTION_MODEL)
     }
 
     /** Set the model for a [com.aura.providers.ModelRole]. Null clears it. */
@@ -349,6 +351,7 @@ class UserPreferences @Inject constructor(
             com.aura.providers.ModelRole.PLANNER -> setOptionalModel(KEY_PLANNER_MODEL, model)
             com.aura.providers.ModelRole.VERIFIER -> setOptionalModel(KEY_VERIFIER_MODEL, model)
             com.aura.providers.ModelRole.EMBEDDING -> setOptionalModel(KEY_EMBEDDING_MODEL, model)
+            com.aura.providers.ModelRole.EVOLUTION -> setOptionalModel(KEY_EVOLUTION_MODEL, model)
         }
     }
 }
