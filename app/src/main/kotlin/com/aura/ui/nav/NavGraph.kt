@@ -26,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aura.AuraLaunchRequest
+import com.aura.ui.screens.agentrun.AgentRunsScreen
 import com.aura.ui.screens.chat.ChatRoute
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.HandsScreen
@@ -247,6 +248,21 @@ fun NavGraph(
                 val projectId = backStackEntry.arguments?.getString("projectId").orEmpty()
                 CreativeProjectScreen(
                     projectId = projectId,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("agent_runs") {
+                AgentRunsScreen(
+                    runId = null,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = "agent_runs/{runId}",
+                arguments = listOf(navArgument("runId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                AgentRunsScreen(
+                    runId = backStackEntry.arguments?.getString("runId"),
                     onBack = { navController.popBackStack() },
                 )
             }

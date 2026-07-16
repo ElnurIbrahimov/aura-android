@@ -24,6 +24,7 @@ fun HomeRoute(
     onOpenHands: () -> Unit = {},
     onOpenSkills: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
+    openAgentRuns: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val greeting = remember(state.hour, state.userName) {

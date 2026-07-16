@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -59,6 +60,7 @@ fun HomeSecondaryActions(
     onOpenSkills: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
     onOpenProactive: () -> Unit,
+    onOpenAgentRuns: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val destinations = listOf(
@@ -109,6 +111,12 @@ fun HomeSecondaryActions(
             if (proactiveCount == 0) "View activity" else "$proactiveCount updates",
             Icons.Filled.NotificationsActive,
             onOpenProactive,
+        ),
+        HomeDestination(
+            "Runs",
+            "Agent runs",
+            Icons.Filled.AccountTree,
+            onOpenAgentRuns,
         ),
     )
 
