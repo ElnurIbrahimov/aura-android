@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import io.mockk.mockk
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +28,11 @@ class EvolutionCoordinatorTest {
             .build()
         val detectors = EvolutionCandidateDetectors(db.evidenceDao(), db.candidateDao())
         val metrics = EvolutionMetricsRecorder(db.settingsDao())
-        coordinator = EvolutionCoordinator(detectors, metrics)
+        val reflection = mockk<EvolutionReflectionExecutor>(relaxed = true)
+        val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)
+        val candidateDao = db.candidateDao()
+        val settingsDao = db.settingsDao()
+        coordinator = EvolutionCoordinator(detectors, metrics, reflection, proposalStore, candidateDao, settingsDao)
     }
 
     @After
