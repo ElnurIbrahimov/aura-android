@@ -57,6 +57,7 @@ import com.aura.ui.components.ModelPickerSheet
 import com.aura.ui.settings.BackupViewModel
 import com.aura.ui.settings.CustomEndpointCard
 import com.aura.ui.settings.McpServerDraft
+import com.aura.ui.settings.SettingsEvolutionSection
 import com.aura.ui.settings.ProviderKeyField
 import com.aura.ui.settings.SETTINGS_CREDENTIAL_SPECS
 import com.aura.ui.settings.SettingsViewModel
@@ -68,6 +69,33 @@ import com.aura.ui.theme.AuraThemeTokens
 // ────────────────────────────────────────────────────────────
 // Reusable collapsible section card
 // ────────────────────────────────────────────────────────────
+
+@Composable
+private fun SettingsClickableRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        color = AuraThemeTokens.colors.surface1,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f))
+            }
+            TextButton(onClick = onClick) { Text("Open") }
+        }
+    }
+}
 
 @Composable
 private fun SettingsSection(
@@ -172,6 +200,8 @@ fun SettingsScreen(
     onNavigateProfile: () -> Unit,
     onNavigateIdentity: () -> Unit = {},
     onNavigateDiagnostics: () -> Unit = {},
+    onNavigateEvolutionInbox: () -> Unit = {},
+    onNavigateBeliefs: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
     usageViewModel: UsageViewModel = hiltViewModel(),
@@ -1139,6 +1169,30 @@ fun SettingsScreen(
             subtitle = "Export, restore, and inspect local diagnostics",
             initialExpanded = false,
         ) {
+        // ════════════════════════════════════════════════════════════════
+        // X. EVOLUTION — self-improvement proposals and beliefs
+        // ════════════════════════════════════════════════════════════════
+        SettingsSection(
+            emoji = "🧬",
+            title = "Evolution",
+            subtitle = "Review and control self-improvement proposals",
+            initialExpanded = false,
+        ) {
+            Column {
+                SettingsClickableRow(
+                    title = "Evolution inbox",
+                    subtitle = "Pending skill / memory / proactive proposals",
+                    onClick = onNavigateEvolutionInbox,
+                )
+                SettingsClickableRow(
+                    title = "Active beliefs",
+                    subtitle = "Memory-synthesized beliefs and evidence",
+                    onClick = onNavigateBeliefs,
+                )
+                SettingsEvolutionSection()
+            }
+        }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

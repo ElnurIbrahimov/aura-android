@@ -9,6 +9,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +29,7 @@ import com.aura.evolution.ProposalStatus
 
 @Composable
 fun EvolutionInboxScreen(
+    onBack: () -> Unit,
     viewModel: EvolutionInboxViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -34,6 +39,9 @@ fun EvolutionInboxScreen(
     LaunchedEffect(Unit) { viewModel.load() }
 
     Column(modifier = modifier.fillMaxSize()) {
+        IconButton(onClick = onBack, modifier = Modifier.padding(start = 8.dp, top = 8.dp)) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        }
         Text(
             text = "Evolution Inbox",
             style = MaterialTheme.typography.headlineMedium,

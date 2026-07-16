@@ -62,6 +62,8 @@ internal val KEY_CUSTOM_IDENTITY = stringPreferencesKey("custom_identity")
 internal val KEY_SPECIALIST_OVERRIDES = stringPreferencesKey("specialist_overrides")
 internal val KEY_MORNING_BRIEF_HOUR = intPreferencesKey("morning_brief_hour")
 internal val KEY_SPECIALIST_TOOL_OVERRIDES = stringPreferencesKey("specialist_tool_overrides")
+internal val KEY_EVOLUTION_ENABLED = booleanPreferencesKey("evolution_enabled")
+internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interval_hours")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
 internal val KEY_SMTP_PORT = intPreferencesKey("smtp_port")
 internal val KEY_SMTP_USERNAME = stringPreferencesKey("smtp_username")
@@ -212,6 +214,16 @@ class UserPreferences @Inject constructor(
         prefs[KEY_SPECIALIST_TOOL_OVERRIDES] ?: "{}"
     }
 
+    /** Whether the evolution loop is enabled. Defaults to false (opt-in). */
+    val evolutionEnabled: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_EVOLUTION_ENABLED] ?: false
+    }
+
+    /** Hours between evolution runs. Default 24. */
+    val evolutionIntervalHours: Flow<Int> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_EVOLUTION_INTERVAL_HOURS] ?: 24
+    }
+
     suspend fun setDefaultModel(model: String?) = setOptionalModel(KEY_DEFAULT_MODEL, model)
     suspend fun setVisionModel(model: String?) = setOptionalModel(KEY_VISION_MODEL, model)
     suspend fun setBackgroundModel(model: String?) = setOptionalModel(KEY_BACKGROUND_MODEL, model)
@@ -272,6 +284,14 @@ class UserPreferences @Inject constructor(
 
     suspend fun setSpecialistToolOverrides(json: String) {
         context.auraPrefs.edit { it[KEY_SPECIALIST_TOOL_OVERRIDES] = json }
+    }
+
+    suspend fun setEvolutionEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_EVOLUTION_ENABLED] = enabled }
+    }
+
+    suspend fun setEvolutionIntervalHours(hours: Int) {
+        context.auraPrefs.edit { it[KEY_EVOLUTION_INTERVAL_HOURS] = hours.coerceIn(1, 168) }
     }
 
     suspend fun setMorningBriefHour(hour: Int) {

@@ -29,6 +29,8 @@ import com.aura.AuraLaunchRequest
 import com.aura.ui.screens.agentrun.AgentRunsScreen
 import com.aura.ui.screens.chat.ChatRoute
 import com.aura.ui.screens.production.ProductionPipelineScreen
+import com.aura.ui.evolution.EvolutionInboxScreen
+import com.aura.ui.evolution.BeliefsScreen
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.HandsScreen
 import com.aura.ui.screens.HistoryScreen
@@ -198,6 +200,8 @@ fun NavGraph(
                     onNavigateProfile = { navController.navigate("profile") },
                     onNavigateIdentity = { navController.navigate("identity_editor") },
                     onNavigateDiagnostics = { navController.navigate("diagnostics") },
+                    onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
+                    onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
                 )
             }
             composable("diagnostics") {
@@ -271,6 +275,12 @@ fun NavGraph(
             }
             composable("skills") {
                 SkillsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("evolution/inbox") {
+                EvolutionInboxScreen(onBack = { navController.popBackStack() })
+            }
+            composable("evolution/beliefs") {
+                BeliefsScreen()
             }
         }
     }
