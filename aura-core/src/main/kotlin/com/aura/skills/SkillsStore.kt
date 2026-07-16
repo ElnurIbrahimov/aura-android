@@ -21,6 +21,7 @@ private const val KEY_SKILLS = "aura_skills_v1"
 @Singleton
 class SkillsStore @Inject constructor(
     private val secureDataStore: SecureDataStore,
+    private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val _skills = MutableStateFlow<List<Skill>>(emptyList())
     val skills: StateFlow<List<Skill>> = _skills.asStateFlow()
@@ -52,6 +53,7 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value.map { if (it.id == skill.id) skill else it }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+        runCatching { evolutionHooks?.onSkillEdited(skill.id) }
     }
 
     suspend fun remove(id: String) {

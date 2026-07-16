@@ -50,6 +50,7 @@ class MorningBriefBuilder @Inject constructor(
     private val calendarReadTool: CalendarReadTool,
     private val eventBus: ProactiveEventBus,
     private val userPreferences: UserPreferences,
+    private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     suspend fun runNow(): androidx.work.ListenableWorker.Result {
         val now = System.currentTimeMillis()
@@ -117,6 +118,9 @@ class MorningBriefBuilder @Inject constructor(
             body = notificationBody,
             summary = summary,
         )
+        runCatching {
+            evolutionHooks?.onProactiveDelivered("mb_${now}", "morning_brief")
+        }
         return androidx.work.ListenableWorker.Result.success()
     }
 

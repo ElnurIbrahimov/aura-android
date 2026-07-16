@@ -16,6 +16,7 @@ class MemoryStore @Inject constructor(
     private val vectorIndex: VectorIndex,
     private val writeGate: WriteGate,
     private val memoryEditDao: MemoryEditDao,
+    private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val exactInsertMutex = Mutex()
     suspend fun maybeStore(
@@ -127,6 +128,9 @@ class MemoryStore @Inject constructor(
                 sourceTurnTimestamp = provenance.turnTimestamp,
             )
         )
+        runCatching {
+            evolutionHooks?.onMemoryStored(id, category, runId = null, provenance.conversationId, provenance.turnTimestamp)
+        }
         return id
     }
 
@@ -192,8 +196,11 @@ class MemoryStore @Inject constructor(
         )
 
         // Touch is fire-and-forget; we don't want a failed decay update to break recall.
-        for (mem in results) {
+        for ((index, mem) in results.withIndex()) {
             runCatching { touch(mem.id) }
+            runCatching {
+                evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
+            }
         }
         return results
     }
@@ -239,7 +246,10 @@ class MemoryStore @Inject constructor(
     suspend fun byCategory(category: String, limit: Int = 20): List<MemoryEntity> = dao.byCategory(category, limit)
     suspend fun top(limit: Int = 20): List<MemoryEntity> = dao.top(limit)
     suspend fun get(id: String): MemoryEntity? = dao.getById(id)
-    suspend fun forget(id: String) = dao.delete(id)
+    suspend fun forget(id: String) {
+        dao.delete(id)
+        runCatching { evolutionHooks?.onMemoryForgotten(id) }
+    }
 
     suspend fun deleteBySource(source: String) = dao.deleteBySource(source)
 
