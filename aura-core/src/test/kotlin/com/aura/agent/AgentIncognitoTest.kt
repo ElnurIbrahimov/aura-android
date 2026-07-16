@@ -85,7 +85,7 @@ class AgentIncognitoTest {
         coVerify {
             memoryStore.store(
                 any<String>(), any<String>(), any<String>(), any<Float>(), any<List<String>>(),
-                any<com.aura.provenance.ConversationProvenance>(),
+                any<String>(), any<com.aura.provenance.ConversationProvenance>(),
             )
         }
         // KG extraction receives one labeled, provenance-linked turn.
@@ -121,7 +121,7 @@ class AgentIncognitoTest {
         coVerify(exactly = 0) {
             memoryStore.store(
                 any<String>(), any<String>(), any<String>(), any<Float>(), any<List<String>>(),
-                any<com.aura.provenance.ConversationProvenance>(),
+                any<String>(), any<com.aura.provenance.ConversationProvenance>(),
             )
         }
         coVerify(exactly = 0) { userProfileStore.update(name = any(), traits = any(), preferences = any(), facts = any()) }

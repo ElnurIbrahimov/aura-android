@@ -181,8 +181,8 @@ class EndToEndTest {
         // for the user message containing "Elnur".
         io.mockk.coVerify {
             memoryStore.store(
-                match { it.contains("Elnur") }, any<String>(), any<String>(), any<Float>(), any<List<String>>(),
-                match<com.aura.provenance.ConversationProvenance> { it.conversationId == conv.id },
+                match { it.contains("Elnur") }, any<String>(), any<String>(), any<Float>(), any<List<String>>(), any<String>(),
+                provenance = match<com.aura.provenance.ConversationProvenance> { it.conversationId == conv.id },
             )
         }
     }

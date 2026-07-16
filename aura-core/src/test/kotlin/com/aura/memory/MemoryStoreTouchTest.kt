@@ -2,6 +2,7 @@ package com.aura.memory
 
 import com.aura.memory.MemoryDao
 import com.aura.memory.MemoryEntity
+import com.aura.memory.MemoryFeedbackDao
 import com.aura.memory.MemoryStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -23,6 +24,7 @@ import kotlin.test.assertNotNull
  */
 class MemoryStoreTouchTest {
     private val memoryEditDao = mockk<MemoryEditDao>(relaxed = true)
+    private val memoryFeedbackDao = mockk<MemoryFeedbackDao>(relaxed = true)
 
     private fun mem(id: String, content: String) = MemoryEntity(
         id = id,
@@ -44,7 +46,14 @@ class MemoryStoreTouchTest {
         coEvery { vectorIndex.search(any(), any(), any()) } returns emptyList()
 
         val writeGate = mockk<WriteGate>(relaxed = true)
-        val store = MemoryStore(dao, embedder, vectorIndex, writeGate, memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            embedder,
+            vectorIndex,
+            writeGate,
+            memoryEditDao,
+            memoryFeedbackDao
+        )
 
         val results = store.query("dark", limit = 5)
         assertEquals(2, results.size, "query should return both hits")
@@ -69,6 +78,7 @@ class MemoryStoreTouchTest {
             mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
 
         val results = store.query("nothing", limit = 5)
@@ -90,6 +100,7 @@ class MemoryStoreTouchTest {
             mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
 
         store.listByCategory("preference", 10)
@@ -107,6 +118,7 @@ class MemoryStoreTouchTest {
             mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
 
         val results = store.listByCategory("fact", 10)

@@ -69,8 +69,9 @@ import com.aura.kg.NodeEntity
         StyleProfileEntity::class,
         ReferenceIdentityEntity::class,
         RoutingOutcomeEntity::class,
+        MemoryFeedbackEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -96,4 +97,5 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun styleProfileDao(): StyleProfileDao
     abstract fun referenceIdentityDao(): ReferenceIdentityDao
     abstract fun routingOutcomeDao(): RoutingOutcomeDao
+    abstract fun memoryFeedbackDao(): MemoryFeedbackDao
 }

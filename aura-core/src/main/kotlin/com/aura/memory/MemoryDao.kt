@@ -132,3 +132,15 @@ interface MemoryDao {
     @Query("UPDATE memories SET category = :newCategory WHERE category = :oldCategory")
     suspend fun updateCategory(oldCategory: String, newCategory: String)
 }
+
+@Dao
+interface MemoryFeedbackDao {
+    @Insert
+    suspend fun insert(row: MemoryFeedbackEntity)
+
+    @Query("SELECT * FROM memory_feedback WHERE memoryId = :memoryId ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun byMemoryId(memoryId: String, limit: Int = 20): List<MemoryFeedbackEntity>
+
+    @Query("SELECT COUNT(*) FROM memory_feedback WHERE memoryId = :memoryId AND kind = :kind")
+    suspend fun count(memoryId: String, kind: String): Int
+}

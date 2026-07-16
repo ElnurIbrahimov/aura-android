@@ -14,6 +14,7 @@ import kotlin.test.assertTrue
 
 class MemoryStoreTest {
     private val memoryEditDao = mockk<MemoryEditDao>(relaxed = true)
+    private val memoryFeedbackDao = mockk<MemoryFeedbackDao>(relaxed = true)
 
     @Test
     fun `local embedder produces normalized vector of correct dim`() = runTest {
@@ -118,6 +119,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         val original = MemoryEntity(
             id = "m1", content = "old", source = "user", category = "fact",
@@ -143,7 +145,14 @@ class MemoryStoreTest {
     @Test
     fun `update saves importance and tags`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
-        val store = MemoryStore(dao, FakeEmbedder(384), VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         val original = MemoryEntity(
             id = "m1", content = "old", source = "user", category = "fact",
             importance = 0.3f, embedding = ByteArray(384 * 4),
@@ -169,6 +178,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         coEvery { dao.getById("missing") } returns null
         store.update("missing", "x", "fact")
@@ -185,6 +195,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         val p1 = MemoryEntity(id = "p1", content = "a", source = "user", category = "fact", embedding = null)
         val p2 = MemoryEntity(id = "p2", content = "b", source = "user", category = "fact", embedding = null)
@@ -207,6 +218,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         val p = MemoryEntity(id = "p1", content = "a", source = "user", category = "fact", embedding = ByteArray(384 * 4))
         coEvery { dao.allForExport() } returns listOf(p)
@@ -226,6 +238,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         coEvery { dao.allForExport() } returns emptyList()
 
@@ -244,6 +257,7 @@ class MemoryStoreTest {
             VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
+        memoryFeedbackDao,
         )
         val p1 = MemoryEntity(id = "p1", content = "a", source = "user", category = "fact", embedding = null)
         val p2 = MemoryEntity(id = "p2", content = "b", source = "user", category = "fact", embedding = null)
@@ -263,7 +277,14 @@ class MemoryStoreTest {
     @Test
     fun `storeIfAbsent inserts an exact marker only once`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
-        val store = MemoryStore(dao, FakeEmbedder(384), VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         val content = "This user started using Aura. They went through the onboarding."
         var exists = false
         coEvery { dao.existsByContent(content) } answers { if (exists) 1 else 0 }
@@ -291,7 +312,14 @@ class MemoryStoreTest {
     fun `storeIfAbsent skips embedding when marker already exists`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val embedder = mockk<Embedder>(relaxed = true)
-        val store = MemoryStore(dao, embedder, VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            embedder,
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         coEvery { dao.existsByContent("marker") } returns 1
 
         val result = store.storeIfAbsent("marker", "system", "episode", 0.8f)
@@ -305,7 +333,14 @@ class MemoryStoreTest {
     fun `maybeStore deduplicates identical content`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val embedder = FakeEmbedder(384)
-        val store = MemoryStore(dao, embedder, VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            embedder,
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         coEvery { dao.existsByContent("I prefer dark mode") } returns 1
         val result = store.maybeStore("I prefer dark mode", "user")
         assertNull(result)
@@ -316,7 +351,14 @@ class MemoryStoreTest {
     fun `maybeStore stores new content when no duplicate exists`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val embedder = FakeEmbedder(384)
-        val store = MemoryStore(dao, embedder, VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            embedder,
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         coEvery { dao.existsByContent("I prefer light mode") } returns 0
         val result = store.maybeStore("I prefer light mode", "user")
         assertNotNull(result)
@@ -328,7 +370,14 @@ class MemoryStoreTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val captured = slot<MemoryEntity>()
         coEvery { dao.insert(capture(captured)) } answers { Unit }
-        val store = MemoryStore(dao, FakeEmbedder(384), VectorIndex(384), WriteGate(), memoryEditDao)
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
         val provenance = com.aura.provenance.ConversationProvenance("conv-42", 1_700_000_123L)
 
         store.store(
@@ -347,7 +396,14 @@ class MemoryStoreTest {
     fun `restore reinserts exact memory and its audit trail`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val editDao = mockk<MemoryEditDao>(relaxed = true)
-        val store = MemoryStore(dao, FakeEmbedder(384), VectorIndex(384), WriteGate(), editDao)
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            editDao,
+            memoryFeedbackDao
+        )
         val memory = MemoryEntity(
             id = "memory-original",
             content = "Original fact",

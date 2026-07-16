@@ -40,3 +40,16 @@ data class MemoryEntity(
     }
     override fun hashCode(): Int = id.hashCode()
 }
+
+
+@Entity(
+    tableName = "memory_feedback",
+    indices = [Index("memoryId"), Index("createdAt")]
+)
+data class MemoryFeedbackEntity(
+    @PrimaryKey val id: String,
+    val memoryId: String,
+    val kind: String, // "upvote", "downvote", "corrected", "forgotten"
+    val note: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+)

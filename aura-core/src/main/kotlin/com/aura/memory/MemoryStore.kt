@@ -16,12 +16,14 @@ class MemoryStore @Inject constructor(
     private val vectorIndex: VectorIndex,
     private val writeGate: WriteGate,
     private val memoryEditDao: MemoryEditDao,
+    private val memoryFeedbackDao: MemoryFeedbackDao,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val exactInsertMutex = Mutex()
     suspend fun maybeStore(
         content: String,
         source: String = "user",
+        scope: String = "general",
         provenance: ConversationProvenance = ConversationProvenance(),
     ): String? {
         val decision = writeGate.evaluate(content, source)
@@ -80,6 +82,7 @@ class MemoryStore @Inject constructor(
                 decayScore = 1.0f,
                 sourceConversationId = provenance.conversationId,
                 sourceTurnTimestamp = provenance.turnTimestamp,
+                scope = scope,
             )
         )
         return id
@@ -96,9 +99,10 @@ class MemoryStore @Inject constructor(
         category: String,
         importance: Float,
         tags: List<String> = emptyList(),
+        scope: String = "general",
     ): String? = exactInsertMutex.withLock {
         if (dao.existsByContent(content) > 0) return@withLock null
-        store(content, source, category, importance, tags)
+        store(content, source, category, importance, tags, scope)
     }
 
     suspend fun store(
@@ -107,6 +111,7 @@ class MemoryStore @Inject constructor(
         category: String,
         importance: Float,
         tags: List<String> = emptyList(),
+        scope: String = "general",
         provenance: ConversationProvenance = ConversationProvenance(),
     ): String {
         val id = UUID.randomUUID().toString()
@@ -126,6 +131,7 @@ class MemoryStore @Inject constructor(
                 tags = tags.joinToString(","),
                 sourceConversationId = provenance.conversationId,
                 sourceTurnTimestamp = provenance.turnTimestamp,
+                scope = scope,
             )
         )
         runCatching {
@@ -249,6 +255,16 @@ class MemoryStore @Inject constructor(
     suspend fun forget(id: String) {
         dao.delete(id)
         runCatching { evolutionHooks?.onMemoryForgotten(id) }
+    }
+
+    suspend fun recordFeedback(memoryId: String, kind: String, note: String = "") {
+        val row = MemoryFeedbackEntity(
+            id = java.util.UUID.randomUUID().toString(),
+            memoryId = memoryId,
+            kind = kind,
+            note = note,
+        )
+        runCatching { memoryFeedbackDao.insert(row) }
     }
 
     suspend fun deleteBySource(source: String) = dao.deleteBySource(source)
