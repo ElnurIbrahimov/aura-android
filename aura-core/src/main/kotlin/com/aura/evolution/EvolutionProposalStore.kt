@@ -1,8 +1,8 @@
 package com.aura.evolution
 
 import java.util.UUID
-import javax.inject.Inject
 import javax.inject.Singleton
+import javax.inject.Inject
 import com.aura.evolution.EvolutionMetrics
 
 /**
@@ -15,12 +15,14 @@ class EvolutionProposalStore @Inject constructor(
     private val revisionDao: EvolutionRevisionDao,
     private val candidateDao: EvolutionCandidateDao,
     private val metrics: EvolutionMetrics,
+    private val safetyGuard: EvolutionSafetyGuard,
 ) {
     /**
      * Create a proposal from a high-confidence candidate. The caller is
      * responsible for reflection / user approval before invoking apply.
      */
     suspend fun fromCandidate(candidate: EvolutionCandidateEntity): EvolutionProposalEntity {
+        safetyGuard.validateProposal(candidate).getOrThrow()
         val proposal = EvolutionProposalEntity(
             id = UUID.randomUUID().toString(),
             domain = candidate.domain,
