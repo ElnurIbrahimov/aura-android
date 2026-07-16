@@ -80,7 +80,50 @@ class BackupManager @Inject constructor(
     private val reminderScheduler: ReminderScheduler,
     private val handScheduler: HandScheduler,
     private val usageTracker: UsageTracker,
+    private val evolutionProposalDao: com.aura.evolution.EvolutionProposalDao,
+    private val evolutionSettingsDao: com.aura.evolution.EvolutionSettingsDao,
+    private val evolutionRevisionDao: com.aura.evolution.EvolutionRevisionDao,
 ) {
+
+private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
+    id = id,
+    domain = domain,
+    action = action,
+    targetId = targetId,
+    title = title,
+    description = description,
+    summary = summary,
+    patchJson = patchJson,
+    status = status,
+    requiresApproval = requiresApproval,
+    autoApply = autoApply,
+    confidence = confidence,
+    evidenceIdsJson = evidenceIdsJson,
+    candidateIdsJson = candidateIdsJson,
+    applySagaJson = applySagaJson,
+    rollbackSnapshotJson = rollbackSnapshotJson,
+    outcomeNote = outcomeNote,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    resolvedAt = resolvedAt,
+)
+
+private fun com.aura.evolution.EvolutionSettingsEntity.toBackup() = EvolutionSettingsBackup(
+    domain = domain,
+    enabled = enabled,
+    updatedAt = updatedAt,
+)
+
+private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRevisionBackup(
+    id = id,
+    domain = domain,
+    targetId = targetId,
+    proposalId = proposalId,
+    summary = summary,
+    snapshotCiphertext = snapshotCiphertext,
+    metadataJson = metadataJson,
+    createdAt = createdAt,
+)
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
@@ -225,6 +268,7 @@ class BackupManager @Inject constructor(
         userPreferences.setMorningBriefHour(backup.preferences.morningBriefHour)
         userPreferences.setSpecialistToolOverrides(backup.preferences.specialistToolOverrides)
         usageTracker.restore(backup.usage)
+        restoreEvolution(backup)
 
         RestoreCounts(
             memories = memRows.size,
@@ -240,7 +284,25 @@ class BackupManager @Inject constructor(
             reminders = reminderRows.size,
             proactiveEvents = proactiveRows.size,
             profile = if (profileRow != null) 1 else 0,
+            evolutionProposals = backup.evolutionProposals.size,
+            evolutionSettings = backup.evolutionSettings.size,
+            evolutionRevisions = backup.evolutionRevisions.size,
         )
+    }
+
+    private suspend fun restoreEvolution(backup: AuraBackup) {
+        backup.evolutionProposals.map { it.toEntity() }.let { rows ->
+            if (rows.isNotEmpty()) evolutionProposalDao.insertAll(rows)
+        }
+        backup.evolutionRevisions.map { it.toEntity() }.let { rows ->
+            if (rows.isNotEmpty()) evolutionRevisionDao.insertAll(rows)
+        }
+        backup.evolutionSettings.forEach { settings ->
+            evolutionSettingsDao.upsert(settings.toEntity())
+        }
+        // Restore evolution preferences.
+        userPreferences.setEvolutionEnabled(backup.preferences.evolutionEnabled)
+        userPreferences.setEvolutionIntervalHours(backup.preferences.evolutionIntervalHours)
     }
 
     private suspend fun restoreReminders(rows: List<ReminderEntity>) {
@@ -290,6 +352,9 @@ class BackupManager @Inject constructor(
         reminderDao.deleteAll()
         taskDao.deleteAll()
         proactiveEventDao.deleteAll()
+        evolutionProposalDao.deleteAll()
+        evolutionRevisionDao.deleteAll()
+        evolutionSettingsDao.deleteAll()
         userProfileDao.deleteAll()
     }
 
@@ -319,8 +384,11 @@ class BackupManager @Inject constructor(
         val reminders: Int,
         val proactiveEvents: Int,
         val profile: Int,
+        val evolutionProposals: Int = 0,
+        val evolutionSettings: Int = 0,
+        val evolutionRevisions: Int = 0,
     ) {
-        val total: Int get() = memories + memoryEdits + documents + creativeProjects + conversations + nodes + edges + hands + handRuns + tasks + reminders + proactiveEvents + profile
+        val total: Int get() = memories + memoryEdits + documents + creativeProjects + conversations + nodes + edges + hands + handRuns + tasks + reminders + proactiveEvents + profile + evolutionProposals + evolutionSettings + evolutionRevisions
     }
 }
 
@@ -583,4 +651,43 @@ private fun UserProfileBackup.toEntity() = UserProfileEntity(
     preferencesJson = preferencesJson,
     factsJson = factsJson,
     lastUpdated = lastUpdated,
+)
+private fun EvolutionProposalBackup.toEntity() = com.aura.evolution.EvolutionProposalEntity(
+    id = id,
+    domain = domain,
+    action = action,
+    targetId = targetId,
+    title = title,
+    description = description,
+    summary = summary,
+    patchJson = patchJson,
+    status = status,
+    requiresApproval = requiresApproval,
+    autoApply = autoApply,
+    confidence = confidence,
+    evidenceIdsJson = evidenceIdsJson,
+    candidateIdsJson = candidateIdsJson,
+    applySagaJson = applySagaJson,
+    rollbackSnapshotJson = rollbackSnapshotJson,
+    outcomeNote = outcomeNote,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    resolvedAt = resolvedAt,
+)
+
+private fun EvolutionSettingsBackup.toEntity() = com.aura.evolution.EvolutionSettingsEntity(
+    domain = domain,
+    enabled = enabled,
+    updatedAt = updatedAt,
+)
+
+private fun EvolutionRevisionBackup.toEntity() = com.aura.evolution.EvolutionRevisionEntity(
+    id = id,
+    domain = domain,
+    targetId = targetId,
+    proposalId = proposalId,
+    summary = summary,
+    snapshotCiphertext = snapshotCiphertext,
+    metadataJson = metadataJson,
+    createdAt = createdAt,
 )

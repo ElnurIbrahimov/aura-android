@@ -74,6 +74,12 @@ interface EvolutionProposalDao {
 
     @Query("DELETE FROM evolution_proposals WHERE resolvedAt <= :cutoff AND status IN ('rejected', 'rolled_back', 'superseded')")
     suspend fun deleteResolvedOlderThan(cutoff: kotlin.Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(proposals: List<EvolutionProposalEntity>)
+
+    @Query("DELETE FROM evolution_proposals")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -89,6 +95,15 @@ interface EvolutionRevisionDao {
 
     @Query("SELECT COUNT(*) FROM evolution_revisions WHERE domain = :domain AND targetId = :targetId")
     suspend fun revisionCount(domain: kotlin.String, targetId: kotlin.String): Int
+
+    @Query("SELECT * FROM evolution_revisions ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<EvolutionRevisionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(revisions: List<EvolutionRevisionEntity>)
+
+    @Query("DELETE FROM evolution_revisions")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -110,4 +125,10 @@ interface EvolutionSettingsDao {
 
     @Query("UPDATE evolution_settings SET reflectionEnabled = :enabled, updatedAt = :timestamp WHERE domain = :domain")
     suspend fun setReflectionEnabled(domain: kotlin.String, enabled: kotlin.Boolean, timestamp: kotlin.Long = System.currentTimeMillis())
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(settings: List<EvolutionSettingsEntity>)
+
+    @Query("DELETE FROM evolution_settings")
+    suspend fun deleteAll()
 }

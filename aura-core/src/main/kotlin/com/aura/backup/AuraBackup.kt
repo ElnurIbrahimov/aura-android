@@ -41,9 +41,12 @@ data class AuraBackup(
     val userProfile: UserProfileBackup? = null,
     val preferences: PreferencesBackup = PreferencesBackup(),
     val usage: UsageSnapshot = UsageSnapshot(),
+    val evolutionProposals: List<EvolutionProposalBackup> = emptyList(),
+    val evolutionSettings: List<EvolutionSettingsBackup> = emptyList(),
+    val evolutionRevisions: List<EvolutionRevisionBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 6
+        const val SCHEMA_VERSION = 7
     }
 }
 
@@ -246,4 +249,50 @@ data class PreferencesBackup(
     val specialistOverrides: String = "{}",
     val morningBriefHour: Int = 7,
     val specialistToolOverrides: String = "{}",
+    val evolutionEnabled: Boolean = false,
+    val evolutionIntervalHours: Int = 24,
 )
+
+@Serializable
+data class EvolutionProposalBackup(
+    val id: String,
+    val domain: String,
+    val action: String,
+    val targetId: String,
+    val title: String = "",
+    val description: String = "",
+    val summary: String = "",
+    val patchJson: String = "{}",
+    val status: String,
+    val requiresApproval: Boolean = true,
+    val autoApply: Boolean = false,
+    val confidence: Float = 0.0f,
+    val evidenceIdsJson: String = "[]",
+    val candidateIdsJson: String = "[]",
+    val applySagaJson: String = "{}",
+    val rollbackSnapshotJson: String = "{}",
+    val outcomeNote: String = "",
+    val createdAt: Long,
+    val updatedAt: Long,
+    val resolvedAt: Long? = null,
+)
+
+@Serializable
+data class EvolutionSettingsBackup(
+    val domain: String,
+    val enabled: Boolean,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class EvolutionRevisionBackup(
+    val id: String,
+    val domain: String,
+    val targetId: String,
+    val proposalId: String? = null,
+    val summary: String = "",
+    val snapshotCiphertext: String = "",
+    val metadataJson: String = "{}",
+    val createdAt: Long,
+)
+

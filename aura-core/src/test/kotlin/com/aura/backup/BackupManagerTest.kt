@@ -37,6 +37,9 @@ class BackupManagerTest {
     private val reminderScheduler = mockk<com.aura.tasks.ReminderScheduler>(relaxed = true)
     private val handScheduler = mockk<com.aura.hands.HandScheduler>(relaxed = true)
     private val usageTracker = com.aura.usage.UsageTracker()
+    private val evolutionProposalDao = mockk<com.aura.evolution.EvolutionProposalDao>(relaxed = true)
+    private val evolutionSettingsDao = mockk<com.aura.evolution.EvolutionSettingsDao>(relaxed = true)
+    private val evolutionRevisionDao = mockk<com.aura.evolution.EvolutionRevisionDao>(relaxed = true)
 
     private val manager = BackupManager(
         context = context,
@@ -56,6 +59,9 @@ class BackupManagerTest {
         reminderScheduler = reminderScheduler,
         handScheduler = handScheduler,
         usageTracker = usageTracker,
+        evolutionProposalDao = evolutionProposalDao,
+        evolutionSettingsDao = evolutionSettingsDao,
+        evolutionRevisionDao = evolutionRevisionDao,
     )
 
     @Test
