@@ -55,6 +55,11 @@ class EvolutionProposalStore @Inject constructor(
         proposalDao.setStatus(id, ProposalStatus.APPLY_FAILED.name, reason)
     }
 
+    suspend fun recordRollbackSnapshot(id: kotlin.String, snapshotJson: kotlin.String) {
+        val proposal = proposalDao.getById(id) ?: return
+        proposalDao.upsert(proposal.copy(rollbackSnapshotJson = snapshotJson, updatedAt = System.currentTimeMillis()))
+    }
+
     suspend fun recordRevision(
         proposalId: kotlin.String,
         targetId: kotlin.String,

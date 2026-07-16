@@ -42,6 +42,9 @@ interface ProactiveEventDao {
 
     @Query("SELECT * FROM proactive_events WHERE correlationTag = :tag ORDER BY timestamp DESC LIMIT :limit")
     suspend fun byCorrelationTag(tag: String, limit: Int = 20): List<ProactiveEventEntity>
+
+    @Query("DELETE FROM proactive_events WHERE correlationTag = :tag")
+    suspend fun deleteByCorrelationTag(tag: kotlin.String): Int
 }
 
 @Dao

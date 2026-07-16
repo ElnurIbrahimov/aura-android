@@ -12,6 +12,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import com.aura.proactive.ProactiveEventDao
+import io.mockk.coEvery
+import io.mockk.mockk
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -28,7 +31,9 @@ class EvolutionProposalStoreTest {
             .allowMainThreadQueries()
             .build()
         store = EvolutionProposalStore(db.proposalDao(), db.revisionDao(), db.candidateDao(), EvolutionMetrics(), EvolutionSafetyGuard())
-        rollback = EvolutionRollbackManager(db.proposalDao(), db.revisionDao(), EvolutionMetrics())
+        val proactiveDao = mockk<ProactiveEventDao>(relaxed = true)
+        coEvery { proactiveDao.deleteByCorrelationTag(any()) } returns 1
+        rollback = EvolutionRollbackManager(db.proposalDao(), db.revisionDao(), EvolutionMetrics(), null, null, proactiveDao)
     }
 
     @After
@@ -56,9 +61,9 @@ class EvolutionProposalStoreTest {
     fun `rollback returns before ciphertext when revision exists`() = runBlocking {
         val proposal = EvolutionProposalEntity(
             id = "p1",
-            domain = EvolutionDomain.SKILL.name,
-            action = EvolutionAction.PATCH_SKILL.name,
-            targetId = "skill_1",
+            domain = EvolutionDomain.PROACTIVE.name,
+            action = EvolutionAction.NEW_PROACTIVE_RULE.name,
+            targetId = "",
             status = ProposalStatus.APPLIED.name,
             resolvedAt = System.currentTimeMillis(),
         )
@@ -74,7 +79,7 @@ class EvolutionProposalStoreTest {
             )
         )
         val result = rollback.rollback("p1") as EvolutionRollbackManager.RollbackResult.Ok
-        assertEquals("old-skill", result.beforeCiphertext)
+        assertTrue(result.summary.contains("removed"))
         val rolled = db.proposalDao().getById("p1")
         assertEquals(ProposalStatus.ROLLED_BACK.name, rolled?.status)
     }

@@ -1,5 +1,10 @@
 package com.aura.evolution
 
+
+import com.aura.memory.MemoryEntity
+import com.aura.memory.MemoryStore
+import com.aura.proactive.ProactiveEventDao
+import com.aura.skills.Skill
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -50,7 +55,7 @@ class EvolutionApplySaga @Inject constructor(
 
     private suspend fun applyCreateSkill(proposal: EvolutionProposalEntity): ApplyResult {
         val skill = runCatching {
-            Json.decodeFromString<com.aura.skills.Skill>(proposal.patchJson)
+            Json.decodeFromString<Skill>(proposal.patchJson)
         }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         skillsStore?.add(skill) ?: return ApplyResult.Error(proposal.id, "SkillsStore not available")
         skillRevisionStore?.snapshot(skill, proposal.id, "created by evolution")
@@ -62,8 +67,9 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyPatchSkill(proposal: EvolutionProposalEntity): ApplyResult {
         val existing = skillsStore?.findById(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "skill not found: ${proposal.targetId}")
+        proposalStore.recordRollbackSnapshot(proposal.id, Json.encodeToString(Skill.serializer(), existing))
         val patch = runCatching {
-            Json.decodeFromString<com.aura.skills.Skill>(proposal.patchJson)
+            Json.decodeFromString<Skill>(proposal.patchJson)
         }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         val merged = existing.copy(
             name = patch.name.takeIf { it.isNotBlank() } ?: existing.name,
@@ -79,8 +85,9 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyRewriteSkill(proposal: EvolutionProposalEntity): ApplyResult {
         val existing = skillsStore?.findById(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "skill not found: ${proposal.targetId}")
+        proposalStore.recordRollbackSnapshot(proposal.id, Json.encodeToString(Skill.serializer(), existing))
         val replacement = runCatching {
-            Json.decodeFromString<com.aura.skills.Skill>(proposal.patchJson)
+            Json.decodeFromString<Skill>(proposal.patchJson)
         }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         val merged = existing.copy(
             name = replacement.name.takeIf { it.isNotBlank() } ?: existing.name,
@@ -115,6 +122,7 @@ class EvolutionApplySaga @Inject constructor(
         val newCategory = args["category"] ?: return ApplyResult.Error(proposal.id, "missing category in patch")
         val mem = memoryStore?.get(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "memory not found: ${proposal.targetId}")
+        proposalStore.recordRollbackSnapshot(proposal.id, Json.encodeToString(MemoryEntity.serializer(), mem))
         memoryStore.update(mem.id, mem.content, newCategory, mem.importance, mem.tags)
         proposalStore.markApplied(proposal.id, "changed category to $newCategory")
         return ApplyResult.Ok(proposal.id, "changed category to $newCategory")
