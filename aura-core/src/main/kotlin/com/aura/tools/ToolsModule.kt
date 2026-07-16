@@ -1,6 +1,9 @@
 package com.aura.tools
 
 import com.aura.agent.ToolRegistry
+import com.aura.tools.evolution.ApproveEvolutionProposalTool
+import com.aura.tools.evolution.RollbackEvolutionTool
+import com.aura.tools.evolution.TriggerEvolutionRunTool
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -69,6 +72,9 @@ object ToolsModule {
         queryWorldModel: QueryWorldModelTool,
         queryTaste: QueryTasteTool,
         useSkill: UseSkillTool,
+        approveProposal: ApproveEvolutionProposalTool,
+        rollbackEvolution: RollbackEvolutionTool,
+        triggerEvolution: TriggerEvolutionRunTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
         registry.register(webSearch.tool)
@@ -129,6 +135,9 @@ object ToolsModule {
         registry.register(queryWorldModel.tool)
         registry.register(queryTaste.tool)
         registry.register(useSkill.tool)
+        registry.register(approveProposal.tool)
+        registry.register(rollbackEvolution.tool)
+        registry.register(triggerEvolution.tool)
         return registry
     }
 }

@@ -21,6 +21,7 @@ object ToolCategories {
     const val KNOWLEDGE = "knowledge"
     const val CREATIVE = "creative"
     const val SKILLS = "skills"
+    const val EVOLUTION = "evolution"
     const val DEVICE = "device"
     const val OTHER = "other"
 
@@ -41,6 +42,7 @@ object ToolCategories {
         KNOWLEDGE -> "Knowledge"
         CREATIVE -> "Creative Studio"
         SKILLS -> "Skills"
+        EVOLUTION -> "Evolution"
         DEVICE -> "Device"
         else -> "Other"
     }
@@ -57,6 +59,7 @@ object ToolCategories {
         KNOWLEDGE -> "🔗"
         CREATIVE -> "✍️"
         SKILLS -> "📚"
+        EVOLUTION -> "🧬"
         DEVICE -> "📱"
         else -> "🔧"
     }
