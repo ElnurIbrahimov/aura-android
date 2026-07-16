@@ -1,5 +1,6 @@
 package com.aura.ui.evolution
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -7,18 +8,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +39,7 @@ fun EvolutionInboxScreen(
     viewModel: EvolutionInboxViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
+    var selectedProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
     val proposals = viewModel.proposals.collectAsState().value
     val settings = viewModel.settings.collectAsState().value
 
@@ -70,9 +76,35 @@ fun EvolutionInboxScreen(
                     proposal = proposal,
                     onApprove = { viewModel.approve(proposal.id) },
                     onReject = { viewModel.reject(proposal.id) },
+                    onDetail = { selectedProposal = proposal },
                 )
             }
         }
+    }
+
+    selectedProposal?.let { proposal ->
+        AlertDialog(
+            onDismissRequest = { selectedProposal = null },
+            title = { Text(proposal.title) },
+            text = {
+                Column {
+                    Text("Domain: ${proposal.domain}")
+                    Text("Action: ${proposal.action}")
+                    Text("Status: ${proposal.status}")
+                    Text("Confidence: ${"%.0f".format(proposal.confidence * 100)}%")
+                    if (proposal.patchJson.isNotBlank() && proposal.patchJson != "{}") {
+                        Text(
+                            text = "Patch: " + proposal.patchJson,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedProposal = null }) { Text("Close") }
+            },
+        )
     }
 }
 
@@ -81,8 +113,14 @@ private fun ProposalCard(
     proposal: EvolutionProposalEntity,
     onApprove: () -> Unit,
     onReject: () -> Unit,
+    onDetail: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clickable { onDetail() },
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = proposal.title, style = MaterialTheme.typography.titleMedium)
             Text(text = proposal.summary, style = MaterialTheme.typography.bodyMedium)
