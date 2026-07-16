@@ -62,6 +62,7 @@ object ToolsModule {
         weather: WeatherTool,
         creativeReadProject: CreativeReadProjectTool,
         creativeAddWorldItem: CreativeAddWorldItemTool,
+        creativeEngine: CreativeEngineTool,
         useSkill: UseSkillTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
@@ -114,6 +115,7 @@ object ToolsModule {
         registry.register(weather.tool)
         registry.register(creativeReadProject.tool)
         registry.register(creativeAddWorldItem.tool)
+        registry.register(creativeEngine.tool)
         registry.register(useSkill.tool)
         return registry
     }

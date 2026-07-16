@@ -22,7 +22,7 @@ data class DocumentEntity(
     val characterCount: Int,
     val chunkCount: Int,
     /** Indexing state: "pending", "indexing", "ready", "failed". */
-    val indexStatus: kotlin.String = "pending",
+    val indexStatus: kotlin.String = "ready",
     /** Error message from the last indexing attempt, if any. */
     val indexError: kotlin.String = "",
 )
