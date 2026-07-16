@@ -21,6 +21,7 @@ private const val KEY_SKILLS = "aura_skills_v1"
 @Singleton
 class SkillsStore @Inject constructor(
     private val secureDataStore: SecureDataStore,
+    private val skillRevisionStore: com.aura.evolution.EvolutionSkillRevisionStore? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val _skills = MutableStateFlow<List<Skill>>(emptyList())
@@ -46,6 +47,7 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value + skill
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+        runCatching { skillRevisionStore?.snapshot(skill, summary = "created") }
     }
 
     suspend fun update(skill: Skill) {
@@ -53,6 +55,7 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value.map { if (it.id == skill.id) skill else it }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+        runCatching { skillRevisionStore?.snapshot(skill, summary = "user edit") }
         runCatching { evolutionHooks?.onSkillEdited(skill.id) }
     }
 

@@ -1,5 +1,6 @@
 package com.aura.evolution
 
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +15,8 @@ import javax.inject.Singleton
 @Singleton
 class EvolutionApplySaga @Inject constructor(
     private val proposalStore: EvolutionProposalStore,
+    private val skillsStore: com.aura.skills.SkillsStore? = null,
+    private val skillRevisionStore: EvolutionSkillRevisionStore? = null,
 ) {
     suspend fun apply(proposal: EvolutionProposalEntity): ApplyResult {
         val action = runCatching { EvolutionAction.valueOf(proposal.action) }.getOrNull()
@@ -44,8 +47,13 @@ class EvolutionApplySaga @Inject constructor(
     }
 
     private suspend fun applyCreateSkill(proposal: EvolutionProposalEntity): ApplyResult {
-        // Handled in commit 7 once skills live in Room revisions.
-        return ApplyResult.NotYetImplemented(EvolutionAction.CREATE_SKILL.name)
+        val skill = runCatching {
+            Json.decodeFromString<com.aura.skills.Skill>(proposal.patchJson)
+        }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
+        skillsStore?.add(skill) ?: return ApplyResult.Error(proposal.id, "SkillsStore not available")
+        skillRevisionStore?.snapshot(skill, proposal.id, "created by evolution")
+        proposalStore.markApplied(proposal.id, "created skill ${skill.name}")
+        return ApplyResult.Ok(proposal.id, "created skill ${skill.name}")
     }
 
     sealed interface ApplyResult {
