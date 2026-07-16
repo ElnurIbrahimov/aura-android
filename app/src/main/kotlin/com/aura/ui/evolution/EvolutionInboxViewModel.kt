@@ -8,6 +8,7 @@ import com.aura.evolution.EvolutionProposalEntity
 import com.aura.evolution.EvolutionProposalStore
 import com.aura.evolution.EvolutionSettingsDao
 import com.aura.evolution.EvolutionSettingsEntity
+import com.aura.evolution.EvolutionRollbackManager
 import com.aura.evolution.ProposalStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,13 +19,14 @@ import javax.inject.Inject
 
 /**
  * ViewModel for the evolution proposal inbox. Lists open proposals,
- * allows approve/reject, and exposes domain settings toggles.
+ * allows approve/reject/rollback, and exposes domain settings toggles.
  */
 @HiltViewModel
 class EvolutionInboxViewModel @Inject constructor(
     private val proposalDao: EvolutionProposalDao,
     private val proposalStore: EvolutionProposalStore,
     private val settingsDao: EvolutionSettingsDao,
+    private val rollbackManager: EvolutionRollbackManager,
 ) : ViewModel() {
 
     private val _proposals = MutableStateFlow<List<EvolutionProposalEntity>>(emptyList())
@@ -32,6 +34,13 @@ class EvolutionInboxViewModel @Inject constructor(
 
     private val _settings = MutableStateFlow<List<EvolutionSettingsEntity>>(emptyList())
     val settings: StateFlow<List<EvolutionSettingsEntity>> = _settings.asStateFlow()
+
+    fun rollback(proposalId: String) {
+        viewModelScope.launch {
+            rollbackManager.rollback(proposalId)
+            load()
+        }
+    }
 
     fun load() {
         viewModelScope.launch {

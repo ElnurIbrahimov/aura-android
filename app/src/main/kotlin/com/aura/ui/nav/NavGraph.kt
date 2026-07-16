@@ -31,6 +31,7 @@ import com.aura.ui.screens.chat.ChatRoute
 import com.aura.ui.screens.production.ProductionPipelineScreen
 import com.aura.ui.evolution.EvolutionInboxScreen
 import com.aura.ui.evolution.BeliefsScreen
+import com.aura.ui.evolution.EvolutionRollbackScreen
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.HandsScreen
 import com.aura.ui.screens.HistoryScreen
@@ -281,6 +282,16 @@ fun NavGraph(
             }
             composable("evolution/beliefs") {
                 BeliefsScreen()
+            }
+            composable(
+                route = "evolution/rollback/{proposalId}",
+                arguments = listOf(navArgument("proposalId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val proposalId = backStackEntry.arguments?.getString("proposalId").orEmpty()
+                EvolutionRollbackScreen(
+                    proposalId = proposalId,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
     }
