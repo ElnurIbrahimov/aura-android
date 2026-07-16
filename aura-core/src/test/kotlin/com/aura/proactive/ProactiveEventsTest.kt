@@ -254,5 +254,9 @@ private class FakeProactiveEventDao : ProactiveEventDao {
         rows.removeAll { it.timestamp < cutoff }
         return before - rows.size
     }
+
+    override suspend fun byCorrelationTag(tag: String, limit: Int): List<ProactiveEventEntity> {
+        return rows.filter { it.correlationTag == tag }.sortedByDescending { it.timestamp }.take(limit)
+    }
 }
 

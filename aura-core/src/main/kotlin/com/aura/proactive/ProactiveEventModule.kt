@@ -54,6 +54,12 @@ object ProactiveEventModule {
         }
     }
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE proactive_events ADD COLUMN correlationTag TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ProactiveEventDatabase =
@@ -61,7 +67,7 @@ object ProactiveEventModule {
             context,
             ProactiveEventDatabase::class.java,
             "aura-proactive.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5),
         ).build()
 
     @Provides

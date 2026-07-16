@@ -15,6 +15,8 @@ data class ProactiveEventEntity(
     val body: String,
     val timestamp: Long,
     val payload: String = "",
+    /** Optional correlation tag linking related events (e.g. same calendar series). */
+    val correlationTag: String = "",
 )
 
 

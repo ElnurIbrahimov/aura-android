@@ -39,6 +39,9 @@ interface ProactiveEventDao {
      */
     @Query("DELETE FROM proactive_events WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
+
+    @Query("SELECT * FROM proactive_events WHERE correlationTag = :tag ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun byCorrelationTag(tag: String, limit: Int = 20): List<ProactiveEventEntity>
 }
 
 @Dao
