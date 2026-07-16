@@ -148,6 +148,7 @@ fun NavGraph(
                     onOpenSkills = { navController.navigate("skills") },
                     onOpenCreative = { navController.navigate("creative") },
                     onOpenProactive = { navController.navigate("proactive") },
+                    onOpenAgentRuns = { navController.navigate("agent_runs") },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")

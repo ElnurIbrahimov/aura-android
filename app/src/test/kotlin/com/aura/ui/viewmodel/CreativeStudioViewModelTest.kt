@@ -1,10 +1,13 @@
 package com.aura.ui.viewmodel
 
+import com.aura.capabilities.CapabilityRouter
+import com.aura.creative.CreativeCouncil
 import com.aura.creative.CreativeEngine
 import com.aura.creative.CreativeMode
 import com.aura.creative.CreativeProject
 import com.aura.creative.CreativeProjectStore
 import com.aura.creative.WorldBible
+import com.aura.providers.ProviderRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -23,15 +26,19 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class CreativeStudioViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val store = mockk<CreativeProjectStore>(relaxed = true)
     private val engine = mockk<CreativeEngine>()
+    private val council: CreativeCouncil = mockk(relaxed = true)
+    private val providerRegistry: ProviderRegistry = mockk(relaxed = true)
+    private val capabilityRouter: CapabilityRouter = mockk(relaxed = true)
     private val project = CreativeProject(
         "p1", "Glass City", "", "fantasy", "haunting", WorldBible(overview = "Glass remembers"),
         "novel", 0, 1L, 1L,
     )
+
+    private fun newViewModel() = CreativeStudioViewModel(store, engine, council, providerRegistry, capabilityRouter)
 
     @Before
     fun setUp() {
@@ -45,7 +52,7 @@ class CreativeStudioViewModelTest {
     @Test
     fun `load selects project and exposes its world`() = runTest {
         coEvery { store.get("p1") } returns project
-        val vm = CreativeStudioViewModel(store, engine)
+        val vm = newViewModel()
         vm.loadProject("p1")
         advanceUntilIdle()
         assertEquals("Glass City", vm.state.value.selectedProject?.name)
@@ -55,7 +62,7 @@ class CreativeStudioViewModelTest {
     @Test
     fun `create delegates project metadata and selects result`() = runTest {
         coEvery { store.create(any(), any(), any(), any(), any()) } returns project
-        val vm = CreativeStudioViewModel(store, engine)
+        val vm = newViewModel()
         vm.createProject("Glass City", "Memory city", "fantasy", "haunting", "novel")
         advanceUntilIdle()
         coVerify { store.create("Glass City", "Memory city", "fantasy", "haunting", "novel") }
@@ -66,7 +73,7 @@ class CreativeStudioViewModelTest {
     fun `generate streams output and clears busy state`() = runTest {
         coEvery { store.get("p1") } returns project
         every { engine.generate("p1", CreativeMode.DRAFT, "Opening", "") } returns flowOf("Glass ", "sang.")
-        val vm = CreativeStudioViewModel(store, engine)
+        val vm = newViewModel()
         vm.loadProject("p1")
         advanceUntilIdle()
         vm.generate(CreativeMode.DRAFT, "Opening")

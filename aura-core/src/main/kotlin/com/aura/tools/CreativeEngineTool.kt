@@ -22,7 +22,6 @@ import javax.inject.Singleton
 @Singleton
 class CreativeEngineTool @Inject constructor(
     private val engine: CreativeEngine,
-    private val registry: ToolRegistry,
 ) {
 
     fun definition(): ToolDefinition = ToolDefinition(
@@ -63,6 +62,4 @@ class CreativeEngineTool @Inject constructor(
             ToolResult.Error("Creative engine failed: ${e.message ?: e.javaClass.simpleName}")
         }
     }
-
-    fun register() = registry.register(tool)
 }
