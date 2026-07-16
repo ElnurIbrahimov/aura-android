@@ -27,6 +27,7 @@ import javax.inject.Singleton
 class RunHandTool @Inject constructor(
     private val repository: HandRepository,
     private val executor: Lazy<ToolExecutor>,
+    private val handRunEnqueuer: HandRunEnqueuer,
 ) {
     fun definition() = ToolDefinition(
         name = "run_hand",
@@ -57,16 +58,25 @@ class RunHandTool @Inject constructor(
             val variables = repository.parseVariables(variablesRaw)
             val phraseTriggered = hand.triggerPhrase.isNotBlank() &&
                 ctx.userMessage.contains(hand.triggerPhrase, ignoreCase = true)
+            val triggerValue = if (phraseTriggered) {
+                com.aura.hands.HandRunTrigger.PHRASE.value
+            } else {
+                com.aura.hands.HandRunTrigger.AGENT.value
+            }
+            handRunEnqueuer.enqueue(
+                handName = name,
+                variablesJson = variablesRaw,
+                trigger = triggerValue,
+                conversationId = ctx.conversationId,
+            )?.let { runId ->
+                return@Tool ToolResult.Ok("Queued hand '${hand.name}' as agent run $runId")
+            }
             repository.run(
                 hand = hand,
                 executor = executor.get(),
                 ctx = ctx,
                 variables = variables,
-                trigger = if (phraseTriggered) {
-                    com.aura.hands.HandRunTrigger.PHRASE.value
-                } else {
-                    com.aura.hands.HandRunTrigger.AGENT.value
-                },
+                trigger = triggerValue,
             )
         },
     category = "automation")

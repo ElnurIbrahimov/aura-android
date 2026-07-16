@@ -25,11 +25,12 @@ import com.aura.documents.DocumentTextExtractor
 import com.aura.kg.KnowledgeGraphRepository
 import com.aura.providers.ProviderKeys
 import com.aura.providers.ProviderRegistry
+import com.aura.providers.ProviderStatus
 import com.aura.providers.ModelCatalog
 import com.aura.providers.ModelCatalogRepository
 import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
-import com.aura.providers.ProviderStatus
+import com.aura.taste.TasteEngine
 import com.aura.tools.Citation
 import com.aura.tools.MAX_TRANSCRIPTION_AUDIO_BYTES
 import com.aura.voice.TextToSpeech
@@ -232,6 +233,7 @@ class ChatViewModel @Inject constructor(
     private val documentTextExtractor: DocumentTextExtractor? = null,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val skillsStore: SkillsStore? = null,
+    private val tasteEngine: TasteEngine? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -663,6 +665,27 @@ class ChatViewModel @Inject constructor(
         }
         _state.update { it.copy(conversation = current.copy(turns = newTurns)) }
         saveConversation()
+        recordTasteSignal(turnTimestamp, newReaction)
+    }
+
+    private fun recordTasteSignal(turnTimestamp: Long, reaction: Reaction?) {
+        viewModelScope.launch {
+            val turn = _state.value.conversation.turns.find { it.timestamp == turnTimestamp } ?: return@launch
+            val modelId = _state.value.conversation.model?.ifBlank { _state.value.activeModel } ?: _state.value.activeModel
+            tasteEngine?.recordSignal(
+                signalType = "chat_reaction",
+                category = "general",
+                artifactId = turn.timestamp.toString(),
+                attributes = mapOf(
+                    "reaction" to (reaction?.name ?: "cleared"),
+                    "modelId" to modelId,
+                    "specialist" to (_state.value.selectedSpecialist?.name ?: "none"),
+                    "length" to turn.assistant.orEmpty().length.toString(),
+                ),
+                weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
+            )
+            tasteEngine?.recomputeProfile()
+        }
     }
 
     fun dismissError() {

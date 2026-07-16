@@ -85,10 +85,8 @@ class AgentRunStore @Inject constructor(
         })
     }
 
-    suspend fun readySteps(runId: kotlin.String): List<StepEntity> {
-        val steps = stepDao.forRun(runId)
-        return dagResolver.readySteps(steps)
-    }
+    suspend fun stepsForRun(runId: kotlin.String): List<StepEntity> =
+        stepDao.forRun(runId)
 
     suspend fun completeStep(stepId: kotlin.String, result: kotlin.String) {
         val step = stepDao.getById(stepId) ?: return
