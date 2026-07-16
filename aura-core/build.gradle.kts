@@ -90,5 +90,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.24")
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    testImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.room.testing)
 }

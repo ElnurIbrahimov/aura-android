@@ -16,6 +16,7 @@ data class MemoryEntity(
     val content: String,
     val source: String,         // "user", "assistant", "tool", "system"
     val category: String,       // "fact", "preference", "episode", "person", "project", "idea", "task"
+    val scope: String = "general", // "general", "project:<id>", "person:<id>", "creative:<id>"
     val importance: Float = 0.5f, // 0.0 - 1.0
     @ColumnInfo(name = "embedding") val embedding: ByteArray? = null, // 384 floats × 4 bytes
     @ColumnInfo(name = "createdAt") val createdAt: Long = System.currentTimeMillis(),

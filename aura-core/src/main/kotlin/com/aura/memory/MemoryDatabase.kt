@@ -70,7 +70,7 @@ import com.aura.kg.NodeEntity
         ReferenceIdentityEntity::class,
         RoutingOutcomeEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
