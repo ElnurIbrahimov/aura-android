@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -61,6 +62,7 @@ fun HomeSecondaryActions(
     onOpenCreative: () -> Unit = {},
     onOpenProactive: () -> Unit,
     onOpenAgentRuns: () -> Unit = {},
+    onOpenProduction: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val destinations = listOf(

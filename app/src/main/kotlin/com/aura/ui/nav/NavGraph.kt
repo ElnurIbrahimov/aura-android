@@ -28,6 +28,7 @@ import androidx.navigation.navArgument
 import com.aura.AuraLaunchRequest
 import com.aura.ui.screens.agentrun.AgentRunsScreen
 import com.aura.ui.screens.chat.ChatRoute
+import com.aura.ui.screens.production.ProductionPipelineScreen
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.HandsScreen
 import com.aura.ui.screens.HistoryScreen
@@ -149,6 +150,7 @@ fun NavGraph(
                     onOpenCreative = { navController.navigate("creative") },
                     onOpenProactive = { navController.navigate("proactive") },
                     onOpenAgentRuns = { navController.navigate("agent_runs") },
+                    onOpenProduction = { navController.navigate("production") },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")

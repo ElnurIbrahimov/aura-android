@@ -114,6 +114,8 @@ fun HomeContent(
 
     onOpenAgentRuns: () -> Unit = {},
 
+    onOpenProduction: () -> Unit = {},
+
     modifier: Modifier = Modifier,
 
 ) {
