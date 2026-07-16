@@ -58,6 +58,18 @@ class EvolutionHooks @Inject constructor(
         afterCiphertext = afterCiphertext,
     )
 
+    suspend fun onSkillAdded(skillId: kotlin.String) = recorder.record(
+        domain = EvolutionDomain.SKILL,
+        kind = "skill_added",
+        sourceEntityId = skillId,
+    )
+
+    suspend fun onSkillRemoved(skillId: kotlin.String) = recorder.record(
+        domain = EvolutionDomain.SKILL,
+        kind = "skill_removed",
+        sourceEntityId = skillId,
+    )
+
     // --- Memory signals ---
 
     suspend fun onMemoryStored(

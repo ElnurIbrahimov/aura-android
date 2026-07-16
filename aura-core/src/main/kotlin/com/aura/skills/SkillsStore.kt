@@ -48,22 +48,28 @@ class SkillsStore @Inject constructor(
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
         runCatching { skillRevisionStore?.snapshot(skill, summary = "created") }
+        runCatching { evolutionHooks?.onSkillAdded(skill.id) }
     }
 
     suspend fun update(skill: Skill) {
         awaitLoaded()
+        val previous = _skills.value.firstOrNull { it.id == skill.id }
         val updated = _skills.value.map { if (it.id == skill.id) skill else it }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before edit") } }
         runCatching { skillRevisionStore?.snapshot(skill, summary = "user edit") }
         runCatching { evolutionHooks?.onSkillEdited(skill.id) }
     }
 
     suspend fun remove(id: String) {
         awaitLoaded()
+        val previous = _skills.value.firstOrNull { it.id == id }
         val updated = _skills.value.filterNot { it.id == id }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before removal") } }
+        runCatching { evolutionHooks?.onSkillRemoved(id) }
     }
 
     fun findById(id: String): Skill? = _skills.value.firstOrNull { it.id == id }

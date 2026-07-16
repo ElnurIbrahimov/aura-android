@@ -5,6 +5,7 @@ import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import com.aura.evolution.EvolutionHooks
 import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
 import javax.inject.Inject
@@ -24,6 +25,7 @@ import javax.inject.Singleton
 @Singleton
 class UseSkillTool @Inject constructor(
     private val skillsStore: SkillsStore,
+    private val evolutionHooks: EvolutionHooks? = null,
 ) {
     fun definition() = ToolParameters(
         properties = mapOf(
@@ -41,16 +43,20 @@ class UseSkillTool @Inject constructor(
             "(free-form markdown instructions) which the agent should follow for the next turn.",
         risk = ToolRisk.READ_ONLY,
         parameters = definition(),
-        execute = { call, _ ->
+        execute = { call, ctx ->
             val name = call.arguments["name"] as? String
                 ?: return@Tool ToolResult.Error("missing 'name' argument", "bad_args")
             skillsStore.awaitLoaded()
             val skill: Skill = skillsStore.findByName(name.trim())
-                ?: return@Tool ToolResult.Error(
-                    "No skill named '$name'. Available: " +
-                        skillsStore.skills.value.joinToString { it.name }.ifBlank { "(none yet)" },
-                    "skill_not_found",
-                )
+                ?: run {
+                    evolutionHooks?.onSkillFailed("_unknown_", "skill_not_found", conversationId = ctx.conversationId)
+                    return@Tool ToolResult.Error(
+                        "No skill named '$name'. Available: " +
+                            skillsStore.skills.value.joinToString { it.name }.ifBlank { "(none yet)" },
+                        "skill_not_found",
+                    )
+                }
+            evolutionHooks?.onSkillInvoked(skill.id, conversationId = ctx.conversationId)
             ToolResult.Ok(
                 buildString {
                     appendLine("# Skill: ${skill.name}")
