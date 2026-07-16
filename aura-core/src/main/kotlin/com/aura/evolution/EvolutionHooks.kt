@@ -121,6 +121,20 @@ class EvolutionHooks @Inject constructor(
         payload = mapOf("rank" to rank.toString()),
     )
 
+    suspend fun onMemoryFeedback(
+        memoryId: kotlin.String,
+        helpful: Boolean,
+        note: kotlin.String? = null,
+    ) = recorder.record(
+        domain = EvolutionDomain.MEMORY,
+        kind = if (helpful) "memory_helpful" else "memory_not_helpful",
+        sourceEntityId = memoryId,
+        summary = note ?: "user rated memory ${if (helpful) "helpful" else "unhelpful"}",
+        payload = mapOf("helpful" to helpful.toString()).let { base ->
+            if (note == null) base else base + ("note" to note)
+        },
+    )
+
     suspend fun onMemoryForgotten(memoryId: kotlin.String) = recorder.record(
         domain = EvolutionDomain.MEMORY,
         kind = "memory_forgotten",

@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -373,6 +375,7 @@ fun MemoryScreen(
                                 )
                             }
                         },
+                        onFeedback = { helpful -> viewModel.submitFeedback(mem.id, helpful) },
                     )
                 }
             }
@@ -529,6 +532,7 @@ private fun MemoryRow(
     onShowHistory: () -> Unit,
     onForget: () -> Unit,
     onOpenSource: () -> Unit,
+    onFeedback: (Boolean) -> Unit,
 ) {
     val age = (System.currentTimeMillis() - mem.createdAt) / 1000
     val ageDisplay = when {
@@ -626,6 +630,20 @@ private fun MemoryRow(
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Forget",
+                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            IconButton(onClick = { onFeedback(true) }) {
+                Icon(
+                    imageVector = Icons.Filled.ThumbUp,
+                    contentDescription = "Helpful",
+                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            IconButton(onClick = { onFeedback(false) }) {
+                Icon(
+                    imageVector = Icons.Filled.ThumbDown,
+                    contentDescription = "Not helpful",
                     tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                 )
             }

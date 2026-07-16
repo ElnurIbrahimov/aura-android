@@ -3,6 +3,8 @@ package com.aura.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.memory.MemoryEditEntity
+import com.aura.memory.MemoryFeedbackDao
+import com.aura.memory.MemoryFeedbackEntity
 import com.aura.memory.MemoryEntity
 import com.aura.memory.MemoryStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.aura.evolution.EvolutionHooks
+import java.util.UUID
 import javax.inject.Inject
 
 data class MemoryUiState(
@@ -41,6 +45,8 @@ data class MemoryUiState(
 @HiltViewModel
 class MemoryViewModel @Inject constructor(
     private val memoryStore: MemoryStore,
+    private val feedbackDao: MemoryFeedbackDao,
+    private val evolutionHooks: EvolutionHooks? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MemoryUiState())
@@ -284,6 +290,27 @@ class MemoryViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { memoryStore.mergeCategories(source, target) }
             refresh()
+        }
+    }
+
+    /**
+     * Record user feedback on a memory. Writes a [MemoryFeedbackEntity] row
+     * and emits an evolution signal so the synthesis engine can learn which
+     * memories are useful.
+     */
+    fun submitFeedback(memoryId: String, helpful: Boolean, note: String = "") {
+        viewModelScope.launch {
+            runCatching {
+                feedbackDao.insert(
+                    MemoryFeedbackEntity(
+                        id = UUID.randomUUID().toString(),
+                        memoryId = memoryId,
+                        kind = if (helpful) "upvote" else "downvote",
+                        note = note,
+                    )
+                )
+                evolutionHooks?.onMemoryFeedback(memoryId, helpful, note)
+            }
         }
     }
 }
