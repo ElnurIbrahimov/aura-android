@@ -54,6 +54,9 @@ interface EvolutionProposalDao {
     @Query("SELECT * FROM evolution_proposals WHERE status IN ('PENDING_REVIEW', 'APPROVED', 'APPLY_FAILED') ORDER BY createdAt DESC")
     fun observeOpen(): Flow<List<EvolutionProposalEntity>>
 
+    @Query("SELECT * FROM evolution_proposals WHERE status IN ('PENDING_REVIEW', 'APPROVED', 'APPLY_FAILED') ORDER BY createdAt DESC")
+    suspend fun open(): List<EvolutionProposalEntity>
+
     @Query("SELECT * FROM evolution_proposals WHERE domain = :domain ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byDomain(domain: kotlin.String, limit: Int = 200): List<EvolutionProposalEntity>
 
