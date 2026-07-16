@@ -16,7 +16,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProactiveHistoryViewModel @Inject constructor(
-    proactiveEvents: ProactiveEvents,
+    private val proactiveEvents: ProactiveEvents,
     private val runner: ProactiveRunner,
 ) : ViewModel() {
 
@@ -57,6 +57,12 @@ class ProactiveHistoryViewModel @Inject constructor(
             val r = runner.fireCalendarCheck()
             _status.value = r.toMessage()
         } }
+
+    fun onEventAction(eventId: Long, eventType: String, action: String, feedback: String = "") {
+        viewModelScope.launch {
+            proactiveEvents.recordInteraction(eventId, eventType, action, feedback)
+        }
+    }
 
     fun clearStatus() { _status.value = null }
 

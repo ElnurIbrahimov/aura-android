@@ -70,6 +70,21 @@ class EvolutionHooks @Inject constructor(
         sourceEntityId = skillId,
     )
 
+    suspend fun onProactiveSnoozed(
+        eventId: kotlin.String,
+        runId: kotlin.String? = null,
+        conversationId: kotlin.String? = null,
+        turnTimestamp: kotlin.Long? = null,
+    ) = recorder.record(
+        domain = EvolutionDomain.PROACTIVE,
+        kind = "proactive_snoozed",
+        sourceEntityId = eventId,
+        runId = runId,
+        conversationId = conversationId,
+        turnTimestamp = turnTimestamp,
+        summary = "user snoozed proactive event",
+    )
+
     // --- Memory signals ---
 
     suspend fun onMemoryStored(

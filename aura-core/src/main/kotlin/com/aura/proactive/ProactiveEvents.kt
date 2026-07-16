@@ -28,6 +28,8 @@ import javax.inject.Singleton
 class ProactiveEvents(
     private val bus: ProactiveEventBus,
     private val dao: ProactiveEventDao,
+    private val interactionDao: ProactiveInteractionDao,
+    private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
     private val userPreferences: UserPreferences,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
@@ -41,8 +43,10 @@ class ProactiveEvents(
     @Inject constructor(
         bus: ProactiveEventBus,
         dao: ProactiveEventDao,
+        interactionDao: ProactiveInteractionDao,
+        evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
         userPreferences: UserPreferences,
-    ) : this(bus, dao, userPreferences, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    ) : this(bus, dao, interactionDao, evolutionHooks, userPreferences, CoroutineScope(SupervisorJob() + Dispatchers.Default))
 
     private val _latest = MutableStateFlow<ProactiveEventBus.Event?>(null)
     val latest: StateFlow<ProactiveEventBus.Event?> = _latest.asStateFlow()
@@ -107,11 +111,16 @@ class ProactiveEvents(
                 _latest.value = event
                 _history.value = (_history.value + event).takeLast(100)
                 // Persist to Room
-                runCatching {
+                val insertedId = runCatching {
                     dao.insert(event.toEntity())
-                }
+                }.getOrDefault(-1L)
+
                 // Bump the tick so the unread-count flow re-queries.
                 _refreshTick.value = event.timestamp
+                // Re-emit with the persisted id so UI can record interactions.
+                if (insertedId > 0L) {
+                    bus.tryEmit(event.withId(insertedId))
+                }
             }
         }
     }
@@ -139,8 +148,8 @@ class ProactiveEvents(
      * acts on a proactive card. The action history feeds the policy engine.
      */
     suspend fun recordInteraction(
-        interactionDao: ProactiveInteractionDao,
         eventId: Long,
+        eventType: String,
         action: String,
         feedback: String = "",
     ) {
@@ -153,11 +162,27 @@ class ProactiveEvents(
                 )
             )
         }
+        runCatching {
+            when (action) {
+                "dismissed" -> evolutionHooks?.onProactiveDismissed(eventId.toString(), dismissalKind = feedback.ifBlank { "user" })
+                "acted" -> evolutionHooks?.onProactiveActionTaken(eventId.toString(), action = feedback.ifBlank { action })
+                "snoozed" -> evolutionHooks?.onProactiveSnoozed(eventId.toString())
+                "opened" -> evolutionHooks?.onProactiveOpened(eventId.toString(), eventType = eventType)
+                else -> evolutionHooks?.onProactiveDelivered(eventId.toString(), eventType = eventType)
+            }
+        }
+    }
+
+    private fun ProactiveEventBus.Event.withId(id: Long): ProactiveEventBus.Event = when (this) {
+        is ProactiveEventBus.Event.MorningBriefReady -> copy(id = id)
+        is ProactiveEventBus.Event.MorningBriefStructured -> copy(id = id)
+        is ProactiveEventBus.Event.CalendarEventSoon -> copy(id = id)
+        is ProactiveEventBus.Event.MemoryDecayWarning -> copy(id = id)
     }
 
     private fun ProactiveEventEntity.toEvent(): ProactiveEventBus.Event? {
         return when (eventType) {
-            "MorningBriefReady" -> ProactiveEventBus.Event.MorningBriefReady(title, body, timestamp)
+            "MorningBriefReady" -> ProactiveEventBus.Event.MorningBriefReady(title, body, timestamp, id)
             "MorningBriefStructured" -> {
                 // The structured body is serialized as the entity's
                 // `body` field. Older rows that lack the structured
@@ -166,41 +191,41 @@ class ProactiveEvents(
                 val ctx = runCatching {
                     briefContextJson.decodeFromString<BriefContext>(body)
                 }.getOrNull() ?: return null
-                ProactiveEventBus.Event.MorningBriefStructured(ctx, timestamp)
+                ProactiveEventBus.Event.MorningBriefStructured(ctx, timestamp, id)
             }
             "CalendarEventSoon" -> {
                 val minutes = body.toIntOrNull() ?: return null
-                ProactiveEventBus.Event.CalendarEventSoon(title, minutes, timestamp)
+                ProactiveEventBus.Event.CalendarEventSoon(title, minutes, timestamp, id)
             }
             // Legacy placeholder rows are deliberately ignored. Aura never had
             // a producer or geofence implementation for this advertised event.
             "LocationArrived" -> null
-            "MemoryDecayWarning" -> ProactiveEventBus.Event.MemoryDecayWarning(body, title, timestamp)
+            "MemoryDecayWarning" -> ProactiveEventBus.Event.MemoryDecayWarning(body, title, timestamp, id)
             else -> null
         }
     }
 
     private fun ProactiveEventBus.Event.toEntity(): ProactiveEventEntity = when (this) {
         is ProactiveEventBus.Event.MorningBriefReady -> ProactiveEventEntity(
-            eventType = "MorningBriefReady", title = title, body = body, timestamp = timestamp,
+            id = id, eventType = "MorningBriefReady", title = title, body = body, timestamp = timestamp,
             payload = "",
         )
         is ProactiveEventBus.Event.MorningBriefStructured -> ProactiveEventEntity(
-            eventType = "MorningBriefStructured",
+            id = id, eventType = "MorningBriefStructured",
             title = "Morning brief",
             body = briefContextJson.encodeToString(BriefContext.serializer(), context),
             timestamp = timestamp,
             payload = "",
         )
         is ProactiveEventBus.Event.CalendarEventSoon -> ProactiveEventEntity(
-            eventType = "CalendarEventSoon",
+            id = id, eventType = "CalendarEventSoon",
             title = title,
             body = minutesUntil.toString(),
             timestamp = timestamp,
             payload = "",
         )
         is ProactiveEventBus.Event.MemoryDecayWarning -> ProactiveEventEntity(
-            eventType = "MemoryDecayWarning",
+            id = id, eventType = "MemoryDecayWarning",
             title = preview,
             body = memoryId,
             timestamp = timestamp,

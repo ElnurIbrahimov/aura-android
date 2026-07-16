@@ -73,6 +73,8 @@ class ProactiveEventsTest {
         ProactiveEvents(
             bus = bus,
             dao = dao,
+            interactionDao = mockk(relaxed = true),
+            evolutionHooks = null,
             userPreferences = userPreferences,
             // Test-controlled scope: drain on advanceUntilIdle().
             scope = CoroutineScope(testDispatcher + kotlinx.coroutines.SupervisorJob()),

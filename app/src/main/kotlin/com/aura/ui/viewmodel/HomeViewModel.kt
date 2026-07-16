@@ -182,7 +182,13 @@ class HomeViewModel @Inject constructor(
     }
 
     fun dismissProactiveEvent() {
-        proactiveEvents.dismiss()
+        viewModelScope.launch {
+            val eventId = _state.value.proactiveEvent?.id
+            if (eventId != null && eventId > 0L) {
+                proactiveEvents.recordInteraction(eventId, eventType = "proactive", action = "dismissed")
+            }
+            proactiveEvents.dismiss()
+        }
     }
 
     /**
