@@ -23,6 +23,8 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
     PLANNER("planner_model", "Planner"),
     VERIFIER("verifier_model", "Verifier"),
     EMBEDDING("embedding_model", "Embedding"),
+    FAST("fast_model", "Fast"),
+    REASONING("reasoning_model", "Reasoning"),
     ;
 
     companion object {
@@ -31,7 +33,7 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
          * EMBEDDING is managed separately (it's a capability, not a chat model).
          */
         val configurable: List<ModelRole> get() = listOf(
-            CONVERSATION, BACKGROUND, DEEP_RESEARCH, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER, VERIFIER,
+            CONVERSATION, BACKGROUND, DEEP_RESEARCH, FAST, REASONING, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER, VERIFIER,
         )
     }
 }

@@ -3,14 +3,24 @@ package com.aura.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.agent.IdentityStore
+import com.aura.agent.ToolRegistry
+import com.aura.agent.ToolRisk
+import com.aura.agent.policy.ConfirmationLevel
+import com.aura.agent.policy.ToolPolicy
+import com.aura.agent.policy.ToolPolicyDefaults
+import com.aura.agent.policy.ToolPolicyStore
 import com.aura.data.UserPreferences
+import com.aura.mcp.McpClientManager
+import com.aura.mcp.McpServerConfig
 import com.aura.providers.ProviderKeys
 import com.aura.providers.ProviderRegistry
 import com.aura.providers.ProviderCredentialState
 import com.aura.providers.ModelCatalog
 import com.aura.providers.ModelCatalogRepository
+import com.aura.providers.ModelRole
 import com.aura.providers.ProviderStatus
 import com.aura.providers.CustomEndpointState
+import com.aura.providers.ModelRoleRouter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -76,6 +86,8 @@ private val TOOL_CREDENTIAL_PREFIXES: Set<String> = SETTINGS_CREDENTIAL_SPECS
 
 data class SettingsUiState(
     val keyDrafts: Map<String, String> = ProviderKeys.PREFIXES.associateWith { "" },
+    /** Map of ModelRole to selected model id (empty string = unset). */
+    val roleModels: Map<ModelRole, String> = emptyMap(),
     val defaultModel: String = "",
     val visionModel: String = "",
     val backgroundModel: String = "",
@@ -99,6 +111,16 @@ data class SettingsUiState(
     /** True when the user has a non-blank DataStore identity override. */
     val identityCustomized: Boolean = false,
     val specialistOverrides: String = "{}",
+    /**
+     * Per-tool policies keyed by tool name. Default policies are merged in
+     * the ViewModel so the UI always sees a complete map.
+     */
+    val toolPolicies: Map<String, ToolPolicy> = emptyMap(),
+    /**
+     * Configured MCP servers and any discovered tools per server.
+     */
+    val mcpServers: List<McpServerConfig> = emptyList(),
+    val mcpDiscoveredTools: Map<String, List<String>> = emptyMap(),
     /**
      * Per-provider verify result: prefix → "✓ Verified — N models"
      * or "✗ Failed: ...". Null = not tested yet.
@@ -129,6 +151,16 @@ data class SettingsUiState(
      *  outside ProviderKeys, so this is a separate UI state. */
 )
 
+/** Editable in-memory model for an MCP server being added or edited. */
+data class McpServerDraft(
+    val name: String = "",
+    val url: String = "",
+    val trustedLocal: Boolean = false,
+    val allowedToolPrefixes: String = "",
+    val deniedTools: String = "",
+    val maxConcurrentCalls: Int = 4,
+)
+
 enum class ProviderTestPhase { Idle, Saving, Testing, Verified, Failed }
 
 data class ProviderTestResult(
@@ -145,12 +177,21 @@ class SettingsViewModel @Inject constructor(
     private val identityStore: IdentityStore,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val customEndpointState: CustomEndpointState,
+    private val toolRegistry: ToolRegistry,
+    private val toolPolicyStore: ToolPolicyStore,
+    private val modelRoleRouter: ModelRoleRouter,
+    private val mcpClientManager: McpClientManager,
 ) : ViewModel() {
 
     private fun configuredProviderLabels(): List<String> =
         providerRegistry.configured()
             .sortedBy { it.prefix }
             .map { "${it.prefix} (${it.displayName})" }
+
+    private fun defaultPolicies(): Map<String, ToolPolicy> =
+        toolRegistry.all().associate { tool ->
+            tool.name to ToolPolicyDefaults.forTool(tool.name, tool.risk)
+        }
 
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -175,6 +216,13 @@ class SettingsViewModel @Inject constructor(
                         customIsConfigured = url.isNotBlank() && key.isNotBlank(),
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            toolPolicyStore.allPolicies.collectLatest { stored ->
+                val merged = defaultPolicies().toMutableMap()
+                stored.forEach { (name, policy) -> merged[name] = policy }
+                _state.update { it.copy(toolPolicies = merged) }
             }
         }
     }
@@ -207,10 +255,17 @@ class SettingsViewModel @Inject constructor(
             val smtpUsername = userPreferences.smtpUsername.first()
             val smtpPassword = userPreferences.smtpPassword.first()
             val smtpFrom = userPreferences.smtpFrom.first()
+            val roleModels = ModelRole.configurable.associateWith { role ->
+                modelRoleRouter.resolve(role).orEmpty()
+            }
+            val mergedPolicies = defaultPolicies().toMutableMap().apply {
+                toolPolicyStore.allPolicies.first().forEach { (name, policy) -> this[name] = policy }
+            }
             _state.value = SettingsUiState(
                 keyDrafts = ProviderKeys.PREFIXES.associateWith { prefix ->
                     providerKeys.keyFor(prefix).orEmpty()
                 },
+                roleModels = roleModels,
                 defaultModel = defaultModel.orEmpty(),
                 visionModel = visionModel.orEmpty(),
                 backgroundModel = backgroundModel.orEmpty(),
@@ -227,6 +282,8 @@ class SettingsViewModel @Inject constructor(
                 identityText = identityText,
                 identityCustomized = identityCustomized,
                 specialistOverrides = specialistOverrides,
+                toolPolicies = mergedPolicies,
+                mcpServers = emptyList(), // persisted server list not yet implemented
                 morningBriefHour = morningBriefHour,
                 smtpHost = smtpHost,
                 smtpPort = smtpPort,
@@ -387,6 +444,91 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setSpecialistOverrides(json)
             _state.update { it.copy(specialistOverrides = json) }
+        }
+    }
+
+    /**
+     * Persist the selected model for a [ModelRole]. Empty string clears it.
+     */
+    fun setRoleModel(role: ModelRole, model: String) {
+        viewModelScope.launch {
+            val clean = model.trim()
+            userPreferences.setRoleModel(role, clean.takeIf { it.isNotBlank() })
+            _state.update { current ->
+                current.copy(roleModels = current.roleModels + (role to clean))
+            }
+        }
+    }
+
+    /**
+     * Toggle a tool's enabled state. Persists in [ToolPolicyStore].
+     */
+    fun setToolEnabled(toolName: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val current = toolPolicyStore.getPolicy(toolName)
+                ?: ToolPolicyDefaults.forTool(toolName, toolRegistry.get(toolName)?.risk ?: ToolRisk.READ_ONLY)
+            toolPolicyStore.setPolicy(toolName, current.copy(enabled = enabled))
+            _state.update { state ->
+                state.copy(
+                    toolPolicies = state.toolPolicies + (toolName to current.copy(enabled = enabled)),
+                )
+            }
+        }
+    }
+
+    /**
+     * Update the confirmation level for a tool.
+     */
+    fun setToolConfirmation(toolName: String, level: ConfirmationLevel) {
+        viewModelScope.launch {
+            val current = toolPolicyStore.getPolicy(toolName)
+                ?: ToolPolicyDefaults.forTool(toolName, toolRegistry.get(toolName)?.risk ?: ToolRisk.READ_ONLY)
+            toolPolicyStore.setPolicy(toolName, current.copy(confirmation = level))
+            _state.update { state ->
+                state.copy(
+                    toolPolicies = state.toolPolicies + (toolName to current.copy(confirmation = level)),
+                )
+            }
+        }
+    }
+
+    /** Connect to an MCP server and, on success, discover its tools. */
+    fun testMcpConnection(draft: McpServerDraft) {
+        if (draft.name.isBlank() || draft.url.isBlank()) return
+        viewModelScope.launch {
+            val prefixes = draft.allowedToolPrefixes.split(',').map { it.trim() }.filter { it.isNotBlank() }
+            val denied = draft.deniedTools.split(',').map { it.trim() }.filter { it.isNotBlank() }
+            val config = McpServerConfig(
+                id = draft.name.lowercase().replace(Regex("[^a-z0-9]"), "_"),
+                name = draft.name,
+                url = draft.url,
+                trustedLocal = draft.trustedLocal,
+                allowedToolPrefixes = prefixes,
+                deniedTools = denied,
+            )
+            val health = mcpClientManager.connect(config)
+            val tools = if (health.state == com.aura.mcp.McpConnectionState.CONNECTED) {
+                mcpClientManager.listTools(config.id).map { it.name }
+            } else emptyList()
+            _state.update { state ->
+                state.copy(
+                    mcpServers = state.mcpServers + config,
+                    mcpDiscoveredTools = state.mcpDiscoveredTools + (config.id to tools),
+                )
+            }
+        }
+    }
+
+    /** Disconnect an MCP server by id. */
+    fun disconnectMcpServer(serverId: String) {
+        viewModelScope.launch {
+            mcpClientManager.disconnect(serverId)
+            _state.update { state ->
+                state.copy(
+                    mcpServers = state.mcpServers.filter { it.id != serverId },
+                    mcpDiscoveredTools = state.mcpDiscoveredTools - serverId,
+                )
+            }
         }
     }
 

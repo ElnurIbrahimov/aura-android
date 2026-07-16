@@ -108,6 +108,13 @@ class SettingsViewModelAppLockTest {
         io.mockk.every { customState.baseUrlFlow } returns kotlinx.coroutines.flow.MutableStateFlow("")
         io.mockk.coEvery { customState.reload() } returns Unit
         io.mockk.coEvery { customState.setEndpoint(any(), any(), any()) } returns Unit
+        val toolRegistry = io.mockk.mockk<com.aura.agent.ToolRegistry>(relaxed = true)
+        val toolPolicyStore = io.mockk.mockk<com.aura.agent.policy.ToolPolicyStore>(relaxed = true)
+        val modelRoleRouter = io.mockk.mockk<com.aura.providers.ModelRoleRouter>(relaxed = true)
+        val mcpClientManager = io.mockk.mockk<com.aura.mcp.McpClientManager>(relaxed = true)
+        io.mockk.every { toolRegistry.all() } returns emptyList()
+        io.mockk.every { toolPolicyStore.allPolicies } returns kotlinx.coroutines.flow.flowOf(emptyMap())
+        io.mockk.coEvery { modelRoleRouter.resolve(any()) } returns "test:default"
         return SettingsViewModel(
             providerRegistry,
             providerKeys,
@@ -115,6 +122,10 @@ class SettingsViewModelAppLockTest {
             identityStore,
             modelCatalogRepository,
             customState,
+            toolRegistry,
+            toolPolicyStore,
+            modelRoleRouter,
+            mcpClientManager,
         )
     }
 

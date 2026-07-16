@@ -319,12 +319,16 @@ class UserPreferences @Inject constructor(
     private val KEY_CREATIVE_CRITIC_MODEL = stringPreferencesKey("creative_critic_model")
     private val KEY_PLANNER_MODEL = stringPreferencesKey("planner_model")
     private val KEY_VERIFIER_MODEL = stringPreferencesKey("verifier_model")
+    private val KEY_FAST_MODEL = stringPreferencesKey("fast_model")
+    private val KEY_REASONING_MODEL = stringPreferencesKey("reasoning_model")
 
     /** Flow of the user's preferred model for a [com.aura.providers.ModelRole]. */
     fun forRole(role: com.aura.providers.ModelRole): Flow<kotlin.String?> = when (role) {
         com.aura.providers.ModelRole.CONVERSATION -> defaultModel
         com.aura.providers.ModelRole.BACKGROUND -> backgroundModel
         com.aura.providers.ModelRole.DEEP_RESEARCH -> deepModeModel
+        com.aura.providers.ModelRole.FAST -> optionalModel(KEY_FAST_MODEL)
+        com.aura.providers.ModelRole.REASONING -> optionalModel(KEY_REASONING_MODEL)
         com.aura.providers.ModelRole.CREATIVE_DRAFT -> optionalModel(KEY_CREATIVE_DRAFT_MODEL)
         com.aura.providers.ModelRole.CREATIVE_CRITIC -> optionalModel(KEY_CREATIVE_CRITIC_MODEL)
         com.aura.providers.ModelRole.PLANNER -> optionalModel(KEY_PLANNER_MODEL)
@@ -338,6 +342,8 @@ class UserPreferences @Inject constructor(
             com.aura.providers.ModelRole.CONVERSATION -> setDefaultModel(model)
             com.aura.providers.ModelRole.BACKGROUND -> setBackgroundModel(model)
             com.aura.providers.ModelRole.DEEP_RESEARCH -> setDeepModeModel(model)
+            com.aura.providers.ModelRole.FAST -> setOptionalModel(KEY_FAST_MODEL, model)
+            com.aura.providers.ModelRole.REASONING -> setOptionalModel(KEY_REASONING_MODEL, model)
             com.aura.providers.ModelRole.CREATIVE_DRAFT -> setOptionalModel(KEY_CREATIVE_DRAFT_MODEL, model)
             com.aura.providers.ModelRole.CREATIVE_CRITIC -> setOptionalModel(KEY_CREATIVE_CRITIC_MODEL, model)
             com.aura.providers.ModelRole.PLANNER -> setOptionalModel(KEY_PLANNER_MODEL, model)

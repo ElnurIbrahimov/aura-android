@@ -26,17 +26,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.ui.components.ModelPickerSheet
 import com.aura.ui.settings.BackupViewModel
 import com.aura.ui.settings.CustomEndpointCard
+import com.aura.ui.settings.McpServerDraft
 import com.aura.ui.settings.ProviderKeyField
 import com.aura.ui.settings.SETTINGS_CREDENTIAL_SPECS
 import com.aura.ui.settings.SettingsViewModel
@@ -672,6 +675,267 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             TextButton(onClick = { editingSpecialist = null }) { Text("Cancel") }
                         }
+                    },
+                )
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 3b. TOOL PERMISSIONS — enable/disable and confirmation gating
+        // ════════════════════════════════════════════════════════════════
+        var editingToolPolicy by remember { mutableStateOf<String?>(null) }
+        SettingsSection(
+            emoji = "\uD83D\uDEE1\uFE0F",
+            title = "Tool Permissions",
+            subtitle = "Disable tools or require confirmation before they run",
+            initialExpanded = false,
+        ) {
+            Text(
+                text = "Turn off any tool Aura should never call, or raise the confirmation level for risky tools.",
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            val tools = state.toolPolicies.entries.sortedBy { it.key }
+            for ((toolName, policy) in tools.take(8)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = toolName.replace("_", " ").replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Confirmation: ${policy.confirmation.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                        )
+                    }
+                    Switch(
+                        checked = policy.enabled,
+                        onCheckedChange = { viewModel.setToolEnabled(toolName, it) },
+                    )
+                    TextButton(onClick = { editingToolPolicy = toolName }) {
+                        Text("Policy")
+                    }
+                }
+            }
+            if (state.toolPolicies.size > 8) {
+                Text(
+                    text = "+ ${state.toolPolicies.size - 8} more tools",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(start = 16.dp),
+                )
+            }
+
+            editingToolPolicy?.let { editingName ->
+                val current = state.toolPolicies[editingName] ?: return@let
+                var selectedLevel by remember(editingName) { mutableStateOf(current.confirmation) }
+                AlertDialog(
+                    onDismissRequest = { editingToolPolicy = null },
+                    title = { Text(editingName.replace("_", " ").replaceFirstChar { it.uppercase() }) },
+                    text = {
+                        Column {
+                            Text("Choose the confirmation level:", style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            for (level in com.aura.agent.policy.ConfirmationLevel.entries) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    RadioButton(
+                                        selected = selectedLevel == level,
+                                        onClick = { selectedLevel = level },
+                                    )
+                                    Text(
+                                        text = level.name.lowercase().replaceFirstChar { it.uppercase() },
+                                        modifier = Modifier.padding(start = 8.dp),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.setToolConfirmation(editingName, selectedLevel)
+                            editingToolPolicy = null
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingToolPolicy = null }) { Text("Cancel") }
+                    },
+                )
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 3c. MODEL ROLES — per-task model routing
+        // ════════════════════════════════════════════════════════════════
+        var editingRole by remember { mutableStateOf<com.aura.providers.ModelRole?>(null) }
+        SettingsSection(
+            emoji = "\uD83C\uDFAF",
+            title = "Model Roles",
+            subtitle = "Pick a model for each kind of task",
+            initialExpanded = false,
+        ) {
+            Text(
+                text = "Override the default model for specific tasks. Leave a role empty to fall back to the conversation model.",
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            for (role in com.aura.providers.ModelRole.configurable) {
+                val selected = state.roleModels[role].orEmpty()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = role.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = selected.ifBlank { "Fallback to default model" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                        )
+                    }
+                    TextButton(onClick = { editingRole = role }) {
+                        Text(if (selected.isBlank()) "Set" else "Change")
+                    }
+                }
+            }
+
+            editingRole?.let { role ->
+                val current = state.roleModels[role].orEmpty()
+                var pickerModel by remember(role) { mutableStateOf(current) }
+                AlertDialog(
+                    onDismissRequest = { editingRole = null },
+                    title = { Text("${role.displayName} model") },
+                    text = {
+                        Column {
+                            OutlinedTextField(
+                                value = pickerModel,
+                                onValueChange = { pickerModel = it },
+                                label = { Text("Model id (e.g. ollama:gemma4:e4b)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Available models: ${state.availableModels.take(6).joinToString(", ")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.setRoleModel(role, pickerModel)
+                            editingRole = null
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingRole = null }) { Text("Cancel") }
+                    },
+                )
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 3d. MCP SERVERS — add, test, and remove external tool servers
+        // ════════════════════════════════════════════════════════════════
+        var showMcpAddDialog by remember { mutableStateOf(false) }
+        var mcpDraft by remember { mutableStateOf(McpServerDraft()) }
+        SettingsSection(
+            emoji = "\uD83D\uDD17",
+            title = "MCP Servers",
+            subtitle = "External Model Context Protocol tool servers",
+            initialExpanded = false,
+        ) {
+            Text(
+                text = "Connect to local or remote MCP servers. Tools from connected servers are gated by your tool policies.",
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            if (state.mcpServers.isEmpty()) {
+                Text(
+                    text = "No MCP servers configured.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+            for (server in state.mcpServers) {
+                val tools = state.mcpDiscoveredTools[server.id] ?: emptyList()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = server.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = "${server.url} · ${tools.size} tools",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                        )
+                    }
+                    TextButton(onClick = { viewModel.disconnectMcpServer(server.id) }) {
+                        Text("Disconnect")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showMcpAddDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Add MCP server") }
+
+            if (showMcpAddDialog) {
+                AlertDialog(
+                    onDismissRequest = { showMcpAddDialog = false },
+                    title = { Text("Add MCP server") },
+                    text = {
+                        Column {
+                            OutlinedTextField(
+                                value = mcpDraft.name,
+                                onValueChange = { mcpDraft = mcpDraft.copy(name = it) },
+                                label = { Text("Name") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = mcpDraft.url,
+                                onValueChange = { mcpDraft = mcpDraft.copy(url = it) },
+                                label = { Text("URL (HTTPS or trusted local HTTP)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = mcpDraft.trustedLocal,
+                                    onCheckedChange = { mcpDraft = mcpDraft.copy(trustedLocal = it) },
+                                )
+                                Text("Trusted local (allows HTTP)")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            viewModel.testMcpConnection(mcpDraft)
+                            mcpDraft = McpServerDraft()
+                            showMcpAddDialog = false
+                        }) { Text("Connect") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showMcpAddDialog = false }) { Text("Cancel") }
                     },
                 )
             }
