@@ -197,5 +197,11 @@ data class EvolutionSettingsEntity(
     val evidenceRetentionDays: Int = 30,
     /** Retention days for resolved proposals. */
     val proposalRetentionDays: Int = 90,
-    val updatedAt: kotlin.Long = System.currentTimeMillis(),
+    /** Max number of proposals kept before automatic stale cleanup. */
+    val retentionCount: Int = 50,
+    /** Aggregate counters (not the source of truth for detailed metrics). */
+    val totalRuns: Int = 0,
+    val totalCandidates: Int = 0,
+    val createdAt: kotlin.Long = System.currentTimeMillis(),
+    val updatedAt: kotlin.Long = createdAt,
 )
