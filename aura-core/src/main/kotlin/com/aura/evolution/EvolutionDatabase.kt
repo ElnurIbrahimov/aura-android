@@ -18,7 +18,7 @@ import androidx.room.TypeConverters
         EvolutionRevisionEntity::class,
         EvolutionSettingsEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(EvolutionTypeConverters::class)
