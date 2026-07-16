@@ -64,6 +64,7 @@ internal val KEY_MORNING_BRIEF_HOUR = intPreferencesKey("morning_brief_hour")
 internal val KEY_SPECIALIST_TOOL_OVERRIDES = stringPreferencesKey("specialist_tool_overrides")
 internal val KEY_EVOLUTION_ENABLED = booleanPreferencesKey("evolution_enabled")
 internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interval_hours")
+internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
 internal val KEY_SMTP_PORT = intPreferencesKey("smtp_port")
 internal val KEY_SMTP_USERNAME = stringPreferencesKey("smtp_username")
@@ -224,6 +225,11 @@ class UserPreferences @Inject constructor(
         prefs[KEY_EVOLUTION_INTERVAL_HOURS] ?: 24
     }
 
+    /** Whether approved evolutions run in shadow mode first. */
+    val evolutionShadowEnabled: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_EVOLUTION_SHADOW_ENABLED] ?: false
+    }
+
     suspend fun setDefaultModel(model: String?) = setOptionalModel(KEY_DEFAULT_MODEL, model)
     suspend fun setVisionModel(model: String?) = setOptionalModel(KEY_VISION_MODEL, model)
     suspend fun setBackgroundModel(model: String?) = setOptionalModel(KEY_BACKGROUND_MODEL, model)
@@ -292,6 +298,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setEvolutionIntervalHours(hours: Int) {
         context.auraPrefs.edit { it[KEY_EVOLUTION_INTERVAL_HOURS] = hours.coerceIn(1, 168) }
+    }
+
+    suspend fun setEvolutionShadowEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_EVOLUTION_SHADOW_ENABLED] = enabled }
     }
 
     suspend fun setMorningBriefHour(hour: Int) {

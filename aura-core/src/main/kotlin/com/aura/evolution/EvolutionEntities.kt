@@ -189,6 +189,8 @@ data class EvolutionSettingsEntity(
     val autoApplyApproved: kotlin.Boolean = false,
     /** User has opted into optional LLM reflection for this domain. */
     val reflectionEnabled: kotlin.Boolean = false,
+    /** When enabled, approved evolutions run in shadow mode first and compare metrics. */
+    val shadowEnabled: kotlin.Boolean = false,
     /** Max cloud calls per 24h window for this domain. */
     val dailyCloudCallBudget: Int = 24,
     /** Max tokens per reflection call. */

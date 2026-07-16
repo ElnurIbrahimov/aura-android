@@ -152,6 +152,7 @@ data class SettingsUiState(
     val smtpResult: String? = null,
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
+    val evolutionShadowEnabled: Boolean = false,
     /** Distinct from credentialStates["custom"]: the URL/key are stored
      *  outside ProviderKeys, so this is a separate UI state. */
 )
@@ -262,6 +263,7 @@ class SettingsViewModel @Inject constructor(
             val smtpFrom = userPreferences.smtpFrom.first()
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
+            val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
             }
@@ -300,6 +302,7 @@ class SettingsViewModel @Inject constructor(
                 smtpFrom = smtpFrom,
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
+                evolutionShadowEnabled = evolutionShadowEnabled,
             )
         }
     }
@@ -424,6 +427,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setEvolutionIntervalHours(hours)
             _state.update { it.copy(evolutionIntervalHours = hours) }
+        }
+    }
+
+    fun setEvolutionShadowEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setEvolutionShadowEnabled(enabled)
+            _state.update { it.copy(evolutionShadowEnabled = enabled) }
         }
     }
 
