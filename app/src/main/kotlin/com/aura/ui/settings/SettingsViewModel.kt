@@ -11,16 +11,19 @@ import com.aura.agent.policy.ToolPolicyDefaults
 import com.aura.agent.policy.ToolPolicyStore
 import com.aura.data.UserPreferences
 import com.aura.mcp.McpClientManager
+import com.aura.mcp.McpConnectionState
 import com.aura.mcp.McpServerConfig
-import com.aura.providers.ProviderKeys
-import com.aura.providers.ProviderRegistry
-import com.aura.providers.ProviderCredentialState
+import com.aura.mcp.McpServerHealth
+import com.aura.mcp.McpToolInfo
+import com.aura.providers.CustomEndpointState
 import com.aura.providers.ModelCatalog
 import com.aura.providers.ModelCatalogRepository
 import com.aura.providers.ModelRole
-import com.aura.providers.ProviderStatus
-import com.aura.providers.CustomEndpointState
 import com.aura.providers.ModelRoleRouter
+import com.aura.providers.ProviderCredentialState
+import com.aura.providers.ProviderKeys
+import com.aura.providers.ProviderRegistry
+import com.aura.providers.ProviderStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -120,7 +123,7 @@ data class SettingsUiState(
      * Configured MCP servers and any discovered tools per server.
      */
     val mcpServers: List<McpServerConfig> = emptyList(),
-    val mcpDiscoveredTools: Map<String, List<String>> = emptyMap(),
+    val mcpDiscoveredTools: Map<String, List<McpToolInfo>> = emptyMap(),
     /**
      * Per-provider verify result: prefix → "✓ Verified — N models"
      * or "✗ Failed: ...". Null = not tested yet.
@@ -135,7 +138,7 @@ data class SettingsUiState(
     val credentialStates: Map<String, ProviderCredentialState> = emptyMap(),
     // Custom endpoint card state.
     val customBaseUrl: String = "",
-    val customApiKey: kotlin.String = "",
+    val customApiKey: String = "",
     val customIsConfigured: Boolean = false,
     val customTesting: Boolean = false,
     val customResult: String? = null,
@@ -284,6 +287,7 @@ class SettingsViewModel @Inject constructor(
                 specialistOverrides = specialistOverrides,
                 toolPolicies = mergedPolicies,
                 mcpServers = emptyList(), // persisted server list not yet implemented
+                mcpDiscoveredTools = emptyMap(),
                 morningBriefHour = morningBriefHour,
                 smtpHost = smtpHost,
                 smtpPort = smtpPort,
@@ -508,7 +512,7 @@ class SettingsViewModel @Inject constructor(
             )
             val health = mcpClientManager.connect(config)
             val tools = if (health.state == com.aura.mcp.McpConnectionState.CONNECTED) {
-                mcpClientManager.listTools(config.id).map { it.name }
+                mcpClientManager.listTools(config.id)
             } else emptyList()
             _state.update { state ->
                 state.copy(
