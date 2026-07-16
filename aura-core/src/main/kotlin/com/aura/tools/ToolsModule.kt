@@ -65,6 +65,9 @@ object ToolsModule {
         creativeAddWorldItem: CreativeAddWorldItemTool,
         creativeEngine: CreativeEngineTool,
         canonQuery: CanonQueryTool,
+        indexDocument: IndexDocumentTool,
+        queryWorldModel: QueryWorldModelTool,
+        queryTaste: QueryTasteTool,
         useSkill: UseSkillTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
@@ -122,6 +125,9 @@ object ToolsModule {
         registry.register(creativeAddWorldItem.tool)
         registry.register(creativeEngine.tool)
         registry.register(canonQuery.tool)
+        registry.register(indexDocument.tool)
+        registry.register(queryWorldModel.tool)
+        registry.register(queryTaste.tool)
         registry.register(useSkill.tool)
         return registry
     }
