@@ -28,6 +28,7 @@ import java.util.UUID
 internal class McpConnection(
     val config: McpServerConfig,
     private val httpClient: OkHttpClient,
+    private val authToken: kotlin.String? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
@@ -184,7 +185,10 @@ internal class McpConnection(
         val builder = Request.Builder().url(config.url).post(body)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
-        // Auth headers would go here from SecureDataStore
+        // Attach auth token if provided by McpClientManager (from SecureDataStore)
+        if (!authToken.isNullOrBlank()) {
+            builder.header("Authorization", "Bearer $authToken")
+        }
 
         return try {
             httpClient.newCall(builder.build()).execute().use { response ->

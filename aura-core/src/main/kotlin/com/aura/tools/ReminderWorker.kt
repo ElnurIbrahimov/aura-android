@@ -66,14 +66,12 @@ class ReminderWorker @AssistedInject constructor(
 
     private fun postNotification(ctx: Context, title: String, body: String, id: Int) {
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val ch = android.app.NotificationChannel(
-                NotificationsTool.CHANNEL_ID,
-                NotificationsTool.CHANNEL_NAME,
-                android.app.NotificationManager.IMPORTANCE_HIGH,
-            )
-            mgr.createNotificationChannel(ch)
-        }
+        val ch = android.app.NotificationChannel(
+            NotificationsTool.CHANNEL_ID,
+            NotificationsTool.CHANNEL_NAME,
+            android.app.NotificationManager.IMPORTANCE_HIGH,
+        )
+        mgr.createNotificationChannel(ch)
         val launchIntent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
             ?: Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

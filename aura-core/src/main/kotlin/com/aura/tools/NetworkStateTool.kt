@@ -3,7 +3,6 @@ package com.aura.tools
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Build
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
@@ -45,7 +44,7 @@ class NetworkStateTool @Inject constructor(
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
                 else -> "unknown"
             }
-            val metered = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) else false
+            val metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
             val validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             ToolResult.Ok("Online: $type, ${if (metered) "metered" else "unmetered"}, ${if (validated) "validated" else "not yet validated"}")
         },

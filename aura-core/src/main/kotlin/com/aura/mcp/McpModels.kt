@@ -22,6 +22,8 @@ data class McpServerConfig(
     val maxTools: Int = 100,
     /** Maximum response size in bytes for any single tool call. */
     val maxResponseBytes: Int = 1_000_000,
+    /** Bearer token for server auth. Stored in SecureDataStore, not in Room. */
+    val authToken: kotlin.String? = null,
     val createdAt: kotlin.Long = System.currentTimeMillis(),
     val updatedAt: kotlin.Long = createdAt,
 )

@@ -27,7 +27,7 @@ class McpClientManager @Inject constructor(
     /**
      * Connect to an MCP server. Returns the connection health.
      */
-    suspend fun connect(config: McpServerConfig): McpServerHealth {
+    suspend fun connect(config: McpServerConfig, authToken: kotlin.String? = null): McpServerHealth {
         // Validate URL
         if (!config.trustedLocal && !config.url.startsWith("https://")) {
             return McpServerHealth(
@@ -37,7 +37,7 @@ class McpClientManager @Inject constructor(
             )
         }
 
-        val connection = McpConnection(config, httpClient)
+        val connection = McpConnection(config, httpClient, authToken)
         val health = connection.initialize()
         if (health.state == McpConnectionState.CONNECTED) {
             connections[config.id] = connection

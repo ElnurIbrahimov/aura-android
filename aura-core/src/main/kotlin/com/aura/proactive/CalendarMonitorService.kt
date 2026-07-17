@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -48,14 +47,12 @@ class CalendarMonitorService : Service() {
 
     private fun buildNotification(): Notification {
         val mgr = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(
-                CHANNEL_ID,
-                "Calendar Monitor",
-                NotificationManager.IMPORTANCE_LOW,
-            )
-            mgr.createNotificationChannel(ch)
-        }
+        val ch = NotificationChannel(
+            CHANNEL_ID,
+            "Calendar Monitor",
+            NotificationManager.IMPORTANCE_LOW,
+        )
+        mgr.createNotificationChannel(ch)
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             ?: Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

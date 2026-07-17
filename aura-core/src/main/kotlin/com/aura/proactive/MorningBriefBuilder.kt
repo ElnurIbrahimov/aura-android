@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.aura.agent.Conversation
 import com.aura.core.R
@@ -186,14 +185,12 @@ class MorningBriefBuilder @Inject constructor(
 
     private fun postNotification(ctx: Context, title: String, body: String, summary: String) {
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(
-                "aura_morning_brief",
-                "Aura Morning Brief",
-                NotificationManager.IMPORTANCE_DEFAULT,
-            )
-            mgr.createNotificationChannel(ch)
-        }
+        val ch = NotificationChannel(
+            "aura_morning_brief",
+            "Aura Morning Brief",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        )
+        mgr.createNotificationChannel(ch)
 
         val launchIntent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
             ?: Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
