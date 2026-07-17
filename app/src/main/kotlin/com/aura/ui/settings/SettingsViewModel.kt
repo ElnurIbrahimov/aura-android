@@ -161,6 +161,7 @@ data class SettingsUiState(
 data class McpServerDraft(
     val name: String = "",
     val url: String = "",
+    val authToken: String = "",
     val trustedLocal: Boolean = false,
     val allowedToolPrefixes: String = "",
     val deniedTools: String = "",
@@ -541,6 +542,7 @@ class SettingsViewModel @Inject constructor(
                 trustedLocal = draft.trustedLocal,
                 allowedToolPrefixes = prefixes,
                 deniedTools = denied,
+                authToken = draft.authToken.ifBlank { null },
             )
             val health = mcpClientManager.connect(config)
             val tools = if (health.state == com.aura.mcp.McpConnectionState.CONNECTED) {

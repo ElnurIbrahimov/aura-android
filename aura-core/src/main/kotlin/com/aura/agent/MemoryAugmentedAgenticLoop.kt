@@ -68,6 +68,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val providerRegistry: com.aura.providers.ProviderRegistry,
     private val conversationCompactor: ConversationCompactor,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
+    private val providerKeys: com.aura.providers.ProviderKeys? = null,
 ) {
 
     /**
@@ -94,11 +95,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          */
         memoryEnabled: Boolean = true,
     ): Flow<AgentEvent> = flow {
-        val tools = specialist?.let { s ->
+        val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
             else toolRegistry.definitions().filter { it.name in allowed }
         } ?: toolRegistry.definitions()
+        // Hide search tools that need an API key the user hasn't configured.
+        // The LLM should only see search tools that will actually work.
+        val tools = filterSearchTools(allTools)
         var step = 0
         var finished = false
         var lastUserMessage = ""
@@ -407,7 +411,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     }
 
     /** Lightweight regex-based profile extraction. Updates name, traits, and facts. */
-    private suspend fun extractProfileFromText(text: String) {
+private suspend fun extractProfileFromText(text: String) {
         val facts = mutableListOf<String>()
         Regex("""(?:my name is|i'm|i am|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)""", RegexOption.IGNORE_CASE)
             .find(text)?.groupValues?.getOrNull(1)?.let { name ->
@@ -420,6 +424,30 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         Regex("""(?:i (?:prefer|like|love))\s+(.+?)(?:\.|,|\s+(?:and|but|so|because)|\s*$)""", RegexOption.IGNORE_CASE)
             .find(text)?.groupValues?.getOrNull(1)?.let { pref -> facts.add("Prefers ${pref.trim()}") }
         if (facts.isNotEmpty()) userProfileStore.mergeFacts(facts)
+    }
+
+    /**
+     * Filter out search tools that need an API key the user hasn't configured.
+     * The LLM only sees tools that will actually work, so it doesn't waste
+     * a turn calling brave_search when no Brave key is set.
+     *
+     * - web_search: always visible (DuckDuckGo, no key needed)
+     * - web_search_capability: always visible (routes to configured provider or DDG fallback)
+     * - tavily_search: hidden unless Tavily key is configured
+     * - brave_search: hidden unless Brave key is configured
+     * - MCP-prefixed tools: always visible (user explicitly connected the server)
+     */
+    private fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> {
+        if (providerKeys == null) return tools
+        val tavilyConfigured = !providerKeys.keyFor("tavily").isNullOrBlank()
+        val braveConfigured = !providerKeys.keyFor("brave").isNullOrBlank()
+        return tools.filter { def ->
+            when (def.name) {
+                "tavily_search" -> tavilyConfigured
+                "brave_search" -> braveConfigured
+                else -> true
+            }
+        }
     }
 
     /**

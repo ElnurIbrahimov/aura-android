@@ -15,6 +15,7 @@ import com.aura.voice.TextToSpeech
 import com.aura.core.error.CrashLogger
 import io.mockk.coEvery
 import io.mockk.mockk
+import com.aura.taste.TasteEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -65,6 +66,7 @@ class ChatViewModelLastAssistantTest {
             conversationStore = store,
             knowledgeGraphRepository = kgRepo,
         crashLogger = crashLogger,
+        tasteEngine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true),
         )
         // Replace the private _state with a Conversation containing
         // our test data. Done via reflection so we don't have to

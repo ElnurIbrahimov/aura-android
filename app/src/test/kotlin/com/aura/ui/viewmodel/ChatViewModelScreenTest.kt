@@ -13,6 +13,7 @@ import com.aura.core.error.CrashLogger
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import com.aura.taste.TasteEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,7 @@ class ChatViewModelScreenTest {
             conversationStore = conversationStore,
             knowledgeGraphRepository = knowledgeGraphRepository,
         crashLogger = crashLogger,
+        tasteEngine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true),
         )
     }
 

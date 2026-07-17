@@ -277,6 +277,9 @@ fun NavGraph(
             composable("skills") {
                 SkillsScreen(onBack = { navController.popBackStack() })
             }
+            composable("production") {
+                ProductionPipelineScreen()
+            }
             composable("evolution") {
                 EvolutionInboxScreen(onBack = { navController.popBackStack() })
             }

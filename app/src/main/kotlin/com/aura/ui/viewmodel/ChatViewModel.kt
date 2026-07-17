@@ -233,7 +233,7 @@ class ChatViewModel @Inject constructor(
     private val documentTextExtractor: DocumentTextExtractor? = null,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val skillsStore: SkillsStore? = null,
-    private val tasteEngine: TasteEngine? = null,
+    private val tasteEngine: TasteEngine,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -672,7 +672,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val turn = _state.value.conversation.turns.find { it.timestamp == turnTimestamp } ?: return@launch
             val modelId = _state.value.conversation.model?.ifBlank { _state.value.activeModel } ?: _state.value.activeModel
-            tasteEngine?.recordSignal(
+            tasteEngine.recordSignal(
                 signalType = "chat_reaction",
                 category = "general",
                 artifactId = turn.timestamp.toString(),
@@ -684,7 +684,7 @@ class ChatViewModel @Inject constructor(
                 ),
                 weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
             )
-            tasteEngine?.recomputeProfile()
+            tasteEngine.recomputeProfile()
         }
     }
 

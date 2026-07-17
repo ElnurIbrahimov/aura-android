@@ -70,11 +70,11 @@ class McpToolBridge @Inject constructor(
 
             val tools = mcpClientManager.listTools(config.id)
             for (mcpTool in tools) {
-                val registeredName = mcpToolName(config.id, mcpTool.name)
-                // Don't overwrite a native tool
-                if (toolRegistry.get(mcpTool.name) != null && registeredName != mcpTool.name) {
-                    // Native tool exists with the base name — only register the prefixed version
-                }
+                // Use the base name if no native tool has it; otherwise use the prefixed name.
+                // This way an MCP search tool can be called as "tavily_search" by the LLM
+                // (overriding the native one) if the user intentionally connected it via MCP.
+                val nativeExists = toolRegistry.get(mcpTool.name) != null
+                val registeredName = if (nativeExists) mcpToolName(config.id, mcpTool.name) else mcpTool.name
 
                 val tool = Tool(
                     name = registeredName,

@@ -948,6 +948,15 @@ fun SettingsScreen(
                                 singleLine = true,
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = mcpDraft.authToken,
+                                onValueChange = { mcpDraft = mcpDraft.copy(authToken = it) },
+                                label = { Text("Auth token (optional, sent as Bearer)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(
                                     checked = mcpDraft.trustedLocal,
