@@ -3,6 +3,7 @@ package com.aura.ui.evolution
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.data.UserPreferences
+import com.aura.evolution.EvolutionApplySaga
 import com.aura.evolution.EvolutionDomain
 import com.aura.evolution.EvolutionProposalDao
 import com.aura.evolution.EvolutionProposalEntity
@@ -30,6 +31,7 @@ class EvolutionInboxViewModel @Inject constructor(
     private val settingsDao: EvolutionSettingsDao,
     private val rollbackManager: EvolutionRollbackManager,
     private val userPreferences: UserPreferences,
+    private val applySaga: EvolutionApplySaga,
 ) : ViewModel() {
 
     private val _proposals = MutableStateFlow<List<EvolutionProposalEntity>>(emptyList())
@@ -66,6 +68,22 @@ class EvolutionInboxViewModel @Inject constructor(
     fun approve(id: kotlin.String) {
         viewModelScope.launch {
             proposalStore.approve(id)
+            // Actually apply the proposal — without this the proposal
+            // sat in APPROVED status forever and nothing happened.
+            val proposal = proposalStore.getById(id)
+            if (proposal != null) {
+                when (val result = applySaga.apply(proposal)) {
+                    is EvolutionApplySaga.ApplyResult.Ok -> {
+                        // applySaga already calls proposalStore.markApplied
+                    }
+                    is EvolutionApplySaga.ApplyResult.Error -> {
+                        proposalStore.markApplyFailed(id, result.message)
+                    }
+                    is EvolutionApplySaga.ApplyResult.NotYetImplemented -> {
+                        proposalStore.markApplyFailed(id, "action not implemented: ${result.action}")
+                    }
+                }
+            }
             load()
         }
     }

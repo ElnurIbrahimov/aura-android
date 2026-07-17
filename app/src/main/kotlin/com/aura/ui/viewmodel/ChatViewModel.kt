@@ -828,9 +828,12 @@ class ChatViewModel @Inject constructor(
                     old.copy(conversation = updated)
                 }
                 saveConversation()
+                // Re-engage the model so it can process the tool result and
+                // continue the conversation. Without this the user had to
+                // manually type a message for the model to see the result.
+                sendController.runSend(viewModelScope)
             } catch (e: kotlinx.coroutines.CancellationException) { /* cancelled */ }
-            catch (e: Exception) { _state.update { it.copy(error = e.message ?: "unknown error") } }
-            finally { _state.update { it.copy(streaming = false) } }
+            catch (e: Exception) { _state.update { it.copy(streaming = false, error = e.message ?: "unknown error") } }
         }
     }
 

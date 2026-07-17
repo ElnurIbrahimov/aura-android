@@ -34,7 +34,7 @@ data class Specialist(
                 languages. You can search the web for docs and solutions, then
                 apply them. Be precise — explain the fix, not just the code.
             """.trimIndent(),
-            toolsAllowed = setOf("brave_search", "tavily_search", "fetch_url"),
+            toolsAllowed = setOf("brave_search", "tavily_search", "web_search", "web_search_capability", "fetch_url"),
         )
 
         /** Deep-research & fact-finding specialist. */
@@ -47,7 +47,7 @@ data class Specialist(
                 multi-source topics; use web search for quick facts. Always cite
                 sources and present a balanced view when sources disagree.
             """.trimIndent(),
-            toolsAllowed = setOf("deep_research", "brave_search", "tavily_search"),
+            toolsAllowed = setOf("deep_research", "brave_search", "tavily_search", "web_search", "web_search_capability", "fetch_url"),
         )
 
         /** Creative writing, storytelling, and simulation specialist. */

@@ -1,9 +1,12 @@
 package com.aura.creative
 
+import android.content.Context
+import com.aura.agentrun.AgentRunExecutorService
 import com.aura.agentrun.AgentRunStore
 import com.aura.agentrun.StepSpec
 import com.aura.capabilities.CapabilityKind
 import com.aura.capabilities.CapabilityRouter
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,9 +16,13 @@ import javax.inject.Singleton
  * trailer, podcast drama, RPG campaign. Each pipeline breaks a project into
  * an ordered sequence of agent-run steps so progress is durable, resumable,
  * and observable in the Agent Runs history screen.
+ *
+ * After scheduling, triggers [AgentRunExecutorWorker] to actually
+ * execute the steps.
  */
 @Singleton
 class ProductionPipelineEngine @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val agentRunStore: AgentRunStore,
     private val capabilityRouter: CapabilityRouter,
 ) {
@@ -40,6 +47,8 @@ class ProductionPipelineEngine @Inject constructor(
         )
         val steps = stepsFor(pipeline, projectId, brief)
         agentRunStore.planSteps(run.id, steps)
+        // Trigger the executor worker to process the steps
+        AgentRunExecutorService.enqueue(appContext, run.id)
         return run.id
     }
 

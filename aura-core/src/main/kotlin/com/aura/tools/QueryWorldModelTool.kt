@@ -1,22 +1,33 @@
 package com.aura.tools
 
 import com.aura.agent.Tool
-import com.aura.agent.ToolCall
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
-import com.aura.memory.MemoryStore
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import com.aura.world.BeliefDao
+import com.aura.world.OpportunityDao
+import com.aura.world.WorldEventDao
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Query the user's accumulated world model (beliefs, events, opportunities) stored as memories.
+ * Query the user's accumulated world model (beliefs, events, opportunities).
+ *
+ * Previously this tool searched the memory store with a text query like
+ * "$question category:worldmodel" — but world model data lives in separate
+ * Room tables (beliefs, world_events, opportunities), not in the general
+ * memory store. The old implementation always returned "No matching entries
+ * found" because no memories had category "worldmodel".
+ *
+ * Now queries the actual DAOs directly.
  */
 @Singleton
 class QueryWorldModelTool @Inject constructor(
-    private val memoryStore: MemoryStore,
+    private val beliefDao: BeliefDao,
+    private val worldEventDao: WorldEventDao,
+    private val opportunityDao: OpportunityDao,
 ) {
     fun definition() = ToolDefinition(
         name = "query_world_model",
@@ -36,12 +47,46 @@ class QueryWorldModelTool @Inject constructor(
         parameters = definition().parameters,
         category = "memory",
         execute = { call, _ ->
-            val question = call.arguments["question"] as? String ?: return@Tool ToolResult.Error("missing 'question'", "bad_args")
-            val memories = memoryStore.query("$question category:worldmodel", limit = 8)
+            val question = call.arguments["question"] as? String
+                ?: return@Tool ToolResult.Error("missing 'question'", "bad_args")
             val output = buildString {
                 appendLine("World-model results for: $question")
-                if (memories.isEmpty()) appendLine("No matching entries found.")
-                else memories.forEach { appendLine("- ${it.content}") }
+                appendLine()
+
+                // Active beliefs
+                val beliefs = runCatching { beliefDao.allActive(10) }.getOrDefault(emptyList())
+                if (beliefs.isNotEmpty()) {
+                    appendLine("## Beliefs (${beliefs.size})")
+                    beliefs.forEach { b ->
+                        appendLine("- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)")
+                    }
+                    appendLine()
+                }
+
+                // Recent unconsumed events
+                val events = runCatching { worldEventDao.unconsumed(10) }.getOrDefault(emptyList())
+                if (events.isNotEmpty()) {
+                    appendLine("## Recent Events (${events.size})")
+                    events.forEach { e ->
+                        appendLine("- [${e.eventType}] ${e.summary}")
+                    }
+                    appendLine()
+                }
+
+                // Pending opportunities
+                val now = System.currentTimeMillis()
+                val opportunities = runCatching { opportunityDao.pending(now, 10) }.getOrDefault(emptyList())
+                if (opportunities.isNotEmpty()) {
+                    appendLine("## Opportunities (${opportunities.size})")
+                    opportunities.forEach { o ->
+                        appendLine("- [${o.kind}] ${o.title} (urgency: ${"%.0f".format(o.urgency * 100)}%, benefit: ${"%.0f".format(o.benefit * 100)}%)")
+                    }
+                    appendLine()
+                }
+
+                if (beliefs.isEmpty() && events.isEmpty() && opportunities.isEmpty()) {
+                    appendLine("No world-model entries found. The world model is built from conversation patterns over time.")
+                }
             }
             ToolResult.Ok(output.trim())
         },

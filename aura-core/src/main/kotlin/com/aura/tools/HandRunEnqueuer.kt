@@ -1,8 +1,11 @@
 package com.aura.tools
 
+import android.content.Context
+import com.aura.agentrun.AgentRunExecutorService
 import com.aura.agentrun.AgentRunStore
 import com.aura.agentrun.StepSpec
 import com.aura.hands.HandRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.builtins.MapSerializer
@@ -13,9 +16,13 @@ import kotlinx.serialization.json.Json
  * Adapter that converts a saved [com.aura.hands.Hand] into a durable [AgentRun].
  * Used by [RunHandTool] so that hand executions appear in the
  * Agent Runs list and can be resumed/approved like any other run.
+ *
+ * After enqueueing, triggers [AgentRunExecutorWorker] to actually
+ * execute the steps. Without this, the run sits in RUNNING forever.
  */
 @Singleton
 class HandRunEnqueuer @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val handRepository: HandRepository,
     private val agentRunStore: AgentRunStore,
 ) {
@@ -61,6 +68,8 @@ class HandRunEnqueuer @Inject constructor(
                 },
             )
         }
+        // Trigger the executor worker to process the steps
+        AgentRunExecutorService.enqueue(appContext, run.id)
         return run.id
     }
 }
