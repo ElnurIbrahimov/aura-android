@@ -103,6 +103,7 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         every { userPreferences.evolutionIntervalHours } returns flowOf(24)
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.mcpServersJson } returns flowOf("")
         coEvery { identityStore.readCurrent() } returns ""
         coEvery { identityStore.hasOverride() } returns false
     }
@@ -132,6 +133,7 @@ class SettingsViewModelAppLockTest {
             toolPolicyStore,
             modelRoleRouter,
             mcpClientManager,
+            io.mockk.mockk<com.aura.mcp.McpToolBridge>(relaxed = true),
         )
     }
 

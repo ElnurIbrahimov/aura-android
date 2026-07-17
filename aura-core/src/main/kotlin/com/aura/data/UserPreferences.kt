@@ -66,6 +66,7 @@ internal val KEY_EVOLUTION_ENABLED = booleanPreferencesKey("evolution_enabled")
 internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interval_hours")
 internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
+internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
 internal val KEY_SMTP_PORT = intPreferencesKey("smtp_port")
 internal val KEY_SMTP_USERNAME = stringPreferencesKey("smtp_username")
@@ -312,6 +313,15 @@ class UserPreferences @Inject constructor(
 
     suspend fun setEvolutionOnboardingShown(shown: Boolean) {
         context.auraPrefs.edit { it[KEY_EVOLUTION_ONBOARDING_SHOWN] = shown }
+    }
+
+    /** Persisted MCP server configs as JSON. Empty string = no servers. */
+    val mcpServersJson: Flow<kotlin.String> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_MCP_SERVERS_JSON] ?: ""
+    }
+
+    suspend fun setMcpServersJson(json: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_MCP_SERVERS_JSON] = json }
     }
 
     suspend fun setMorningBriefHour(hour: Int) {

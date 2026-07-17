@@ -3,11 +3,19 @@ package com.aura.proactive
 import android.content.Intent
 import com.aura.data.UserPreferences
 import com.aura.evolution.EvolutionScheduler
+import com.aura.mcp.McpClientManager
+import com.aura.mcp.McpServerConfig
+import com.aura.mcp.McpToolBridge
 import com.aura.memory.MemoryStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,6 +44,8 @@ class ProactiveBootstrap @Inject constructor(
     private val memoryStore: MemoryStore,
     private val userPreferences: UserPreferences,
     private val evolutionScheduler: EvolutionScheduler,
+    private val mcpClientManager: McpClientManager,
+    private val mcpToolBridge: McpToolBridge,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -89,6 +99,20 @@ class ProactiveBootstrap @Inject constructor(
                     }
                 }
         }
+
+        // Reconnect MCP servers and register their tools into the ToolRegistry
+        // so the agentic loop can see and call them.
+        scope.launch {
+            runCatching { reconnectMcpServers() }
+                .onFailure { error ->
+                    try {
+                        android.util.Log.w(
+                            "ProactiveBootstrap",
+                            "MCP reconnect failed: ${error.message}",
+                        )
+                    } catch (_: RuntimeException) {}
+                }
+        }
     }
 
     private fun reconcile(gates: ProactiveGates) {
@@ -129,6 +153,45 @@ class ProactiveBootstrap @Inject constructor(
             // WorkManager may not be initialized yet on fresh install;
             // the next preference emission will retry.
         }
+    }
+
+    /**
+     * Reconnect persisted MCP servers and register their tools into
+     * the [com.aura.agent.ToolRegistry] via [McpToolBridge]. Called
+     * at startup and whenever the server list changes.
+     *
+     * Servers are stored as a JSON array in UserPreferences. Auth
+     * tokens are NOT persisted here (they live in SecureDataStore if
+     * needed — currently MCP servers use URL-embedded credentials
+     * or no auth).
+     */
+    suspend fun reconnectMcpServers() {
+        val jsonStr = userPreferences.mcpServersJson.first()
+        if (jsonStr.isBlank()) return
+
+        val servers = try {
+            val json = Json { ignoreUnknownKeys = true }
+            val arr = json.parseToJsonElement(jsonStr) as? JsonArray ?: return
+            arr.mapNotNull { item ->
+                val obj = item as? JsonObject ?: return@mapNotNull null
+                json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+            }
+        } catch (e: Exception) {
+            try {
+                android.util.Log.w("ProactiveBootstrap", "Failed to parse MCP servers JSON: ${e.message}")
+            } catch (_: RuntimeException) {}
+            return
+        }
+
+        for (config in servers) {
+            if (!config.enabled) continue
+            runCatching {
+                mcpClientManager.connect(config, config.authToken)
+            }
+        }
+
+        // Register all discovered MCP tools into the ToolRegistry
+        mcpToolBridge.syncTools(servers)
     }
 
     /**

@@ -101,15 +101,13 @@ class TavilySearchTool @Inject constructor(
         maxResults: Int,
         searchDepth: String,
         includeAnswer: Boolean,
-        apiKey: String,
+        apiKey: kotlin.String,
     ): String {
-        val requestBody = buildJsonBody(query, maxResults, searchDepth, includeAnswer)
+        val requestBody = buildJsonBody(query, maxResults, searchDepth, includeAnswer, apiKey)
         val req = Request.Builder()
             .url("https://api.tavily.com/search")
-            .header("Authorization", "Bearer $apiKey")
-            .header("User-Agent", "Mozilla/5.0 Aura/1.0")
-            .header("Accept", "application/json")
             .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
             .post(requestBody.toRequestBody(mediaType))
             .build()
 
@@ -127,8 +125,10 @@ class TavilySearchTool @Inject constructor(
         maxResults: Int,
         searchDepth: String,
         includeAnswer: Boolean,
+        apiKey: kotlin.String,
     ): String {
         val obj = kotlinx.serialization.json.buildJsonObject {
+            put("api_key", apiKey)
             put("query", query)
             put("max_results", maxResults)
             put("search_depth", searchDepth)

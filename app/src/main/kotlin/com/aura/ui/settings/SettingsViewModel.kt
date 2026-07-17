@@ -187,6 +187,7 @@ class SettingsViewModel @Inject constructor(
     private val toolPolicyStore: ToolPolicyStore,
     private val modelRoleRouter: ModelRoleRouter,
     private val mcpClientManager: McpClientManager,
+    private val mcpToolBridge: com.aura.mcp.McpToolBridge,
 ) : ViewModel() {
 
     private fun configuredProviderLabels(): List<String> =
@@ -264,6 +265,7 @@ class SettingsViewModel @Inject constructor(
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
+            val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
             }
@@ -292,7 +294,7 @@ class SettingsViewModel @Inject constructor(
                 identityCustomized = identityCustomized,
                 specialistOverrides = specialistOverrides,
                 toolPolicies = mergedPolicies,
-                mcpServers = emptyList(), // persisted server list not yet implemented
+                mcpServers = parseMcpServers(mcpServersJson),
                 mcpDiscoveredTools = emptyMap(),
                 morningBriefHour = morningBriefHour,
                 smtpHost = smtpHost,
@@ -544,25 +546,60 @@ class SettingsViewModel @Inject constructor(
             val tools = if (health.state == com.aura.mcp.McpConnectionState.CONNECTED) {
                 mcpClientManager.listTools(config.id)
             } else emptyList()
+            val updatedServers = _state.value.mcpServers + config
             _state.update { state ->
                 state.copy(
-                    mcpServers = state.mcpServers + config,
+                    mcpServers = updatedServers,
                     mcpDiscoveredTools = state.mcpDiscoveredTools + (config.id to tools),
                 )
             }
+            // Persist the server list and sync MCP tools into ToolRegistry
+            persistMcpServers(updatedServers)
+            mcpToolBridge.syncTools(updatedServers)
         }
     }
 
     /** Disconnect an MCP server by id. */
-    fun disconnectMcpServer(serverId: String) {
+    fun disconnectMcpServer(serverId: kotlin.String) {
         viewModelScope.launch {
             mcpClientManager.disconnect(serverId)
+            val updatedServers = _state.value.mcpServers.filter { it.id != serverId }
             _state.update { state ->
                 state.copy(
-                    mcpServers = state.mcpServers.filter { it.id != serverId },
+                    mcpServers = updatedServers,
                     mcpDiscoveredTools = state.mcpDiscoveredTools - serverId,
                 )
             }
+            // Persist the updated server list and sync tools
+            persistMcpServers(updatedServers)
+            mcpToolBridge.syncTools(updatedServers)
+        }
+    }
+
+    /** Serialize and persist the MCP server list to DataStore. */
+    private suspend fun persistMcpServers(servers: List<McpServerConfig>) {
+        val jsonStr = if (servers.isEmpty()) "" else {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            kotlinx.serialization.json.JsonArray(
+                servers.map { json.encodeToJsonElement(McpServerConfig.serializer(), it) }
+            ).toString()
+        }
+        userPreferences.setMcpServersJson(jsonStr)
+    }
+
+    /** Parse persisted MCP server JSON back to config objects. */
+    private fun parseMcpServers(jsonStr: kotlin.String): List<McpServerConfig> {
+        if (jsonStr.isBlank()) return emptyList()
+        return try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val arr = json.parseToJsonElement(jsonStr) as? kotlinx.serialization.json.JsonArray
+                ?: return emptyList()
+            arr.mapNotNull { item ->
+                val obj = item as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+            }
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
