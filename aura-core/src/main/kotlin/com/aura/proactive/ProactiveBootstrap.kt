@@ -7,6 +7,7 @@ import com.aura.mcp.McpClientManager
 import com.aura.mcp.McpServerConfig
 import com.aura.mcp.McpToolBridge
 import com.aura.memory.MemoryStore
+import com.aura.security.SecureDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -46,6 +47,7 @@ class ProactiveBootstrap @Inject constructor(
     private val evolutionScheduler: EvolutionScheduler,
     private val mcpClientManager: McpClientManager,
     private val mcpToolBridge: McpToolBridge,
+    private val secureDataStore: SecureDataStore,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -174,7 +176,10 @@ class ProactiveBootstrap @Inject constructor(
             val arr = json.parseToJsonElement(jsonStr) as? JsonArray ?: return
             arr.mapNotNull { item ->
                 val obj = item as? JsonObject ?: return@mapNotNull null
-                json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+                val config = json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+                // Re-inject auth token from SecureDataStore (not stored in plain JSON)
+                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.getOrNull()
+                if (token.isNullOrBlank()) config else config.copy(authToken = token)
             }
         } catch (e: Exception) {
             try {

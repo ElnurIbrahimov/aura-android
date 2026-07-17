@@ -98,7 +98,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
-            else toolRegistry.definitions().filter { it.name in allowed }
+            else toolRegistry.definitions().filter { def ->
+                // Exact match for native tools, plus allow MCP-prefixed tools
+                // (mcp_serverId_toolName) so specialists can use MCP-connected tools.
+                def.name in allowed || def.name.startsWith("mcp_") || def.category == "mcp"
+            }
         } ?: toolRegistry.definitions()
         // Hide search tools that need an API key the user hasn't configured.
         // The LLM should only see search tools that will actually work.

@@ -37,7 +37,7 @@ class ImageGenToolTest {
             contentType = "application/json",
             body = openAiResponse(),
         )
-        val tool = ImageGenTool(httpClient, providerKeys).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }).tool
         val result = tool.execute(
             call("prompt" to "A cat wearing a hat"),
             ctx(),
@@ -58,7 +58,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns "test-openai-key"
         }
         val httpClient = mockHttpClient(statusCode = 400, contentType = "text/plain", body = "Bad Request")
-        val tool = ImageGenTool(httpClient, providerKeys).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }).tool
         val result = tool.execute(
             call("prompt" to "A cat"),
             ctx(),
@@ -81,7 +81,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }).tool
         val result = tool.execute(
             call("prompt" to "A beautiful landscape"),
             ctx(),
@@ -102,7 +102,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }).tool
         val result = tool.execute(
             call("prompt" to "Test", "size" to "1792x1024"),
             ctx(),
@@ -123,7 +123,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }).tool
         val result = tool.execute(call(), ctx())
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
         assertEquals("bad_args", (result as ToolResult.Error).code)

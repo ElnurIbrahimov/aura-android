@@ -134,6 +134,7 @@ class SettingsViewModelAppLockTest {
             modelRoleRouter,
             mcpClientManager,
             io.mockk.mockk<com.aura.mcp.McpToolBridge>(relaxed = true),
+            io.mockk.mockk<com.aura.security.SecureDataStore>(relaxed = true),
         )
     }
 

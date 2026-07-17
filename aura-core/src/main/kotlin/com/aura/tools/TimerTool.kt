@@ -31,7 +31,7 @@ class TimerTool @Inject constructor() {
 
     fun definition() = ToolDefinition(
         name = "timer",
-        description = "Start, check, or stop a timer. Actions: 'start' (returns a timer ID), 'check' (returns elapsed seconds), 'stop' (returns final elapsed seconds and removes the timer).",
+        description = "Start, check, or stop a timer. Actions: 'start' (returns a timer ID), 'check' (returns elapsed seconds), 'stop' (returns final elapsed seconds and removes the timer). Timers are in-memory only and reset on app restart — do not rely on them across sessions.",
         parameters = ToolParameters(
             properties = mapOf(
                 "action" to ToolProperty(

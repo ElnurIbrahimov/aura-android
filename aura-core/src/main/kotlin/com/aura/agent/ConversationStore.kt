@@ -15,7 +15,9 @@ class ConversationStore @Inject constructor(
     private val embedder: com.aura.memory.Embedder,
 ) {
     suspend fun save(conversation: Conversation) {
-        val previous = runCatching { dao.getById(conversation.id) }.getOrNull()
+        val previous = runCatching { dao.getById(conversation.id) }
+            .onFailure { android.util.Log.w("ConversationStore", "save: getById failed for ${conversation.id}: ${it.message}") }
+            .getOrNull()
         val searchText = conversationSearchText(conversation)
         val previousSearchText = previous?.let(::entitySearchText)
         val embedding = when {
@@ -23,7 +25,8 @@ class ConversationStore @Inject constructor(
             previous?.embedding != null && previousSearchText == searchText -> previous.embedding
             else -> runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(searchText))
-            }.getOrNull()
+            }.onFailure { android.util.Log.w("ConversationStore", "save: embed failed for ${conversation.id}: ${it.message}") }
+                .getOrNull()
         }
         val entity = ConversationEntity(
             id = conversation.id,
@@ -97,7 +100,8 @@ class ConversationStore @Inject constructor(
         val entity = dao.getById(id) ?: return false
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
-        }.getOrElse { emptyMap() }
+        }.onFailure { android.util.Log.w("ConversationStore", "setPinned: corrupt metadataJson for ${entity.id}: ${it.message}") }
+            .getOrElse { emptyMap() }
         val updated = metadata.toMutableMap().apply {
             if (pinned) put("pinned", "true") else remove("pinned")
         }
@@ -139,13 +143,17 @@ class ConversationStore @Inject constructor(
         if (trimmed.isEmpty()) return emptyList()
 
         backfillMissingEmbeddings()
-        val existing = runCatching { dao.allWithEmbeddings() }.getOrDefault(emptyList())
+        val existing = runCatching { dao.allWithEmbeddings() }
+            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: allWithEmbeddings failed: ${it.message}") }
+            .getOrDefault(emptyList())
         if (existing.isEmpty()) {
             // No embeddings yet — fall back to LIKE search.
             return search(trimmed, limit)
         }
 
-        val queryEmbedding = runCatching { embedder.embed(trimmed) }.getOrNull()
+        val queryEmbedding = runCatching { embedder.embed(trimmed) }
+            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: embed failed: ${it.message}") }
+            .getOrNull()
             ?: return search(trimmed, limit)
 
         // Rank conversations by cosine similarity to the query.
@@ -170,10 +178,12 @@ class ConversationStore @Inject constructor(
         val original = dao.getById(id) ?: return null
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(original.metadataJson)
-        }.getOrElse { emptyMap() }
+        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt metadataJson for ${original.id}: ${it.message}") }
+            .getOrElse { emptyMap() }
         val allTurns = runCatching {
             convJson.decodeFromString<List<Turn>>(original.turnsJson)
-        }.getOrElse { emptyList() }
+        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt turnsJson for ${original.id}: ${it.message}") }
+            .getOrElse { emptyList() }
         if (fromTurnIndex !in allTurns.indices) return null
         val forkedTurns = allTurns.take(fromTurnIndex + 1)
         val forkId = java.util.UUID.randomUUID().toString()
@@ -182,7 +192,8 @@ class ConversationStore @Inject constructor(
         val forkEmbedding = searchText(forkedTurns, forkTitle).takeIf { it.isNotBlank() }?.let { text ->
             runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(text))
-            }.getOrNull()
+            }.onFailure { android.util.Log.w("ConversationStore", "fork: embed failed for $forkId: ${it.message}") }
+                .getOrNull()
         }
         val canReuseSummary = original.contextSummary.isNotBlank() &&
             original.summaryThroughTurn in 1..forkTurnCount
@@ -203,15 +214,20 @@ class ConversationStore @Inject constructor(
     }
 
     private suspend fun backfillMissingEmbeddings(limit: Int = EMBEDDING_BACKFILL_BATCH_SIZE): Int {
-        val pending = runCatching { dao.missingEmbeddings(limit) }.getOrDefault(emptyList())
+        val pending = runCatching { dao.missingEmbeddings(limit) }
+            .onFailure { android.util.Log.w("ConversationStore", "backfill: missingEmbeddings query failed: ${it.message}") }
+            .getOrDefault(emptyList())
         var rebuilt = 0
         for (entity in pending) {
             val text = entitySearchText(entity)
             if (text.isBlank()) continue
             val bytes = runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(text))
-            }.getOrNull() ?: continue
-            if (runCatching { dao.updateEmbedding(entity.id, bytes) }.isSuccess) {
+            }.onFailure { android.util.Log.w("ConversationStore", "backfill: embed failed for ${entity.id}: ${it.message}") }
+                .getOrNull() ?: continue
+            if (runCatching { dao.updateEmbedding(entity.id, bytes) }
+                .onFailure { android.util.Log.w("ConversationStore", "backfill: updateEmbedding failed for ${entity.id}: ${it.message}") }
+                .isSuccess) {
                 rebuilt += 1
             }
         }
@@ -224,7 +240,8 @@ class ConversationStore @Inject constructor(
     private fun entitySearchText(entity: ConversationEntity): String {
         val turns = runCatching {
             convJson.decodeFromString<List<Turn>>(entity.turnsJson)
-        }.getOrDefault(emptyList())
+        }.onFailure { android.util.Log.w("ConversationStore", "entitySearchText: corrupt turnsJson for ${entity.id}: ${it.message}") }
+            .getOrDefault(emptyList())
         return searchText(turns, entity.title)
     }
 

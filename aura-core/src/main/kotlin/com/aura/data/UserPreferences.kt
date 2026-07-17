@@ -67,6 +67,7 @@ internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interva
 internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
+internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
 internal val KEY_SMTP_PORT = intPreferencesKey("smtp_port")
 internal val KEY_SMTP_USERNAME = stringPreferencesKey("smtp_username")
@@ -322,6 +323,15 @@ class UserPreferences @Inject constructor(
 
     suspend fun setMcpServersJson(json: kotlin.String) {
         context.auraPrefs.edit { it[KEY_MCP_SERVERS_JSON] = json }
+    }
+
+    /** Image generation model for OpenAI (default: dall-e-3). */
+    val imageModel: Flow<kotlin.String> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_IMAGE_MODEL] ?: "dall-e-3"
+    }
+
+    suspend fun setImageModel(model: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_IMAGE_MODEL] = model }
     }
 
     suspend fun setMorningBriefHour(hour: Int) {

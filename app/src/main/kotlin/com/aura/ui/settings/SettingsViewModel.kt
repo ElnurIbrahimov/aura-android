@@ -189,6 +189,7 @@ class SettingsViewModel @Inject constructor(
     private val modelRoleRouter: ModelRoleRouter,
     private val mcpClientManager: McpClientManager,
     private val mcpToolBridge: com.aura.mcp.McpToolBridge,
+    private val secureDataStore: com.aura.security.SecureDataStore,
 ) : ViewModel() {
 
     private fun configuredProviderLabels(): List<String> =
@@ -578,19 +579,35 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Serialize and persist the MCP server list to DataStore. */
+    /** Serialize and persist the MCP server list to DataStore.
+     * Auth tokens are stripped from the JSON and stored separately in
+     * SecureDataStore (encrypted) to avoid plaintext secrets in preferences. */
     private suspend fun persistMcpServers(servers: List<McpServerConfig>) {
+        // Store each auth token in SecureDataStore
+        for (server in servers) {
+            val token = server.authToken
+            if (!token.isNullOrBlank()) {
+                secureDataStore.putString("mcp_auth_${server.id}", token)
+            } else {
+                secureDataStore.removeString("mcp_auth_${server.id}")
+            }
+        }
+        // Strip auth tokens from the JSON before writing to plain DataStore
         val jsonStr = if (servers.isEmpty()) "" else {
             val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
             kotlinx.serialization.json.JsonArray(
-                servers.map { json.encodeToJsonElement(McpServerConfig.serializer(), it) }
+                servers.map { server ->
+                    val sanitized = server.copy(authToken = null)
+                    json.encodeToJsonElement(McpServerConfig.serializer(), sanitized)
+                }
             ).toString()
         }
         userPreferences.setMcpServersJson(jsonStr)
     }
 
-    /** Parse persisted MCP server JSON back to config objects. */
-    private fun parseMcpServers(jsonStr: kotlin.String): List<McpServerConfig> {
+    /** Parse persisted MCP server JSON back to config objects.
+     * Auth tokens are re-injected from SecureDataStore. */
+    private suspend fun parseMcpServers(jsonStr: kotlin.String): List<McpServerConfig> {
         if (jsonStr.isBlank()) return emptyList()
         return try {
             val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
@@ -598,7 +615,10 @@ class SettingsViewModel @Inject constructor(
                 ?: return emptyList()
             arr.mapNotNull { item ->
                 val obj = item as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+                val config = json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
+                // Re-inject auth token from SecureDataStore
+                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.getOrNull()
+                if (token.isNullOrBlank()) config else config.copy(authToken = token)
             }
         } catch (e: Exception) {
             emptyList()

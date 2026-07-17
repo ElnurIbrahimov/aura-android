@@ -7,6 +7,8 @@ import com.aura.agent.ToolRisk
 import com.aura.providers.ProviderKeys
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -36,6 +38,7 @@ import javax.inject.Singleton
 class ImageGenTool @Inject constructor(
     private val httpClient: OkHttpClient,
     private val providerKeys: ProviderKeys,
+    private val userPreferences: com.aura.data.UserPreferences,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
@@ -104,7 +107,7 @@ class ImageGenTool @Inject constructor(
 
     private fun generateWithOpenAi(prompt: String, size: String, apiKey: String): String {
         val body = buildJsonObject {
-            put("model", "dall-e-3")
+            put("model", runBlocking { userPreferences.imageModel.first() })
             put("prompt", prompt)
             put("n", 1)
             put("size", size)
