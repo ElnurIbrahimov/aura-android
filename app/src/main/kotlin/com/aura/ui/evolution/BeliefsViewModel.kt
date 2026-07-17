@@ -21,11 +21,20 @@ class BeliefsViewModel @Inject constructor(
         load()
     }
 
+    private val _selected = MutableStateFlow<BeliefEntity?>(null)
+    val selected: StateFlow<BeliefEntity?> = _selected
+
     private fun load() = viewModelScope.launch {
         _beliefs.value = beliefDao.allActive(200)
     }
 
     fun select(id: String) {
-        // TODO open detail screen
+        viewModelScope.launch {
+            _selected.value = beliefDao.getById(id)
+        }
+    }
+
+    fun clearSelection() {
+        _selected.value = null
     }
 }

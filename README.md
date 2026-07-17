@@ -8,9 +8,9 @@ This is my personal copy. The plan lives at `.hermes/plans/`.
 
 ## Status
 
-**v0.15.2** (versionCode 18).
+**v0.21.0** (versionCode 18).
 
-- 37 tools (web search x3, vision, image gen, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, and creative studio)
+- 59 tools (web search x4, vision, image gen, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, production pipelines, document indexing, canon query)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity)
 - Skills (installable skill cards, skill-backed tool dispatch)
 - Memory stack (Room + 384-dim cloud embeddings + 6-signal RRF retrieval + 14-day FadeMem with access-frequency decay + heuristic WriteGate)
@@ -19,7 +19,7 @@ This is my personal copy. The plan lives at `.hermes/plans/`.
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
 - Agentic loop (ReAct-style, 10 steps max, streams text + tool calls, abort-safe, parallel tool execution)
 - 8 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, plus Mixture-of-Agents virtual provider)
-- 7 specialists (general, coder, researcher, creative, executive, phone-native, writer) with keyword router + tool-allowlist enforcement
+- 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - 4-tab bottom nav (Home, Chat, Memory, Settings) + secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode)
 - Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service)
@@ -28,7 +28,14 @@ This is my personal copy. The plan lives at `.hermes/plans/`.
 - Specialist and persona identity customization (Settings)
 - Onboarding wizard (paste API key + verify connectivity)
 - Biometric gate for sensitive tools and app lock
-- 738 unit tests passing across `:aura-core` (544) + `:app` (194), 0 failures
+- MCP client (connect external tool servers, auto-registers discovered tools into ToolRegistry)
+- Evolution system (self-improvement proposals, approve/reject from inbox, apply saga)
+- Production pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign)
+- Agent runs (durable, resumable, DAG-resolved step execution via WorkManager)
+- World model (beliefs, events, opportunities in separate Room tables)
+- Taste engine (preference signal recording, style profiling, model routing)
+- Creative Council (10-role multi-agent review for creative projects)
+- ~1000 unit tests passing across `:aura-core` + `:app`, 0 failures
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 
 Note: the app uses **cloud providers only** — there is no on-device model.
@@ -195,8 +202,8 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 ```bash
 ./gradlew :app:assembleDebug            # debug APK
 ./gradlew :app:assembleRelease          # release APK (currently signed with debug key — sideload only)
-./gradlew :aura-core:testDebugUnitTest  # unit tests (544)
-./gradlew :app:testDebugUnitTest        # unit tests (194)
+./gradlew :aura-core:testDebugUnitTest  # unit tests (aura-core)
+./gradlew :app:testDebugUnitTest        # unit tests (app)
 ./gradlew :app:assembleDebug connectedAndroidTest  # androidTests (needs device)
 ```
 
@@ -219,7 +226,7 @@ android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 37 tool implementations + ToolsModule
+│       ├── tools/        # 59 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
 │       ├── proactive/    # MorningBrief + Decay + CalendarMonitor + ProactiveEventBus
 │       ├── profile/      # UserProfile (learned from conversations)
@@ -243,4 +250,4 @@ android/
 
 ## Source of truth
 
-The build plan lives at `.hermes/plans/2026-07-14-audit-remediation.md`. All 15 prior plans are complete and archived in git history. Daily commits document what shipped; `git log --oneline` is the changelog.
+The build plan lives at `.hermes/plans/`. All 15 prior plans are complete and archived in git history. Daily commits document what shipped; `git log --oneline` is the changelog.
