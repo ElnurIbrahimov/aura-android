@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 
 /**
  * Periodic WorkManager worker that triggers the evolution pipeline.
@@ -17,9 +18,16 @@ class EvolutionWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val coordinator: EvolutionCoordinator,
+    private val userPreferences: com.aura.data.UserPreferences,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // Bail early if the user has disabled evolution. The worker may still
+        // be enqueued from a prior session; this gate prevents wasted API
+        // calls and battery drain.
+        if (!userPreferences.evolutionEnabled.first()) {
+            return Result.success()
+        }
         return try {
             coordinator.runAll()
             Result.success()

@@ -31,6 +31,7 @@ internal class McpConnection(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
+    @Volatile
     private var _health: McpServerHealth = McpServerHealth(
         serverId = config.id,
         state = McpConnectionState.DISCONNECTED,

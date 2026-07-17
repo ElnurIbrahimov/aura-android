@@ -2,6 +2,7 @@ package com.aura.proactive
 
 import android.content.Intent
 import com.aura.data.UserPreferences
+import com.aura.evolution.EvolutionScheduler
 import com.aura.memory.MemoryStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.combine
@@ -34,6 +35,7 @@ class ProactiveBootstrap @Inject constructor(
     private val scheduler: ProactiveScheduler,
     private val memoryStore: MemoryStore,
     private val userPreferences: UserPreferences,
+    private val evolutionScheduler: EvolutionScheduler,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -59,12 +61,15 @@ class ProactiveBootstrap @Inject constructor(
                     userPreferences.morningBriefEnabled,
                     userPreferences.calendarMonitorEnabled,
                     userPreferences.morningBriefHour,
-                ) { morningBriefOn, calendarMonitorOn, briefHour ->
-                    Triple(morningBriefOn, calendarMonitorOn, briefHour)
+                    userPreferences.evolutionEnabled,
+                    userPreferences.evolutionIntervalHours,
+                ) { morningBriefOn, calendarMonitorOn, briefHour, evolutionOn, evolutionInterval ->
+                    ProactiveGates(morningBriefOn, calendarMonitorOn, briefHour, evolutionOn, evolutionInterval)
                 }
                     .distinctUntilChanged()
-                    .collect { (morningBriefOn, calendarMonitorOn, briefHour) ->
-                        reconcile(morningBriefOn, calendarMonitorOn, briefHour)
+                    .collect { gates ->
+                        reconcile(gates)
+                        reconcileEvolution(gates.evolutionOn, gates.evolutionIntervalHours)
                     }
             }
         }
@@ -86,12 +91,8 @@ class ProactiveBootstrap @Inject constructor(
         }
     }
 
-    private fun reconcile(
-        morningBriefOn: Boolean,
-        calendarMonitorOn: Boolean,
-        briefHour: Int,
-    ) {
-        val decisions = applyGates(morningBriefOn, calendarMonitorOn, briefHour)
+    private fun reconcile(gates: ProactiveGates) {
+        val decisions = applyGates(gates.morningBriefOn, gates.calendarMonitorOn, gates.briefHour)
         try {
             if (decisions.calendarMonitorShouldRun) {
                 CalendarMonitorService.start(appContext)
@@ -107,6 +108,26 @@ class ProactiveBootstrap @Inject constructor(
         } catch (_: Throwable) {
             // Scheduling is best-effort; the next DataStore emission or
             // process launch reconciles it again.
+        }
+    }
+
+    /**
+     * Start or stop the periodic evolution worker based on the
+     * [evolutionEnabled] preference. When enabled, schedules the
+     * worker at [evolutionIntervalHours]-hour intervals. When
+     * disabled, cancels any pending work so no background API
+     * calls happen.
+     */
+    private fun reconcileEvolution(evolutionOn: Boolean, evolutionIntervalHours: Int) {
+        try {
+            if (evolutionOn) {
+                evolutionScheduler.schedule(evolutionIntervalHours.toLong())
+            } else {
+                evolutionScheduler.cancel()
+            }
+        } catch (_: Throwable) {
+            // WorkManager may not be initialized yet on fresh install;
+            // the next preference emission will retry.
         }
     }
 
@@ -139,6 +160,15 @@ class ProactiveBootstrap @Inject constructor(
     data class GatedDecisions(
         val morningBriefScheduled: Boolean,
         val calendarMonitorShouldRun: Boolean,
+    )
+
+    /** Snapshot of all proactive + evolution preferences for reconciliation. */
+    data class ProactiveGates(
+        val morningBriefOn: Boolean,
+        val calendarMonitorOn: Boolean,
+        val briefHour: Int,
+        val evolutionOn: Boolean,
+        val evolutionIntervalHours: Int,
     )
 
     companion object {

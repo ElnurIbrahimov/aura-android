@@ -22,7 +22,27 @@ class EvolutionSafetyGuard @Inject constructor() {
     )
 
     private val credentialPatterns = listOf(
+        // OpenAI: sk-...
         Regex("sk-[a-zA-Z0-9]{20,}", RegexOption.IGNORE_CASE),
+        // Anthropic: sk-ant-...
+        Regex("sk-ant-[a-zA-Z0-9_-]{20,}", RegexOption.IGNORE_CASE),
+        // Google/Gemini: AIza...
+        Regex("AIza[a-zA-Z0-9_-]{35}", RegexOption.IGNORE_CASE),
+        // DeepSeek: sk-... (covered by OpenAI pattern, but explicit for clarity)
+        // Groq: gsk_...
+        Regex("gsk_[a-zA-Z0-9]{20,}", RegexOption.IGNORE_CASE),
+        // OpenRouter: sk-or-...
+        Regex("sk-or-[a-zA-Z0-9_-]{20,}", RegexOption.IGNORE_CASE),
+        // Together AI: ... (varies, but often a long hex token)
+        Regex("[a-f0-9]{40,}", RegexOption.IGNORE_CASE),
+        // Brave: BSA... (Brave Search API keys)
+        Regex("BSA[a-zA-Z0-9]{30,}", RegexOption.IGNORE_CASE),
+        // Tavily: tvly-...
+        Regex("tvly-[a-zA-Z0-9_-]{20,}", RegexOption.IGNORE_CASE),
+        // ElevenLabs: ...
+        Regex("[a-f0-9]{32}", RegexOption.IGNORE_CASE),
+        // Generic Bearer token patterns
+        Regex("Bearer\\s+[a-zA-Z0-9._-]{20,}", RegexOption.IGNORE_CASE),
     )
 
     fun canAutoApply(domain: String): Boolean {

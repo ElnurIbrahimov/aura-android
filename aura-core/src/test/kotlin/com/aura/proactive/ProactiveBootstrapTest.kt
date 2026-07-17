@@ -2,6 +2,7 @@ package com.aura.proactive
 
 import android.content.Context
 import com.aura.data.UserPreferences
+import com.aura.evolution.EvolutionScheduler
 import com.aura.memory.MemoryStore
 import io.mockk.coEvery
 import io.mockk.every
@@ -33,6 +34,7 @@ class ProactiveBootstrapTest {
     private lateinit var scheduler: ProactiveScheduler
     private lateinit var memoryStore: MemoryStore
     private lateinit var userPreferences: UserPreferences
+    private lateinit var evolutionScheduler: EvolutionScheduler
 
     @Before
     fun setUp() {
@@ -43,18 +45,21 @@ class ProactiveBootstrapTest {
         scheduler = mockk(relaxed = true)
         memoryStore = mockk(relaxed = true)
         userPreferences = mockk(relaxed = true)
+        evolutionScheduler = mockk(relaxed = true)
         coEvery { memoryStore.runDecayPass() } returns Unit
 
-        // Default: morning brief on, calendar monitor on. Tests
-        // override the flow per-case.
+        // Default: morning brief on, calendar monitor on, evolution off.
+        // Tests override the flow per-case.
         every { userPreferences.morningBriefEnabled } returns flowOf(true)
         every { userPreferences.calendarMonitorEnabled } returns flowOf(true)
         every { userPreferences.morningBriefHour } returns flowOf(7)
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(24)
     }
 
     @Test
     fun `morning brief on schedules both workers`() {
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
         verify(exactly = 1) { scheduler.scheduleMorningBrief() }
         verify(exactly = 1) { scheduler.scheduleDecay() }
@@ -65,7 +70,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `morning brief off cancels both workers`() {
         every { userPreferences.morningBriefEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         bootstrap.applyGates(morningBriefOn = false, calendarMonitorOn = false)
         verify(exactly = 0) { scheduler.scheduleMorningBrief() }
         verify(exactly = 0) { scheduler.scheduleDecay() }
@@ -75,7 +80,7 @@ class ProactiveBootstrapTest {
 
     @Test
     fun `applyGates returns the morning brief decision`() {
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         val decisions = bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
         assertTrue(decisions.morningBriefScheduled)
         assertTrue(decisions.calendarMonitorShouldRun)
@@ -84,7 +89,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `applyGates returns false when morning brief is off`() {
         every { userPreferences.morningBriefEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         val decisions = bootstrap.applyGates(morningBriefOn = false, calendarMonitorOn = true)
         assertFalse(decisions.morningBriefScheduled)
         assertTrue(decisions.calendarMonitorShouldRun, "calendar monitor is independent of morning brief")
@@ -93,7 +98,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `applyGates returns false for calendar monitor when off`() {
         every { userPreferences.calendarMonitorEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         val decisions = bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = false)
         assertTrue(decisions.morningBriefScheduled, "morning brief is independent of calendar monitor")
         assertFalse(decisions.calendarMonitorShouldRun)
@@ -105,7 +110,7 @@ class ProactiveBootstrapTest {
         // so the broadcast / FGS calls don't trip AbstractMethodError.
         // The Throwable-catch in start() absorbs any stub blowups,
         // so the gate decision itself is what we verify.
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         bootstrap.start()
         awaitVerification("scheduleMorningBrief was not called within 2s") {
             verify(exactly = 1) { scheduler.scheduleMorningBrief() }
@@ -122,7 +127,7 @@ class ProactiveBootstrapTest {
         every { userPreferences.calendarMonitorEnabled } returns calendarEnabled
         every { userPreferences.morningBriefHour } returns briefHour
 
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
         bootstrap.start()
         awaitVerification("initial morning brief was not scheduled") {
             verify(atLeast = 1) { scheduler.scheduleMorningBrief(7) }
@@ -140,7 +145,28 @@ class ProactiveBootstrapTest {
         }
     }
 
-    private fun awaitVerification(message: String, assertion: () -> Unit) {
+    @Test
+    fun `evolution enabled schedules evolution worker`() {
+        every { userPreferences.evolutionEnabled } returns flowOf(true)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(12)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
+        bootstrap.start()
+        awaitVerification("evolution scheduler was not called within 2s") {
+            verify(atLeast = 1) { evolutionScheduler.schedule(12L) }
+        }
+    }
+
+    @Test
+    fun `evolution disabled cancels evolution worker`() {
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler)
+        bootstrap.start()
+        awaitVerification("evolution cancel was not called within 2s") {
+            verify(atLeast = 1) { evolutionScheduler.cancel() }
+        }
+    }
+
+    private fun awaitVerification(message: kotlin.String, assertion: () -> Unit) {
         val deadline = System.currentTimeMillis() + 2_000L
         var lastFailure: AssertionError? = null
         while (System.currentTimeMillis() < deadline) {
