@@ -88,7 +88,7 @@ class TriggerEvolutionRunTool @Inject constructor(
     val tool = Tool(
         name = "trigger_evolution_run",
         description = "Run the deterministic evolution pipeline now to detect candidates and promote high-confidence ones. Does not auto-apply.",
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.WRITE_LOCAL,
         parameters = ToolParameters(),
         execute = { _, _ ->
             runBlockingTool {

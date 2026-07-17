@@ -39,6 +39,8 @@ class EvolutionProposalStore @Inject constructor(
         return proposal
     }
 
+    suspend fun getById(id: kotlin.String): EvolutionProposalEntity? = proposalDao.getById(id)
+
     suspend fun approve(id: kotlin.String) {
         proposalDao.setStatus(id, ProposalStatus.APPROVED.name, "approved by user")
     }
