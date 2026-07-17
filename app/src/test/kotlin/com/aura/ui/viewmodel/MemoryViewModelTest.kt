@@ -1,7 +1,9 @@
 package com.aura.ui.viewmodel
 
+import com.aura.evolution.EvolutionHooks
 import com.aura.memory.MemoryEditEntity
 import com.aura.memory.MemoryEntity
+import com.aura.memory.MemoryFeedbackDao
 import com.aura.memory.MemoryStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -32,6 +34,8 @@ import kotlin.test.assertTrue
 class MemoryViewModelTest {
 
     private lateinit var memoryStore: MemoryStore
+    private val feedbackDao: MemoryFeedbackDao = mockk(relaxed = true)
+    private val evolutionHooks: EvolutionHooks = mockk(relaxed = true)
     // observeCount() is collected in the VM's init block. An
     // infinite-emptiness flow keeps the collector alive without
     // triggering refresh() in the middle of a test.
@@ -56,7 +60,7 @@ class MemoryViewModelTest {
     fun `rebuildEmbeddings sets inFlight true synchronously and false after`() = runTest {
         coEvery { memoryStore.count() } returns 5
         coEvery { memoryStore.rebuildEmbeddings() } returns 5
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
 
         // Before the call, the flag is false.
         assertFalse(vm.state.value.rebuildInFlight)
@@ -79,7 +83,7 @@ class MemoryViewModelTest {
     fun `rebuildEmbeddings reports singular form for one row`() = runTest {
         coEvery { memoryStore.count() } returns 1
         coEvery { memoryStore.rebuildEmbeddings() } returns 1
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.rebuildEmbeddings()
         assertEquals("Rebuilt 1 embedding.", vm.state.value.rebuildResult)
     }
@@ -88,7 +92,7 @@ class MemoryViewModelTest {
     fun `rebuildEmbeddings reports nothing-to-do when count is zero`() = runTest {
         coEvery { memoryStore.count() } returns 0
         coEvery { memoryStore.rebuildEmbeddings() } returns 0
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.rebuildEmbeddings()
         assertEquals("No memories to rebuild.", vm.state.value.rebuildResult)
     }
@@ -100,7 +104,7 @@ class MemoryViewModelTest {
         // so the UI should explain what happened.
         coEvery { memoryStore.count() } returns 142
         coEvery { memoryStore.rebuildEmbeddings() } returns 0
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.rebuildEmbeddings()
         assertEquals("All 142 memories already have embeddings.", vm.state.value.rebuildResult)
     }
@@ -113,7 +117,7 @@ class MemoryViewModelTest {
         // embedding=null after this and will need a follow-up.
         coEvery { memoryStore.count() } returns 145
         coEvery { memoryStore.rebuildEmbeddings() } returns 142
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.rebuildEmbeddings()
         assertEquals("Rebuilt 142 of 145 embeddings (some failed).", vm.state.value.rebuildResult)
     }
@@ -128,7 +132,7 @@ class MemoryViewModelTest {
             // Synchronous-ish: stays in-flight during the call.
             10
         }
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         // Manually flip the inFlight flag to simulate an in-progress
         // rebuild, then call again. The second call must NOT
         // re-invoke the store.
@@ -148,7 +152,7 @@ class MemoryViewModelTest {
     fun `clearRebuildResult wipes the banner`() = runTest {
         coEvery { memoryStore.count() } returns 3
         coEvery { memoryStore.rebuildEmbeddings() } returns 3
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.rebuildEmbeddings()
         assertTrue(vm.state.value.rebuildResult != null)
         vm.clearRebuildResult()
@@ -158,7 +162,7 @@ class MemoryViewModelTest {
     @Test
     fun `update calls store and triggers a refresh`() = runTest {
         coEvery { memoryStore.update(any(), any(), any(), any(), any()) } returns Unit
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
         vm.update("m1", "new content", "preference", 0.8f, "work,urgent")
         coVerify { memoryStore.update("m1", "new content", "preference", 0.8f, "work,urgent") }
     }
@@ -184,7 +188,7 @@ class MemoryViewModelTest {
         )
         coEvery { memoryStore.recent(200) } returns listOf(memory)
         coEvery { memoryStore.getEditHistory(memory.id) } returns edits
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
 
         vm.forget(memory.id)
         assertEquals("Memory deleted", vm.state.value.undoMessage)
@@ -209,7 +213,7 @@ class MemoryViewModelTest {
             ),
         )
         coEvery { memoryStore.getEditHistory("m1") } returns entries
-        val vm = MemoryViewModel(memoryStore)
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
 
         vm.loadEditHistory("m1")
 
