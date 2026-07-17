@@ -18,7 +18,7 @@ import javax.inject.Singleton
  * Translates text to a target language using the configured LLM.
  * Uses the first configured provider's first model.
  *
- * Risk: READ_ONLY (network egress only, no local mutations).
+ * Risk: REMOTE_COST (consumes LLM API credits per call).
  */
 @Singleton
 class TranslateTool @Inject constructor(
@@ -45,7 +45,7 @@ class TranslateTool @Inject constructor(
     val tool = Tool(
         name = "translate",
         description = definition().description,
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.REMOTE_COST,
         parameters = definition().parameters,
         execute = { call, _ ->
             val text = call.arguments["text"] as? String

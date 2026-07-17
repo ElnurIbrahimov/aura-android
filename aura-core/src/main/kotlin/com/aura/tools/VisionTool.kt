@@ -49,7 +49,7 @@ class VisionTool @Inject constructor(
     val tool = Tool(
         name = "vision",
         description = "Analyze an image using the vision model selected in Settings.",
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.REMOTE_COST,
         parameters = definition(),
         execute = { call, _ ->
             val imageBase64 = call.arguments["image_base64"] as? kotlin.String
