@@ -36,6 +36,7 @@ import com.aura.evolution.ProposalStatus
 @Composable
 fun EvolutionInboxScreen(
     onBack: () -> Unit,
+    onRollback: (String) -> Unit = {},
     viewModel: EvolutionInboxViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -78,6 +79,7 @@ fun EvolutionInboxScreen(
                     onApprove = { viewModel.approve(proposal.id) },
                     onReject = { viewModel.reject(proposal.id) },
                     onDetail = { selectedProposal = proposal },
+                    onRollback = { onRollback(proposal.id) },
                 )
             }
         }
@@ -128,6 +130,7 @@ private fun ProposalCard(
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onDetail: () -> Unit,
+    onRollback: () -> Unit = {},
 ) {
     Card(
         modifier = Modifier
@@ -147,6 +150,11 @@ private fun ProposalCard(
                 Row(modifier = Modifier.padding(top = 8.dp)) {
                     TextButton(onClick = onApprove) { Text("Approve") }
                     TextButton(onClick = onReject) { Text("Reject") }
+                }
+            }
+            if (proposal.status == ProposalStatus.APPLIED.name) {
+                Row(modifier = Modifier.padding(top = 8.dp)) {
+                    TextButton(onClick = onRollback) { Text("Rollback") }
                 }
             }
         }

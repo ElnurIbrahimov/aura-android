@@ -120,6 +120,12 @@ fun HomeSecondaryActions(
             Icons.Filled.AccountTree,
             onOpenAgentRuns,
         ),
+        HomeDestination(
+            "Production",
+            "Pipelines & council",
+            Icons.Filled.Movie,
+            onOpenProduction,
+        ),
     )
 
     Column(
