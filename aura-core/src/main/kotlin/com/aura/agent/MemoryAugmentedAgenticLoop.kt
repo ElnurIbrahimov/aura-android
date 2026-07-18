@@ -202,9 +202,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
 
             // Update emotion state from the user's message and include
             // the mood context + adaptive profile in the system prompt.
+            //
+            // The mutating update()/decay() run ONCE per user turn (step 1
+            // only). A single user turn can drive several loop steps (one
+            // per tool round-trip), all reading the same lastUserMessage —
+            // nudging the mood on every step would over-weight one message
+            // by the number of tools it happened to trigger. The mood/profile
+            // read is still injected on every step (cheap, reflects current
+            // state) so later steps see the freshly-updated mood.
             val emotionContext = if (memoryEnabled && emotionEngine != null) {
-                emotionEngine.update(lastUserMessage)
-                emotionEngine.decay()
+                if (step == 1) {
+                    emotionEngine.update(lastUserMessage)
+                    emotionEngine.decay()
+                }
                 val mood = emotionEngine.moodString()
                 val profile = emotionEngine.profile()
                 "\n\n# Current mood: $mood" + profile.promptSuffix

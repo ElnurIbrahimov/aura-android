@@ -4,6 +4,8 @@ import com.aura.security.SecureDataStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,13 +71,16 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `setEndpoint persists to secure data store`() {
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    fun `setEndpoint persists to secure data store`() = runTest {
         val store = mockk<SecureDataStore>(relaxed = true)
         coEvery { store.getString(any()) } returns null
-        val state = CustomEndpointState(store)
+        // Inject a TestDispatcher tied to this test's scheduler so the
+        // persistence coroutine launched by setEndpoint() is driven
+        // deterministically by advanceUntilIdle() — no Thread.sleep race.
+        val state = CustomEndpointState(store, StandardTestDispatcher(testScheduler), Unit)
         state.setEndpoint("https://api.example.com/v1", "sk-test")
-        // Let the IO scope persistence launch complete.
-        Thread.sleep(500)
+        advanceUntilIdle()
         coVerify {
             store.putString(CustomEndpointState.KEY_BASE_URL, "https://api.example.com/v1")
         }

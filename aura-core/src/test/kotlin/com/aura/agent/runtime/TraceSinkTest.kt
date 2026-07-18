@@ -32,10 +32,12 @@ class TraceSinkTest {
     @Test
     fun events_are_ordered_by_timestamp() {
         val sink = TraceSink()
+        // No Thread.sleep between emits: the assertions below are `<=`, so
+        // events emitted in the same millisecond still satisfy ascending
+        // order. Emission order is what's under test, and forRun() preserves
+        // it — the sleeps only slowed the test without proving anything.
         sink.emit(runId = "run1", type = TraceEventType.RUN_STARTED)
-        Thread.sleep(2)
         sink.emit(runId = "run1", type = TraceEventType.STEP_STARTED, stepId = "s1")
-        Thread.sleep(2)
         sink.emit(runId = "run1", type = TraceEventType.STEP_COMPLETED, stepId = "s1")
         val events = sink.forRun("run1")
         assertEquals(3, events.size)

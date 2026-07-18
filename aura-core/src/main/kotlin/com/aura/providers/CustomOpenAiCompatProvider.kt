@@ -1,6 +1,7 @@
 package com.aura.providers
 
 import com.aura.security.SecureDataStore
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -44,9 +45,28 @@ import javax.inject.Singleton
  * request — no app restart required.
  */
 @Singleton
-class CustomEndpointState @Inject constructor(
+class CustomEndpointState private constructor(
     private val secureDataStore: SecureDataStore,
+    dispatcher: CoroutineDispatcher,
 ) {
+    /**
+     * Hilt entry point. Persistence runs on the IO dispatcher because it
+     * writes to the SecureDataStore (disk-backed).
+     */
+    @Inject
+    constructor(secureDataStore: SecureDataStore) : this(secureDataStore, Dispatchers.IO)
+
+    /**
+     * Visible for testing. Lets a test inject a TestDispatcher so the
+     * async persistence launched by [setEndpoint] and the init [reload]
+     * can be driven deterministically with advanceUntilIdle() instead of
+     * a wall-clock Thread.sleep().
+     */
+    internal constructor(
+        secureDataStore: SecureDataStore,
+        dispatcher: CoroutineDispatcher,
+        @Suppress("UNUSED_PARAMETER") testMarker: Unit,
+    ) : this(secureDataStore, dispatcher)
     @Volatile private var _baseUrl: kotlin.String = ""
     @Volatile private var _apiKey: kotlin.String = ""
     @Volatile private var _modelOverride: List<kotlin.String> = emptyList()
@@ -59,7 +79,7 @@ class CustomEndpointState @Inject constructor(
     val baseUrlFlow: StateFlow<kotlin.String> get() = baseUrlInternal
     private val baseUrlInternal = MutableStateFlow("")
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
     /** Set to true after the first reload() completes. Prevents
      * late-arriving init reload() from overwriting values set by
