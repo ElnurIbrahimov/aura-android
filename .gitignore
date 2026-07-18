@@ -27,8 +27,11 @@ captures/
 **/.cxx/
 
 # Build artifacts
+# APKs are NOT tracked in git — they bloat history (~36MB each). Distribute
+# via GitHub Releases. Only the current release APK is kept in-repo as a
+# convenience; bump this pin when you cut a new release.
 *.apk
-!releases/*.apk
+!releases/aura-debug-v0.25.0.apk
 *.aab
 *.aar
 
