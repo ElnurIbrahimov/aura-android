@@ -72,9 +72,13 @@ class ToolExecutor @Inject constructor(
         val call = ToolCall(id = "", name = name, arguments = args)
         val result = try {
             withTimeout(ctx.timeout) {
-                // Tools may bridge suspend APIs and legacy blocking Android/HTTP
-                // calls. The interruptible IO boundary keeps both kinds off Main
-                // and lets cancellation preempt a blocking call promptly.
+                // Tools are suspend functions that may internally do
+                // blocking I/O (Thread.sleep, OkHttp, file reads).
+                // runInterruptible runs the lambda on Dispatchers.IO
+                // and interrupts the thread when the surrounding
+                // withTimeout fires, so blocking calls are cancelled
+                // promptly. runBlocking bridges the suspend call into
+                // the non-suspend lambda runInterruptible requires.
                 runInterruptible(Dispatchers.IO) {
                     runBlocking { tool.execute(call, ctx) }
                 }
