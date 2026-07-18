@@ -57,6 +57,8 @@ class SendEmailBackgroundTool @Inject constructor(
                 ?: return@Tool ToolResult.Error("missing 'subject'", "bad_args")
             val body = call.arguments["body"] as? String
                 ?: return@Tool ToolResult.Error("missing 'body'", "bad_args")
+            val cc = call.arguments["cc"] as? String
+            val bcc = call.arguments["bcc"] as? String
 
             try {
                 val host = userPreferences.smtpHost.first().trim()
@@ -72,7 +74,7 @@ class SendEmailBackgroundTool @Inject constructor(
                     )
                 }
 
-                val result = send(host, port, username, password, from, to, subject, body)
+                val result = send(host, port, username, password, from, to, cc, bcc, subject, body)
                 if (result.isSuccess) {
                     ToolResult.Ok("Email sent to $to (subject: $subject)")
                 } else {
@@ -92,6 +94,8 @@ class SendEmailBackgroundTool @Inject constructor(
         password: String,
         from: String,
         to: String,
+        cc: String?,
+        bcc: String?,
         subject: String,
         body: String,
     ): Result<Unit> = withContext(Dispatchers.IO) {
@@ -113,6 +117,8 @@ class SendEmailBackgroundTool @Inject constructor(
             val message = MimeMessage(session).apply {
                 setFrom(InternetAddress(from))
                 setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+                if (!cc.isNullOrBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
+                if (!bcc.isNullOrBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
                 setSubject(subject)
                 setText(body)
             }

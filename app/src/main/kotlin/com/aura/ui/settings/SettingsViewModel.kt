@@ -780,6 +780,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                _state.update { it.copy(customTesting = false) }
                 throw cancelled
             } catch (error: Exception) {
                 _state.update {

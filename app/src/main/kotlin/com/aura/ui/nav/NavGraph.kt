@@ -280,9 +280,6 @@ fun NavGraph(
             composable("production") {
                 ProductionPipelineScreen()
             }
-            composable("evolution") {
-                EvolutionInboxScreen(onBack = { navController.popBackStack() })
-            }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(onBack = { navController.popBackStack() })
             }

@@ -32,7 +32,7 @@ import javax.inject.Singleton
  *
  * If OpenAI returns an error, automatically falls back to Pollinations.ai.
  *
- * Risk: READ_ONLY (network egress only, no phone permissions).
+ * Risk: REMOTE_COST (invokes paid API per call, no phone permissions).
  */
 @Singleton
 class ImageGenTool @Inject constructor(
@@ -90,8 +90,10 @@ class ImageGenTool @Inject constructor(
         if (!openaiKey.isNullOrBlank()) {
             try {
                 return generateWithOpenAi(prompt, size, openaiKey)
-            } catch (_: Exception) {
-                // Fall through to Pollinations.ai
+            } catch (e: Exception) {
+                // Log the error so the user knows their paid provider failed.
+                // Wrapped in try-catch because android.util.Log is not mocked in unit tests.
+                try { android.util.Log.w("ImageGenTool", "OpenAI image gen failed, falling back to Pollinations: ${e.message}") } catch (_: Throwable) {}
             }
         }
         return generateWithPollinations(prompt, size)

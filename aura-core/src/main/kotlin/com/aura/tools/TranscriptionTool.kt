@@ -29,7 +29,7 @@ const val MAX_TRANSCRIPTION_AUDIO_BYTES: Int = 25 * 1024 * 1024
  * 1. OpenAI Whisper (whisper-1) — if an OpenAI API key is configured
  * 2. Groq (whisper-large-v3) — if a Groq API key is configured
  *
- * Risk: READ_ONLY (network egress only, no phone permissions).
+ * Risk: REMOTE_COST (invokes paid API per call, no phone permissions).
  */
 @Singleton
 class TranscriptionTool @Inject constructor(

@@ -44,7 +44,7 @@ import javax.inject.Singleton
  * 4. Call a provider model to synthesize an answer citing sources as [1], [2], etc.
  * 5. Return a JSON object with "answer" and "citations" fields.
  *
- * Risk: READ_ONLY (network egress only, no phone permissions).
+ * Risk: REMOTE_COST (invokes paid API per call, no phone permissions).
  * Timeout: 60 seconds for the entire pipeline.
  */
 @Singleton
