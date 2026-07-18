@@ -16,6 +16,9 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object EvolutionModule {
 
+    // Exposed for migration tests in androidTest source set.
+    val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+
     @Provides
     @Singleton
     fun provideEvolutionDatabase(
@@ -24,7 +27,7 @@ object EvolutionModule {
         context,
         EvolutionDatabase::class.java,
         "evolution.db",
-        migrations = arrayOf(MIGRATION_2_3),
+        migrations = ALL_MIGRATIONS,
     ).build()
 
     @Provides
@@ -48,14 +51,14 @@ object EvolutionModule {
     fun provideEvolutionSettingsDao(db: EvolutionDatabase): EvolutionSettingsDao = db.settingsDao()
 }
 
-private val MIGRATION_1_2 = object : Migration(1, 2) {
+internal val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE evolution_settings ADD COLUMN totalRuns INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE evolution_settings ADD COLUMN totalCandidates INTEGER NOT NULL DEFAULT 0")
     }
 }
 
-private val MIGRATION_2_3 = object : Migration(2, 3) {
+internal val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE evolution_settings ADD COLUMN shadowEnabled INTEGER NOT NULL DEFAULT 0")
     }
