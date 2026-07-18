@@ -59,6 +59,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.core.content.FileProvider
 import com.aura.agent.Conversation
 import com.aura.ui.components.AuraScreenHeader
+import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.HistoryViewModel
 import kotlinx.coroutines.Dispatchers
@@ -212,31 +213,45 @@ fun HistoryScreen(
         } else {
             LazyColumn(contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.conversations, key = { it.id }) { conv ->
-                    HistoryRow(
-                        conv = conv,
-                        stats = viewModel.getStats(conv),
-                        isPinned = viewModel.isPinned(conv),
-                        isSelected = conv.id in state.selectedIds,
-                        selectMode = state.selectMode,
-                        onClick = {
-                            if (state.selectMode) {
-                                viewModel.toggleSelected(conv.id)
-                            } else {
-                                onSelect(conv.id)
-                            }
-                        },
-                        onLongPress = {
-                            if (state.selectMode) viewModel.toggleSelected(conv.id)
-                        },
-                        onDelete = { viewModel.delete(conv.id) },
-                        onShare = {
-                            coroutineScope.launch {
+                    if (state.selectMode) {
+                        HistoryRow(
+                            conv = conv,
+                            stats = viewModel.getStats(conv),
+                            isPinned = viewModel.isPinned(conv),
+                            isSelected = conv.id in state.selectedIds,
+                            selectMode = true,
+                            onClick = { viewModel.toggleSelected(conv.id) },
+                            onLongPress = { viewModel.toggleSelected(conv.id) },
+                            onDelete = { viewModel.delete(conv.id) },
+                            onShare = {
+                                coroutineScope.launch {
                                 shareMarkdown(context, viewModel.exportMarkdown(conv), conv.title)
                             }
                         },
                         onTogglePin = { viewModel.togglePinned(conv.id) },
                         onRename = { newTitle -> viewModel.setTitle(conv.id, newTitle) },
                     )
+                    } else {
+                        SwipeToDeleteContainer(onDelete = { viewModel.delete(conv.id) }) {
+                            HistoryRow(
+                                conv = conv,
+                                stats = viewModel.getStats(conv),
+                                isPinned = viewModel.isPinned(conv),
+                                isSelected = false,
+                                selectMode = false,
+                                onClick = { onSelect(conv.id) },
+                                onLongPress = { viewModel.toggleSelected(conv.id) },
+                                onDelete = { viewModel.delete(conv.id) },
+                                onShare = {
+                                    coroutineScope.launch {
+                                        shareMarkdown(context, viewModel.exportMarkdown(conv), conv.title)
+                                    }
+                                },
+                                onTogglePin = { viewModel.togglePinned(conv.id) },
+                                onRename = { newTitle -> viewModel.setTitle(conv.id, newTitle) },
+                            )
+                        }
+                    }
                 }
             }
         }

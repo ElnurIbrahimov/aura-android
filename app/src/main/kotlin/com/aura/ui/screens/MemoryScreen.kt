@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.memory.MemoryEntity
 import com.aura.ui.components.AuraScreenHeader
+import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.DocumentImportViewModel
 import com.aura.ui.viewmodel.MemoryViewModel
@@ -359,24 +360,26 @@ fun MemoryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.memories, key = { it.id }) { mem ->
-                    MemoryRow(
-                        mem = mem,
-                        onEdit = { editingMemory = mem },
-                        onShowHistory = {
-                            historyMemory = mem
-                            viewModel.loadEditHistory(mem.id)
-                        },
-                        onForget = { viewModel.forget(mem.id) },
-                        onOpenSource = {
-                            if (mem.sourceConversationId.isNotBlank()) {
-                                onOpenSourceConversation(
-                                    mem.sourceConversationId,
-                                    mem.sourceTurnTimestamp,
-                                )
-                            }
-                        },
-                        onFeedback = { helpful -> viewModel.submitFeedback(mem.id, helpful) },
-                    )
+                    SwipeToDeleteContainer(onDelete = { viewModel.forget(mem.id) }) {
+                        MemoryRow(
+                            mem = mem,
+                            onEdit = { editingMemory = mem },
+                            onShowHistory = {
+                                historyMemory = mem
+                                viewModel.loadEditHistory(mem.id)
+                            },
+                            onForget = { viewModel.forget(mem.id) },
+                            onOpenSource = {
+                                if (mem.sourceConversationId.isNotBlank()) {
+                                    onOpenSourceConversation(
+                                        mem.sourceConversationId,
+                                        mem.sourceTurnTimestamp,
+                                    )
+                                }
+                            },
+                            onFeedback = { helpful -> viewModel.submitFeedback(mem.id, helpful) },
+                        )
+                    }
                 }
             }
         }

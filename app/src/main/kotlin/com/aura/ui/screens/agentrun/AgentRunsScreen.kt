@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -100,6 +101,15 @@ private fun AgentRunsList(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            androidx.compose.material3.IconButton(onClick = onRefresh) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Filled.Refresh,
+                    contentDescription = "Refresh",
+                    tint = AuraThemeTokens.colors.textSecondary,
+                )
+            }
+        }
         if (loading) CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         if (error != null) {
             Surface(color = AuraThemeTokens.colors.error) {

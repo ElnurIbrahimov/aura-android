@@ -108,6 +108,14 @@ fun ProactiveHistoryScreen(
         },
     ) { padding ->
         val status by viewModel.status.collectAsState()
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+            androidx.compose.material3.IconButton(onClick = { viewModel.fireCalendarCheck() }) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Filled.Refresh,
+                    contentDescription = "Refresh",
+                )
+            }
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -134,7 +142,7 @@ fun ProactiveHistoryScreen(
                     onFireCalendar = { viewModel.fireCalendarCheck() },
                     onClearStatus = { viewModel.clearStatus() },
                 )
-            }
+        }
         }
     }
 }

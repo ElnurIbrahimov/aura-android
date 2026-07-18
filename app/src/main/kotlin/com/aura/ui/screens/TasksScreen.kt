@@ -75,6 +75,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.components.SwipeToDeleteContainer
 @Composable
 fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -209,13 +210,15 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                         }
                     } else {
                         items(state.tasks, key = { it.id }) { task ->
-                            TaskRow(
-                                task = task,
-                                onDelete = { viewModel.deleteTask(task.id) },
-                                onDone = { viewModel.markDone(task.id) },
-                                onReopen = { viewModel.reopenTask(task.id) },
-                                onEdit = { editingTask = task },
-                            )
+                            SwipeToDeleteContainer(onDelete = { viewModel.deleteTask(task.id) }) {
+                                TaskRow(
+                                    task = task,
+                                    onDelete = { viewModel.deleteTask(task.id) },
+                                    onDone = { viewModel.markDone(task.id) },
+                                    onReopen = { viewModel.reopenTask(task.id) },
+                                    onEdit = { editingTask = task },
+                                )
+                            }
                         }
                     }
                 }

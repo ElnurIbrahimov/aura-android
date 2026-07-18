@@ -86,6 +86,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.components.SwipeToDeleteContainer
 @Composable
 fun HandsScreen(
     viewModel: HandsViewModel = hiltViewModel(),
@@ -183,15 +184,17 @@ fun HandsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(visibleHands, key = { it.id }) { hand ->
-                            HandCard(
-                                hand = hand,
-                                lastRun = state.runs.firstOrNull { it.handId == hand.id },
-                                isRunning = state.running == hand.name,
-                                onRun = { runHand = hand },
-                                onToggle = { viewModel.toggle(hand) },
-                                onEdit = { editingHand = hand },
-                                onDelete = { deleteHand = hand },
-                            )
+                            SwipeToDeleteContainer(onDelete = { deleteHand = hand }) {
+                                HandCard(
+                                    hand = hand,
+                                    lastRun = state.runs.firstOrNull { it.handId == hand.id },
+                                    isRunning = state.running == hand.name,
+                                    onRun = { runHand = hand },
+                                    onToggle = { viewModel.toggle(hand) },
+                                    onEdit = { editingHand = hand },
+                                    onDelete = { deleteHand = hand },
+                                )
+                            }
                         }
                     }
                 }
