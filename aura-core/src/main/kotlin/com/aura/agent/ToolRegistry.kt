@@ -3,6 +3,7 @@ package com.aura.agent
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -74,7 +75,7 @@ data class ToolContext(
  */
 @Singleton
 class ToolRegistry @Inject constructor() {
-    private val tools: MutableMap<String, Tool> = mutableMapOf()
+    private val tools: MutableMap<String, Tool> = ConcurrentHashMap()
 
     fun register(tool: Tool) { tools[tool.name] = tool }
     fun unregister(name: String) { tools.remove(name) }

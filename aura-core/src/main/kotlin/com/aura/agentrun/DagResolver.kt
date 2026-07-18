@@ -1,5 +1,6 @@
 package com.aura.agentrun
 
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -10,6 +11,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class DagResolver @Inject constructor() {
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     /**
      * Returns steps that are ready to execute (all dependencies satisfied).
@@ -81,12 +84,17 @@ class DagResolver @Inject constructor() {
         }
     }
 
-    private fun parseDependsOn(json: kotlin.String): List<kotlin.String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return json.trim()
-            .removeSurrounding("[", "]")
-            .split(",")
-            .map { it.trim().trim('"') }
-            .filter { it.isNotBlank() }
+    /**
+     * Parse the dependsOn JSON array string into a list of step IDs.
+     * Uses proper JSON deserialization to handle whitespace, quotes,
+     * and edge cases correctly.
+     */
+    internal fun parseDependsOn(jsonStr: kotlin.String): List<kotlin.String> {
+        if (jsonStr.isBlank() || jsonStr == "[]") return emptyList()
+        return try {
+            json.decodeFromString<List<kotlin.String>>(jsonStr)
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 }

@@ -36,6 +36,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val agentRunStore: AgentRunStore,
+    private val dagResolver: DagResolver,
     private val executor: Lazy<ToolExecutor>,
 ) : CoroutineWorker(appContext, params) {
 
@@ -74,9 +75,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
         }
 
         // Find ready steps: PENDING with all dependencies SUCCESS
-        val ready = steps.filter { step ->
-            step.status == "PENDING" && allDependenciesComplete(step, completedIds)
-        }
+        val ready = dagResolver.readySteps(steps)
 
         if (ready.isEmpty()) {
             // No ready steps — either all done or stuck (circular dependency)
@@ -155,19 +154,6 @@ class AgentRunExecutorWorker @AssistedInject constructor(
         }
     }
 
-    private fun allDependenciesComplete(step: StepEntity, completedIds: Set<String>): Boolean {
-        val deps = parseDependsOn(step.dependsOn)
-        return deps.all { it in completedIds }
-    }
-
-    private fun parseDependsOn(json: kotlin.String): List<kotlin.String> {
-        if (json.isBlank() || json == "[]") return emptyList()
-        return try {
-            kotlinx.serialization.json.Json.decodeFromString<List<kotlin.String>>(json)
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
 }
 
 /**

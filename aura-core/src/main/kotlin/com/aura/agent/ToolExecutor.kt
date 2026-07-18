@@ -22,7 +22,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.longOrNull
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton

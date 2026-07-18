@@ -234,6 +234,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             is BrainChunk.Error -> {
                                 stepError = "${chunk.code}: ${chunk.message}"
                                 if (chunk.retryable && triedModels.size < 2) {
+                                    // Failover: pick a model from a DIFFERENT provider
+                                    // (not just a different prefix — we want a different
+                                    // provider entirely to avoid trying two models from
+                                    // the same provider that might share the same failure mode)
                                     val triedPrefixes = triedModels.mapTo(mutableSetOf()) {
                                         it.substringBefore(":")
                                     }
@@ -241,7 +245,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                         ?.catalog
                                         ?.value
                                         ?.allModels
-                                        ?.firstOrNull { it.providerPrefix !in triedPrefixes }
+                                        ?.firstOrNull { it.providerPrefix !in triedPrefixes && it.id !in triedModels }
                                         ?.id
                                     if (nextModel != null) {
                                         val failedModel = currentModel
