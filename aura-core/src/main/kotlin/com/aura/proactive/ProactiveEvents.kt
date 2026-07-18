@@ -108,6 +108,13 @@ class ProactiveEvents(
         }
         scope.launch {
             bus.events.collect { event ->
+                // Skip events that were already persisted — the
+                // re-emission below gives the event its DB id, and
+                // collecting it again would insert a duplicate row
+                // and re-emit, creating an infinite insert→emit→insert
+                // feedback loop. Only fresh events (id == 0L) from
+                // producers should be persisted.
+                if (event.id != 0L) return@collect
                 _latest.value = event
                 _history.value = (_history.value + event).takeLast(100)
                 // Persist to Room

@@ -173,6 +173,23 @@ class ProactiveEventsTest {
     }
 
     @Test
+    fun `bus event is persisted exactly once — no infinite re-emission loop`() = runTest(testDispatcher) {
+        val events = newProactiveEvents()
+        advanceUntilIdle()
+
+        bus.tryEmit(
+            ProactiveEventBus.Event.MorningBriefReady("☀️", "brief", timestamp = 1_000L),
+        )
+        advanceUntilIdle()
+
+        // Exactly 1 row in the DAO — the re-emitted event with the
+        // persisted id must NOT be re-inserted.
+        assertEquals(1, dao.recent(100).size)
+        // The latest event still has the right content.
+        assertEquals(1, events.unreadCount.value)
+    }
+
+    @Test
     fun `markSeen is idempotent and never increases the count`() = runTest(testDispatcher) {
         val events = newProactiveEvents()
         advanceUntilIdle()
