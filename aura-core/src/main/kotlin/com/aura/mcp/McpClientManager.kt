@@ -1,5 +1,6 @@
 package com.aura.mcp
 
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,7 +23,7 @@ import javax.inject.Singleton
 class McpClientManager @Inject constructor(
     private val httpClient: okhttp3.OkHttpClient,
 ) {
-    private val connections = mutableMapOf<kotlin.String, McpConnection>()
+    private val connections = ConcurrentHashMap<kotlin.String, McpConnection>()
 
     /**
      * Connect to an MCP server. Returns the connection health.

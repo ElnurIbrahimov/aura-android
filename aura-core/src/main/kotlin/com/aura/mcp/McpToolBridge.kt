@@ -3,6 +3,7 @@ package com.aura.mcp
 import com.aura.agent.Tool
 import com.aura.agent.ToolCall
 import com.aura.agent.ToolContext
+import java.util.concurrent.ConcurrentHashMap
 import com.aura.agent.ToolRegistry
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
@@ -43,7 +44,7 @@ class McpToolBridge @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     /** Track which MCP tool names we've registered so we can clean up. */
-    private val registeredNames = mutableSetOf<kotlin.String>()
+    private val registeredNames = ConcurrentHashMap.newKeySet<kotlin.String>()
 
     /**
      * Discover tools from all connected MCP servers and register them

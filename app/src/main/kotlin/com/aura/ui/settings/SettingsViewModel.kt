@@ -74,13 +74,12 @@ val SETTINGS_CREDENTIAL_SPECS: List<SettingsCredentialSpec> = listOf(
     SettingsCredentialSpec("firecrawl", "Firecrawl", "Used by Firecrawl page extraction", false, isConsumed = true),
     SettingsCredentialSpec("exa", "Exa Search", "Neural search — get a key at exa.ai/dashboard", false, isConsumed = true),
     SettingsCredentialSpec("jina", "Jina Reader", "URL-to-text search — get a key at jina.ai/reader", false, isConsumed = true),
-    // Capability providers — keys persist but no tool consumes them yet.
-    // The Settings card renders these disabled with a "Coming soon" hint
-    // so the user doesn't think the key does anything.
-    SettingsCredentialSpec("elevenlabs", "ElevenLabs", "TTS — get a key at elevenlabs.io/app/settings/api-keys", false, isConsumed = false),
-    SettingsCredentialSpec("stability", "Stability AI", "Image generation — platform.stability.ai/account/keys", false, isConsumed = false),
-    SettingsCredentialSpec("kling", "Kling AI", "Video generation — klingai.com/dev", false, isConsumed = false),
-    SettingsCredentialSpec("worldlabs", "World Labs", "3D world generation — worldlabs.ai", false, isConsumed = false),
+    // Capability providers — consumed by ImageGenCapabilityTool, TtsSpeakTool,
+    // and other capability-backed tools. Keys persist and are used at runtime.
+    SettingsCredentialSpec("elevenlabs", "ElevenLabs", "TTS — get a key at elevenlabs.io/app/settings/api-keys", false, isConsumed = true),
+    SettingsCredentialSpec("stability", "Stability AI", "Image generation — platform.stability.ai/account/keys", false, isConsumed = true),
+    SettingsCredentialSpec("kling", "Kling AI", "Video generation — klingai.com/dev", false, isConsumed = true),
+    SettingsCredentialSpec("worldlabs", "World Labs", "3D world generation — worldlabs.ai", false, isConsumed = true),
 )
 
 private val TOOL_CREDENTIAL_PREFIXES: Set<String> = SETTINGS_CREDENTIAL_SPECS
@@ -545,7 +544,7 @@ class SettingsViewModel @Inject constructor(
                 deniedTools = denied,
                 authToken = draft.authToken.ifBlank { null },
             )
-            val health = mcpClientManager.connect(config)
+            val health = mcpClientManager.connect(config, config.authToken)
             val tools = if (health.state == com.aura.mcp.McpConnectionState.CONNECTED) {
                 mcpClientManager.listTools(config.id)
             } else emptyList()
