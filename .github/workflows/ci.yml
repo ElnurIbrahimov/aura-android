@@ -4,9 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/tier-1-friction]
   pull_request:
-    branches: [main]
+    branches: [main, feat/tier-1-friction]
   workflow_dispatch:
 
 concurrency:
