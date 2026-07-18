@@ -25,7 +25,7 @@ class EvolutionSafetyGuardTest {
 
     @Test
     fun `detects api key leak`() {
-        assertTrue(guard.containsCredentialLeak("prefix sk-abc...qrst prefix"))
+        assertTrue(guard.containsCredentialLeak("prefix sk-abcdEFGH1234567890wxyz prefix"))
     }
 
     @Test

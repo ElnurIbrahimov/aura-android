@@ -48,6 +48,10 @@ android {
         // Robolectric tests verify packaged configuration assets (for example,
         // moa_presets.json) rather than silently exercising fallback code.
         unitTests.isIncludeAndroidResources = true
+        // android.util.Log calls in production code (e.g. ConversationStore
+        // runCatching logging) return default values (0, null, false) in
+        // JVM unit tests instead of throwing RuntimeException.
+        unitTests.isReturnDefaultValues = true
     }
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")

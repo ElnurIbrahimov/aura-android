@@ -33,12 +33,13 @@ class CreativeStudioViewModelTest {
     private val council: CreativeCouncil = mockk(relaxed = true)
     private val providerRegistry: ProviderRegistry = mockk(relaxed = true)
     private val capabilityRouter: CapabilityRouter = mockk(relaxed = true)
+    private val modelRoleRouter: com.aura.providers.ModelRoleRouter = mockk(relaxed = true)
     private val project = CreativeProject(
         "p1", "Glass City", "", "fantasy", "haunting", WorldBible(overview = "Glass remembers"),
         "novel", 0, 1L, 1L,
     )
 
-    private fun newViewModel() = CreativeStudioViewModel(store, engine, council, providerRegistry, capabilityRouter)
+    private fun newViewModel() = CreativeStudioViewModel(store, engine, council, providerRegistry, capabilityRouter, modelRoleRouter)
 
     @Before
     fun setUp() {
