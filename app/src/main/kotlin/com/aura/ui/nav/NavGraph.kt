@@ -11,10 +11,17 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -62,6 +69,7 @@ fun NavGraph(
     // always visible matches the Aura Web pattern where the left sidebar
     // persists across all views.
     val showBottomBar = true
+    var showSearch by remember { mutableStateOf(false) }
 
     LaunchedEffect(launchRequest.sequence) {
         if (launchRequest.sequence == 0) return@LaunchedEffect
@@ -84,6 +92,15 @@ fun NavGraph(
         contentWindowInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
         ),
+        floatingActionButton = {
+            androidx.compose.material3.SmallFloatingActionButton(
+                onClick = { showSearch = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = "Search")
+            }
+        },
         bottomBar = {
             AnimatedVisibility(
                 visible = showBottomBar,
@@ -306,5 +323,12 @@ fun NavGraph(
                 )
             }
         }
+    }
+
+    if (showSearch) {
+        com.aura.ui.screens.search.GlobalSearchSheet(
+            onNavigate = { route -> navController.navigate(route) },
+            onDismiss = { showSearch = false },
+        )
     }
 }
