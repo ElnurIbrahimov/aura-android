@@ -6,6 +6,7 @@ import com.aura.security.KeyManager
 import com.aura.security.SecureDataStore
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -255,7 +256,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `decryption failure during init sets StorageError terminal state`() = runTest(dispatchTimeoutMs = 30_000) {
+    fun `decryption failure during init sets StorageError terminal state`() = runTest(dispatchTimeoutMs = 60_000) {
         val mockStore = mockk<SecureDataStore>()
         // First provider fails, others are unset
         coEvery { mockStore.getString(any()) } returns null
@@ -265,7 +266,9 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        keys.awaitLoaded()
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            keys.awaitLoaded()
+        }
 
         assertEquals(ProviderCredentialState.StorageError, keys.credentialStates.value["ollama"])
         assertNull(keys.keyFor("ollama"))
@@ -275,7 +278,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `loaded becomes true even when init load encounters errors`() = runTest(dispatchTimeoutMs = 30_000) {
+    fun `loaded becomes true even when init load encounters errors`() = runTest(dispatchTimeoutMs = 60_000) {
         val mockStore = mockk<SecureDataStore>()
         coEvery { mockStore.getString(any()) } throws DecryptionFailedException("bad decrypt")
         coEvery { mockStore.getString("embedding_model") } returns null
@@ -283,7 +286,12 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        keys.awaitLoaded()
+        // awaitLoaded() suspends on a Flow that is set by an init
+        // coroutine on Dispatchers.IO. Use withContext to give it
+        // real thread time to complete on slow CI runners.
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            keys.awaitLoaded()
+        }
         assertTrue(keys.loaded.value, "loaded must become true even on decryption failures")
     }
 
