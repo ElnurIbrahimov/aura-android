@@ -62,6 +62,10 @@ class TasteEngine @Inject constructor(
         reaction: kotlin.String,
         positive: kotlin.Boolean,
     ) {
+        // Delete any previous reaction for this artifact so switching
+        // from 👍 to 👎 replaces the signal instead of accumulating
+        // contradictory rows.
+        signalDao.deleteReactionsForArtifact(artifactId)
         recordSignal(
             projectId = projectId,
             signalType = "reaction",

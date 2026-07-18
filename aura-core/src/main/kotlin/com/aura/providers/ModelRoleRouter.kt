@@ -48,19 +48,36 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
 class ModelRoleRouter @Inject constructor(
     private val userPreferences: UserPreferences,
     private val providerRegistry: ProviderRegistry,
+    private val tasteEngine: com.aura.taste.TasteEngine? = null,
 ) {
     /**
      * Returns the user's preferred model for [role], or the default
      * model if no role-specific preference is set.
      *
+     * If [tasteEngine] is available and has routing data for this role,
+     * the taste-recommended model is preferred over the user preference
+     * — but only if the recommended model is still from a configured
+     * provider.
+     *
      * Returns null if no model is configured at all — the caller must
      * handle this honestly (show "configure a model" prompt).
      */
     suspend fun resolve(role: ModelRole): kotlin.String? {
-        // Role-specific preference
+        // 1. Taste-engine recommendation (if data exists)
+        if (tasteEngine != null) {
+            val tasteModel = tasteEngine.bestModelForRole(role.name)
+            if (!tasteModel.isNullOrBlank()) {
+                // Verify the taste-recommended model is from a configured provider
+                val prefix = tasteModel.substringBefore(":", "")
+                if (prefix.isNotBlank() && providerRegistry.all().any { it.prefix == prefix && it.isConfigured() }) {
+                    return tasteModel
+                }
+            }
+        }
+        // 2. Role-specific preference
         val roleModel = userPreferences.forRole(role).first()
         if (!roleModel.isNullOrBlank()) return roleModel
-        // Fallback: conversation default
+        // 3. Fallback: conversation default
         if (role != ModelRole.CONVERSATION) {
             val default = userPreferences.defaultModel.first()
             if (!default.isNullOrBlank()) return default

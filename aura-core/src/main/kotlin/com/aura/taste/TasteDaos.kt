@@ -33,6 +33,9 @@ interface PreferenceSignalDao {
     @Query("DELETE FROM preference_signals WHERE projectId = '' OR projectId IS NULL")
     suspend fun deleteGlobal()
 
+    @Query("DELETE FROM preference_signals WHERE artifactId = :artifactId AND signalType = 'reaction'")
+    suspend fun deleteReactionsForArtifact(artifactId: kotlin.String)
+
     @Query("SELECT COUNT(*) FROM preference_signals")
     fun count(): Flow<Int>
 }

@@ -69,6 +69,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val conversationCompactor: ConversationCompactor,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val providerKeys: com.aura.providers.ProviderKeys? = null,
+    private val beliefDao: com.aura.world.BeliefDao? = null,
 ) {
 
     /**
@@ -181,6 +182,23 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 "\n\n# Relevant memories:\n$lines"
             } else ""
 
+            // Include active world-model beliefs in the system context
+            // so the agent has access to resolved assertions (not just
+            // raw memories). Beliefs are confidence-weighted and
+            // supersede-able, making them more reliable than raw recall
+            // for stable facts about the user.
+            val beliefContext = if (memoryEnabled && beliefDao != null) {
+                runCatching {
+                    val beliefs = beliefDao.allActive(10)
+                    if (beliefs.isEmpty()) "" else {
+                        val lines = beliefs.map { b ->
+                            "- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)"
+                        }.joinToString("\n")
+                        "\n\n# Known beliefs:\n$lines"
+                    }
+                }.getOrDefault("")
+            } else ""
+
             // 2) Build messages
             val messages = buildList {
                 val sys = listOfNotNull(
@@ -188,7 +206,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + memoryContext + handContext
+                ).joinToString("\n\n") + memoryContext + beliefContext + handContext
                 if (sys.isNotBlank()) add(ProviderMessage(role = Role.system, content = sys))
                 addAll(currentConversation.toMessages(includeSystemPrompt = false))
             }
