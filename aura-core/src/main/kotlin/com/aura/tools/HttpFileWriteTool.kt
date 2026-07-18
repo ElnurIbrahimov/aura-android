@@ -40,7 +40,7 @@ class HttpFileWriteTool @Inject constructor(
     val tool = Tool(
         name = "http_file_write",
         description = definition().description,
-        risk = ToolRisk.REMOTE_COST,
+        risk = ToolRisk.WRITE_REMOTE,
         parameters = definition().parameters,
         execute = { call, _ ->
             val url = call.arguments["url"] as? String

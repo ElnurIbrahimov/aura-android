@@ -40,7 +40,7 @@ class CreativeEngineTool @Inject constructor(
     val tool = Tool(
         name = definition().name,
         description = definition().description,
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.REMOTE_COST,
         parameters = definition().parameters,
         category = "creative",
         execute = { call, ctx -> execute(call, ctx) },

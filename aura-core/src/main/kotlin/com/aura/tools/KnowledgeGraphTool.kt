@@ -57,7 +57,7 @@ class KnowledgeGraphTool @Inject constructor(
     val tool = Tool(
         name = "knowledge_graph_extract",
         description = "Extract a knowledge graph (nodes and edges) from unstructured text. Returns JSON with nodes and edges.",
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.REMOTE_COST,
         parameters = definition(),
         execute = { call, _ ->
             val text = call.arguments["text"] as? String

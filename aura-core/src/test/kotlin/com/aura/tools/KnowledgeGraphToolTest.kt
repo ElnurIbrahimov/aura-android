@@ -209,7 +209,7 @@ class KnowledgeGraphToolTest {
     fun `tool definition has correct metadata`() {
         val tool = KnowledgeGraphTool(mockk()).tool
         assertEquals("knowledge_graph_extract", tool.name)
-        assertEquals(com.aura.agent.ToolRisk.READ_ONLY, tool.risk)
+        assertEquals(com.aura.agent.ToolRisk.REMOTE_COST, tool.risk)
         assertTrue(tool.parameters.properties.containsKey("text"))
         assertTrue(tool.parameters.required.contains("text"))
     }

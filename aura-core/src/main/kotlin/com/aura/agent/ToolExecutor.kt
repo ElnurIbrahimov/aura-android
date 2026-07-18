@@ -35,10 +35,30 @@ class ToolExecutor @Inject constructor(
     private val registry: ToolRegistry,
     @ApplicationContext private val context: Context,
     private val usageTracker: UsageTracker = UsageTracker(),
+    private val policyEngine: com.aura.agent.policy.PolicyEngine? = null,
 ) {
     private val remoteCostApprovalGate = RemoteCostApprovalGate()
     suspend fun execute(name: String, argumentsJson: String, ctx: ToolContext): ToolResult {
         val tool = registry.get(name) ?: return ToolResult.Error("Unknown tool: $name", "unknown_tool")
+
+        // Policy engine: evaluate user-configured tool policies (enable/disable,
+        // confirmation, per-run approval). This is the primary gate — the inline
+        // checks below are hard fallbacks for when no policy is configured.
+        if (policyEngine != null) {
+            when (val pr = policyEngine.evaluate(tool, ctx)) {
+                is com.aura.agent.policy.PolicyResult.Allowed -> { /* proceed */ }
+                is com.aura.agent.policy.PolicyResult.Disabled ->
+                    return ToolResult.Error("Tool '$name' is disabled by policy.", "policy_disabled")
+                is com.aura.agent.policy.PolicyResult.NeedsConfirmation ->
+                    return ToolResult.NeedsApproval("Tool '$name' requires ${pr.level} confirmation.")
+                is com.aura.agent.policy.PolicyResult.NeedsApproval ->
+                    return ToolResult.NeedsApproval("Tool '$name' requires per-run approval.")
+                is com.aura.agent.policy.PolicyResult.CostExceeded ->
+                    return ToolResult.Error("Tool '$name' cost ceiling exceeded.", "cost_exceeded")
+                is com.aura.agent.policy.PolicyResult.ScopeDenied ->
+                    return ToolResult.Error("Tool '$name' scope denied: ${pr.scope}.", "scope_denied")
+            }
+        }
 
         // Privacy boundary: in an incognito session, refuse any tool that
         // mutates local state. READ_ONLY tools (recall, web_search, kg_query)
@@ -63,7 +83,10 @@ class ToolExecutor @Inject constructor(
             return ToolResult.Error("Bad arguments: ${e.message}", "bad_args")
         }
 
-        if (tool.risk == ToolRisk.REMOTE_COST && name !in ctx.approvedRemoteCostTools) {
+        // Hard fallback: REMOTE_COST tools not in the approved set still
+        // go through the confirmation gate even if PolicyEngine wasn't
+        // configured (or wasn't injected, e.g. in unit tests).
+        if (policyEngine == null && tool.risk == ToolRisk.REMOTE_COST && name !in ctx.approvedRemoteCostTools) {
             remoteCostApprovalGate.authorize(name, args, ctx)?.let { rationale ->
                 return ToolResult.NeedsApproval(rationale)
             }

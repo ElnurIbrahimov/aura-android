@@ -29,9 +29,11 @@ import javax.inject.Singleton
  * base name already exists, the MCP version is still registered with the
  * prefix — the LLM sees both and can choose either.
  *
- * Tool risk is always [ToolRisk.READ_ONLY] for MCP tools: the local
- * security controls (deny list, prefix allow list, response bounding)
- * are enforced by [McpClientManager] before the call is dispatched.
+ * Tool risk is [ToolRisk.REMOTE_COST] for MCP tools by default: they
+ * call external network endpoints that may consume paid API credits.
+ * The local security controls (deny list, prefix allow list, response
+ * bounding) are enforced by [McpClientManager] before the call is
+ * dispatched.
  */
 @Singleton
 class McpToolBridge @Inject constructor(
@@ -79,7 +81,7 @@ class McpToolBridge @Inject constructor(
                 val tool = Tool(
                     name = registeredName,
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
-                    risk = ToolRisk.READ_ONLY,
+                    risk = ToolRisk.REMOTE_COST,
                     parameters = parseSchema(mcpTool.inputSchemaJson),
                     execute = { call, _ ->
                         val result = mcpClientManager.callTool(
@@ -131,7 +133,7 @@ class McpToolBridge @Inject constructor(
                 val tool = Tool(
                     name = mcpTool.name,
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
-                    risk = ToolRisk.READ_ONLY,
+                    risk = ToolRisk.REMOTE_COST,
                     parameters = parseSchema(mcpTool.inputSchemaJson),
                     execute = { call, _ ->
                         val result = mcpClientManager.callTool(

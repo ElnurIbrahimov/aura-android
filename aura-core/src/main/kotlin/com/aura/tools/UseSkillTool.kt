@@ -41,7 +41,7 @@ class UseSkillTool @Inject constructor(
         name = "use_skill",
         description = "Invoke a user-authored skill by name. Returns the skill body " +
             "(free-form markdown instructions) which the agent should follow for the next turn.",
-        risk = ToolRisk.READ_ONLY,
+        risk = ToolRisk.WRITE_LOCAL,
         parameters = definition(),
         execute = { call, ctx ->
             val name = call.arguments["name"] as? String
