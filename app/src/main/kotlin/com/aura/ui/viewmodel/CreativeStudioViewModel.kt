@@ -43,6 +43,7 @@ class CreativeStudioViewModel @Inject constructor(
     private val council: CreativeCouncil,
     private val providerRegistry: ProviderRegistry,
     private val capabilityRouter: CapabilityRouter,
+    private val modelRoleRouter: com.aura.providers.ModelRoleRouter,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -187,19 +188,17 @@ class CreativeStudioViewModel @Inject constructor(
         }
     }
 
-    private suspend fun resolveSubagentModel(modelRole: String): String {
-        // Map council role to a configured capability provider if possible.
-        val capability = runCatching {
-            val provider = when (modelRole) {
-                "CREATIVE_DRAFT" -> capabilityRouter.resolve(com.aura.capabilities.CapabilityKind.ImageGeneration)
-                "DEEP_RESEARCH" -> capabilityRouter.resolve(com.aura.capabilities.CapabilityKind.WebSearch)
-                else -> null
-            }
-            provider?.prefix
-        }.getOrNull()
-        // prefix is just a label here; the subagent executor needs a chat model.
-        // Fall back to the default conversation model.
-        return capability ?: "default"
+    private suspend fun resolveSubagentModel(modelRole: kotlin.String): kotlin.String {
+        // Resolve the council role to a real provider:model via
+        // ModelRoleRouter, which reads user-configured role models
+        // and falls back to the default conversation model.
+        // Never returns a bare provider prefix or "default" — those
+        // cause ProviderRegistry.parse() to reject the call.
+        val role = runCatching {
+            com.aura.providers.ModelRole.valueOf(modelRole)
+        }.getOrDefault(com.aura.providers.ModelRole.CREATIVE_DRAFT)
+        return modelRoleRouter.resolve(role)
+            ?: throw IllegalStateException("No model configured for $role. Set a default model in Settings.")
     }
 
     fun cancelGeneration() {
