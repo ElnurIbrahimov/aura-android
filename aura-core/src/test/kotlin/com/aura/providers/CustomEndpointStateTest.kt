@@ -26,14 +26,17 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `fresh state is unconfigured`() {
+    fun `fresh state is unconfigured`() = runTest(dispatchTimeoutMs = 5_000) {
         val state = newState()
+        testScheduler.advanceUntilIdle()
         assertFalse(state.isConfigured())
     }
 
     @Test
-    fun `setEndpoint makes state configured`() {
+    fun `setEndpoint makes state configured`() = runTest(dispatchTimeoutMs = 5_000) {
         val state = newState()
+        // Wait for init reload() to complete so it doesn't race with setEndpoint.
+        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1", "sk-test-123")
         assertTrue(state.isConfigured())
         assertEquals("https://api.example.com/v1", state.baseUrl)
@@ -41,15 +44,17 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `setEndpoint trims trailing slash from baseUrl`() {
+    fun `setEndpoint trims trailing slash from baseUrl`() = runTest(dispatchTimeoutMs = 5_000) {
         val state = newState()
+        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1/", "sk-test-123")
         assertEquals("https://api.example.com/v1", state.baseUrl)
     }
 
     @Test
-    fun `setEndpoint overrides models`() {
+    fun `setEndpoint overrides models`() = runTest(dispatchTimeoutMs = 5_000) {
         val state = newState()
+        testScheduler.advanceUntilIdle()
         state.setEndpoint(
             baseUrl = "https://api.example.com/v1",
             apiKey = "sk-test-123",
@@ -59,9 +64,11 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `snapshot is atomic`() {
+    fun `snapshot is atomic`() = runTest(dispatchTimeoutMs = 5_000) {
         val state = newState()
+        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1", "sk-1")
+        testScheduler.advanceUntilIdle()
         val (url, key, models) = state.snapshot()
         assertEquals("https://api.example.com/v1", url)
         assertEquals("sk-1", key)
