@@ -94,6 +94,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          * long-term writes.
          */
         memoryEnabled: Boolean = true,
+        /**
+         * Per-conversation set of REMOTE_COST tool names the user
+         * has explicitly approved. Passed into [ToolContext] so
+         * [ToolExecutor] lets them through without re-prompting.
+         */
+        approvedRemoteCostTools: Set<String> = emptySet(),
     ): Flow<AgentEvent> = flow {
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
@@ -308,6 +314,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 conversationId = currentConversation.id,
                 userMessage = lastUserMessage,
                 memoryEnabled = memoryEnabled,
+                approvedRemoteCostTools = approvedRemoteCostTools,
             )
             val toolResults = coroutineScope {
                 toolCalls.map { (id, args) ->

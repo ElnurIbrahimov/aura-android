@@ -505,6 +505,16 @@ fun ChatRoute(
         onDismiss = viewModel::dismissPermission,
     )
 
+    // REMOTE_COST approval dialog
+    state.pendingApproval?.let { (toolName, rationale) ->
+        CostApprovalDialog(
+            toolName = toolName,
+            rationale = rationale,
+            onApprove = viewModel::approveRemoteCost,
+            onDismiss = viewModel::dismissApproval,
+        )
+    }
+
     DeleteConversationDialog(
         visible = showDeleteConfirm,
         onDelete = {

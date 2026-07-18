@@ -172,3 +172,25 @@ fun PermissionDialog(
         },
     )
 }
+
+@Composable
+fun CostApprovalDialog(
+    @Suppress("UNUSED_PARAMETER") toolName: String,
+    rationale: String,
+    onApprove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paid action") },
+        text = {
+            Text(rationale)
+        },
+        confirmButton = {
+            TextButton(onClick = onApprove) { Text("Approve") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}

@@ -195,6 +195,7 @@ class ChatSendController(
                     model = model,
                     specialist = resolvedSpecialist,
                     memoryEnabled = !state.value.incognitoMode,
+                    approvedRemoteCostTools = state.value.approvedRemoteCostTools,
                 ).collect { event ->
                     when (event) {
                         is AgentEvent.TextDelta -> {
@@ -252,6 +253,17 @@ class ChatSendController(
                             if (citations.isNotEmpty()) {
                                 state.update { old ->
                                     old.copy(conversation = old.conversation.setCitations(citations))
+                                }
+                            }
+                            // Check if the tool result text indicates an
+                            // approval request (formatted by the agentic
+                            // loop as "Approval needed: ..."). Surface it
+                            // as a dialog instead of silently feeding it
+                            // back to the model.
+                            if (event.result.startsWith("Approval needed: ")) {
+                                val rationale = event.result.removePrefix("Approval needed: ")
+                                state.update { old ->
+                                    old.copy(pendingApproval = event.name to rationale)
                                 }
                             }
                             if (event.needsPermission != null) {

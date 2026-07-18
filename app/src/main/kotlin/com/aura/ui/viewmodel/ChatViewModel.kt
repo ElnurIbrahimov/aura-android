@@ -161,6 +161,18 @@ data class ChatUiState(
     val permissionRationale: String? = null,
     /** Tool name + args that the permission was requested for. Used to retry after grant. */
     val pendingToolRetry: Pair<String, String>? = null,
+    /**
+     * Tool name + rationale when a REMOTE_COST tool needs user
+     * approval. The UI shows a dialog; approveRemoteCost() adds
+     * the tool to [approvedRemoteCostTools] and re-engages.
+     */
+    val pendingApproval: Pair<String, String>? = null,
+    /**
+     * Per-conversation set of REMOTE_COST tools the user has
+     * approved. Passed into ToolContext so ToolExecutor lets
+     * them through without re-prompting.
+     */
+    val approvedRemoteCostTools: Set<String> = emptySet(),
     val errorRetryable: Boolean = false,
     val kgNodeCount: Int = 0,
     /** True when user has toggled Deep Mode for the next turn. */
@@ -642,7 +654,29 @@ class ChatViewModel @Inject constructor(
     }
 
     fun dismissPermission() {
-        _state.update { it.copy(pendingPermission = null, permissionRationale = null) }
+        _state.update { it.copy(pendingPermission = null, permissionRationale = null, pendingToolRetry = null) }
+    }
+
+    /**
+     * User approved a REMOTE_COST tool. Add it to the per-conversation
+     * approved set and re-engage the model so the tool re-executes
+     * with the approved set in ToolContext.
+     */
+    fun approveRemoteCost() {
+        val pending = _state.value.pendingApproval ?: return
+        val toolName = pending.first
+        _state.update {
+            it.copy(
+                pendingApproval = null,
+                approvedRemoteCostTools = it.approvedRemoteCostTools + toolName,
+            )
+        }
+        sendController.runSend(viewModelScope)
+    }
+
+    /** User dismissed the REMOTE_COST approval dialog. */
+    fun dismissApproval() {
+        _state.update { it.copy(pendingApproval = null) }
     }
 
     /**
@@ -817,7 +851,11 @@ class ChatViewModel @Inject constructor(
         sendController.cancel()
         viewModelScope.launch {
             try {
-                val ctx = ToolContext(conversationId = _state.value.conversation.id)
+            val ctx = ToolContext(
+                conversationId = _state.value.conversation.id,
+                memoryEnabled = !_state.value.incognitoMode,
+                approvedRemoteCostTools = _state.value.approvedRemoteCostTools,
+            )
                 val result = toolExecutor.execute(toolName, args, ctx)
                 val resultText = formatToolResult(result)
                 // Add the result as a tool turn so the model sees it in the right format
