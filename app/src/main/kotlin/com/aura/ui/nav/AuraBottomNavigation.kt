@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -95,6 +95,7 @@ fun AuraBottomNavigation(
         border = BorderStroke(1.dp, colors.borderSubtle),
         modifier = modifier
             .fillMaxWidth()
+            .windowInsetsPadding(navigationBarInsets)
             .testTag("bottom-navigation"),
     ) {
         Column {
@@ -149,7 +150,9 @@ fun AuraBottomNavigation(
                     }
                 }
             }
-            Spacer(Modifier.windowInsetsBottomHeight(navigationBarInsets))
+            // Inset spacer no longer needed — the Surface itself now
+            // applies windowInsetsPadding(navigationBarInsets) which
+            // pushes the entire bar above the system navigation bar.
         }
     }
 }
