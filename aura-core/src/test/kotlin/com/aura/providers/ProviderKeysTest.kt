@@ -256,7 +256,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `decryption failure during init sets StorageError terminal state`() = runTest(dispatchTimeoutMs = 60_000) {
+    fun `decryption failure during init sets StorageError terminal state`() = kotlinx.coroutines.runBlocking {
         val mockStore = mockk<SecureDataStore>()
         // First provider fails, others are unset
         coEvery { mockStore.getString(any()) } returns null
@@ -266,9 +266,7 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        kotlinx.coroutines.withContext(Dispatchers.IO) {
-            keys.awaitLoaded()
-        }
+        keys.awaitLoaded()
 
         assertEquals(ProviderCredentialState.StorageError, keys.credentialStates.value["ollama"])
         assertNull(keys.keyFor("ollama"))
@@ -278,7 +276,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `loaded becomes true even when init load encounters errors`() = runTest(dispatchTimeoutMs = 60_000) {
+    fun `loaded becomes true even when init load encounters errors`() = kotlinx.coroutines.runBlocking {
         val mockStore = mockk<SecureDataStore>()
         coEvery { mockStore.getString(any()) } throws DecryptionFailedException("bad decrypt")
         coEvery { mockStore.getString("embedding_model") } returns null
@@ -286,12 +284,7 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        // awaitLoaded() suspends on a Flow that is set by an init
-        // coroutine on Dispatchers.IO. Use withContext to give it
-        // real thread time to complete on slow CI runners.
-        kotlinx.coroutines.withContext(Dispatchers.IO) {
-            keys.awaitLoaded()
-        }
+        keys.awaitLoaded()
         assertTrue(keys.loaded.value, "loaded must become true even on decryption failures")
     }
 
