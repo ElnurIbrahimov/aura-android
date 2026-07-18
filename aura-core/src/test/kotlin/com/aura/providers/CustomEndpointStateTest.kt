@@ -69,13 +69,13 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `setEndpoint persists to secure data store`() = runTest(dispatchTimeoutMs = 10_000) {
+    fun `setEndpoint persists to secure data store`() {
         val store = mockk<SecureDataStore>(relaxed = true)
         coEvery { store.getString(any()) } returns null
         val state = CustomEndpointState(store)
         state.setEndpoint("https://api.example.com/v1", "sk-test")
         // Let the IO scope persistence launch complete.
-        kotlinx.coroutines.delay(200)
+        Thread.sleep(500)
         coVerify {
             store.putString(CustomEndpointState.KEY_BASE_URL, "https://api.example.com/v1")
         }

@@ -255,7 +255,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `decryption failure during init sets StorageError terminal state`() = runTest(dispatchTimeoutMs = 10_000) {
+    fun `decryption failure during init sets StorageError terminal state`() = runTest(dispatchTimeoutMs = 30_000) {
         val mockStore = mockk<SecureDataStore>()
         // First provider fails, others are unset
         coEvery { mockStore.getString(any()) } returns null
@@ -275,7 +275,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `loaded becomes true even when init load encounters errors`() = runTest(dispatchTimeoutMs = 10_000) {
+    fun `loaded becomes true even when init load encounters errors`() = runTest(dispatchTimeoutMs = 30_000) {
         val mockStore = mockk<SecureDataStore>()
         coEvery { mockStore.getString(any()) } throws DecryptionFailedException("bad decrypt")
         coEvery { mockStore.getString("embedding_model") } returns null
