@@ -103,6 +103,9 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         every { userPreferences.evolutionIntervalHours } returns flowOf(24)
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.ttsEnabled } returns flowOf(true)
+        every { userPreferences.incognitoDefault } returns flowOf(false)
+        every { userPreferences.imageModel } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")
         coEvery { identityStore.readCurrent() } returns ""
         coEvery { identityStore.hasOverride() } returns false

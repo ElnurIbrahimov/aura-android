@@ -152,6 +152,10 @@ data class SettingsUiState(
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
     val evolutionShadowEnabled: Boolean = false,
+    // Settings toggles that existed in prefs but had no UI control.
+    val ttsEnabled: Boolean = true,
+    val incognitoDefault: Boolean = false,
+    val imageModel: String = "",
     /** Distinct from credentialStates["custom"]: the URL/key are stored
      *  outside ProviderKeys, so this is a separate UI state. */
 )
@@ -266,6 +270,9 @@ class SettingsViewModel @Inject constructor(
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
+            val ttsEnabled = userPreferences.ttsEnabled.first()
+            val incognitoDefault = userPreferences.incognitoDefault.first()
+            val imageModel = userPreferences.imageModel.first()
             val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
@@ -306,6 +313,9 @@ class SettingsViewModel @Inject constructor(
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
                 evolutionShadowEnabled = evolutionShadowEnabled,
+                ttsEnabled = ttsEnabled,
+                incognitoDefault = incognitoDefault,
+                imageModel = imageModel,
             )
         }
     }
@@ -437,6 +447,27 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setEvolutionShadowEnabled(enabled)
             _state.update { it.copy(evolutionShadowEnabled = enabled) }
+        }
+    }
+
+    fun setTtsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setTtsEnabled(enabled)
+            _state.update { it.copy(ttsEnabled = enabled) }
+        }
+    }
+
+    fun setIncognitoDefault(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setIncognitoDefault(enabled)
+            _state.update { it.copy(incognitoDefault = enabled) }
+        }
+    }
+
+    fun setImageModel(model: String) {
+        viewModelScope.launch {
+            userPreferences.setImageModel(model)
+            _state.update { it.copy(imageModel = model) }
         }
     }
 
