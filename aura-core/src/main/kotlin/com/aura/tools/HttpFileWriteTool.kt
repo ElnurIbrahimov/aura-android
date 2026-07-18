@@ -4,6 +4,7 @@ import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
 import com.aura.core.url.SsrfGuard
+import com.aura.core.url.SsrfValidation
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
@@ -47,8 +48,9 @@ class HttpFileWriteTool @Inject constructor(
                 ?: return@Tool ToolResult.Error("missing 'url'", "bad_args")
             val content = call.arguments["content"] as? String
                 ?: return@Tool ToolResult.Error("missing 'content'", "bad_args")
-            val ssrfError = SsrfGuard.validate(url)
-            if (ssrfError != null) return@Tool ToolResult.Error(ssrfError, "ssrf_guard")
+            val ssrfResult = SsrfGuard.inspect(url)
+            if (ssrfResult is SsrfValidation.Blocked) return@Tool ToolResult.Error(ssrfResult.reason, "ssrf_guard")
+            val safe = ssrfResult as SsrfValidation.Safe
             val method = (call.arguments["method"] as? String ?: "PUT").uppercase()
             if (method !in setOf("PUT", "POST")) {
                 return@Tool ToolResult.Error("method must be PUT or POST", "bad_args")
@@ -61,7 +63,8 @@ class HttpFileWriteTool @Inject constructor(
                     .url(url)
                     .apply { if (method == "PUT") put(body) else post(body) }
                     .build()
-                httpClient.newCall(req).execute().use { resp ->
+                val pinnedClient = SsrfGuard.pinnedClient(httpClient, safe)
+                pinnedClient.newCall(req).execute().use { resp ->
                     if (resp.isSuccessful) {
                         ToolResult.Ok("Wrote ${content.length} chars to $url (HTTP ${resp.code})")
                     } else {

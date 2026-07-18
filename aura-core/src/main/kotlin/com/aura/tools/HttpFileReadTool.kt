@@ -4,6 +4,7 @@ import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
 import com.aura.core.url.SsrfGuard
+import com.aura.core.url.SsrfValidation
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
@@ -44,14 +45,16 @@ class HttpFileReadTool @Inject constructor(
         execute = { call, _ ->
             val url = call.arguments["url"] as? String
                 ?: return@Tool ToolResult.Error("missing 'url'", "bad_args")
-            val ssrfError = SsrfGuard.validate(url)
-            if (ssrfError != null) return@Tool ToolResult.Error(ssrfError, "ssrf_guard")
+            val ssrfResult = SsrfGuard.inspect(url)
+            if (ssrfResult is SsrfValidation.Blocked) return@Tool ToolResult.Error(ssrfResult.reason, "ssrf_guard")
+            val safe = ssrfResult as SsrfValidation.Safe
             val asBase64 = call.arguments["as_base64"] as? Boolean ?: false
             val maxChars = (call.arguments["max_chars"] as? Int ?: 8000).coerceIn(1, 32000)
 
             try {
                 val req = Request.Builder().url(url).header("Accept", "*/*").build()
-                httpClient.newCall(req).execute().use { resp ->
+                val pinnedClient = SsrfGuard.pinnedClient(httpClient, safe)
+                pinnedClient.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) {
                         return@Tool ToolResult.Error("HTTP ${resp.code} for $url", "http_error")
                     }
