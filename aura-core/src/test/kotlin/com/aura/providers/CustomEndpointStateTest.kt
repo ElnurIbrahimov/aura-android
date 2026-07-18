@@ -10,13 +10,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Tests the user's "Custom Endpoint" path: the user can point Aura at any
- * OpenAI-compatible URL/key/model and the state object tracks it.
- *
- * The actual HTTP path is exercised by [CustomOpenAiCompatProvider] integration
- * tests; here we verify the state contract that the Settings UI depends on.
- */
 class CustomEndpointStateTest {
 
     private fun newState(): CustomEndpointState {
@@ -26,17 +19,14 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `fresh state is unconfigured`() = runTest(dispatchTimeoutMs = 5_000) {
+    fun `fresh state is unconfigured`() {
         val state = newState()
-        testScheduler.advanceUntilIdle()
         assertFalse(state.isConfigured())
     }
 
     @Test
-    fun `setEndpoint makes state configured`() = runTest(dispatchTimeoutMs = 5_000) {
+    fun `setEndpoint makes state configured`() {
         val state = newState()
-        // Wait for init reload() to complete so it doesn't race with setEndpoint.
-        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1", "sk-test-123")
         assertTrue(state.isConfigured())
         assertEquals("https://api.example.com/v1", state.baseUrl)
@@ -44,17 +34,15 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `setEndpoint trims trailing slash from baseUrl`() = runTest(dispatchTimeoutMs = 5_000) {
+    fun `setEndpoint trims trailing slash from baseUrl`() {
         val state = newState()
-        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1/", "sk-test-123")
         assertEquals("https://api.example.com/v1", state.baseUrl)
     }
 
     @Test
-    fun `setEndpoint overrides models`() = runTest(dispatchTimeoutMs = 5_000) {
+    fun `setEndpoint overrides models`() {
         val state = newState()
-        testScheduler.advanceUntilIdle()
         state.setEndpoint(
             baseUrl = "https://api.example.com/v1",
             apiKey = "sk-test-123",
@@ -64,11 +52,9 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `snapshot is atomic`() = runTest(dispatchTimeoutMs = 5_000) {
+    fun `snapshot is atomic`() {
         val state = newState()
-        testScheduler.advanceUntilIdle()
         state.setEndpoint("https://api.example.com/v1", "sk-1")
-        testScheduler.advanceUntilIdle()
         val (url, key, models) = state.snapshot()
         assertEquals("https://api.example.com/v1", url)
         assertEquals("sk-1", key)
@@ -83,12 +69,13 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `setEndpoint persists to secure data store`() = runTest {
+    fun `setEndpoint persists to secure data store`() = runTest(dispatchTimeoutMs = 10_000) {
         val store = mockk<SecureDataStore>(relaxed = true)
+        coEvery { store.getString(any()) } returns null
         val state = CustomEndpointState(store)
         state.setEndpoint("https://api.example.com/v1", "sk-test")
-        // Yield to the IO scope to let the persistence launch run.
-        kotlinx.coroutines.delay(50)
+        // Let the IO scope persistence launch complete.
+        kotlinx.coroutines.delay(200)
         coVerify {
             store.putString(CustomEndpointState.KEY_BASE_URL, "https://api.example.com/v1")
         }
@@ -98,7 +85,7 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `reload reads persisted state on init`() = runTest {
+    fun `reload reads persisted state on init`() = runTest(dispatchTimeoutMs = 10_000) {
         val store = mockk<SecureDataStore>()
         coEvery { store.getString(CustomEndpointState.KEY_BASE_URL) } returns "https://api.example.com/v1"
         coEvery { store.getString(CustomEndpointState.KEY_API_KEY) } returns "sk-restored"

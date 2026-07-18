@@ -61,9 +61,17 @@ class CustomEndpointState @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** Set to true after the first reload() completes. Prevents
+     * late-arriving init reload() from overwriting values set by
+     * setEndpoint() before init completed. */
+    @Volatile private var initialized = false
+
     /** Async initial load. Sets fields once the DataStore read completes. */
     init {
-        scope.launch { reload() }
+        scope.launch {
+            reload()
+            initialized = true
+        }
     }
 
     /** Re-read from DataStore. Called on init and after the user saves. */
@@ -72,6 +80,11 @@ class CustomEndpointState @Inject constructor(
         val key = secureDataStore.getString(KEY_API_KEY).orEmpty()
         val overrideRaw = secureDataStore.getString(KEY_MODEL_OVERRIDE).orEmpty()
         val override = overrideRaw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+        // During init (before initialized=true), skip if setEndpoint() has
+        // already been called by the test/user. This prevents the async
+        // init reload from overwriting explicit values. After init, always
+        // apply (user-triggered reload or restore).
+        if (!initialized && (_baseUrl.isNotBlank() || _apiKey.isNotBlank())) return
         _baseUrl = url
         _apiKey = key
         _modelOverride = override
