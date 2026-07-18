@@ -6,8 +6,10 @@ import com.aura.agentrun.AgentRunEntity
 import com.aura.agentrun.AgentRunStore
 import com.aura.agentrun.ApprovalRequestEntity
 import com.aura.agentrun.AgentEventEntity
+import com.aura.agentrun.AgentRunExecutorService
 import com.aura.agentrun.StepEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +33,7 @@ data class AgentRunsUiState(
 @HiltViewModel
 class AgentRunsViewModel @Inject constructor(
     private val agentRunStore: AgentRunStore,
+    @ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AgentRunsUiState())
@@ -72,7 +75,16 @@ class AgentRunsViewModel @Inject constructor(
     fun approve(approvalId: String) {
         viewModelScope.launch {
             agentRunStore.approve(approvalId)
-            _state.value.selectedRun?.id?.let { refreshDetail(it) }
+            // Reset the step that was awaiting approval back to PENDING
+            // so the executor worker picks it up again.
+            val approval = agentRunStore.pendingApprovals(_state.value.selectedRun?.id ?: "").firstOrNull { it.id == approvalId }
+            approval?.stepId?.let { stepId ->
+                agentRunStore.resetStep(stepId)
+            }
+            _state.value.selectedRun?.id?.let { runId ->
+                refreshDetail(runId)
+                AgentRunExecutorService.enqueue(appContext, runId)
+            }
         }
     }
 
@@ -89,6 +101,8 @@ class AgentRunsViewModel @Inject constructor(
             agentRunStore.checkpoint(runId)
             loadRuns()
             refreshDetail(runId)
+            // Re-enqueue the executor worker so it picks up PENDING steps.
+            AgentRunExecutorService.enqueue(appContext, runId)
         }
     }
 

@@ -249,10 +249,10 @@ class HandRepository @Inject constructor(
             value.jsonPrimitive.contentOrNull ?: value.toString()
         }
 
-    private fun decodeConditions(raw: String): List<HandCondition> =
+    fun decodeConditions(raw: String): List<HandCondition> =
         json.decodeFromString(raw)
 
-    private data class Substitution(
+    internal data class Substitution(
         val args: Map<String, String>,
         val missingVariables: Set<String>,
     )
@@ -269,6 +269,24 @@ class HandRepository @Inject constructor(
             }
         }
         return Substitution(resolved, missing)
+    }
+
+    /** Public wrapper for [substitute] used by [HandRunEnqueuer]. */
+    internal fun substituteArgs(args: Map<String, String>, variables: Map<String, String>): Substitution =
+        substitute(args, variables)
+
+    /** Record a hand run entry in the history. Used by [HandRunEnqueuer]. */
+    suspend fun recordRun(handName: String, trigger: String, runId: String) {
+        val hand = getByName(handName) ?: return
+        runCatching {
+            dao.insertRun(HandRun(
+                id = runId,
+                handId = hand.id,
+                handName = hand.name,
+                trigger = trigger,
+                startedAt = System.currentTimeMillis(),
+            ))
+        }
     }
 
     private fun redactedVariablesJson(variables: Map<String, String>): String = buildJsonObject {

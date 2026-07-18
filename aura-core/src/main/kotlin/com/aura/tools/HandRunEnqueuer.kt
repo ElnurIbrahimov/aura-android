@@ -44,7 +44,17 @@ class HandRunEnqueuer @Inject constructor(
         modelId: String = "",
     ): String? {
         val hand = handRepository.getByName(handName) ?: return null
+        // Respect the enabled flag — disabled hands should not execute
+        // regardless of whether they're called by the agent, a trigger
+        // phrase, or a manual run.
+        if (!hand.enabled) return null
         val variables = handRepository.parseVariables(variablesJson)
+        // Evaluate conditions before enqueueing — a hand whose conditions
+        // don't match should not create a run.
+        val conditions = handRepository.decodeConditions(hand.conditions)
+        val failedCondition = conditions.firstOrNull { !it.matches(variables) }
+        if (failedCondition != null) return null
+
         val steps = handRepository.parseSteps(hand.steps)
         val run = agentRunStore.createRun(
             trigger = trigger,
@@ -53,21 +63,27 @@ class HandRunEnqueuer @Inject constructor(
             modelId = modelId,
         )
         if (steps.isNotEmpty()) {
+            // Apply variable substitution to step args before serializing
+            // so the executor sees the final values, not template placeholders.
             agentRunStore.planSteps(
                 runId = run.id,
-                steps = steps.map { step ->
-                    val merged = step.args + variables
+                steps = steps.mapIndexed { index, step ->
+                    val substitution = handRepository.substituteArgs(step.args, variables)
+                    val merged = substitution.args + variables.mapValues { it.value }
                     StepSpec(
                         toolName = step.tool,
                         toolArgs = Json.encodeToString(
                             MapSerializer(String.serializer(), String.serializer()),
                             merged,
                         ),
-                        dependsOn = "[]",
+                        dependsOn = if (index == 0) "[]" else "[$index]",
                     )
                 },
             )
         }
+        // Record a hand run history entry so the run appears in the
+        // hand's execution history alongside manual/scheduled runs.
+        handRepository.recordRun(hand.name, trigger, run.id)
         // Trigger the executor worker to process the steps
         AgentRunExecutorService.enqueue(appContext, run.id)
         return run.id

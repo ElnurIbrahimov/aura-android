@@ -162,6 +162,14 @@ class AgentRunStore @Inject constructor(
         emitEvent(approval.agentRunId, "APPROVAL_DECIDED", stepId = approval.stepId, success = false)
     }
 
+    /**
+     * Reset a step from AWAITING_APPROVAL/FAILED back to PENDING so the
+     * executor worker can pick it up again after an approval or manual retry.
+     */
+    suspend fun resetStep(stepId: kotlin.String) {
+        stepDao.markStarted(stepId, "PENDING", System.currentTimeMillis())
+    }
+
     private suspend fun emitEvent(
         runId: kotlin.String,
         type: kotlin.String,
