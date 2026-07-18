@@ -94,6 +94,20 @@ class BackupManagerTest {
         every { userPreferences.specialistOverrides } returns flowOf("{}")
         every { userPreferences.morningBriefHour } returns flowOf(7)
         every { userPreferences.specialistToolOverrides } returns flowOf("{}")
+        // Schema v8 additions
+        every { userPreferences.visionModel } returns flowOf(null)
+        every { userPreferences.backgroundModel } returns flowOf(null)
+        every { userPreferences.deepModeModel } returns flowOf(null)
+        every { userPreferences.moaReferenceModels } returns flowOf(emptyList())
+        every { userPreferences.moaAggregatorModel } returns flowOf(null)
+        every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.smtpHost } returns flowOf("")
+        every { userPreferences.smtpPort } returns flowOf(587)
+        every { userPreferences.smtpUsername } returns flowOf("")
+        every { userPreferences.smtpFrom } returns flowOf("")
+        every { userPreferences.mcpServersJson } returns flowOf("[]")
+        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
         val backup = manager.snapshot(appVersionName = "0.1.0")

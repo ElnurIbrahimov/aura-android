@@ -176,6 +176,20 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 specialistOverrides = userPreferences.specialistOverrides.first(),
                 morningBriefHour = userPreferences.morningBriefHour.first(),
                 specialistToolOverrides = userPreferences.specialistToolOverrides.first(),
+                // Schema v8 additions — previously lost on backup/restore.
+                visionModel = userPreferences.visionModel.first(),
+                backgroundModel = userPreferences.backgroundModel.first(),
+                deepModeModel = userPreferences.deepModeModel.first(),
+                moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
+                moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
+                imageModel = userPreferences.imageModel.first().takeIf { it.isNotBlank() },
+                smtpHost = userPreferences.smtpHost.first().takeIf { it.isNotBlank() },
+                smtpPort = userPreferences.smtpPort.first(),
+                smtpUsername = userPreferences.smtpUsername.first().takeIf { it.isNotBlank() },
+                smtpFrom = userPreferences.smtpFrom.first().takeIf { it.isNotBlank() },
+                mcpServersJson = userPreferences.mcpServersJson.first(),
+                evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
+                evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
             ),
             usage = usageTracker.snapshot.value,
         )
@@ -267,6 +281,30 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         userPreferences.setSpecialistOverrides(backup.preferences.specialistOverrides)
         userPreferences.setMorningBriefHour(backup.preferences.morningBriefHour)
         userPreferences.setSpecialistToolOverrides(backup.preferences.specialistToolOverrides)
+        // Schema v8 additions — restore previously-lost prefs.
+        backup.preferences.visionModel?.let { userPreferences.setVisionModel(it) }
+        backup.preferences.backgroundModel?.let { userPreferences.setBackgroundModel(it) }
+        backup.preferences.deepModeModel?.let { userPreferences.setDeepModeModel(it) }
+        if (backup.preferences.moaReferenceModels.isNotBlank()) {
+            userPreferences.setMoaReferenceModels(backup.preferences.moaReferenceModels.split(",").filter { it.isNotBlank() })
+        }
+        backup.preferences.moaAggregatorModel?.let { userPreferences.setMoaAggregatorModel(it) }
+        backup.preferences.imageModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setImageModel(it) }
+        backup.preferences.smtpHost?.takeIf { it.isNotBlank() }?.let { host ->
+            userPreferences.setSmtpConfig(
+                host = host,
+                port = backup.preferences.smtpPort,
+                username = backup.preferences.smtpUsername ?: "",
+                from = backup.preferences.smtpFrom ?: "",
+                // Password is intentionally not backed up — stored in SecureDataStore.
+                password = "",
+            )
+        }
+        if (backup.preferences.mcpServersJson.isNotBlank() && backup.preferences.mcpServersJson != "[]") {
+            userPreferences.setMcpServersJson(backup.preferences.mcpServersJson)
+        }
+        userPreferences.setEvolutionShadowEnabled(backup.preferences.evolutionShadowEnabled)
+        userPreferences.setEvolutionOnboardingShown(backup.preferences.evolutionOnboardingShown)
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
 
@@ -629,11 +667,11 @@ private fun ReminderBackup.toEntity() = ReminderEntity(
 )
 
 private fun ProactiveEventEntity.toBackup() = ProactiveEventBackup(
-    id, eventType, title, body, timestamp, payload,
+    id, eventType, title, body, timestamp, payload, correlationTag,
 )
 
 private fun ProactiveEventBackup.toEntity() = ProactiveEventEntity(
-    id, eventType, title, body, timestamp, payload,
+    id, eventType, title, body, timestamp, payload, correlationTag,
 )
 
 private fun UserProfileEntity.toBackup() = UserProfileBackup(

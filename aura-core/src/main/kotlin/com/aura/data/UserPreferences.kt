@@ -79,6 +79,7 @@ internal val KEY_EMBEDDING_MODEL = stringPreferencesKey("embedding_model")
 @Singleton
 class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val secureDataStore: com.aura.security.SecureDataStore? = null,
 ) {
     val defaultModel: Flow<String?> = optionalModel(KEY_DEFAULT_MODEL)
     val visionModel: Flow<String?> = optionalModel(KEY_VISION_MODEL)
@@ -353,7 +354,10 @@ class UserPreferences @Inject constructor(
     val smtpHost: Flow<String> = context.auraPrefs.data.map { it[KEY_SMTP_HOST] ?: "" }
     val smtpPort: Flow<Int> = context.auraPrefs.data.map { it[KEY_SMTP_PORT] ?: 587 }
     val smtpUsername: Flow<String> = context.auraPrefs.data.map { it[KEY_SMTP_USERNAME] ?: "" }
-    val smtpPassword: Flow<String> = context.auraPrefs.data.map { it[KEY_SMTP_PASSWORD] ?: "" }
+    /** SMTP password is stored in SecureDataStore (encrypted via Android Keystore). */
+    val smtpPassword: Flow<String> = kotlinx.coroutines.flow.flow {
+        emit(secureDataStore?.getString("smtp_password") ?: "")
+    }
     val smtpFrom: Flow<String> = context.auraPrefs.data.map { it[KEY_SMTP_FROM] ?: "" }
 
     suspend fun setSmtpConfig(host: String, port: Int, username: String, password: String, from: String) {
@@ -361,8 +365,14 @@ class UserPreferences @Inject constructor(
             prefs[KEY_SMTP_HOST] = host.trim()
             prefs[KEY_SMTP_PORT] = port.coerceIn(1, 65535)
             prefs[KEY_SMTP_USERNAME] = username.trim()
-            prefs[KEY_SMTP_PASSWORD] = password
+            // Password goes to SecureDataStore, not plain DataStore.
+            prefs.remove(KEY_SMTP_PASSWORD)
             prefs[KEY_SMTP_FROM] = from.trim().ifBlank { username.trim() }
+        }
+        if (password.isNotBlank()) {
+            secureDataStore?.putString("smtp_password", password)
+        } else {
+            secureDataStore?.removeString("smtp_password")
         }
     }
 

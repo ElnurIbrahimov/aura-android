@@ -46,7 +46,7 @@ data class AuraBackup(
     val evolutionRevisions: List<EvolutionRevisionBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 7
+        const val SCHEMA_VERSION = 8
     }
 }
 
@@ -222,6 +222,7 @@ data class ProactiveEventBackup(
     val body: String,
     val timestamp: Long,
     val payload: String,
+    val correlationTag: String = "",
 )
 
 @Serializable
@@ -251,6 +252,20 @@ data class PreferencesBackup(
     val specialistToolOverrides: String = "{}",
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
+    // Schema v8 additions — previously lost on backup/restore.
+    val visionModel: String? = null,
+    val backgroundModel: String? = null,
+    val deepModeModel: String? = null,
+    val moaReferenceModels: String = "[]",
+    val moaAggregatorModel: String? = null,
+    val imageModel: String? = null,
+    val smtpHost: String? = null,
+    val smtpPort: Int = 0,
+    val smtpUsername: String? = null,
+    val smtpFrom: String? = null,
+    val mcpServersJson: String = "[]",
+    val evolutionShadowEnabled: Boolean = false,
+    val evolutionOnboardingShown: Boolean = false,
 )
 
 @Serializable
