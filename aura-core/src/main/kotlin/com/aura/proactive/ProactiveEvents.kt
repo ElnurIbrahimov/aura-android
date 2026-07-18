@@ -185,6 +185,7 @@ class ProactiveEvents(
         is ProactiveEventBus.Event.MorningBriefStructured -> copy(id = id)
         is ProactiveEventBus.Event.CalendarEventSoon -> copy(id = id)
         is ProactiveEventBus.Event.MemoryDecayWarning -> copy(id = id)
+        is ProactiveEventBus.Event.DaemonInsight -> copy(id = id)
     }
 
     private fun ProactiveEventEntity.toEvent(): ProactiveEventBus.Event? {
@@ -208,6 +209,7 @@ class ProactiveEvents(
             // a producer or geofence implementation for this advertised event.
             "LocationArrived" -> null
             "MemoryDecayWarning" -> ProactiveEventBus.Event.MemoryDecayWarning(body, title, timestamp, id)
+            "DaemonInsight" -> ProactiveEventBus.Event.DaemonInsight(title, body, timestamp, id)
             else -> null
         }
     }
@@ -235,6 +237,13 @@ class ProactiveEvents(
             id = id, eventType = "MemoryDecayWarning",
             title = preview,
             body = memoryId,
+            timestamp = timestamp,
+            payload = "",
+        )
+        is ProactiveEventBus.Event.DaemonInsight -> ProactiveEventEntity(
+            id = id, eventType = "DaemonInsight",
+            title = title,
+            body = body,
             timestamp = timestamp,
             payload = "",
         )

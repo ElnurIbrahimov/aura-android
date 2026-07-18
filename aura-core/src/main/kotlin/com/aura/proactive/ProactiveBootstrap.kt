@@ -86,7 +86,14 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
-        // Startup decay remains one-shot. It must not rerun when the user
+        // Daemon reconciliation — separate flow to avoid 6-way combine limit
+        scope.launch {
+            userPreferences.daemonEnabled.distinctUntilChanged().collect { daemonOn ->
+                reconcileDaemon(daemonOn)
+            }
+        }
+
+        // Startup decay remains one-shot.
         // merely changes a schedule toggle or time.
         scope.launch {
             runCatching { memoryStore.runDecayPass() }
@@ -152,8 +159,17 @@ class ProactiveBootstrap @Inject constructor(
                 evolutionScheduler.cancel()
             }
         } catch (_: Throwable) {
-            // WorkManager may not be initialized yet on fresh install;
-            // the next preference emission will retry.
+        }
+    }
+
+    private fun reconcileDaemon(daemonOn: Boolean) {
+        try {
+            if (daemonOn) {
+                DaemonScheduler.schedule(appContext)
+            } else {
+                DaemonScheduler.cancel(appContext)
+            }
+        } catch (_: Throwable) {
         }
     }
 

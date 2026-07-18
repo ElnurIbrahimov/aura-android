@@ -70,6 +70,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val providerKeys: com.aura.providers.ProviderKeys? = null,
     private val beliefDao: com.aura.world.BeliefDao? = null,
+    private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
 ) {
 
     /**
@@ -199,6 +200,16 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 }.getOrDefault("")
             } else ""
 
+            // Update emotion state from the user's message and include
+            // the mood context + adaptive profile in the system prompt.
+            val emotionContext = if (memoryEnabled && emotionEngine != null) {
+                emotionEngine.update(lastUserMessage)
+                emotionEngine.decay()
+                val mood = emotionEngine.moodString()
+                val profile = emotionEngine.profile()
+                "\n\n# Current mood: $mood" + profile.promptSuffix
+            } else ""
+
             // 2) Build messages
             val messages = buildList {
                 val sys = listOfNotNull(
@@ -206,7 +217,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + memoryContext + beliefContext + handContext
+                ).joinToString("\n\n") + memoryContext + beliefContext + emotionContext + handContext
                 if (sys.isNotBlank()) add(ProviderMessage(role = Role.system, content = sys))
                 addAll(currentConversation.toMessages(includeSystemPrompt = false))
             }

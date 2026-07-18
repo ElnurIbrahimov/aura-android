@@ -66,6 +66,7 @@ internal val KEY_EVOLUTION_ENABLED = booleanPreferencesKey("evolution_enabled")
 internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interval_hours")
 internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
+internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
@@ -235,6 +236,7 @@ class UserPreferences @Inject constructor(
     }
 
     /** Whether the user has seen the evolution onboarding screen. */
+    val daemonEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DAEMON_ENABLED] ?: false }
     val evolutionOnboardingShown: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_EVOLUTION_ONBOARDING_SHOWN] ?: false
     }
@@ -311,6 +313,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setEvolutionShadowEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_EVOLUTION_SHADOW_ENABLED] = enabled }
+    }
+
+    suspend fun setDaemonEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { prefs -> prefs[KEY_DAEMON_ENABLED] = enabled }
     }
 
     suspend fun setEvolutionOnboardingShown(shown: Boolean) {

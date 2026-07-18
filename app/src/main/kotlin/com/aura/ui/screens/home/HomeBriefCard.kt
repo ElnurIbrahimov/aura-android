@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
@@ -156,6 +157,9 @@ private fun HomePriority.presentation(): PriorityPresentation = when (this) {
         )
         is ProactiveEventBus.Event.MemoryDecayWarning -> PriorityPresentation(
             Icons.Filled.Psychology, "Memory needs attention", item.preview, "Review memory",
+        )
+        is ProactiveEventBus.Event.DaemonInsight -> PriorityPresentation(
+            Icons.Filled.Lightbulb, item.title, item.body, "",
         )
     }
     is HomePriority.Calendar -> PriorityPresentation(

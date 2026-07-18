@@ -36,6 +36,7 @@ class ProactiveEventBus @Inject constructor() {
         ) : Event()
         data class CalendarEventSoon(val title: String, val minutesUntil: Int, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
         data class MemoryDecayWarning(val memoryId: String, val preview: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
+        data class DaemonInsight(val title: String, val body: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
     }
 
     private val _events = MutableSharedFlow<Event>(

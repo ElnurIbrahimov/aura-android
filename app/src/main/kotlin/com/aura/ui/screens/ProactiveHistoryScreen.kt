@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -62,7 +63,7 @@ import com.aura.ui.theme.AuraThemeTokens
  * Category tag used by [HistoryCard] to pick the right accent colours
  * for the icon container — no colour values live in the model itself.
  */
-enum class HistoryCardKind { MorningBrief, CalendarEvent, MemoryDecay }
+enum class HistoryCardKind { MorningBrief, CalendarEvent, MemoryDecay, DaemonInsight }
 
 /**
  * Polished icon + data model for a single proactive-history card.
@@ -236,6 +237,15 @@ private fun ProactiveEventBus.Event.toCardModel(context: android.content.Context
             },
         )
     }
+    is ProactiveEventBus.Event.DaemonInsight -> HistoryCardModel(
+        icon = Icons.Filled.Lightbulb,
+        kind = HistoryCardKind.DaemonInsight,
+        title = this.title,
+        body = this.body,
+        tapHint = null,
+        timestamp = timestamp,
+        onClick = null,
+    )
     is ProactiveEventBus.Event.MemoryDecayWarning -> HistoryCardModel(
         icon = Icons.Filled.Psychology,
         kind = HistoryCardKind.MemoryDecay,
@@ -269,6 +279,8 @@ private fun HistoryCard(
             AuraThemeTokens.colors.actionPrimary to AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f)
         HistoryCardKind.CalendarEvent ->
             AuraThemeTokens.colors.assistantAccent to AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.12f)
+        HistoryCardKind.DaemonInsight ->
+            AuraThemeTokens.colors.actionPrimary to AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f)
     }
     Surface(
         color = AuraThemeTokens.colors.surface1,

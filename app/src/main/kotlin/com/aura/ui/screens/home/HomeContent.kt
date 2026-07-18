@@ -401,6 +401,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
                         is ProactiveEventBus.Event.MemoryDecayWarning -> onOpenMemory()
 
+    else -> {}
                     }
 
                     is HomePriority.Calendar -> onOpenCalendar()
