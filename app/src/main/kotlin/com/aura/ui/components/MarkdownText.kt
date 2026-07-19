@@ -171,7 +171,7 @@ internal fun parseMarkdown(text: String, colors: MarkdownColors): AnnotatedStrin
         if (headerMatch != null) {
             val level = headerMatch.groupValues[1].length
             val headerText = headerMatch.groupValues[2]
-            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = (16 - level).sp))
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = (24 - level * 2).coerceAtLeast(13).sp))
             append(headerText)
             pop()
         } else {
@@ -206,7 +206,7 @@ internal fun parseMarkdownClickable(text: String, colors: MarkdownColors): Annot
         if (headerMatch != null) {
             val level = headerMatch.groupValues[1].length
             val headerText = headerMatch.groupValues[2]
-            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = (16 - level).sp))
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = (24 - level * 2).coerceAtLeast(13).sp))
             append(headerText)
             pop()
         } else {

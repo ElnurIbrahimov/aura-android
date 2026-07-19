@@ -440,14 +440,26 @@ private fun AssistantMessage(
                     citations.mapTo(mutableSetOf()) { it.index },
                 )
             }
-            // Content — streaming text (with the cursor + tok/s from StreamingText)
-            StreamingText(
-                text = renderedText.ifBlank { "…" },
-                isStreaming = isStreaming,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = AuraThemeTokens.colors.textPrimary,
-                ),
+            // Content. While streaming, StreamingText renders inline markdown
+            // fast (with the cursor + tok/s). Once complete, re-render through
+            // MarkdownColumn so fenced code blocks and tables become real
+            // boxed blocks instead of literal backticks/pipes — StreamingText
+            // only handles inline markup.
+            val contentStyle = MaterialTheme.typography.bodyLarge.copy(
+                color = AuraThemeTokens.colors.textPrimary,
             )
+            if (isStreaming) {
+                StreamingText(
+                    text = renderedText.ifBlank { "…" },
+                    isStreaming = true,
+                    style = contentStyle,
+                )
+            } else {
+                MarkdownColumn(
+                    text = renderedText.ifBlank { "…" },
+                    style = contentStyle,
+                )
+            }
             // Citations row
             if (citations.isNotEmpty() && !isStreaming) {
                 Spacer(Modifier.height(8.dp))
