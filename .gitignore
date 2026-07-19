@@ -31,7 +31,7 @@ captures/
 # via GitHub Releases. Only the current release APK is kept in-repo as a
 # convenience; bump this pin when you cut a new release.
 *.apk
-!releases/aura-debug-v0.25.0.apk
+!releases/aura-debug-v0.26.0.apk
 *.aab
 *.aar
 
