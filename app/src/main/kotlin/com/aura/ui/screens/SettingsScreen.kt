@@ -1399,6 +1399,7 @@ private fun SmtpConfigCard(
                 label = { Text("Password / app password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             )
             OutlinedTextField(
                 value = from,

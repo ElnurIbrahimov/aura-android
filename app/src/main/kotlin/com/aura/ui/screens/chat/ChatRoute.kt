@@ -296,7 +296,13 @@ fun ChatRoute(
     val assistantLen = lastTurn?.assistant?.length ?: 0
     LaunchedEffect(state.conversation.turns.size, assistantLen) {
         if (shouldAutoFollow(state.conversation.turns.size, followLiveEdge)) {
-            listState.scrollToItem(state.conversation.turns.size - 1)
+            // Scroll so the BOTTOM of the last item stays in view. Pinning
+            // the top (scrollToItem(lastIndex)) pushes the newest tokens of a
+            // long assistant message off-screen — the live edge is at the
+            // bottom, so scroll to the last item with a large positive offset
+            // to keep the growing tail visible.
+            val lastIndex = state.conversation.turns.size - 1
+            listState.scrollToItem(lastIndex, scrollOffset = Int.MAX_VALUE)
         }
     }
 

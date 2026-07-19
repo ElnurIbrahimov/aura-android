@@ -122,58 +122,65 @@ private fun MemoryRecallSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = recall.summary(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            if (memories.isEmpty() && hands.isEmpty()) {
+        // Single LazyColumn — nesting scrollable LazyColumns inside a Column
+        // of unbounded height (the bottom sheet) throws IllegalStateException
+        // at measure time. All sections are items of one scroll container.
+        LazyColumn(modifier = Modifier.padding(20.dp)) {
+            item {
                 Text(
-                    text = "Aura looked at its memories for this turn but found nothing relevant.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AuraThemeTokens.colors.textPrimary,
+                    text = recall.summary(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (memories.isEmpty() && hands.isEmpty()) {
+                item {
+                    Text(
+                        text = "Aura looked at its memories for this turn but found nothing relevant.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AuraThemeTokens.colors.textPrimary,
+                    )
+                }
             }
             if (memories.isNotEmpty()) {
-                Text(
-                    text = "Memories (${memories.size})",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AuraThemeTokens.colors.actionPrimary,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyColumn {
-                    items(memories) { mem ->
-                        RecallRow(
-                            icon = Icons.Filled.Memory,
-                            title = "[${mem.category}] ${mem.content.take(80)}",
-                            subtitle = mem.content.drop(80).take(120),
-                        )
-                    }
+                item {
+                    Text(
+                        text = "Memories (${memories.size})",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AuraThemeTokens.colors.actionPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                items(memories) { mem ->
+                    RecallRow(
+                        icon = Icons.Filled.Memory,
+                        title = "[${mem.category}] ${mem.content.take(80)}",
+                        subtitle = mem.content.drop(80).take(120),
+                    )
                 }
             }
             if (hands.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Hands (${hands.size})",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AuraThemeTokens.colors.actionPrimary,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LazyColumn {
-                    items(hands) { hand ->
-                        RecallRow(
-                            icon = Icons.Filled.QuestionMark,
-                            title = hand.name,
-                            subtitle = hand.description,
-                        )
-                    }
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Hands (${hands.size})",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AuraThemeTokens.colors.actionPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                items(hands) { hand ->
+                    RecallRow(
+                        icon = Icons.Filled.QuestionMark,
+                        title = hand.name,
+                        subtitle = hand.description,
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            item { Spacer(modifier = Modifier.height(20.dp)) }
         }
     }
 }

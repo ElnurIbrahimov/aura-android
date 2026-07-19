@@ -60,7 +60,7 @@ class GlobalSearchRepository @Inject constructor(
 
         return coroutineScope {
             val conversations = async { runCatching { conversationDao.search(escaped, limit) }.getOrDefault(emptyList()) }
-            val memories = async { runCatching { memoryDao.searchByText("$escaped%", limit) }.getOrDefault(emptyList()) }
+            val memories = async { runCatching { memoryDao.searchByText("%$escaped%", limit) }.getOrDefault(emptyList()) }
             val tasks = async { runCatching { taskDao.all() }.getOrDefault(emptyList()) }
             val hands = async { runCatching { handDao.getAll() }.getOrDefault(emptyList()) }
             val skills = async { runCatching { skillsStore?.skills?.value ?: emptyList() }.getOrDefault(emptyList()) }

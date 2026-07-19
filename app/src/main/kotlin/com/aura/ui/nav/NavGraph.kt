@@ -93,12 +93,17 @@ fun NavGraph(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
         ),
         floatingActionButton = {
-            androidx.compose.material3.SmallFloatingActionButton(
-                onClick = { showSearch = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(Icons.Filled.Search, contentDescription = "Search")
+            // Global search entry. Hidden on the Chat route, where a
+            // bottom-end FAB collides with the composer's Send button.
+            val baseRoute = backStackEntry?.destination?.route?.substringBefore("?")
+            if (baseRoute != "chat") {
+                androidx.compose.material3.FloatingActionButton(
+                    onClick = { showSearch = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(Icons.Filled.Search, contentDescription = "Search")
+                }
             }
         },
         bottomBar = {
@@ -176,7 +181,17 @@ fun NavGraph(
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
                             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                         }
-                        navController.context.startActivity(intent)
+                        // Guard: devices without a calendar app throw
+                        // ActivityNotFoundException. Fail soft rather than crash.
+                        try {
+                            navController.context.startActivity(intent)
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            android.widget.Toast.makeText(
+                                navController.context,
+                                "No calendar app found",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
                     },
                 )
             }
@@ -295,7 +310,9 @@ fun NavGraph(
                 SkillsScreen(onBack = { navController.popBackStack() })
             }
             composable("production") {
-                ProductionPipelineScreen()
+                ProductionPipelineScreen(
+                    onOpenAgentRuns = { navController.navigate("agent_runs") },
+                )
             }
             composable("evolution") {
                 EvolutionInboxScreen(
