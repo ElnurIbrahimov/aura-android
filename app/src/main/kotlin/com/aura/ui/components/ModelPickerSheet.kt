@@ -303,7 +303,9 @@ fun ModelPickerContent(
                     if (errorMessage != null) {
                         item(key = "models-warning") {
                             Surface(
-                                color = AuraThemeTokens.colors.error,
+                                // A tinted background (not solid light-red) so the
+                                // near-white title/body text keeps adequate contrast.
+                                color = AuraThemeTokens.colors.error.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
