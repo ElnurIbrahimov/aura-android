@@ -23,9 +23,11 @@ import com.aura.ui.theme.AuraThemeTokens
 fun AuraEmptyState(
     title: kotlin.String,
     message: kotlin.String,
-    actionLabel: kotlin.String,
-    onAction: () -> Unit,
     modifier: Modifier = Modifier,
+    // Action is optional — some empty states (e.g. "no beliefs yet") have no
+    // meaningful call-to-action and should render as an informational pane.
+    actionLabel: kotlin.String? = null,
+    onAction: (() -> Unit)? = null,
     icon: ImageVector = Icons.Outlined.Inbox,
 ) {
     AuraStatePane(
@@ -45,8 +47,8 @@ internal fun AuraStatePane(
     message: kotlin.String,
     icon: ImageVector,
     modifier: Modifier,
-    actionLabel: kotlin.String,
-    onAction: () -> Unit,
+    actionLabel: kotlin.String?,
+    onAction: (() -> Unit)?,
     isError: Boolean,
 ) {
     val colors = AuraThemeTokens.colors
@@ -63,6 +65,8 @@ internal fun AuraStatePane(
         )
         Text(title, style = MaterialTheme.typography.titleLarge, color = colors.textPrimary, textAlign = TextAlign.Center)
         Text(message, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, textAlign = TextAlign.Center)
-        AuraPrimaryButton(onClick = onAction) { Text(actionLabel) }
+        if (actionLabel != null && onAction != null) {
+            AuraPrimaryButton(onClick = onAction) { Text(actionLabel) }
+        }
     }
 }

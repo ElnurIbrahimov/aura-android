@@ -312,6 +312,7 @@ fun NavGraph(
             composable("production") {
                 ProductionPipelineScreen(
                     onOpenAgentRuns = { navController.navigate("agent_runs") },
+                    onOpenCreative = { navController.navigate("creative") },
                 )
             }
             composable("evolution") {

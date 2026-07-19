@@ -36,30 +36,49 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.creative.ProductionPipelineEngine
+import com.aura.ui.components.AuraEmptyState
+import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.viewmodel.ProductionPipelineViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductionPipelineScreen(
     onOpenAgentRuns: () -> Unit = {},
+    onOpenCreative: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ProductionPipelineViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    AuraScreenShell(
+        title = "Production",
+        subtitle = "Film & story pipelines",
+        modifier = modifier,
     ) {
-        Text(
-            text = "Production Pipeline",
-            style = MaterialTheme.typography.headlineSmall,
-        )
-
+        // Pipelines run on a Creative project. With none, the pickers are
+        // empty and Schedule is permanently disabled — so guide the user to
+        // Creative Studio (which is also where the Creative Council lives)
+        // instead of showing an inert form.
+        if (state.projects.isEmpty()) {
+            AuraEmptyState(
+                icon = Icons.Filled.Movie,
+                title = "No projects yet",
+                message = "Production pipelines run on a Creative project. Create one " +
+                    "in Creative Studio first — that's also where the Creative Council lives.",
+                actionLabel = "Open Creative Studio",
+                onAction = onOpenCreative,
+                modifier = Modifier.fillMaxSize(),
+            )
+            return@AuraScreenShell
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         // Project picker
         var projectExpanded by remember { mutableStateOf(false) }
         val selectedProject = state.projects.find { it.id == state.selectedProjectId }
@@ -174,6 +193,7 @@ fun ProductionPipelineScreen(
             OutlinedButton(onClick = { viewModel.dismissResult() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Schedule another")
             }
+        }
         }
     }
 }

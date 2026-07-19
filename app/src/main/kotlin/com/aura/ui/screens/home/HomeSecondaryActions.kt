@@ -122,7 +122,7 @@ fun HomeSecondaryActions(
         ),
         HomeDestination(
             "Production",
-            "Pipelines & council",
+            "Film & story pipelines",
             Icons.Filled.Movie,
             onOpenProduction,
         ),
