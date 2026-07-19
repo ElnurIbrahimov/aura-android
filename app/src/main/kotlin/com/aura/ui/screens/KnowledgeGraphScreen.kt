@@ -275,7 +275,7 @@ fun KnowledgeGraphScreen(
                     ) {
                         Icon(
                             Icons.Filled.Delete,
-                            contentDescription = null,
+                            contentDescription = "Delete node",
                             tint = AuraThemeTokens.colors.error,
                             modifier = Modifier.size(17.dp),
                         )

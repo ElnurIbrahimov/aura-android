@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -568,28 +572,38 @@ private fun CitationChipRow(citations: List<Citation>, onShowSources: () -> Unit
 
 @Composable
 private fun CitationChip(index: Int, onClick: () -> Unit) {
+    // Outer box enforces a 48dp touch target (minimumInteractiveComponentSize)
+    // and carries the accessibility label; the inner 18dp circle is the visual.
     Box(
         modifier = Modifier
-            .size(18.dp)
+            .minimumInteractiveComponentSize()
             .clip(CircleShape)
-            .background(
-                color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.35f),
-            )
-            .border(
-                width = 1.dp,
-                color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.5f),
-                shape = CircleShape,
-            )
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Open citation $index" },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = index.toString(),
-            fontFamily = InterDisplay,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-            color = AuraThemeTokens.colors.textPrimary,
-        )
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(
+                    color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.35f),
+                )
+                .border(
+                    width = 1.dp,
+                    color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.5f),
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = index.toString(),
+                fontFamily = InterDisplay,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                color = AuraThemeTokens.colors.textPrimary,
+            )
+        }
     }
 }
 
@@ -607,13 +621,15 @@ private fun BubbleAction(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 2.dp),
+            // Meet the 48dp minimum touch target; the icon+label stay small.
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(16.dp),
         )
         if (label.isNotBlank()) {
             Text(

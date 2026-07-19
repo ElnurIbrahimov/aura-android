@@ -369,7 +369,7 @@ private fun HistoryRow(
             }
             IconButton(
                 onClick = onTogglePin,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(48.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.PushPin,
