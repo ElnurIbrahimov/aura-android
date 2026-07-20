@@ -72,6 +72,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val beliefDao: com.aura.world.BeliefDao? = null,
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
     private val agentStore: AgentStore? = null,
+    private val tasteEngine: com.aura.taste.TasteEngine? = null,
 ) {
 
     /**
@@ -138,6 +139,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // Without this, agentStore.byId() hits Room on every step of the
         // agentic loop (5-10 steps per turn).
         var cachedPersonality: String? = null
+        var cachedTasteContext: String? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -298,6 +300,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 "\n\n# Current mood: $mood" + profile.promptSuffix
             } else ""
 
+            // Taste context: learned preferences from user signals.
+            // Only computed on step 1 (like emotion) — tastes don't
+            // change mid-turn. Falls back to empty string if no
+            // TasteEngine is configured or no signals exist yet.
+            val tasteContext = if (step == 1 && tasteEngine != null) {
+                runCatching { tasteEngine.getTasteContext() }.getOrDefault("")
+            } else cachedTasteContext ?: ""
+            if (step == 1) cachedTasteContext = tasteContext
+
             // 2) Build messages
             // Resolve the active agent's personality directive (if any).
             // Cached after first resolution — agentStore.byId() is a Room
@@ -315,7 +326,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + memoryContext + beliefContext + emotionContext + handContext
+                ).joinToString("\n\n") + memoryContext + beliefContext + tasteContext + emotionContext + handContext
 
                 // 2.5) Planning step: ask the model to outline its approach before
                 // calling tools. The plan is injected as a system prefix so the

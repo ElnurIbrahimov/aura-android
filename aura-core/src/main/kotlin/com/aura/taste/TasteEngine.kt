@@ -209,6 +209,31 @@ class TasteEngine @Inject constructor(
     suspend fun deleteSignal(id: kotlin.String) {
         signalDao.delete(id)
     }
+
+    /**
+     * Build a taste context string for system prompt injection.
+     * Reads the global style profile and returns a compact summary
+     * of the user's learned preferences, or empty string if no
+     * signals have been recorded yet.
+     */
+    suspend fun getTasteContext(): kotlin.String {
+        val profile = getProfile() ?: return ""
+        val attrs = runCatching {
+            json.decodeFromString<Map<kotlin.String, Map<kotlin.String, Float>>>(profile.attributesJson)
+        }.getOrDefault(emptyMap())
+        if (attrs.isEmpty()) return ""
+
+        val lines = mutableListOf<kotlin.String>()
+        for ((category, categoryAttrs) in attrs) {
+            val top = categoryAttrs.entries
+                .sortedByDescending { it.value }
+                .take(3)
+                .joinToString(", ") { (k, _) -> k }
+            lines.add("- $category: prefers $top")
+        }
+        if (lines.isEmpty()) return ""
+        return "\n\n# User taste preferences (learned from signals):\n${lines.joinToString("\n")}"
+    }
 }
 
 /**
