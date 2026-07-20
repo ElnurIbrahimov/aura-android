@@ -71,6 +71,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val providerKeys: com.aura.providers.ProviderKeys? = null,
     private val beliefDao: com.aura.world.BeliefDao? = null,
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
+    private val agentStore: AgentStore? = null,
 ) {
 
     /**
@@ -232,9 +233,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             } else ""
 
             // 2) Build messages
+            // Resolve the active agent's personality directive (if any).
+            val personalityDirective = agentId?.let { id ->
+                runCatching {
+                    val agent = agentStore?.byId(id)
+                    agent?.personality()?.toPromptDirective()
+                }.getOrNull()
+            } ?: ""
             val messages = buildList {
                 val sys = listOfNotNull(
                     specialist?.systemPrompt,
+                    personalityDirective.ifBlank { null },
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
