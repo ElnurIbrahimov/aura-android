@@ -205,10 +205,23 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             val firstModel = firstProvider?.listModels()?.firstOrNull()
                             if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
                         }.getOrNull()
+                        // Build recent context for query rewriting —
+                        // last 3 turns of conversation for pronoun/deictic
+                        // resolution.
+                        val recentContext = currentConversation.turns
+                            .takeLast(3)
+                            .joinToString("\n") { turn ->
+                                listOfNotNull(
+                                    turn.user?.take(200)?.let { "user: $it" },
+                                    turn.assistant?.take(200)?.let { "assistant: $it" },
+                                ).joinToString("\n")
+                            }
                         val hits = memoryStore.query(
                             lastUserMessage, recallLimit,
                             scopeFilter = scopes,
                             rerankModel = rerankModel,
+                            rewriteModel = rerankModel,
+                            recentContext = recentContext,
                         )
                         cachedRecall = Triple(lastUserMessage, agentId, hits)
                         hits

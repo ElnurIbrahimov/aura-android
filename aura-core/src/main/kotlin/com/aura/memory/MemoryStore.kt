@@ -18,6 +18,7 @@ class MemoryStore @Inject constructor(
     private val memoryEditDao: MemoryEditDao,
     private val memoryFeedbackDao: MemoryFeedbackDao,
     private val reranker: MemoryReranker? = null,
+    private val queryRewriter: QueryRewriter? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val exactInsertMutex = Mutex()
@@ -146,6 +147,8 @@ class MemoryStore @Inject constructor(
         limit: Int = 5,
         scopeFilter: Set<String>? = null,
         rerankModel: String? = null,
+        rewriteModel: String? = null,
+        recentContext: String = "",
     ): List<MemoryEntity> {
         // RRF fusion: text match + vector similarity + recency + access + decay + importance.
         // See [Retrieval.rankCandidates] for the RRF scoring details.
@@ -153,10 +156,21 @@ class MemoryStore @Inject constructor(
         // is what makes FadeMem meaningful — a frequently-recalled fact decays
         // slower. Without it, every memory decays at the same rate regardless of
         // how useful it actually is to the model.
-        val escapedText = escapeLikeWildcards(text)
+        // Query rewriting: resolve deictic references ("that thing we
+        // discussed" -> "the database migration strategy from Tuesday")
+        // before BM25 + embedding. The rewritten query improves lexical
+        // and vector recall. The original query is kept for the reranker,
+        // which judges relevance against what the user actually said.
+        val retrievalQuery = if (queryRewriter != null && rewriteModel != null && recentContext.isNotBlank()) {
+            queryRewriter.rewrite(text, recentContext, rewriteModel)
+        } else {
+            text
+        }
+
+        val escapedText = escapeLikeWildcards(retrievalQuery)
         val scopes = scopeFilter?.toList() ?: listOf("general")
         val textHits = dao.searchByTextInScopes("%$escapedText%", scopes, limit * 3)
-        val qVec = embedder.embed(text)
+        val qVec = embedder.embed(retrievalQuery)
 
         if (textHits.isEmpty()) {
             // Vector fallback: no text overlap between query and any stored
