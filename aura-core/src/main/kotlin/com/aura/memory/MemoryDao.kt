@@ -59,6 +59,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byScopes(scopes: List<String>, limit: Int = 50): List<MemoryEntity>
 
+    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
+    suspend fun searchByTextInScopes(query: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
+
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC")
     suspend fun allByScopes(scopes: List<String>): List<MemoryEntity>
 

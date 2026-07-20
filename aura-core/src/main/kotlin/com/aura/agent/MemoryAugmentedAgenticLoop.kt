@@ -128,6 +128,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         var currentConversation = conversationCompactor.compactIfNeeded(conversation, model)
         var effectiveModel = model
 
+        // Recall cache: keyed by (userMessage, agentId). Prevents re-running
+        // the full RRF + embedding + DB query pipeline on every step of a
+        // multi-step agentic loop. The user message doesn't change between
+        // steps — only tool results are appended — so the recall is the
+        // same on step 2 as step 1.
+        var cachedRecall: Triple<String, String?, List<com.aura.memory.MemoryEntity>>? = null
+
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
         // one with tools and one without; we capture the recall
@@ -170,12 +177,23 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // field.
             val recallHits: List<com.aura.memory.MemoryEntity> =
                 if (memoryEnabled && lastUserMessage.isNotBlank()) {
-                    val scopes = if (agentId != null) {
-                        setOf("general", "agent:$agentId")
+                    // Check recall cache — same user message + agent = same results.
+                    // The agentic loop runs multiple steps per turn (one per
+                    // tool round-trip), all with the same lastUserMessage.
+                    // Caching saves RRF ranking + embedding + DB query on
+                    // steps 2-N.
+                    if (cachedRecall?.first == lastUserMessage && cachedRecall?.second == agentId) {
+                        cachedRecall!!.third
                     } else {
-                        setOf("general")
+                        val scopes = if (agentId != null) {
+                            setOf("general", "agent:$agentId")
+                        } else {
+                            setOf("general")
+                        }
+                        val hits = memoryStore.query(lastUserMessage, recallLimit, scopeFilter = scopes)
+                        cachedRecall = Triple(lastUserMessage, agentId, hits)
+                        hits
                     }
-                    memoryStore.query(lastUserMessage, recallLimit, scopeFilter = scopes)
                 } else emptyList()
             val stepHandIds: List<String> = handTrigger?.let { listOf(it.id) } ?: emptyList()
             if (memoryEnabled) {

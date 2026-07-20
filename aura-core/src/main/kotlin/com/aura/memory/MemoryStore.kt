@@ -153,10 +153,7 @@ class MemoryStore @Inject constructor(
         // how useful it actually is to the model.
         val escapedText = escapeLikeWildcards(text)
         val scopes = scopeFilter?.toList() ?: listOf("general")
-        val textHits = dao.byScopes(scopes, limit * 3).filter {
-            it.content.contains(text, ignoreCase = true) ||
-            it.tags.contains(text, ignoreCase = true)
-        }
+        val textHits = dao.searchByTextInScopes("%$escapedText%", scopes, limit * 3)
         val qVec = embedder.embed(text)
 
         if (textHits.isEmpty()) {
@@ -179,14 +176,22 @@ class MemoryStore @Inject constructor(
         }
 
         // Build [ScoredMemory] candidates with text and vector similarity scores.
+        // BM25 text scoring: build a BM25 index from the scoped text hits
+        // and score each candidate against the query. This replaces the
+        // naive term-overlap score with proper IDF-weighted BM25.
+        val bm25 = if (textHits.isNotEmpty()) BM25(textHits.map { it.content }) else null
         val queryTokens = text.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
-        val scoredCandidates = textHits.map { mem ->
+        val scoredCandidates = textHits.mapIndexed { idx, mem ->
             val embedding = mem.embedding?.let { Embedder.fromBytes(it) }
 
-            // Text score: proportion of query tokens present in content (BM25-like).
-            val contentLower = mem.content.lowercase()
-            val matchedTokens = queryTokens.count { it in contentLower }
-            val textScore = if (queryTokens.isNotEmpty()) matchedTokens.toFloat() / queryTokens.size else 0f
+            // BM25 text score (normalized 0-1) or fallback to term overlap.
+            val textScore = if (bm25 != null) {
+                bm25.normalizedScore(text, idx)
+            } else {
+                val contentLower = mem.content.lowercase()
+                val matchedTokens = queryTokens.count { it in contentLower }
+                if (queryTokens.isNotEmpty()) matchedTokens.toFloat() / queryTokens.size else 0f
+            }
 
             // Vector score: cosine similarity if embedding available, else 0.
             val vectorScore = if (embedding != null) cosineSimilarity(qVec, embedding) else 0f

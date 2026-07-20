@@ -36,7 +36,7 @@ class MemoryStoreTouchTest {
     @Test
     fun `query touches each returned hit`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
-        coEvery { dao.byScopes(any(), any()) } returns listOf(
+        coEvery { dao.searchByTextInScopes(any(), any(), any()) } returns listOf(
             mem("m1", "user prefers dark mode"),
             mem("m2", "user prefers dark theme"),
         )
@@ -68,7 +68,7 @@ class MemoryStoreTouchTest {
     @Test
     fun `query does not touch on empty result`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
-        coEvery { dao.byScopes(any(), any()) } returns emptyList()
+        coEvery { dao.searchByTextInScopes(any(), any(), any()) } returns emptyList()
         coEvery { dao.allByScopes(any()) } returns emptyList()
         val embedder = mockk<Embedder>(relaxed = true)
         coEvery { embedder.embed(any()) } returns FloatArray(384) { 0f }
