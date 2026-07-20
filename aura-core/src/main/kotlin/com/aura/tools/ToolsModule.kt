@@ -75,6 +75,7 @@ object ToolsModule {
         approveProposal: ApproveEvolutionProposalTool,
         rollbackEvolution: RollbackEvolutionTool,
         triggerEvolution: TriggerEvolutionRunTool,
+        delegateToAgent: DelegateToAgentTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
         registry.register(webSearch.tool)
@@ -138,6 +139,7 @@ object ToolsModule {
         registry.register(approveProposal.tool)
         registry.register(rollbackEvolution.tool)
         registry.register(triggerEvolution.tool)
+        registry.register(delegateToAgent.tool)
         return registry
     }
 }
