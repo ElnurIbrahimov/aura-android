@@ -59,11 +59,22 @@ class QueryRewriterTest {
     }
 
     @Test
-    fun `deictic starter triggers rewrite`() = runTest {
+    fun `deictic starter with past tense triggers rewrite`() = runTest {
         val brain = mockBrain("the Kotlin coroutines discussion")
         val rewriter = QueryRewriter(brain)
+        // "it was" — past tense marker present
         val result = rewriter.rewrite("it was interesting", "user: Kotlin coroutines\nassistant: great topic", "model")
         assertEquals("the Kotlin coroutines discussion", result)
+    }
+
+    @Test
+    fun `deictic starter without past tense does NOT trigger rewrite`() = runTest {
+        val brain = mockk<Brain>(relaxed = true)
+        coEvery { brain.stream(any(), any(), any(), any()) } returns flowOf(BrainChunk.Text("should not be called"))
+        val rewriter = QueryRewriter(brain)
+        // "it is a good idea" — "is" is not past tense, no rewrite
+        val result = rewriter.rewrite("it is a good idea to use Kotlin", "context", "model")
+        assertEquals("it is a good idea to use Kotlin", result)
     }
 
     @Test

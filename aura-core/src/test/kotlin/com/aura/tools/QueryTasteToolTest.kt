@@ -18,7 +18,7 @@ class QueryTasteToolTest {
 
     @Test
     fun `query returns matching taste memories`() = runTest {
-        coEvery { memoryStore.query("music category:taste", 8) } returns listOf(
+        coEvery { memoryStore.query("music category:taste", any()) } returns listOf(
             MemoryEntity(id = "1", content = "Likes jazz", category = "taste", source = "signal"),
         )
         val result = tool.tool.execute(

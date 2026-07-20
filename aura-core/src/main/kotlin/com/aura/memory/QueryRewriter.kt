@@ -108,21 +108,36 @@ class QueryRewriter @Inject constructor(
         val lower = query.lowercase().trim()
         if (lower.length < 3) return false
 
-        // Deictic phrases — strong signals
+        // Strong deictic phrases — always trigger rewrite
         val deicticPhrases = listOf(
             "that thing", "that stuff", "that idea", "that topic",
             "what we discussed", "what i mentioned", "what she said",
             "what he said", "what they said", "what you said",
             "remind me", "what was that", "what was the",
-            "earlier", "before about", "again about",
             "tell me more about it", "tell me more about that",
             "continue from", "pick up where",
         )
         if (deicticPhrases.any { lower.contains(it) }) return true
 
-        // Single deictic pronouns at sentence start
-        val deicticStarters = listOf("it ", "this ", "that ", "the same ")
-        if (deicticStarters.any { lower.startsWith(it) }) return true
+        // Weak deictic starters (single words like "it", "this", "that")
+        // require a second signal — a past-tense verb or temporal marker —
+        // to avoid false positives like "it is a good idea to use Kotlin"
+        // where "it" is a dummy pronoun, not a referential one.
+        val weakStarters = listOf("it ", "this ", "that ", "the same ")
+        if (weakStarters.any { lower.startsWith(it) }) {
+            // Second signal: past tense verb or temporal reference
+            val pastTenseMarkers = listOf(
+                " was ", " were ", " had ", " said ", " told ", " mentioned",
+                " discussed", " talked about", " showed", " gave",
+                " earlier", " before", " yesterday", " today",
+                " again", " still", " also",
+            )
+            if (pastTenseMarkers.any { lower.contains(it) }) return true
+        }
+
+        // Standalone temporal deictics — only trigger with a reference
+        val temporalDeictics = listOf("earlier", "before about", "again about")
+        if (temporalDeictics.any { lower.contains(it) }) return true
 
         return false
     }

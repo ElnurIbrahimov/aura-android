@@ -55,7 +55,7 @@ class MemoryStoreTouchTest {
             memoryFeedbackDao
         )
 
-        val results = store.query("dark", limit = 5)
+        val results = store.query("dark", MemoryStore.RecallOptions(limit = 5))
         assertEquals(2, results.size, "query should return both hits")
 
         // The store's `touch()` ultimately delegates to `dao.touch(id)`. The
@@ -81,7 +81,7 @@ class MemoryStoreTouchTest {
         memoryFeedbackDao,
         )
 
-        val results = store.query("nothing", limit = 5)
+        val results = store.query("nothing", MemoryStore.RecallOptions(limit = 5))
         assertEquals(0, results.size)
         coVerify(exactly = 0) { dao.touch(any(), any()) }
     }

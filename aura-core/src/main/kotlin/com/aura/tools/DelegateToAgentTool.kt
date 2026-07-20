@@ -9,6 +9,7 @@ import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
+import com.aura.memory.MemoryStore
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ToolParameters
@@ -122,7 +123,7 @@ class DelegateToAgentTool @Inject constructor(
         } else {
             setOf("general", agent.memoryScope)
         }
-        val recallHits = memoryStore.query(task, 5, scopeFilter = scopes)
+        val recallHits = memoryStore.query(task, MemoryStore.RecallOptions(limit = 5, scopeFilter = scopes))
         val memoryContext = if (recallHits.isNotEmpty()) {
             "\n\n# Relevant memories:\n" + recallHits.joinToString("\n") { "- [${it.category}] ${it.content}" }
         } else ""
@@ -169,6 +170,9 @@ class DelegateToAgentTool @Inject constructor(
             if (stepToolCalls.isEmpty()) break
 
             // Execute tool calls and append results to conversation.
+            // Use the proper 'tool' role for tool results — providers
+            // that strictly validate message roles (Anthropic) require
+            // this. The assistant message is the text + tool call marker.
             val executor = toolExecutor.get()
             for ((toolName, args) in stepToolCalls) {
                 if (tools.none { it.name == toolName }) continue
@@ -181,13 +185,16 @@ class DelegateToAgentTool @Inject constructor(
                     is ToolResult.Error -> "Error: ${result.message}"
                     else -> "Unknown result"
                 }
+                // Assistant message: the text produced before the tool call
                 conversation.add(ProviderMessage(
                     role = ProviderMessage.Role.assistant,
-                    content = stepText.toString() + " [tool: $toolName]",
+                    content = stepText.toString().ifBlank { "[calling $toolName]" },
                 ))
+                // Tool result message — use the 'tool' role so strict
+                // providers (Anthropic) don't reject the message sequence.
                 conversation.add(ProviderMessage(
-                    role = ProviderMessage.Role.user,
-                    content = "Tool result for $toolName: $resultText",
+                    role = ProviderMessage.Role.tool,
+                    content = resultText,
                 ))
             }
         }

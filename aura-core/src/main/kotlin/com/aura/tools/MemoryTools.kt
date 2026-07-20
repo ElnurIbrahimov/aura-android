@@ -79,7 +79,7 @@ class RecallTool @Inject constructor(
             val query = call.arguments["query"] as? String ?: return@Tool ToolResult.Error("missing 'query'", "bad_args")
             val limit = (call.arguments["limit"] as? Int ?: 5).coerceIn(1, 20)
             try {
-                val hits = memoryStore.query(query, limit)
+                val hits = memoryStore.query(query, com.aura.memory.MemoryStore.RecallOptions(limit = limit))
                 if (hits.isEmpty()) {
                     ToolResult.Ok("No memories found for: $query")
                 } else {

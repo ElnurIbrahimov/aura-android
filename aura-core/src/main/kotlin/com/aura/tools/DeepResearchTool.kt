@@ -150,7 +150,7 @@ class DeepResearchTool @Inject constructor(
         for (iteration in 1..MAX_ITERATIONS) {
             // Detect gaps
             val gaps = detectGaps(query, contextBlock, modelId)
-            if (gaps.isNullOrBlank() || gaps.uppercase().startsWith("NONE")) break
+            if (gaps.isNullOrBlank() || (gaps.uppercase().startsWith("NONE") && gaps.trim().length <= 10)) break
 
             // Search for the gaps. Cap total sources across all iterations
             // to maxSources — don't let gap detection exceed the user's budget.

@@ -45,7 +45,7 @@ class CanonQueryTool @Inject constructor(
                 ?: return@Tool ToolResult.Error("missing 'question'", "bad_args")
             projectStore.get(projectId)
                 ?: return@Tool ToolResult.Error("Project not found", "not_found")
-            val memories = memoryStore.query("$question project:$projectId", limit = 8)
+            val memories = memoryStore.query("$question project:$projectId", com.aura.memory.MemoryStore.RecallOptions(limit = 8))
             val output = buildString {
                 appendLine("Relevant canon for: $question")
                 if (memories.isEmpty()) {

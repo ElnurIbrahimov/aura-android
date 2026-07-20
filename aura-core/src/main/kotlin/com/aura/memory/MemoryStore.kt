@@ -142,14 +142,30 @@ class MemoryStore @Inject constructor(
         return id
     }
 
-    suspend fun query(
-        text: String,
-        limit: Int = 5,
-        scopeFilter: Set<String>? = null,
-        rerankModel: String? = null,
-        rewriteModel: String? = null,
-        recentContext: String = "",
-    ): List<MemoryEntity> {
+        /**
+         * Options for [query]. Encapsulates the growing parameter list into
+         * a single object so callers don't need to pass 6 positional args.
+         */
+        data class RecallOptions(
+            val limit: Int = 5,
+            val scopeFilter: Set<String>? = null,
+            /** Model for cross-encoder reranking. Null = skip reranking. */
+            val rerankModel: String? = null,
+            /** Model for query rewriting. Null = skip rewriting. */
+            val rewriteModel: String? = null,
+            /** Recent conversation turns for deictic resolution. */
+            val recentContext: String = "",
+        )
+
+        suspend fun query(
+            text: String,
+            options: RecallOptions = RecallOptions(),
+        ): List<MemoryEntity> {
+            val limit = options.limit
+            val scopeFilter = options.scopeFilter
+            val rerankModel = options.rerankModel
+            val rewriteModel = options.rewriteModel
+            val recentContext = options.recentContext
         // RRF fusion: text match + vector similarity + recency + access + decay + importance.
         // See [Retrieval.rankCandidates] for the RRF scoring details.
         // On hit, call [touch] to bump accessedAt + accessCount + decayScore. This

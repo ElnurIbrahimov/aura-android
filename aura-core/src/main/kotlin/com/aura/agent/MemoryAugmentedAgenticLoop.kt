@@ -205,6 +205,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             val firstModel = firstProvider?.listModels()?.firstOrNull()
                             if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
                         }.getOrNull()
+                        // Query rewriting is a generation task — prefer a
+                        // smaller model when available to reduce latency.
+                        // Falls back to the same model as reranking.
+                        val rewriteModel = runCatching {
+                            val providers = providerRegistry.configured()
+                            val firstProvider = providers.firstOrNull()
+                            val models = firstProvider?.listModels().orEmpty()
+                            // Pick the smallest model name (heuristic: short
+                            // names tend to be smaller models). Falls back
+                            // to the first model if no heuristic match.
+                            val smallModel = models.minByOrNull { it.length }
+                            if (firstProvider != null && smallModel != null) "${firstProvider.prefix}:$smallModel" else null
+                        }.getOrNull() ?: rerankModel
                         // Build recent context for query rewriting —
                         // last 3 turns of conversation for pronoun/deictic
                         // resolution.
@@ -217,11 +230,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 ).joinToString("\n")
                             }
                         val hits = memoryStore.query(
-                            lastUserMessage, recallLimit,
-                            scopeFilter = scopes,
-                            rerankModel = rerankModel,
-                            rewriteModel = rerankModel,
-                            recentContext = recentContext,
+                            lastUserMessage,
+                            com.aura.memory.MemoryStore.RecallOptions(
+                                limit = recallLimit,
+                                scopeFilter = scopes,
+                                rerankModel = rerankModel,
+                                rewriteModel = rewriteModel,
+                                recentContext = recentContext,
+                            ),
                         )
                         cachedRecall = Triple(lastUserMessage, agentId, hits)
                         hits

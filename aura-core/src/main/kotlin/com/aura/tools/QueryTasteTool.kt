@@ -37,7 +37,7 @@ class QueryTasteTool @Inject constructor(
         category = "memory",
         execute = { call, _ ->
             val topic = call.arguments["topic"] as? String ?: return@Tool ToolResult.Error("missing 'topic'", "bad_args")
-            val memories = memoryStore.query("$topic category:taste", limit = 8)
+            val memories = memoryStore.query("$topic category:taste", com.aura.memory.MemoryStore.RecallOptions(limit = 8))
             val output = buildString {
                 appendLine("Taste results for: $topic")
                 if (memories.isEmpty()) appendLine("No taste signals recorded yet.")

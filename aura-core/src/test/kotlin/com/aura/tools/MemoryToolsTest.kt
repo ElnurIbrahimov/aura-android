@@ -28,7 +28,7 @@ class MemoryToolsTest {
     @Test
     fun `recall tool queries and returns formatted hits`() = runTest {
         val store = mockk<MemoryStore>()
-        coEvery { store.query("coffee", 5) } returns listOf(
+        coEvery { store.query("coffee", any()) } returns listOf(
             MemoryEntity(id = "1", content = "user drinks coffee", source = "user", category = "preference"),
             MemoryEntity(id = "2", content = "oat milk not dairy", source = "user", category = "preference"),
         )
@@ -46,7 +46,7 @@ class MemoryToolsTest {
     @Test
     fun `recall tool returns no results message on empty`() = runTest {
         val store = mockk<MemoryStore>()
-        coEvery { store.query("xyzzy", 5) } returns emptyList()
+        coEvery { store.query("xyzzy", any()) } returns emptyList()
         val tool = RecallTool(store).tool
         val result = tool.execute(
             com.aura.agent.ToolCall(id = "tc1", name = "recall", arguments = mapOf("query" to "xyzzy")),
