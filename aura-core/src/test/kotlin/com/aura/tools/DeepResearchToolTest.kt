@@ -50,13 +50,22 @@ class DeepResearchToolTest {
         )
 
         val mockRegistry = mockk<ProviderRegistry> {
-            val chunks = listOf(
+            // First call: gap detection returns NONE (no gaps)
+            val gapChunks = listOf(
+                ProviderChunk(text = "NONE"),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+            // Second call: synthesis
+            val synthChunks = listOf(
                 ProviderChunk(text = "Based on the sources provided, "),
                 ProviderChunk(text = "Kotlin is a modern programming language [1]. "),
                 ProviderChunk(text = "It runs on the JVM and is fully interoperable with Java [2]."),
                 ProviderChunk(finishReason = FinishReason.stop),
             )
-            coEvery { chat(any(), any(), any(), any()) } returns flowOf(*chunks.toTypedArray())
+            coEvery { chat(any(), any(), any(), any()) } returnsMany listOf(
+                flowOf(*gapChunks.toTypedArray()),
+                flowOf(*synthChunks.toTypedArray()),
+            )
         }
 
         val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
@@ -165,11 +174,18 @@ class DeepResearchToolTest {
         )
 
         val mockRegistry = mockk<ProviderRegistry> {
-            val chunks = listOf(
+            val gapChunks = listOf(
+                ProviderChunk(text = "NONE"),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+            val synthChunks = listOf(
                 ProviderChunk(text = "Brave search found Kotlin [1]."),
                 ProviderChunk(finishReason = FinishReason.stop),
             )
-            coEvery { chat(any(), any(), any(), any()) } returns flowOf(*chunks.toTypedArray())
+            coEvery { chat(any(), any(), any(), any()) } returnsMany listOf(
+                flowOf(*gapChunks.toTypedArray()),
+                flowOf(*synthChunks.toTypedArray()),
+            )
         }
 
         val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
@@ -200,11 +216,18 @@ class DeepResearchToolTest {
         )
 
         val mockRegistry = mockk<ProviderRegistry> {
-            val chunks = listOf(
+            val gapChunks = listOf(
+                ProviderChunk(text = "NONE"),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+            val synthChunks = listOf(
                 ProviderChunk(text = "Result."),
                 ProviderChunk(finishReason = FinishReason.stop),
             )
-            coEvery { chat(any(), any(), any(), any()) } returns flowOf(*chunks.toTypedArray())
+            coEvery { chat(any(), any(), any(), any()) } returnsMany listOf(
+                flowOf(*gapChunks.toTypedArray()),
+                flowOf(*synthChunks.toTypedArray()),
+            )
         }
 
         val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
@@ -227,9 +250,17 @@ class DeepResearchToolTest {
             body = """{"results":[{"title":"internal","url":"http://127.0.0.1/private","content":"nope"}]}""",
         )
         val registry = mockk<ProviderRegistry> {
-            coEvery { chat(any(), any(), any(), any()) } returns flowOf(
+            val gapChunks = listOf(
+                ProviderChunk(text = "NONE"),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+            val synthChunks = listOf(
                 ProviderChunk(text = "Safe answer."),
                 ProviderChunk(finishReason = FinishReason.stop),
+            )
+            coEvery { chat(any(), any(), any(), any()) } returnsMany listOf(
+                flowOf(*gapChunks.toTypedArray()),
+                flowOf(*synthChunks.toTypedArray()),
             )
         }
 
