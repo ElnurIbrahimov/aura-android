@@ -48,6 +48,7 @@ class ProactiveBootstrap @Inject constructor(
     private val mcpClientManager: McpClientManager,
     private val mcpToolBridge: McpToolBridge,
     private val secureDataStore: SecureDataStore,
+    private val agentStore: com.aura.agent.AgentStore,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -63,7 +64,9 @@ class ProactiveBootstrap @Inject constructor(
     private var preferenceJob: kotlinx.coroutines.Job? = null
 
     fun start() {
-        // Keep one long-lived reconciliation collector. DataStore flows emit
+        // Seed builtin agents on first run.
+        scope.launch { agentStore.seedBuiltins() }
+        // Keep one long-lived reconciliation collector.
         // their persisted defaults immediately and every Settings mutation
         // thereafter, so schedules and the foreground service converge in
         // the active process instead of waiting for a restart.

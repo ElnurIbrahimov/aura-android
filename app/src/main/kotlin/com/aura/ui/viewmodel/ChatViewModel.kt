@@ -157,6 +157,8 @@ data class ChatUiState(
     val ttsEnabled: Boolean = true,
     val selectedSpecialist: Specialist? = null,
     val suggestedSpecialist: Specialist? = null,
+    /** Agent ID for per-agent memory scoping. Derived from selectedSpecialist. */
+    val activeAgentId: String? = null,
     val pendingPermission: String? = null,
     val permissionRationale: String? = null,
     /** Tool name + args that the permission was requested for. Used to retry after grant. */
@@ -476,7 +478,12 @@ class ChatViewModel @Inject constructor(
     fun setSpecialist(specialist: Specialist?) {
         _state.update { old ->
             val newModel = specialist?.suggestedModel ?: old.activeModel
-            old.copy(selectedSpecialist = specialist, activeModel = newModel)
+            val agentId = specialist?.let { "agent_${it.name}" }
+            old.copy(
+                selectedSpecialist = specialist,
+                activeModel = newModel,
+                activeAgentId = agentId,
+            )
         }
     }
 
@@ -588,6 +595,7 @@ class ChatViewModel @Inject constructor(
                 ttsEnabled = false,
                 selectedSpecialist = null,
                 suggestedSpecialist = null,
+                activeAgentId = null,
                 inFlightToolCalls = emptyList(),
             )
         }
@@ -615,6 +623,7 @@ class ChatViewModel @Inject constructor(
                 deepModeActive = false,
                 selectedSpecialist = null,
                 suggestedSpecialist = null,
+                activeAgentId = null,
                 inFlightToolCalls = emptyList(),
             )
         }

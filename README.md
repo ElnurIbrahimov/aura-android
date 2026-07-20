@@ -10,7 +10,7 @@ This is my personal copy.
 
 **v0.26.0** (versionCode 26).
 
-- 59 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, production pipelines, document indexing, canon query, media generation)
+- 61 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, production pipelines, document indexing, canon query, media generation, agent delegation, agent council)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign)
@@ -332,7 +332,7 @@ aura-android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 59 tool implementations + ToolsModule
+│       ├── tools/        # 61 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
 │       ├── proactive/    # MorningBrief + Decay + CalendarMonitor + DaemonWorker + ProactiveEventBus + ProactiveScheduler
 │       ├── emotion/      # EmotionEngine (4-dimension state) + ResponseProfile

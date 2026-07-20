@@ -74,7 +74,7 @@ fun PersonaSection(
                 }
             }
         }
-
+        // ── Specialist prompt overrides ──
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Specialist prompts",
@@ -82,7 +82,7 @@ fun PersonaSection(
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Override the built-in system prompt for each specialist. Tap a specialist to edit its prompt.",
+            text = "Override the built-in system prompt for each specialist, or create a custom agent with its own personality and memory.",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )

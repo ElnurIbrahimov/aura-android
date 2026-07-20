@@ -196,6 +196,7 @@ class ChatSendController(
                     specialist = resolvedSpecialist,
                     memoryEnabled = !state.value.incognitoMode,
                     approvedRemoteCostTools = state.value.approvedRemoteCostTools,
+                    agentId = state.value.activeAgentId,
                 ).collect { event ->
                     when (event) {
                         is AgentEvent.TextDelta -> {
