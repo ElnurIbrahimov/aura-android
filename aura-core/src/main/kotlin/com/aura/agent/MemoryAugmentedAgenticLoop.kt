@@ -316,7 +316,35 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
                 ).joinToString("\n\n") + memoryContext + beliefContext + emotionContext + handContext
-                if (sys.isNotBlank()) add(ProviderMessage(role = Role.system, content = sys))
+
+                // 2.5) Planning step: ask the model to outline its approach before
+                // calling tools. The plan is injected as a system prefix so the
+                // model sees its own strategy. One cheap LLM call improves tool
+                // selection accuracy across all tasks. Falls back silently on error.
+                val plan = if (step == 1) {
+                    runCatching {
+                        val planMessages = listOf(
+                            ProviderMessage(
+                                role = Role.system,
+                                content = "You are a planning assistant. Given the user's request, outline your approach in 1-2 sentences. What information do you need? What tools will you use? Be specific.",
+                            ),
+                            ProviderMessage(role = Role.user, content = lastUserMessage),
+                        )
+                        val planBuilder = StringBuilder()
+                        brain.stream(
+                            effectiveModel, planMessages,
+                            options = ChatOptions(temperature = 0.0, maxTokens = 150),
+                        ).collect { chunk ->
+                            if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
+                        }
+                        val raw = planBuilder.toString().trim()
+                        if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""
+                    }.getOrDefault("")
+                } else ""
+
+                val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
+                if (resolvedSys.isNotBlank()) add(ProviderMessage(role = Role.system, content = resolvedSys))
+
                 addAll(currentConversation.toMessages(includeSystemPrompt = false))
             }
 

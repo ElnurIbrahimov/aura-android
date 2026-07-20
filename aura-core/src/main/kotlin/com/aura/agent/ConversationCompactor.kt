@@ -25,8 +25,17 @@ class ConversationCompactor @Inject constructor(
 
     suspend fun compactIfNeeded(conversation: Conversation, model: String): Conversation {
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
-        val unsummarizedCount = conversation.turns.size - summarizedThrough
-        if (unsummarizedCount <= MAX_UNCOMPACTED_TURNS) return conversation
+        val unsummarizedTurns = conversation.turns.drop(summarizedThrough)
+        // Token estimation: chars / 4 is a rough heuristic for English text.
+        // A deep_research turn might be 4000 chars (~1000 tokens); "yes" is 3
+        // chars (~1 token). Turn-count-based thresholds treat them equally;
+        // token-based triggers correctly compact sooner for heavy turns.
+        val estimatedTokens = unsummarizedTurns.sumOf { turn ->
+            val userChars = turn.user?.length ?: 0
+            val assistantChars = turn.assistant?.length ?: 0
+            (userChars + assistantChars) / 4
+        }
+        if (estimatedTokens <= MAX_UNCOMPACTED_TOKENS) return conversation
 
         val compactThrough = conversation.turns.size - RECENT_TURNS_TO_KEEP
         if (compactThrough <= summarizedThrough) return conversation
@@ -83,8 +92,8 @@ class ConversationCompactor @Inject constructor(
     }
 
     companion object {
-        /** Compact only after enough fresh history has accumulated. */
-        internal const val MAX_UNCOMPACTED_TURNS = 48
+        /** Compact only when estimated tokens exceed this threshold. */
+        internal const val MAX_UNCOMPACTED_TOKENS = 12_000
         /** Keep a generous raw tail for local coherence and tool-call continuity. */
         internal const val RECENT_TURNS_TO_KEEP = 24
         private const val MAX_SUMMARY_TOKENS = 1_200

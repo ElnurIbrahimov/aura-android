@@ -50,9 +50,14 @@ class EndToEndTest {
         coEvery { providerRegistry.parse(any<String>()) } returns (provider to "test-model")
 
         val brain = mockk<Brain>(relaxed = true)
-        // First call: model emits a remember tool call
-        // Second call: model emits a friendly acknowledgment
+        // Planning step -> tool call -> acknowledgment
         coEvery { brain.stream(any(), any(), any(), any()) } returnsMany listOf(
+            // Planning step
+            flowOf(
+                BrainChunk.Text("Use remember tool to store preference."),
+                BrainChunk.Finished(FinishReason.stop.name),
+            ),
+            // First call: model emits a remember tool call
             flowOf(
                 BrainChunk.ToolCallStart("tc1", "remember"),
                 BrainChunk.ToolCallDelta(
@@ -66,6 +71,7 @@ class EndToEndTest {
                 ),
                 BrainChunk.Finished(FinishReason.tool_calls.name),
             ),
+            // Second call: model emits a friendly acknowledgment
             flowOf(
                 BrainChunk.Text("Got it — I'll remember that you prefer dark mode."),
                 BrainChunk.Finished(FinishReason.stop.name),
@@ -119,12 +125,19 @@ class EndToEndTest {
 
         val brain = mockk<Brain>(relaxed = true)
         coEvery { brain.stream(any(), any(), any(), any()) } returnsMany listOf(
+            // Planning step (added by agentic loop before tools)
+            flowOf(
+                BrainChunk.Text("Check memory for preferences."),
+                BrainChunk.Finished(FinishReason.stop.name),
+            ),
+            // Step 1: tool call
             flowOf(
                 BrainChunk.ToolCallStart("tc1", "recall"),
                 BrainChunk.ToolCallDelta("tc1", "{\"query\": \"dark mode preference\"}"),
                 BrainChunk.ToolCallEnd("tc1", "recall", "{\"query\": \"dark mode preference\"}"),
                 BrainChunk.Finished(FinishReason.tool_calls.name),
             ),
+            // Step 2: response
             flowOf(
                 BrainChunk.Text("You prefer dark mode."),
                 BrainChunk.Finished(FinishReason.stop.name),

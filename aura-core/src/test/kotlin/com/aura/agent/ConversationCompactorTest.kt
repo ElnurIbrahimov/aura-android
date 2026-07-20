@@ -49,7 +49,7 @@ class ConversationCompactorTest {
 
     @Test
     fun `below threshold leaves conversation untouched without provider call`() = runTest {
-        val conversation = conversationWithTurns(48)
+        val conversation = conversationWithTurns(40) // 40 * 500 * 2 / 4 = 10000 < 12000
 
         val result = compactor.compactIfNeeded(conversation, "test:model")
 
@@ -119,9 +119,15 @@ class ConversationCompactorTest {
         compactor.compactIfNeeded(conversation, "test:model")
     }
 
-    private fun conversationWithTurns(count: Int): Conversation = Conversation(
+    /**
+     * Build a conversation with [count] turns, each with enough
+     * content to test token-based compaction. At ~500 chars per
+     * message (~125 tokens), 40 turns = ~10000 tokens (below
+     * threshold), 60 turns = ~15000 tokens (above threshold).
+     */
+    private fun conversationWithTurns(count: Int, padding: String = "x".repeat(500)): Conversation = Conversation(
         turns = List(count) { index ->
-            Turn(user = "user-$index", assistant = "assistant-$index")
+            Turn(user = "user-$index: $padding", assistant = "assistant-$index: $padding")
         },
     )
 }

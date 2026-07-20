@@ -39,6 +39,8 @@ class ImageGenTool @Inject constructor(
     private val httpClient: OkHttpClient,
     private val providerKeys: ProviderKeys,
     private val userPreferences: com.aura.data.UserPreferences,
+    private val brain: com.aura.agent.Brain? = null,
+    private val providerRegistry: com.aura.providers.ProviderRegistry? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
@@ -86,17 +88,26 @@ class ImageGenTool @Inject constructor(
      * If OpenAI fails, automatically falls back to Pollinations.
      */
     private fun generateImage(prompt: String, size: String): String {
+        // Prompt enhancement: expand bare prompts ("a cat") into
+        // detailed image descriptions with style, lighting, and
+        // composition cues. One cheap LLM call, massive quality
+        // improvement for simple prompts. Skips if prompt is already
+        // detailed (>80 chars) or Brain is unavailable.
+        val enhancedPrompt = if (brain != null && prompt.length < 80) {
+            try { enhancePrompt(prompt) } catch (_: Exception) { prompt }
+        } else prompt
+
         val openaiKey = providerKeys.keyFor("openai")
         if (!openaiKey.isNullOrBlank()) {
             try {
-                return generateWithOpenAi(prompt, size, openaiKey)
+                return generateWithOpenAi(enhancedPrompt, size, openaiKey)
             } catch (e: Exception) {
                 // Log the error so the user knows their paid provider failed.
                 // Wrapped in try-catch because android.util.Log is not mocked in unit tests.
                 try { android.util.Log.w("ImageGenTool", "OpenAI image gen failed, falling back to Pollinations: ${e.message}") } catch (_: Throwable) {}
             }
         }
-        return generateWithPollinations(prompt, size)
+        return generateWithPollinations(enhancedPrompt, size)
     }
 
     // ------------------------------------------------------------------
@@ -162,5 +173,41 @@ class ImageGenTool @Inject constructor(
         val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
         val parsedSize = parseSize(size)
         return "https://image.pollinations.ai/prompt/$encodedPrompt?width=${parsedSize.width}&height=${parsedSize.height}&nologo=true"
+    }
+
+    /**
+     * Enhance a short prompt into a detailed image generation prompt
+     * with style, lighting, and composition cues. Uses the Brain's
+     * stream method with a cheap one-shot call.
+     */
+    private fun enhancePrompt(original: String): String {
+        val b = brain ?: return original
+        val model = runBlocking {
+            runCatching {
+                val reg = providerRegistry ?: return@runBlocking null
+                val providers = reg.configured()
+                val first = providers.firstOrNull()
+                val firstModel = first?.listModels()?.firstOrNull()
+                if (first != null && firstModel != null) "${first.prefix}:$firstModel" else null
+            }.getOrNull()
+        } ?: return original
+        val messages = listOf(
+            com.aura.providers.ProviderMessage(
+                role = com.aura.providers.ProviderMessage.Role.system,
+                content = "You are an image prompt enhancer. Take the user's short description and expand it into a detailed image generation prompt with style, lighting, colors, mood, composition, and quality descriptors. Add detail but stay true to the user's intent. Return ONLY the enhanced prompt, no explanation.",
+            ),
+            com.aura.providers.ProviderMessage(
+                role = com.aura.providers.ProviderMessage.Role.user,
+                content = "Enhance: $original",
+            ),
+        )
+        val options = com.aura.providers.ChatOptions(temperature = 0.7, maxTokens = 150)
+        return runBlocking {
+            val result = StringBuilder()
+            b.stream(model, messages, options = options).collect { chunk ->
+                if (chunk is com.aura.agent.BrainChunk.Text) result.append(chunk.text)
+            }
+            result.toString().trim().take(500).ifBlank { original }
+        }
     }
 }
