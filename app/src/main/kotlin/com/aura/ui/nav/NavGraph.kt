@@ -53,6 +53,7 @@ import com.aura.ui.screens.ProactiveHistoryScreen
 import com.aura.ui.screens.RemindersScreen
 import com.aura.ui.screens.ProfileScreen
 import com.aura.ui.screens.SettingsScreen
+import com.aura.ui.screens.AgentEditorScreen
 import com.aura.ui.screens.TasksScreen
 
 @Composable
@@ -235,6 +236,7 @@ fun NavGraph(
                     onNavigateDiagnostics = { navController.navigate("diagnostics") },
                     onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
                     onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
+                    onNavigateAgentEditor = { navController.navigate("agent_editor?agentId=") },
                 )
             }
             composable("diagnostics") {
@@ -313,6 +315,16 @@ fun NavGraph(
                 ProductionPipelineScreen(
                     onOpenAgentRuns = { navController.navigate("agent_runs") },
                     onOpenCreative = { navController.navigate("creative") },
+                )
+            }
+            composable(
+                route = "agent_editor?agentId={agentId}",
+                arguments = listOf(navArgument("agentId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+            ) { backStackEntry ->
+                val agentId = backStackEntry.arguments?.getString("agentId")
+                AgentEditorScreen(
+                    agentId = agentId,
+                    onDone = { navController.popBackStack() },
                 )
             }
             composable("evolution") {

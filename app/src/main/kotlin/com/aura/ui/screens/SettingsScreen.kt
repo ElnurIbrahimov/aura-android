@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.BuildConfig
 import com.aura.ui.settings.BackupViewModel
+import com.aura.ui.settings.SettingsClickableRow
 import com.aura.ui.settings.SettingsViewModel
 import com.aura.ui.settings.UsageViewModel
 import com.aura.ui.settings.sections.AiAndModelsSection
@@ -43,6 +44,7 @@ fun SettingsScreen(
     onNavigateDiagnostics: () -> Unit = {},
     onNavigateEvolutionInbox: () -> Unit = {},
     onNavigateBeliefs: () -> Unit = {},
+    onNavigateAgentEditor: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
     usageViewModel: UsageViewModel = hiltViewModel(),
@@ -163,6 +165,13 @@ fun SettingsScreen(
             daemonEnabled = state.daemonEnabled,
             daemonThoughtsCount = daemonThoughtsCount,
             onSetDaemonEnabled = viewModel::setDaemonEnabled,
+        )
+
+        // 9b. Agents — create and manage AI agents
+        SettingsClickableRow(
+            title = "Agents",
+            subtitle = "Create custom AI agents with their own personality, tools, and memory",
+            onClick = onNavigateAgentEditor,
         )
 
         // 10. Evolution
