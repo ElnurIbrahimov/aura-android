@@ -36,6 +36,7 @@ import com.aura.ui.settings.sections.ToolPermissionsSection
 import com.aura.ui.settings.sections.UsageSection
 import com.aura.ui.theme.AuraThemeTokens
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun SettingsScreen(
@@ -49,11 +50,11 @@ fun SettingsScreen(
     backupViewModel: BackupViewModel = hiltViewModel(),
     usageViewModel: UsageViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-    val usage by usageViewModel.usage.collectAsState()
-    val backupState by backupViewModel.state.collectAsState()
-    val emotionSnapshot by viewModel.emotionSnapshot.collectAsState()
-    val daemonThoughtsCount by viewModel.daemonThoughtsCount.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val usage by usageViewModel.usage.collectAsStateWithLifecycle()
+    val backupState by backupViewModel.state.collectAsStateWithLifecycle()
+    val emotionSnapshot by viewModel.emotionSnapshot.collectAsStateWithLifecycle()
+    val daemonThoughtsCount by viewModel.daemonThoughtsCount.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier

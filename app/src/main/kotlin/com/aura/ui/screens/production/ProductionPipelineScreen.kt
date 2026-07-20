@@ -39,6 +39,7 @@ import com.aura.creative.ProductionPipelineEngine
 import com.aura.ui.components.AuraEmptyState
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.viewmodel.ProductionPipelineViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +49,7 @@ fun ProductionPipelineScreen(
     modifier: Modifier = Modifier,
     viewModel: ProductionPipelineViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
     AuraScreenShell(

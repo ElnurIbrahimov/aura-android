@@ -59,6 +59,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 /**
  * Category tag used by [HistoryCard] to pick the right accent colours
  * for the icon container — no colour values live in the model itself.
@@ -86,7 +87,7 @@ data class HistoryCardModel(
 fun ProactiveHistoryScreen(
     viewModel: ProactiveHistoryViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     Scaffold(
@@ -108,7 +109,7 @@ fun ProactiveHistoryScreen(
             )
         },
     ) { padding ->
-        val status by viewModel.status.collectAsState()
+        val status by viewModel.status.collectAsStateWithLifecycle()
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
             androidx.compose.material3.IconButton(onClick = { viewModel.fireCalendarCheck() }) {
                 Icon(

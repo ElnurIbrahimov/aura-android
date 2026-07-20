@@ -108,6 +108,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
 import dagger.hilt.components.SingletonComponent
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
  * MIME types passed to the document picker in the chat composer.
@@ -174,8 +175,8 @@ fun ChatRoute(
         if (!initialDraft.isNullOrBlank()) viewModel.setDraft(initialDraft)
     }
 
-    val state by viewModel.state.collectAsState()
-    val skills by viewModel.skills.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val skills by viewModel.skills.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
     var followLiveEdge by remember { mutableStateOf(true) }
@@ -476,7 +477,7 @@ fun ChatRoute(
 
     // Continuous voice mode — hands-free conversation loop
     if (showContinuousVoice && hasMicPermission) {
-        val cvState by continuousVoiceViewModel.state.collectAsState()
+        val cvState by continuousVoiceViewModel.state.collectAsStateWithLifecycle()
         ContinuousVoiceOverlay(
             state = cvState,
             onStop = {
@@ -542,7 +543,7 @@ private fun ConsumeIncomingShare(context: android.content.Context, viewModel: Ch
     // identical text shared twice while Chat is already visible — are
     // delivered. The previous LaunchedEffect(Unit) ran exactly once and
     // silently ignored any subsequent share intents.
-    val pendingShare by store.pending.collectAsState()
+    val pendingShare by store.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingShare?.seq) {
         val payload = pendingShare ?: return@LaunchedEffect
         // Text share → set as draft

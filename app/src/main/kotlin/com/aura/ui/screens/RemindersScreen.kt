@@ -51,13 +51,14 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun RemindersScreen(
     onBack: () -> Unit = {},
     viewModel: RemindersViewModel = hiltViewModel(),
 ) {
     androidx.activity.compose.BackHandler(onBack = onBack)
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var showHistory by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ReminderEntity?>(null) }

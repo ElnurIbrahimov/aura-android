@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.ui.settings.SettingsViewModel
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 /**
  * Full-screen identity (SOUL.md) editor.
  *
@@ -64,7 +65,7 @@ fun IdentityEditorScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var text by remember(state.identityText) { mutableStateOf(state.identityText) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var showSaveConfirm by remember { mutableStateOf(false) }

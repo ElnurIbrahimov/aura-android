@@ -41,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.voice.SpeechToText
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun VoiceOverlay(
     viewModel: VoiceViewModel = hiltViewModel(),
@@ -48,7 +49,7 @@ fun VoiceOverlay(
     onDismiss: () -> Unit,
     holdToTalk: Boolean = false,
 ) {
-    val state by viewModel.sttState.collectAsState()
+    val state by viewModel.sttState.collectAsStateWithLifecycle()
     val partial = when (val s = state) {
         is SpeechToText.State.PartialResult -> s.text
         is SpeechToText.State.FinalResult -> s.text

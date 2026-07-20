@@ -83,6 +83,7 @@ import com.aura.ui.viewmodel.MemoryViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private val MEMORY_CATEGORIES = listOf("fact", "preference", "episode", "person", "project", "idea", "task")
 
@@ -94,8 +95,8 @@ fun MemoryScreen(
     viewModel: MemoryViewModel = hiltViewModel(),
     documentViewModel: DocumentImportViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-    val documentState by documentViewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val documentState by documentViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editingMemory by remember { mutableStateOf<MemoryEntity?>(null) }
     var showRebuildConfirm by remember { mutableStateOf(false) }

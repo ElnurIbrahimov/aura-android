@@ -87,11 +87,12 @@ import kotlinx.serialization.json.jsonPrimitive
 
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HandsScreen(
     viewModel: HandsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
     var editingHand by remember { mutableStateOf<Hand?>(null) }
     var showNewHand by remember { mutableStateOf(false) }

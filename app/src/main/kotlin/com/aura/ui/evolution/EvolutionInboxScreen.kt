@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.evolution.EvolutionDomain
 import com.aura.evolution.EvolutionProposalEntity
 import com.aura.evolution.ProposalStatus
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun EvolutionInboxScreen(
@@ -43,9 +44,9 @@ fun EvolutionInboxScreen(
     modifier: Modifier = Modifier,
 ) {
     var selectedProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
-    val proposals = viewModel.proposals.collectAsState().value
-    val settings = viewModel.settings.collectAsState().value
-    val showOnboarding = viewModel.showOnboarding.collectAsState().value
+    val proposals = viewModel.proposals.collectAsStateWithLifecycle().value
+    val settings = viewModel.settings.collectAsStateWithLifecycle().value
+    val showOnboarding = viewModel.showOnboarding.collectAsStateWithLifecycle().value
 
     LaunchedEffect(Unit) { viewModel.load() }
 

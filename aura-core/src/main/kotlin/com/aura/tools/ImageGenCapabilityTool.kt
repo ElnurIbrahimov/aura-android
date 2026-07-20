@@ -79,7 +79,7 @@ class ImageGenCapabilityTool @Inject constructor(
                     height = height,
                     negativePrompt = negativePrompt,
                 )
-                val result = kotlinx.coroutines.runBlocking { provider.generate(request) }
+                val result = provider.generate(request)
                 val output = formatResult(result, provider.displayName)
                 ToolResult.Ok(output)
             } catch (e: Exception) {

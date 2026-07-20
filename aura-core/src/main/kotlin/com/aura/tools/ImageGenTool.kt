@@ -8,7 +8,6 @@ import com.aura.providers.ProviderKeys
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -87,7 +86,7 @@ class ImageGenTool @Inject constructor(
      * Order: OpenAI DALL-E 3 → Pollinations.ai (free fallback).
      * If OpenAI fails, automatically falls back to Pollinations.
      */
-    private fun generateImage(prompt: String, size: String): String {
+    private suspend fun generateImage(prompt: String, size: String): String {
         // Prompt enhancement: expand bare prompts ("a cat") into
         // detailed image descriptions with style, lighting, and
         // composition cues. One cheap LLM call, massive quality
@@ -118,9 +117,9 @@ class ImageGenTool @Inject constructor(
     // Response: data[0].url
     // ------------------------------------------------------------------
 
-    private fun generateWithOpenAi(prompt: String, size: String, apiKey: String): String {
+    private suspend fun generateWithOpenAi(prompt: String, size: String, apiKey: String): String {
         val body = buildJsonObject {
-            put("model", runBlocking { userPreferences.imageModel.first() })
+            put("model", userPreferences.imageModel.first())
             put("prompt", prompt)
             put("n", 1)
             put("size", size)
@@ -180,17 +179,15 @@ class ImageGenTool @Inject constructor(
      * with style, lighting, and composition cues. Uses the Brain's
      * stream method with a cheap one-shot call.
      */
-    private fun enhancePrompt(original: String): String {
+    private suspend fun enhancePrompt(original: String): String {
         val b = brain ?: return original
-        val model = runBlocking {
-            runCatching {
-                val reg = providerRegistry ?: return@runBlocking null
-                val providers = reg.configured()
-                val first = providers.firstOrNull()
-                val firstModel = first?.listModels()?.firstOrNull()
-                if (first != null && firstModel != null) "${first.prefix}:$firstModel" else null
-            }.getOrNull()
-        } ?: return original
+        val model = runCatching {
+            val reg = providerRegistry ?: return@runCatching null
+            val providers = reg.configured()
+            val first = providers.firstOrNull()
+            val firstModel = first?.listModels()?.firstOrNull()
+            if (first != null && firstModel != null) "${first.prefix}:$firstModel" else null
+        }.getOrNull() ?: return original
         val messages = listOf(
             com.aura.providers.ProviderMessage(
                 role = com.aura.providers.ProviderMessage.Role.system,
@@ -202,12 +199,10 @@ class ImageGenTool @Inject constructor(
             ),
         )
         val options = com.aura.providers.ChatOptions(temperature = 0.7, maxTokens = 150)
-        return runBlocking {
-            val result = StringBuilder()
-            b.stream(model, messages, options = options).collect { chunk ->
-                if (chunk is com.aura.agent.BrainChunk.Text) result.append(chunk.text)
-            }
-            result.toString().trim().take(500).ifBlank { original }
+        val result = StringBuilder()
+        b.stream(model, messages, options = options).collect { chunk ->
+            if (chunk is com.aura.agent.BrainChunk.Text) result.append(chunk.text)
         }
+        return result.toString().trim().take(500).ifBlank { original }
     }
 }

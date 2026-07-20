@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.AgentEditorViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -44,7 +45,7 @@ fun AgentEditorScreen(
     onDone: () -> Unit,
     viewModel: AgentEditorViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     androidx.compose.runtime.LaunchedEffect(agentId) {
         if (agentId != null) viewModel.loadAgent(agentId)

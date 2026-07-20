@@ -46,6 +46,7 @@ import com.aura.ui.viewmodel.ModelSelectionState
 import dagger.hilt.android.AndroidEntryPoint
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 internal fun buildQuickAskSystemPrompt(prefix: String): String = buildString {
     append(
         "This is a compact Aura session opened from the home-screen widget. " +
@@ -128,7 +129,7 @@ private fun QuickAskContent(
     onOpenFullChat: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var submittedQuery by remember { mutableStateOf<String?>(null) }
     var lastPublishedResponse by remember { mutableStateOf("") }

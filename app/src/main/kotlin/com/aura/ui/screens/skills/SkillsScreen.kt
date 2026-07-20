@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.skills.Skill
 import com.aura.ui.viewmodel.SkillsViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,8 +51,8 @@ fun SkillsScreen(
     onBack: () -> Unit,
     vm: SkillsViewModel = hiltViewModel(),
 ) {
-    val skills by vm.skills.collectAsState()
-    val selectedId by vm.selectedId.collectAsState()
+    val skills by vm.skills.collectAsStateWithLifecycle()
+    val selectedId by vm.selectedId.collectAsStateWithLifecycle()
     val selected = skills.firstOrNull { it.id == selectedId }
 
     var showNew by remember { mutableStateOf(false) }

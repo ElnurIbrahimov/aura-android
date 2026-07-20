@@ -73,6 +73,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
     private val agentStore: AgentStore? = null,
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
+    private val traceSink: com.aura.agent.runtime.TraceSink? = null,
 ) {
 
     /**
@@ -111,6 +112,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          */
         agentId: String? = null,
     ): Flow<AgentEvent> = flow {
+        val runId = "run_${System.currentTimeMillis()}"
+        traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
@@ -153,6 +156,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         while (!finished && step < maxSteps) {
             step += 1
             coroutineContext.ensureActive()
+            traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.STEP_STARTED, stepId = "step_$step")
 
             // 1) Recall relevant memories for the last user message
             lastUserMessage = currentConversation.turns.lastOrNull { it.user != null }?.user ?: ""
@@ -254,6 +258,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     handIds = stepHandIds,
                     noResults = recallHits.isEmpty() && stepHandIds.isEmpty(),
                 )
+                if (recallHits.isNotEmpty()) {
+                    traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.MEMORY_RECALLED, stepId = "step_$step", redactedPayload = "${recallHits.size} memories")
+                }
             }
 
             val memoryContext = if (recallHits.isNotEmpty()) {
@@ -426,6 +433,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                         ?.id
                                     if (nextModel != null) {
                                         val failedModel = currentModel
+                                        traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.PROVIDER_FAILOVER, stepId = "step_$step", redactedPayload = "$failedModel→$nextModel")
                                         emit(
                                             AgentEvent.Warning(
                                                 message = "Provider $failedModel failed (${chunk.code}); using $nextModel for this chat.",
@@ -492,7 +500,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     val name = toolCallStarts[id] ?: return@map null
                     emit(AgentEvent.ToolExecuting(id, name, args))
                     async {
-                        Triple(id, name to args, toolExecutor.execute(name, args, ctx))
+                        traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.TOOL_CALL, stepId = "step_$step", toolName = name)
+                        val result = toolExecutor.execute(name, args, ctx)
+                        traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.TOOL_RESULT, stepId = "step_$step", toolName = name, success = result is ToolResult.Ok)
+                        Triple(id, name to args, result)
                     }
                 }.filterNotNull().awaitAll()
             }
@@ -585,6 +596,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
 
         if (!finished) {
             emit(AgentEvent.Error("max_steps_exceeded", "Hit max steps ($maxSteps) without finishing.", retryable = false))
+            traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_FAILED, errorCode = "max_steps_exceeded")
+        } else {
+            traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED)
         }
         // Persist the recall summary on the conversation's last
         // turn so the chat UI can render the chip on history

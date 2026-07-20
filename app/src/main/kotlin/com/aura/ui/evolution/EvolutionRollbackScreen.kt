@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun EvolutionRollbackScreen(
@@ -31,7 +32,7 @@ fun EvolutionRollbackScreen(
     onBack: () -> Unit,
     viewModel: EvolutionInboxViewModel = hiltViewModel(),
 ) {
-    val proposals by viewModel.proposals.collectAsState()
+    val proposals by viewModel.proposals.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.load() }

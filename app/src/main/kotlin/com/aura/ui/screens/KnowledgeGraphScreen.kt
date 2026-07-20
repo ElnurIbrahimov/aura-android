@@ -64,6 +64,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 private val graphJson = Json { prettyPrint = true }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +74,7 @@ fun KnowledgeGraphScreen(
     onOpenSourceConversation: (String, Long) -> Unit = { _, _ -> },
     viewModel: KnowledgeGraphViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<KgNode?>(null) }
     var deleting by remember { mutableStateOf<KgNode?>(null) }
     var merging by remember { mutableStateOf<KgNode?>(null) }

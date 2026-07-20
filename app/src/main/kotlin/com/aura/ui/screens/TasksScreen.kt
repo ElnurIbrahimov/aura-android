@@ -76,9 +76,10 @@ import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }

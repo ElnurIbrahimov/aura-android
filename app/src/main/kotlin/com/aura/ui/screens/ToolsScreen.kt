@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 /**
  * Tools browser — lists every tool the agent can invoke, grouped
  * by category. Lets the user see what Aura can actually do without
@@ -53,7 +54,7 @@ import com.aura.ui.theme.AuraThemeTokens
 fun ToolsScreen(
     viewModel: ToolsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier

@@ -52,6 +52,7 @@ import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.CreativeStudioViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +61,7 @@ fun CreativeProjectScreen(
     onBack: () -> Unit,
     viewModel: CreativeStudioViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val project = state.selectedProject
     var selectedTab by remember { mutableIntStateOf(0) }
     var showEdit by remember { mutableStateOf(false) }

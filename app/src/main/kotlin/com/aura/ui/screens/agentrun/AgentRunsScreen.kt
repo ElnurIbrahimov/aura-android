@@ -41,6 +41,7 @@ import com.aura.ui.viewmodel.AgentRunsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +50,7 @@ fun AgentRunsScreen(
     onBack: () -> Unit,
     viewModel: AgentRunsViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(runId) {
         runId?.let { viewModel.selectRun(it) } ?: viewModel.clearSelection()

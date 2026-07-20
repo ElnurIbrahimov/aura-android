@@ -9,6 +9,7 @@ import com.aura.ui.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun HomeRoute(
@@ -27,7 +28,7 @@ fun HomeRoute(
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val greeting = remember(state.hour, state.userName) {
         val salutation = when (state.hour) {
             in 5..11 -> "Good morning"
