@@ -106,6 +106,7 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.ttsEnabled } returns flowOf(true)
         every { userPreferences.incognitoDefault } returns flowOf(false)
         every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.daemonEnabled } returns flowOf(false)
         every { userPreferences.mcpServersJson } returns flowOf("")
         coEvery { identityStore.readCurrent() } returns ""
         coEvery { identityStore.hasOverride() } returns false

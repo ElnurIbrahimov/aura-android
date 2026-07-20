@@ -156,6 +156,7 @@ data class SettingsUiState(
     val ttsEnabled: Boolean = true,
     val incognitoDefault: Boolean = false,
     val imageModel: String = "",
+    val daemonEnabled: Boolean = false,
     /** Distinct from credentialStates["custom"]: the URL/key are stored
      *  outside ProviderKeys, so this is a separate UI state. */
 )
@@ -273,6 +274,7 @@ class SettingsViewModel @Inject constructor(
             val ttsEnabled = userPreferences.ttsEnabled.first()
             val incognitoDefault = userPreferences.incognitoDefault.first()
             val imageModel = userPreferences.imageModel.first()
+            val daemonEnabled = userPreferences.daemonEnabled.first()
             val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
@@ -316,6 +318,7 @@ class SettingsViewModel @Inject constructor(
                 ttsEnabled = ttsEnabled,
                 incognitoDefault = incognitoDefault,
                 imageModel = imageModel,
+                daemonEnabled = daemonEnabled,
             )
         }
     }
@@ -470,6 +473,21 @@ class SettingsViewModel @Inject constructor(
             _state.update { it.copy(imageModel = model) }
         }
     }
+
+    fun setDaemonEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setDaemonEnabled(enabled)
+            _state.update { it.copy(daemonEnabled = enabled) }
+        }
+    }
+
+    /** Emotion snapshot for the Emotion & Daemon settings section. */
+    val emotionSnapshot: kotlinx.coroutines.flow.StateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?> =
+        MutableStateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?>(null)
+
+    /** Count of daemon-produced proactive events for the Emotion & Daemon settings section. */
+    val daemonThoughtsCount: kotlinx.coroutines.flow.StateFlow<Int> =
+        MutableStateFlow(0)
 
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
