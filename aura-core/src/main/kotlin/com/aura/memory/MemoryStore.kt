@@ -17,6 +17,7 @@ class MemoryStore @Inject constructor(
     private val writeGate: WriteGate,
     private val memoryEditDao: MemoryEditDao,
     private val memoryFeedbackDao: MemoryFeedbackDao,
+    private val reranker: MemoryReranker? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val exactInsertMutex = Mutex()
@@ -144,6 +145,7 @@ class MemoryStore @Inject constructor(
         text: String,
         limit: Int = 5,
         scopeFilter: Set<String>? = null,
+        rerankModel: String? = null,
     ): List<MemoryEntity> {
         // RRF fusion: text match + vector similarity + recency + access + decay + importance.
         // See [Retrieval.rankCandidates] for the RRF scoring details.
@@ -199,13 +201,29 @@ class MemoryStore @Inject constructor(
             ScoredMemory(memory = mem, textScore = textScore, vectorScore = vectorScore)
         }
 
-        val results = Retrieval.rankCandidates(
+        // RRF ranking: overfetch to RERANK_POOL_SIZE, then let the
+        // reranker (if available) pick the final topK from the pool.
+        // Without a reranker, RRF returns topK directly.
+        val rrfTopN = if (reranker != null) minOf(RERANK_POOL_SIZE, scoredCandidates.size) else limit
+        val rrfResults = Retrieval.rankCandidates(
             query = text,
             queryEmbedding = qVec,
             candidates = scoredCandidates,
-            topK = limit,
+            topK = rrfTopN,
             now = System.currentTimeMillis(),
         )
+
+        // Cross-encoder reranking: if a reranker is configured, score
+        // each RRF result against the query with a small LLM and
+        // reorder by actual semantic relevance. This is the single
+        // biggest quality leap for recall — it catches "that thing
+        // we discussed" -> "the database migration strategy from
+        // Tuesday" where BM25 and vector search both produce 0.
+        val results = if (reranker != null && rrfResults.size > 1 && rerankModel != null) {
+            reranker.rerank(text, rrfResults, rerankModel, topK = limit)
+        } else {
+            rrfResults.take(limit)
+        }
 
         // Touch is fire-and-forget; we don't want a failed decay update to break recall.
         for ((index, mem) in results.withIndex()) {
@@ -217,8 +235,13 @@ class MemoryStore @Inject constructor(
         return results
     }
 
+    companion object {
+        /** How many candidates RRF overfetches for the reranker pool. */
+        const val RERANK_POOL_SIZE = 20
+    }
+
     /**
-     * List memories filtered by category. Unlike [query] this is a direct
+     * List memories filtered by category.
      * Room filter (no embedding or text matching) and does NOT touch the
      * returned memories — category browsing is metadata, not a recall.
      */

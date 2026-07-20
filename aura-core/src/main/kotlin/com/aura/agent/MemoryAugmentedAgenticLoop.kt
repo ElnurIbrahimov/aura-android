@@ -190,7 +190,22 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         } else {
                             setOf("general")
                         }
-                        val hits = memoryStore.query(lastUserMessage, recallLimit, scopeFilter = scopes)
+                        // Resolve a small model for reranking. Uses the
+                        // first configured provider's first model —
+                        // reranking is a yes/no judgment, not a
+                        // generation task, so a small fast model is
+                        // ideal.
+                        val rerankModel = runCatching {
+                            val providers = providerRegistry.configured()
+                            val firstProvider = providers.firstOrNull()
+                            val firstModel = firstProvider?.listModels()?.firstOrNull()
+                            if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
+                        }.getOrNull()
+                        val hits = memoryStore.query(
+                            lastUserMessage, recallLimit,
+                            scopeFilter = scopes,
+                            rerankModel = rerankModel,
+                        )
                         cachedRecall = Triple(lastUserMessage, agentId, hits)
                         hits
                     }
