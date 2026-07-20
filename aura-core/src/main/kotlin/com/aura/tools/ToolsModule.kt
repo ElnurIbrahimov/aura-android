@@ -76,6 +76,7 @@ object ToolsModule {
         rollbackEvolution: RollbackEvolutionTool,
         triggerEvolution: TriggerEvolutionRunTool,
         delegateToAgent: DelegateToAgentTool,
+        runCouncil: RunCouncilTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
         registry.register(webSearch.tool)
@@ -140,6 +141,7 @@ object ToolsModule {
         registry.register(rollbackEvolution.tool)
         registry.register(triggerEvolution.tool)
         registry.register(delegateToAgent.tool)
+        registry.register(runCouncil.tool)
         return registry
     }
 }
