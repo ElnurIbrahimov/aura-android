@@ -1,5 +1,6 @@
 package com.aura.backup
 
+import com.aura.agent.AgentEntity
 import com.aura.usage.UsageSnapshot
 import kotlinx.serialization.Serializable
 
@@ -44,11 +45,64 @@ data class AuraBackup(
     val evolutionProposals: List<EvolutionProposalBackup> = emptyList(),
     val evolutionSettings: List<EvolutionSettingsBackup> = emptyList(),
     val evolutionRevisions: List<EvolutionRevisionBackup> = emptyList(),
+    val agents: List<AgentBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 8
+        const val SCHEMA_VERSION = 9
     }
 }
+
+@Serializable
+data class AgentBackup(
+    val id: String,
+    val name: String,
+    val icon: String,
+    val description: String,
+    val identity: String,
+    val toolsAllowed: String,
+    val preferredModel: String? = null,
+    val memoryScope: String = "shared",
+    val personalityJson: String = "{}",
+    val isBuiltin: Boolean = false,
+    val isDefault: Boolean = false,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val color: Int = 0,
+)
+
+fun AgentEntity.toBackup() = AgentBackup(
+    id = id,
+    name = name,
+    icon = icon,
+    description = description,
+    identity = identity,
+    toolsAllowed = toolsAllowed,
+    preferredModel = preferredModel,
+    memoryScope = memoryScope,
+    personalityJson = personalityJson,
+    isBuiltin = isBuiltin,
+    isDefault = isDefault,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    color = color,
+)
+
+fun AgentBackup.toEntity() = AgentEntity(
+    id = id,
+    name = name,
+    icon = icon,
+    description = description,
+    identity = identity,
+    toolsAllowed = toolsAllowed,
+    preferredModel = preferredModel,
+    memoryScope = memoryScope,
+    personalityJson = personalityJson,
+    isBuiltin = isBuiltin,
+    isDefault = isDefault,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    color = color,
+)
 
 @Serializable
 data class MemoryBackup(

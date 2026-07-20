@@ -3,6 +3,8 @@ package com.aura.backup
 import android.content.Context
 import com.aura.agent.ConversationDao
 import com.aura.agent.ConversationEntity
+import com.aura.agent.AgentDao
+import com.aura.agent.AgentEntity
 import com.aura.data.UserPreferences
 import com.aura.creative.CreativeProjectDao
 import com.aura.creative.CreativeProjectEntity
@@ -83,6 +85,7 @@ class BackupManager @Inject constructor(
     private val evolutionProposalDao: com.aura.evolution.EvolutionProposalDao,
     private val evolutionSettingsDao: com.aura.evolution.EvolutionSettingsDao,
     private val evolutionRevisionDao: com.aura.evolution.EvolutionRevisionDao,
+    private val agentDao: AgentDao,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -192,6 +195,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
             ),
             usage = usageTracker.snapshot.value,
+            agents = agentDao.allOnce().map { it.toBackup() },
         )
     }
 
@@ -243,6 +247,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val reminderRows = backup.reminders.map { it.toEntity() }
         val proactiveRows = backup.proactiveEvents.map { it.toEntity() }
         val profileRow = backup.userProfile?.toEntity()
+        val agentRows = backup.agents.map { it.toEntity() }
 
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -307,6 +312,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         userPreferences.setEvolutionOnboardingShown(backup.preferences.evolutionOnboardingShown)
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
+        // Restore custom agents. Builtins are re-seeded on startup
+        // so we only insert non-builtin entries from the backup.
+        val customAgents = agentRows.filter { !it.isBuiltin }
+        if (customAgents.isNotEmpty()) agentDao.insertAll(customAgents)
 
         RestoreCounts(
             memories = memRows.size,
@@ -325,6 +334,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             evolutionProposals = backup.evolutionProposals.size,
             evolutionSettings = backup.evolutionSettings.size,
             evolutionRevisions = backup.evolutionRevisions.size,
+            agents = agentRows.size,
         )
     }
 
@@ -393,6 +403,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         evolutionProposalDao.deleteAll()
         evolutionRevisionDao.deleteAll()
         evolutionSettingsDao.deleteAll()
+        agentDao.deleteAllCustom()
         userProfileDao.deleteAll()
     }
 
@@ -425,8 +436,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val evolutionProposals: Int = 0,
         val evolutionSettings: Int = 0,
         val evolutionRevisions: Int = 0,
+        val agents: Int = 0,
     ) {
-        val total: Int get() = memories + memoryEdits + documents + creativeProjects + conversations + nodes + edges + hands + handRuns + tasks + reminders + proactiveEvents + profile + evolutionProposals + evolutionSettings + evolutionRevisions
+        val total: Int get() = memories + memoryEdits + documents + creativeProjects + conversations + nodes + edges + hands + handRuns + tasks + reminders + proactiveEvents + profile + evolutionProposals + evolutionSettings + evolutionRevisions + agents
     }
 }
 

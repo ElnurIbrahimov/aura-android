@@ -40,6 +40,7 @@ class BackupManagerTest {
     private val evolutionProposalDao = mockk<com.aura.evolution.EvolutionProposalDao>(relaxed = true)
     private val evolutionSettingsDao = mockk<com.aura.evolution.EvolutionSettingsDao>(relaxed = true)
     private val evolutionRevisionDao = mockk<com.aura.evolution.EvolutionRevisionDao>(relaxed = true)
+    private val agentDao = mockk<com.aura.agent.AgentDao>(relaxed = true)
 
     private val manager = BackupManager(
         context = context,
@@ -62,6 +63,7 @@ class BackupManagerTest {
         evolutionProposalDao = evolutionProposalDao,
         evolutionSettingsDao = evolutionSettingsDao,
         evolutionRevisionDao = evolutionRevisionDao,
+        agentDao = agentDao,
     )
 
     @Test
@@ -81,6 +83,7 @@ class BackupManagerTest {
         coEvery { reminderDao.allForBackup() } returns emptyList()
         coEvery { proactiveEventDao.allForBackup() } returns emptyList()
         coEvery { userProfileDao.get() } returns null
+        coEvery { agentDao.allOnce() } returns emptyList()
         every { userPreferences.defaultModel } returns flowOf("ollama:deepseek-v4-pro:cloud")
         every { userPreferences.firstRunComplete } returns flowOf(true)
         every { userPreferences.appLockEnabled } returns flowOf(false)
