@@ -102,6 +102,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          * [ToolExecutor] lets them through without re-prompting.
          */
         approvedRemoteCostTools: Set<String> = emptySet(),
+        /**
+         * Agent ID for per-agent memory scoping. When set, recall
+         * filters to the agent's private scope + shared ("general").
+         * When null, defaults to "general" only (current behavior).
+         */
+        agentId: String? = null,
     ): Flow<AgentEvent> = flow {
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
@@ -163,7 +169,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // field.
             val recallHits: List<com.aura.memory.MemoryEntity> =
                 if (memoryEnabled && lastUserMessage.isNotBlank()) {
-                    memoryStore.query(lastUserMessage, recallLimit)
+                    val scopes = if (agentId != null) {
+                        setOf("general", "agent:$agentId")
+                    } else {
+                        setOf("general")
+                    }
+                    memoryStore.query(lastUserMessage, recallLimit, scopeFilter = scopes)
                 } else emptyList()
             val stepHandIds: List<String> = handTrigger?.let { listOf(it.id) } ?: emptyList()
             if (memoryEnabled) {
@@ -425,12 +436,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 )
                 val decision = gate.evaluate(lastUserMessage, "user")
                 if (decision.shouldStore) {
+                    val storeScope = if (agentId != null) "agent:$agentId" else "general"
                     memoryStore.store(
                         content = lastUserMessage,
                         source = "user",
                         category = decision.category,
                         importance = decision.importance,
                         provenance = provenance,
+                        scope = storeScope,
                     )
                 }
             }

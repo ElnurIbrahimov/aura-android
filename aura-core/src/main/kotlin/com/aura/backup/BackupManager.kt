@@ -535,6 +535,7 @@ private fun ConversationEntity.toBackup() = ConversationBackup(
     turnsJson = turnsJson,
     contextSummary = contextSummary,
     summaryThroughTurn = summaryThroughTurn,
+    agentId = agentId,
 )
 
 private fun ConversationBackup.toEntity() = ConversationEntity(
@@ -548,6 +549,7 @@ private fun ConversationBackup.toEntity() = ConversationEntity(
     turnsJson = turnsJson,
     contextSummary = contextSummary,
     summaryThroughTurn = summaryThroughTurn,
+    agentId = agentId,
 )
 
 private fun NodeEntity.toBackup() = NodeBackup(

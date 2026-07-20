@@ -172,6 +172,7 @@ data class ConversationBackup(
     val turnsJson: String,
     val contextSummary: String = "",
     val summaryThroughTurn: Int = 0,
+    val agentId: String? = null,
 )
 
 @Serializable

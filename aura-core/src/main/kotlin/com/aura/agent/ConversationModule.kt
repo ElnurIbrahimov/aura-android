@@ -44,6 +44,13 @@ object ConversationModule {
         }
     }
 
+    /** Agent tagging: associates each conversation with an agent. Null = General. */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT DEFAULT NULL")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ConversationDatabase =
@@ -51,7 +58,7 @@ object ConversationModule {
             context,
             ConversationDatabase::class.java,
             "aura-conversations.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5),
         ).build()
 
     @Provides

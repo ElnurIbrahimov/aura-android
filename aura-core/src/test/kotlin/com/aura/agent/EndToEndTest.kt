@@ -98,7 +98,7 @@ class EndToEndTest {
     fun `user asks what model preferences are - recall returns prior memories`() = runTest {
         // Pre-populate memory store with a remembered preference
         val memoryStore = mockk<MemoryStore>()
-        coEvery { memoryStore.query(any(), any()) } returns listOf(
+        coEvery { memoryStore.query(any(), any(), any()) } returns listOf(
             MemoryEntity(
                 id = "m1",
                 content = "user prefers dark mode",

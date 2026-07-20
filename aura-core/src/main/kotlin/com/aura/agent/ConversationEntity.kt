@@ -27,6 +27,8 @@ data class ConversationEntity(
     /** Durable compression of turns before [summaryThroughTurn]. */
     val contextSummary: String = "",
     val summaryThroughTurn: Int = 0,
+    /** Agent associated with this conversation. Null = General/default. */
+    val agentId: String? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

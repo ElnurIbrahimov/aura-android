@@ -140,7 +140,11 @@ class MemoryStore @Inject constructor(
         return id
     }
 
-    suspend fun query(text: String, limit: Int = 5): List<MemoryEntity> {
+    suspend fun query(
+        text: String,
+        limit: Int = 5,
+        scopeFilter: Set<String>? = null,
+    ): List<MemoryEntity> {
         // RRF fusion: text match + vector similarity + recency + access + decay + importance.
         // See [Retrieval.rankCandidates] for the RRF scoring details.
         // On hit, call [touch] to bump accessedAt + accessCount + decayScore. This
@@ -148,24 +152,21 @@ class MemoryStore @Inject constructor(
         // slower. Without it, every memory decays at the same rate regardless of
         // how useful it actually is to the model.
         val escapedText = escapeLikeWildcards(text)
-        val textHits = dao.searchByText("%$escapedText%", limit * 3)
+        val scopes = scopeFilter?.toList() ?: listOf("general")
+        val textHits = dao.byScopes(scopes, limit * 3).filter {
+            it.content.contains(text, ignoreCase = true) ||
+            it.tags.contains(text, ignoreCase = true)
+        }
         val qVec = embedder.embed(text)
 
         if (textHits.isEmpty()) {
             // Vector fallback: no text overlap between query and any stored
-            // memory. But the query might still be semantically similar to
-            // a memory (e.g. query "programming languages I enjoy" vs stored
-            // "I love Kotlin" — zero shared words, but vectors are close).
-            // Scan all memories with embeddings and rank by cosine similarity.
-            //
-            // Uses `allWithEmbeddings()` rather than `allForExport()` —
-            // the dedicated DAO query skips rows whose embedding column is
-            // null at the SQL level, so we don't load every legacy row
-            // (which has no embedding) just to filter in Kotlin. For a
-            // personal-use install with thousands of memories, this is the
-            // difference between "fast" and "a noticeable pause on first
-            // miss" when a query has no shared words.
-            val all = dao.allWithEmbeddings()
+            // memory in the scoped set. But the query might still be
+            // semantically similar to a memory (e.g. query "programming
+            // languages I enjoy" vs stored "I love Kotlin" — zero shared
+            // words, but vectors are close). Scan all scoped memories with
+            // embeddings and rank by cosine similarity.
+            val all = dao.allByScopes(scopes).filter { it.embedding != null }
             if (all.isEmpty()) return emptyList()
             val scored = all.map { mem ->
                 val embedding = Embedder.fromBytes(mem.embedding!!)
