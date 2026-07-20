@@ -190,9 +190,19 @@ class ChatSendController(
                         if (customTools != null && customTools.isNotEmpty()) withPrompt.copy(toolsAllowed = customTools) else withPrompt
                     } catch (e: Exception) { s }
                 }
+                // Deep research and complex multi-tool tasks need more steps
+                // than the default 10. The Researcher specialist is allowed
+                // more steps because deep_research performs multiple
+                // search→fetch→gap-detect→search cycles.
+                val maxSteps = when (resolvedSpecialist?.name) {
+                    "researcher" -> 20
+                    "general" -> 15
+                    else -> 10
+                }
                 loop.run(
                     conversation = conversation,
                     model = model,
+                    maxSteps = maxSteps,
                     specialist = resolvedSpecialist,
                     memoryEnabled = !state.value.incognitoMode,
                     approvedRemoteCostTools = state.value.approvedRemoteCostTools,

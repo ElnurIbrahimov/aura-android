@@ -334,6 +334,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // selection accuracy across all tasks. Falls back silently on error.
                 val plan = if (step == 1) {
                     runCatching {
+                        // Use a cheap model for planning — this is a 150-token
+                        // outline, not a generation task. If the user selected
+                        // MoA (3-model virtual provider), the planning step
+                        // would fire 3 API calls for a 2-sentence plan.
+                        val planModel = resolveCheapModel(effectiveModel)
                         val planMessages = listOf(
                             ProviderMessage(
                                 role = Role.system,
@@ -343,7 +348,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         )
                         val planBuilder = StringBuilder()
                         brain.stream(
-                            effectiveModel, planMessages,
+                            planModel, planMessages,
                             options = ChatOptions(temperature = 0.0, maxTokens = 150),
                         ).collect { chunk ->
                             if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
@@ -607,6 +612,22 @@ private suspend fun extractProfileFromText(text: String) {
         Regex("""(?:i (?:prefer|like|love))\s+(.+?)(?:\.|,|\s+(?:and|but|so|because)|\s*$)""", RegexOption.IGNORE_CASE)
             .find(text)?.groupValues?.getOrNull(1)?.let { pref -> facts.add("Prefers ${pref.trim()}") }
         if (facts.isNotEmpty()) userProfileStore.mergeFacts(facts)
+    }
+
+    /**
+     * Resolve a cheap model for auxiliary tasks (planning, compaction,
+     * write gate). If the user's model is MoA (3-model virtual provider),
+     * fall back to the first configured non-MoA provider's first model.
+     * This prevents a 150-token planning step from costing 3 API calls.
+     */
+    private suspend fun resolveCheapModel(userModel: kotlin.String): kotlin.String {
+        if (!userModel.startsWith("moa:")) return userModel
+        return runCatching {
+            val providers = providerRegistry.configured()
+            val firstProvider = providers.firstOrNull()
+            val firstModel = firstProvider?.listModels()?.firstOrNull()
+            if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else userModel
+        }.getOrDefault(userModel)
     }
 
     /**

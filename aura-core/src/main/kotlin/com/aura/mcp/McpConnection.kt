@@ -41,6 +41,13 @@ internal class McpConnection(
 
     fun isConnected(): kotlin.Boolean = _health.state == McpConnectionState.CONNECTED
 
+    companion object {
+        /** Timeout for the initialize handshake. */
+        private const val INIT_TIMEOUT_MS = 15_000L
+        /** Max response body size for initialize/listTools/listResources. */
+        private const val MAX_META_RESPONSE_BYTES = 2_000_000 // 2 MB
+    }
+
     suspend fun initialize(): McpServerHealth = withContext(Dispatchers.IO) {
         try {
             val request = buildJsonRpcRequest("initialize", buildJsonObject {
@@ -51,7 +58,9 @@ internal class McpConnection(
                     put("version", "0.16.0")
                 })
             })
-            val response = sendRequest(request)
+            val response = withTimeoutOrNull(INIT_TIMEOUT_MS) {
+                sendRequest(request)
+            }
             if (response != null) {
                 _health = _health.copy(
                     state = McpConnectionState.CONNECTED,
@@ -61,7 +70,7 @@ internal class McpConnection(
             } else {
                 _health = _health.copy(
                     state = McpConnectionState.ERROR,
-                    lastError = "Initialize failed: no response",
+                    lastError = "Initialize timed out after ${INIT_TIMEOUT_MS / 1000}s",
                 )
             }
         } catch (e: Exception) {
@@ -93,6 +102,7 @@ internal class McpConnection(
             _health = _health.copy(toolCount = tools.size)
             tools
         } catch (e: Exception) {
+            android.util.Log.w("McpConnection", "listTools failed for ${config.name}: ${e.message}")
             emptyList()
         }
     }
@@ -115,6 +125,7 @@ internal class McpConnection(
                 )
             }
         } catch (e: Exception) {
+            android.util.Log.w("McpConnection", "listResources failed for ${config.name}: ${e.message}")
             emptyList()
         }
     }
@@ -194,9 +205,16 @@ internal class McpConnection(
             httpClient.newCall(builder.build()).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val raw = response.body?.string() ?: return null
+                // Enforce max response size on metadata calls (initialize/listTools)
+                // to prevent OOM from a malicious server returning huge JSON.
+                if (raw.length > MAX_META_RESPONSE_BYTES) {
+                    android.util.Log.w("McpConnection", "Response from ${config.name} exceeded ${MAX_META_RESPONSE_BYTES} bytes, truncating")
+                    return null
+                }
                 json.parseToJsonElement(raw) as? JsonObject
             }
         } catch (e: Exception) {
+            android.util.Log.w("McpConnection", "sendRequest failed for ${config.name}: ${e.message}")
             null
         }
     }

@@ -82,7 +82,10 @@ class AgentCouncil @Inject constructor(
 
         // Phase 1: producers run in parallel as subagents.
         // Each producer gets the same task + context and runs independently.
-        val perAgentBudget = budgetMs / (producers.size + 1)
+        // Budget is split asymmetrically: 70% for producers (shared equally),
+        // 30% for the director who needs time to synthesize all proposals.
+        val producerBudget = (budgetMs * 0.7).toLong() / producers.size
+        val directorBudget = (budgetMs * 0.3).toLong()
         val results = subagentManager.spawnAll(
             producers.map { agent ->
                 subagentManager.createTask(
@@ -91,7 +94,7 @@ class AgentCouncil @Inject constructor(
                         objective = "$task${if (context.isNotBlank()) "\n\nContext: $context" else ""}",
                         modelRole = "CONVERSATION",
                         toolAllowlist = agent.toolSet().toList(),
-                        budgetMs = perAgentBudget,
+                        budgetMs = producerBudget,
                         maxToolCalls = 5,
                     ),
                     parentRunId = "council",
@@ -99,7 +102,7 @@ class AgentCouncil @Inject constructor(
             },
         ) { task ->
             val agent = producers.find { it.name == task.spec.role } ?: producers.first()
-            runAgent(agent, task.spec.objective, context, perAgentBudget)
+            runAgent(agent, task.spec.objective, context, producerBudget)
         }
 
         val proposals = results
@@ -111,7 +114,7 @@ class AgentCouncil @Inject constructor(
         }.joinToString("\n\n---\n\n")
 
         val directorTask = "Synthesize the best elements from all agent proposals into a final answer. Task: $task\n\nProposals:\n$proposalText"
-        val directorResult = runAgent(director, directorTask, "", budgetMs / 3)
+        val directorResult = runAgent(director, directorTask, "", directorBudget)
 
         CouncilResult(
             directorOutput = directorResult.output.ifBlank { "Council produced no output." },

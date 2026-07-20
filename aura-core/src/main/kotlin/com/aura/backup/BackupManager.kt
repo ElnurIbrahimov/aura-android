@@ -86,6 +86,15 @@ class BackupManager @Inject constructor(
     private val evolutionSettingsDao: com.aura.evolution.EvolutionSettingsDao,
     private val evolutionRevisionDao: com.aura.evolution.EvolutionRevisionDao,
     private val agentDao: AgentDao,
+    // Schema v10 DAOs — world model, creative artifacts, taste.
+    private val beliefDao: com.aura.world.BeliefDao? = null,
+    private val evidenceDao: com.aura.world.EvidenceDao? = null,
+    private val worldEventDao: com.aura.world.WorldEventDao? = null,
+    private val opportunityDao: com.aura.world.OpportunityDao? = null,
+    private val creativeArtifactDao: com.aura.creative.CreativeArtifactDao? = null,
+    private val canonFactDao: com.aura.creative.CanonFactDao? = null,
+    private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
+    private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -196,6 +205,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             ),
             usage = usageTracker.snapshot.value,
             agents = agentDao.allOnce().map { it.toBackup() },
+            // Schema v10: world model, creative artifacts, taste.
+            beliefs = beliefDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            evidence = evidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            worldEvents = worldEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            opportunities = opportunityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            creativeArtifacts = creativeArtifactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            canonFacts = canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
         )
     }
 
@@ -742,4 +760,61 @@ private fun EvolutionRevisionBackup.toEntity() = com.aura.evolution.EvolutionRev
     snapshotCiphertext = snapshotCiphertext,
     metadataJson = metadataJson,
     createdAt = createdAt,
+)
+
+// ── Schema v10: World model mappers ──
+
+private fun com.aura.world.BeliefEntity.toBackup() = BeliefBackup(
+    id = id, subject = subject, predicate = predicate, valueJson = valueJson,
+    confidence = confidence, validFrom = validFrom, validTo = validTo,
+    status = status, supersededBy = supersededBy, privacyClass = privacyClass,
+    createdAt = createdAt, updatedAt = updatedAt, lastVerifiedAt = lastVerifiedAt,
+)
+
+private fun com.aura.world.EvidenceEntity.toBackup() = EvidenceBackup(
+    id = id, beliefId = beliefId, source = source, summary = summary,
+    detailJson = detailJson, timestamp = timestamp, confidence = confidence,
+)
+
+private fun com.aura.world.WorldEventEntity.toBackup() = WorldEventBackup(
+    id = id, eventType = eventType, source = source, summary = summary,
+    payloadJson = payloadJson, timestamp = timestamp, consumed = consumed,
+)
+
+private fun com.aura.world.OpportunityEntity.toBackup() = OpportunityBackup(
+    id = id, title = title, description = description, kind = kind,
+    benefit = benefit, urgency = urgency, confidence = confidence,
+    costEstimateJson = costEstimateJson, evidenceJson = evidenceJson,
+    suggestedActionJson = suggestedActionJson, status = status,
+    createdAt = createdAt, resolvedAt = resolvedAt, snoozeUntil = snoozeUntil,
+)
+
+// ── Schema v10: Creative artifact mappers ──
+
+private fun com.aura.creative.CreativeArtifactEntity.toBackup() = CreativeArtifactBackup(
+    id = id, projectId = projectId, branchId = branchId, kind = kind,
+    title = title, currentRevisionId = currentRevisionId, previewText = previewText,
+    mimeType = mimeType, storageUri = storageUri, contentHash = contentHash,
+    status = status, metadataJson = metadataJson, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+private fun com.aura.creative.CanonFactEntity.toBackup() = CanonFactBackup(
+    id = id, projectId = projectId, branchId = branchId, subjectType = subjectType,
+    subjectId = subjectId, predicate = predicate, valueJson = valueJson,
+    validFrom = validFrom, validTo = validTo, confidence = confidence,
+    sourceRevisionId = sourceRevisionId, status = status,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+// ── Schema v10: Taste mappers ──
+
+private fun com.aura.taste.PreferenceSignalEntity.toBackup() = PreferenceSignalBackup(
+    id = id, projectId = projectId, signalType = signalType, category = category,
+    artifactId = artifactId, attributesJson = attributesJson,
+    weight = weight, createdAt = createdAt,
+)
+
+private fun com.aura.taste.StyleProfileEntity.toBackup() = StyleProfileBackup(
+    id = id, projectId = projectId, attributesJson = attributesJson,
+    signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
 )

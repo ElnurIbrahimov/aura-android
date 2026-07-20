@@ -41,7 +41,16 @@ class EvolutionCoordinator @Inject constructor(
     private suspend fun reflectAndPromote(candidates: List<EvolutionCandidateEntity>): Int {
         val settingsByDomain = settingsDao.all().associateBy { it.domain }
         var promoted = 0
-        for (candidate in candidates.filter { it.status == CandidateStatus.PENDING.name }) {
+        // Cap the number of LLM reflection calls per run to prevent
+        // unbounded cost when many candidates accumulate. Each reflection
+        // is one LLM call on the user's configured EVOLUTION model.
+        val pending = candidates.filter { it.status == CandidateStatus.PENDING.name }
+            .take(MAX_REFLECTIONS_PER_RUN)
+        if (pending.size < candidates.count { it.status == CandidateStatus.PENDING.name }) {
+            android.util.Log.i("EvolutionCoordinator",
+                "Capping reflection at $MAX_REFLECTIONS_PER_RUN of ${candidates.count { it.status == CandidateStatus.PENDING.name }} pending candidates")
+        }
+        for (candidate in pending) {
             val settings = settingsByDomain[candidate.domain]
                 ?: EvolutionSettingsEntity(domain = candidate.domain)
             if (!settings.reflectionEnabled) continue
@@ -105,5 +114,8 @@ reason: one sentence
     private companion object {
         const val REFLECTION_SCORE_THRESHOLD = 0.7f
         const val REFLECTION_SYSTEM_PROMPT = "You review candidate self-improvement proposals for a personal AI assistant. Be conservative; reject anything vague, risky, or unsupported."
+        // Maximum LLM reflection calls per evolution run. Prevents cost
+        // explosion when many candidates accumulate between runs.
+        const val MAX_REFLECTIONS_PER_RUN = 10
     }
 }

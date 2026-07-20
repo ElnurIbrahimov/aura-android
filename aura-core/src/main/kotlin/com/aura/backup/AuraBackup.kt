@@ -46,9 +46,20 @@ data class AuraBackup(
     val evolutionSettings: List<EvolutionSettingsBackup> = emptyList(),
     val evolutionRevisions: List<EvolutionRevisionBackup> = emptyList(),
     val agents: List<AgentBackup> = emptyList(),
+    // Schema v10: world model + creative artifacts + taste.
+    val beliefs: List<BeliefBackup> = emptyList(),
+    val evidence: List<EvidenceBackup> = emptyList(),
+    val worldEvents: List<WorldEventBackup> = emptyList(),
+    val opportunities: List<OpportunityBackup> = emptyList(),
+    val creativeArtifacts: List<CreativeArtifactBackup> = emptyList(),
+    val creativeRevisions: List<CreativeRevisionBackup> = emptyList(),
+    val creativeBranches: List<CreativeBranchBackup> = emptyList(),
+    val canonFacts: List<CanonFactBackup> = emptyList(),
+    val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
+    val styleProfiles: List<StyleProfileBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 9
+        const val SCHEMA_VERSION = 10
     }
 }
 
@@ -364,5 +375,146 @@ data class EvolutionRevisionBackup(
     val snapshotCiphertext: String = "",
     val metadataJson: String = "{}",
     val createdAt: Long,
+)
+
+// ── Schema v10: World model backup types ──
+
+@Serializable
+data class BeliefBackup(
+    val id: String,
+    val subject: String,
+    val predicate: String,
+    val valueJson: String,
+    val confidence: Float = 1.0f,
+    val validFrom: Long = 0L,
+    val validTo: Long = 0L,
+    val status: String = "active",
+    val supersededBy: String? = null,
+    val privacyClass: String = "personal",
+    val createdAt: Long,
+    val updatedAt: Long,
+    val lastVerifiedAt: Long = 0L,
+)
+
+@Serializable
+data class EvidenceBackup(
+    val id: String,
+    val beliefId: String,
+    val source: String,
+    val summary: String,
+    val detailJson: String = "{}",
+    val timestamp: Long,
+    val confidence: Float = 1.0f,
+)
+
+@Serializable
+data class WorldEventBackup(
+    val id: String,
+    val eventType: String,
+    val source: String,
+    val summary: String,
+    val payloadJson: String = "{}",
+    val timestamp: Long,
+    val consumed: Boolean = false,
+)
+
+@Serializable
+data class OpportunityBackup(
+    val id: String,
+    val title: String,
+    val description: String,
+    val kind: String = "suggestion",
+    val benefit: Float = 0.5f,
+    val urgency: Float = 0.5f,
+    val confidence: Float = 0.5f,
+    val costEstimateJson: String = "{}",
+    val evidenceJson: String = "[]",
+    val suggestedActionJson: String = "{}",
+    val status: String = "proposed",
+    val createdAt: Long,
+    val resolvedAt: Long? = null,
+    val snoozeUntil: Long = 0L,
+)
+
+// ── Schema v10: Creative artifact backup types ──
+
+@Serializable
+data class CreativeArtifactBackup(
+    val id: String,
+    val projectId: String,
+    val branchId: String,
+    val kind: String,
+    val title: String,
+    val currentRevisionId: String? = null,
+    val previewText: String = "",
+    val mimeType: String = "",
+    val storageUri: String? = null,
+    val contentHash: String = "",
+    val status: String = "pending",
+    val metadataJson: String = "{}",
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class CreativeRevisionBackup(
+    val id: String,
+    val artifactId: String,
+    val revisionNumber: Int,
+    val contentJson: String,
+    val summary: String = "",
+    val createdAt: Long,
+)
+
+@Serializable
+data class CreativeBranchBackup(
+    val id: String,
+    val projectId: String,
+    val name: String,
+    val parentBranchId: String? = null,
+    val headArtifactId: String? = null,
+    val createdAt: Long,
+)
+
+@Serializable
+data class CanonFactBackup(
+    val id: String,
+    val projectId: String,
+    val branchId: String,
+    val subjectType: String,
+    val subjectId: String,
+    val predicate: String,
+    val valueJson: String,
+    val validFrom: Long = 0L,
+    val validTo: Long = 0L,
+    val confidence: Float = 1.0f,
+    val sourceRevisionId: String? = null,
+    val status: String = "active",
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+// ── Schema v10: Taste backup types ──
+
+@Serializable
+data class PreferenceSignalBackup(
+    val id: String,
+    val projectId: String = "",
+    val signalType: String,
+    val category: String,
+    val artifactId: String? = null,
+    val attributesJson: String = "{}",
+    val weight: Float = 1.0f,
+    val createdAt: Long,
+)
+
+@Serializable
+data class StyleProfileBackup(
+    val id: String,
+    val projectId: String = "",
+    val attributesJson: String = "{}",
+    val signalCount: Int = 0,
+    val createdAt: Long,
+    val updatedAt: Long,
 )
 
