@@ -126,18 +126,22 @@ class MemoryReranker @Inject constructor(
             return batch.indices.associateWith { 0.5f } // neutral fallback
         }
 
-        // Parse lines as floats
+        // Parse lines as floats. Models return scores in various formats:
+        // "0.8", "1. 0.8", "Memory 1: 0.8", "- 0.8", "1) 0.8"
+        // Strip all prefixes/labels and extract the first float on each line.
         val lines = response.toString()
             .trim()
             .lines()
             .filter { it.isNotBlank() }
             .mapNotNull { line ->
-                line.trim()
-                    .removePrefix("Memory ")
-                    .removeSuffix(":")
-                    .split(":").lastOrNull()
-                    ?.trim()
-                    ?.toFloatOrNull()
+                // Remove common prefixes: "1. ", "- ", "1) ", "Memory N: "
+                val cleaned = line.trim()
+                    .replace(Regex("^\\d+[.):]\\s*"), "") // "1. " or "1) "
+                    .replace(Regex("^[-*]\\s*"), "")        // "- " or "* "
+                    .replace(Regex("(?i)^Memory\\s*\\d+\\s*:?\\s*"), "") // "Memory 1: "
+                    .trim()
+                // Extract first float from the remaining text
+                Regex("\\d+\\.?\\d*").find(cleaned)?.value?.toFloatOrNull()
             }
 
         return batch.indices.associateWith { idx ->

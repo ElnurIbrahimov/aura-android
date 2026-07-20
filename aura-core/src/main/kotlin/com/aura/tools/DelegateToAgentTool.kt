@@ -140,19 +140,63 @@ class DelegateToAgentTool @Inject constructor(
             ),
         )
 
-        // Run a simplified single-pass model call (no tool loop — the
-        // delegated agent gets one shot to answer). This keeps the
-        // delegation bounded and predictable.
+        // Run a mini agentic loop — up to DELEGATION_MAX_STEPS rounds
+        // of model + tool calls. This lets the delegated agent actually
+        // use its tools (e.g. researcher can call web_search). Bounded
+        // by timeout + step count to prevent runaway delegation.
         val options = ChatOptions(temperature = 0.7, maxTokens = 2048)
-        val chunks = brain.stream(model, messages, tools, options).toList()
+        val response = StringBuilder()
+        var conversation = messages.toMutableList()
 
-        val response = chunks.mapNotNull { chunk ->
-            (chunk as? BrainChunk.Text)?.text
-        }.joinToString("")
-        response.ifBlank { "Agent '$agentName' produced no response." }
+        for (step in 1..DELEGATION_MAX_STEPS) {
+            val chunks = brain.stream(model, conversation, tools, options).toList()
+            val stepText = StringBuilder()
+            val stepToolCalls = mutableListOf<Pair<String, String>>()
+
+            for (chunk in chunks) {
+                when (chunk) {
+                    is BrainChunk.Text -> stepText.append(chunk.text)
+                    is BrainChunk.ToolCallEnd -> {
+                        stepToolCalls.add(chunk.name to chunk.arguments)
+                    }
+                    else -> {}
+                }
+            }
+
+            response.append(stepText)
+
+            // If no tool calls, this step is the final answer.
+            if (stepToolCalls.isEmpty()) break
+
+            // Execute tool calls and append results to conversation.
+            val executor = toolExecutor.get()
+            for ((toolName, args) in stepToolCalls) {
+                if (tools.none { it.name == toolName }) continue
+                val result = executor.execute(toolName, args, com.aura.agent.ToolContext(
+                    conversationId = "delegation",
+                    timeout = 10_000L,
+                ))
+                val resultText = when (result) {
+                    is ToolResult.Ok -> result.output
+                    is ToolResult.Error -> "Error: ${result.message}"
+                    else -> "Unknown result"
+                }
+                conversation.add(ProviderMessage(
+                    role = ProviderMessage.Role.assistant,
+                    content = stepText.toString() + " [tool: $toolName]",
+                ))
+                conversation.add(ProviderMessage(
+                    role = ProviderMessage.Role.user,
+                    content = "Tool result for $toolName: $resultText",
+                ))
+            }
+        }
+
+        response.toString().ifBlank { "Agent '$agentName' produced no response." }
     }
 
     companion object {
         const val DELEGATION_TIMEOUT_MS = 30_000L
+        const val DELEGATION_MAX_STEPS = 3
     }
 }

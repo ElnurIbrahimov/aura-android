@@ -80,29 +80,15 @@ class AgentCouncil @Inject constructor(
             )
         }
 
-        // Phase 1: producers run in parallel
+        // Phase 1: producers run in parallel as subagents.
+        // Each producer gets the same task + context and runs independently.
         val perAgentBudget = budgetMs / (producers.size + 1)
-        val producerTasks = producers.map { agent ->
-            val task = subagentManager.createTask(
-                SubagentSpec(
-                    role = agent.name,
-                    objective = "$task${if (context.isNotBlank()) "\n\nContext: $context" else ""}",
-                    modelRole = "CONVERSATION",
-                    toolAllowlist = agent.toolSet().toList(),
-                    budgetMs = perAgentBudget,
-                    maxToolCalls = 5,
-                ),
-                parentRunId = "council",
-            )
-            task.id to agent
-        }
-
         val results = subagentManager.spawnAll(
-            producerTasks.map { (taskId, agent) ->
+            producers.map { agent ->
                 subagentManager.createTask(
                     SubagentSpec(
                         role = agent.name,
-                        objective = task,
+                        objective = "$task${if (context.isNotBlank()) "\n\nContext: $context" else ""}",
                         modelRole = "CONVERSATION",
                         toolAllowlist = agent.toolSet().toList(),
                         budgetMs = perAgentBudget,

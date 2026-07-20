@@ -31,7 +31,11 @@ data class AgentEditorUiState(
 @HiltViewModel
 class AgentEditorViewModel @Inject constructor(
     private val agentStore: AgentStore,
+    private val toolRegistry: com.aura.agent.ToolRegistry,
 ) : ViewModel() {
+
+    /** All available tool names from the registry, sorted alphabetically. */
+    val availableTools: List<String> get() = toolRegistry.definitions().map { it.name }.sorted()
 
     private val _state = MutableStateFlow(AgentEditorUiState())
     val state: StateFlow<AgentEditorUiState> = _state.asStateFlow()

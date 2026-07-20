@@ -172,7 +172,14 @@ class MemoryStore @Inject constructor(
                 ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
             }.filter { it.vectorScore > 0.05f }
             if (scored.isEmpty()) return emptyList()
-            val results = Retrieval.rankCandidates(text, qVec, scored, limit)
+            val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit)
+            // Route vector fallback through reranker too — it catches
+            // semantic matches that BM25+vector both missed.
+            val results = if (reranker != null && vectorResults.size >= RERANK_MIN_CANDIDATES && rerankModel != null) {
+                reranker.rerank(text, vectorResults, rerankModel, topK = limit)
+            } else {
+                vectorResults.take(limit)
+            }
             for (mem in results) { runCatching { touch(mem.id) } }
             return results
         }
@@ -213,13 +220,10 @@ class MemoryStore @Inject constructor(
             now = System.currentTimeMillis(),
         )
 
-        // Cross-encoder reranking: if a reranker is configured, score
-        // each RRF result against the query with a small LLM and
-        // reorder by actual semantic relevance. This is the single
-        // biggest quality leap for recall — it catches "that thing
-        // we discussed" -> "the database migration strategy from
-        // Tuesday" where BM25 and vector search both produce 0.
-        val results = if (reranker != null && rrfResults.size > 1 && rerankModel != null) {
+        // Cross-encoder reranking: only worth the LLM calls when we have
+        // enough candidates to justify it. With <5 candidates, RRF already
+        // ranks them well and the reranker just adds latency + cost.
+        val results = if (reranker != null && rrfResults.size >= RERANK_MIN_CANDIDATES && rerankModel != null) {
             reranker.rerank(text, rrfResults, rerankModel, topK = limit)
         } else {
             rrfResults.take(limit)
@@ -238,6 +242,8 @@ class MemoryStore @Inject constructor(
     companion object {
         /** How many candidates RRF overfetches for the reranker pool. */
         const val RERANK_POOL_SIZE = 20
+        /** Minimum candidates to justify reranker LLM calls. */
+        const val RERANK_MIN_CANDIDATES = 5
     }
 
     /**

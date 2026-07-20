@@ -134,6 +134,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // steps — only tool results are appended — so the recall is the
         // same on step 2 as step 1.
         var cachedRecall: Triple<String, String?, List<com.aura.memory.MemoryEntity>>? = null
+        // Cached personality directive — resolved once per agent per run.
+        // Without this, agentStore.byId() hits Room on every step of the
+        // agentic loop (5-10 steps per turn).
+        var cachedPersonality: String? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -267,12 +271,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
 
             // 2) Build messages
             // Resolve the active agent's personality directive (if any).
-            val personalityDirective = agentId?.let { id ->
-                runCatching {
-                    val agent = agentStore?.byId(id)
-                    agent?.personality()?.toPromptDirective()
-                }.getOrNull()
-            } ?: ""
+            // Cached after first resolution — agentStore.byId() is a Room
+            // query and the agent doesn't change mid-conversation.
+            if (cachedPersonality == null && agentId != null) {
+                cachedPersonality = runCatching {
+                    agentStore?.byId(agentId)?.personality()?.toPromptDirective()
+                }.getOrNull() ?: ""
+            }
+            val personalityDirective = cachedPersonality ?: ""
             val messages = buildList {
                 val sys = listOfNotNull(
                     specialist?.systemPrompt,

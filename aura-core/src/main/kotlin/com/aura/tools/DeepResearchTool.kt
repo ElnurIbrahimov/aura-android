@@ -150,13 +150,16 @@ class DeepResearchTool @Inject constructor(
         for (iteration in 1..MAX_ITERATIONS) {
             // Detect gaps
             val gaps = detectGaps(query, contextBlock, modelId)
-            if (gaps.isNullOrBlank() || gaps == "NONE") break
+            if (gaps.isNullOrBlank() || gaps.uppercase().startsWith("NONE")) break
 
-            // Search for the gaps
-            val gapResults = performSearch(gaps, maxSources)
+            // Search for the gaps. Cap total sources across all iterations
+            // to maxSources — don't let gap detection exceed the user's budget.
+            val remaining = maxSources - allCitations.size
+            if (remaining <= 0) break
+            val gapResults = performSearch(gaps, remaining * 2)
             val newCitations = gapResults
                 .filter { it.url !in seenUrls }
-                .take(maxSources - 1) // leave room, don't exceed maxSources total per iteration
+                .take(remaining)
                 .mapIndexed { idx, r ->
                     Citation(
                         index = allCitations.size + idx + 1,

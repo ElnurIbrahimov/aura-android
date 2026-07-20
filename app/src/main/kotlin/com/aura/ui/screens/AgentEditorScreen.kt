@@ -166,20 +166,9 @@ fun AgentEditorScreen(
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(8.dp))
-        val commonTools = listOf(
-            "web_search", "deep_research", "brave_search", "tavily_search",
-            "recall", "remember", "image_gen", "vision",
-            "calendar_read", "calendar_write", "contacts_search",
-            "set_reminder", "manage_tasks", "email_send", "sms_send",
-            "translate", "weather", "timer", "tts_speak",
-            "photo_library", "location_now", "launch_app",
-            "notification_list", "post_notification",
-            "battery_state", "network_state", "clipboard_read", "clipboard_write",
-            "knowledge_graph_extract", "kg_query", "run_hand",
-            "creative_engine", "creative_read_project",
-        )
+        val toolNames = viewModel.availableTools
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (tool in commonTools) {
+            for (tool in toolNames) {
                 val selected = tool in state.toolsAllowed
                 AssistChip(
                     onClick = { viewModel.toggleTool(tool) },
