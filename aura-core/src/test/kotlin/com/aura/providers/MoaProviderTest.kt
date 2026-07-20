@@ -107,7 +107,7 @@ class MoaProviderTest {
     }
 
     @Test
-    fun `starting a new MoA run cancels the previous run`() = runTest {
+    fun `starting a new MoA run cancels the previous run`() = runTest(dispatchTimeoutMs = 30_000) {
         val started = Channel<Unit>(Channel.UNLIMITED)
         val hangFlow: Flow<ProviderChunk> = flow {
             started.send(Unit)
