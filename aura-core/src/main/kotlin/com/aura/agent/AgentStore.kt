@@ -1,6 +1,8 @@
 package com.aura.agent
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,6 +15,7 @@ import javax.inject.Singleton
 class AgentStore @Inject constructor(
     private val dao: AgentDao,
 ) {
+    private val seedMutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun all(): Flow<List<AgentEntity>> = dao.all()
@@ -35,7 +38,8 @@ class AgentStore @Inject constructor(
      * only inserts when count == 0.
      */
     suspend fun seedBuiltins() {
-        if (dao.count() > 0) return
+        seedMutex.withLock {
+            if (dao.count() > 0) return@withLock
         val now = System.currentTimeMillis()
         val agents = Specialist.ALL.mapIndexed { idx, s ->
             val personality = when (s.name) {
@@ -66,6 +70,7 @@ class AgentStore @Inject constructor(
             )
         }
         dao.insertAll(agents)
+        }
     }
 
     /**

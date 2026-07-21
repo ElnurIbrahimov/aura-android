@@ -10,7 +10,9 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -114,6 +116,20 @@ class ChatGptSubscriptionProvider(
                 val text = (obj["delta"] as? JsonObject)?.get("text").let { (it as? JsonPrimitive)?.content }
                     ?: (obj["output_text"] as? JsonPrimitive)?.content
                 if (text != null) channel.trySend(ProviderChunk(text = text))
+                // Parse tool calls from the Responses API
+                // The responses API sends function_call events with type "function_call" or
+                // falls back to chat-completions style tool_calls in the delta.
+                val toolCallObj = (obj["delta"] as? JsonObject)?.get("tool_call")?.jsonObject
+                    ?: (obj["delta"] as? JsonObject)?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
+                    ?: obj["tool_call"]?.jsonObject
+                if (toolCallObj != null) {
+                    val fnName = (toolCallObj["name"] ?: toolCallObj["function"]?.jsonObject?.get("name"))?.jsonPrimitive?.content ?: ""
+                    val fnArgs = (toolCallObj["arguments"] ?: toolCallObj["function"]?.jsonObject?.get("arguments"))?.jsonPrimitive?.content ?: "{}"
+                    val callId = toolCallObj["id"]?.jsonPrimitive?.content ?: "chatgpt_${System.currentTimeMillis()}_${fnName.hashCode()}"
+                    if (fnName.isNotBlank()) {
+                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
+                    }
+                }
                 val done = (obj["type"] as? JsonPrimitive)?.content in setOf("response.completed", "response.done")
                 if (done) channel.trySend(ProviderChunk(finishReason = FinishReason.stop))
             }

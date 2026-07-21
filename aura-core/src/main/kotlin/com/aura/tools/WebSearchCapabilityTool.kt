@@ -48,9 +48,7 @@ class WebSearchCapabilityTool @Inject constructor(
 
             if (provider != null && provider is WebSearchProvider) {
                 try {
-                    val results = kotlinx.coroutines.runBlocking {
-                        provider.search(WebSearchRequest(query = query, numResults = maxResults))
-                    }
+                    val results = provider.search(WebSearchRequest(query = query, numResults = maxResults))
                     ToolResult.Ok(formatResults(results, provider.displayName))
                 } catch (e: Exception) {
                     // Fall back to DuckDuckGo on provider error

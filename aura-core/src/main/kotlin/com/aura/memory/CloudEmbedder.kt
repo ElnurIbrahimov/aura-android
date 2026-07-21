@@ -122,6 +122,16 @@ class CloudEmbedder @Inject constructor(
 
         return FloatArray(embeddingArray.size) { i ->
             embeddingArray[i].jsonPrimitive.content.toFloat()
+        }.also { vec ->
+            // Validate dimension — if the API returns a different dimension
+            // than expected (e.g. 768 from a larger model), log and fall back
+            // to local embedder rather than storing a mismatched vector.
+            if (vec.size != dimension()) {
+                android.util.Log.w("CloudEmbedder",
+                    "API returned ${vec.size}-dim embedding but expected ${dimension()}. " +
+                    "Falling back to local embedder. Change the embedding model in Settings to match.")
+                throw RuntimeException("embedding dimension mismatch: ${vec.size} != ${dimension()}")
+            }
         }
     }
 

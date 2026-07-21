@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -254,7 +256,13 @@ class CustomOpenAiCompatProvider(
         })
         activeEventSource = src
         try {
-            for (chunk in channel) emit(chunk)
+            // Defensive timeout — if the server never sends [DONE] or closes
+            // the stream, the OkHttp read timeout is the primary backstop.
+            withTimeout(STREAM_READ_TIMEOUT_MS) {
+                for (chunk in channel) emit(chunk)
+            }
+        } catch (_: TimeoutCancellationException) {
+            emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
             activeEventSource?.cancel()
             activeEventSource = null
@@ -298,5 +306,9 @@ class CustomOpenAiCompatProvider(
     override suspend fun cancel() {
         activeEventSource?.cancel()
         activeEventSource = null
+    }
+
+    companion object {
+        private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
     }
 }

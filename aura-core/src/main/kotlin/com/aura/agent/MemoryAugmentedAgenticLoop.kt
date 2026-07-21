@@ -372,11 +372,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             ProviderMessage(role = Role.user, content = lastUserMessage),
                         )
                         val planBuilder = StringBuilder()
-                        brain.stream(
-                            planModel, planMessages,
-                            options = ChatOptions(temperature = 0.0, maxTokens = 150),
-                        ).collect { chunk ->
-                            if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
+                        // Timeout: planning is auxiliary — if the cheap model
+                        // hangs, don't block the user's real answer.
+                        kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                            brain.stream(
+                                planModel, planMessages,
+                                options = ChatOptions(temperature = 0.0, maxTokens = 150),
+                            ).collect { chunk ->
+                                if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
+                            }
                         }
                         val raw = planBuilder.toString().trim()
                         if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""

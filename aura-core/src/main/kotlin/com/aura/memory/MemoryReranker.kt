@@ -146,7 +146,7 @@ class MemoryReranker @Inject constructor(
                     .replace(Regex("(?i)^Memory\\s*\\d+\\s*:?\\s*"), "") // "Memory 1: "
                     .trim()
                 // Extract first float from the remaining text
-                Regex("\\d+\\.?\\d*").find(cleaned)?.value?.toFloatOrNull()
+                Regex("""\d*\.?\d+""").find(cleaned)?.value?.toFloatOrNull()
             }
 
         return batch.indices.associateWith { idx ->
