@@ -47,7 +47,7 @@ class MediaCapabilityTools @Inject constructor(
             val provider = capabilityRouter.resolve(CapabilityKind.TextToSpeech) as? TextToSpeechProvider
                 ?: return@Tool ToolResult.Error("No TTS provider configured. Add an ElevenLabs API key in Settings.", "no_provider")
             runCatching {
-                val result = kotlinx.coroutines.runBlocking { provider.speak(TtsRequest(text = text, voice = voice)) }
+                val result = provider.speak(TtsRequest(text = text, voice = voice))
                 ToolResult.Ok("TTS audio generated (${result.audio.size} bytes, ${result.extension}).")
             }.getOrElse { ToolResult.Error("TTS failed: ${it.message}", "generation_error") }
         },
@@ -74,7 +74,7 @@ class MediaCapabilityTools @Inject constructor(
             val provider = capabilityRouter.resolve(CapabilityKind.VideoGeneration) as? VideoProvider
                 ?: return@Tool ToolResult.Error("No video provider configured. Add a Kling API key in Settings.", "no_provider")
             runCatching {
-                val result = kotlinx.coroutines.runBlocking { provider.generate(VideoRequest(prompt = prompt, durationSeconds = duration, aspectRatio = aspectRatio)) }
+                val result = provider.generate(VideoRequest(prompt = prompt, durationSeconds = duration, aspectRatio = aspectRatio))
                 ToolResult.Ok(result.videoUrl?.let { "Video: $it" } ?: "Video generated (${result.bytes?.size ?: 0} bytes).")
             }.getOrElse { ToolResult.Error("Video generation failed: ${it.message}", "generation_error") }
         },
@@ -95,7 +95,7 @@ class MediaCapabilityTools @Inject constructor(
             val provider = capabilityRouter.resolve(CapabilityKind.World3DGeneration) as? com.aura.capabilities.worldlabs.WorldLabs3DProvider
                 ?: return@Tool ToolResult.Error("No 3D world provider configured. Add a WorldLabs API key in Settings.", "no_provider")
             runCatching {
-                val result = kotlinx.coroutines.runBlocking { provider.generateWorld(prompt) }
+                val result = provider.generateWorld(prompt)
                 ToolResult.Ok(result.worldUrl?.let { "3D world: $it" } ?: "3D world generated (operation ${result.operationId}).")
             }.getOrElse { ToolResult.Error("3D generation failed: ${it.message}", "generation_error") }
         },

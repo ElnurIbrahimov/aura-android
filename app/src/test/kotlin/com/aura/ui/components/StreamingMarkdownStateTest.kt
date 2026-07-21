@@ -1,5 +1,6 @@
 package com.aura.ui.components
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -18,8 +19,9 @@ class StreamingMarkdownStateTest {
 
     private val state = StreamingMarkdownState()
     private val colors = MarkdownColors(
-        link = androidx.compose.ui.graphics.Color.Black,
-        linkDim = androidx.compose.ui.graphics.Color.Gray,
+        link = Color.Blue,
+        linkDim = Color.Gray,
+        codeBackground = Color.LightGray,
     )
 
     @Test

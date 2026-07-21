@@ -14,8 +14,9 @@ import org.junit.Test
 class MarkdownTest {
 
     private val colors = MarkdownColors(
-        link = Color(0xFF0066CC),
-        linkDim = Color(0xFF808080),
+        link = Color.Blue,
+        linkDim = Color.Gray,
+        codeBackground = Color.LightGray,
     )
 
     private fun parse(text: String) = parseMarkdown(text, colors).text

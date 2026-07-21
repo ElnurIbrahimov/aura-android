@@ -29,20 +29,18 @@ class ApproveEvolutionProposalTool @Inject constructor(
             required = listOf("proposalId"),
         ),
         execute = { call, _ ->
-            runBlockingTool {
-                val proposalId = call.arguments["proposalId"] as? String
-                    ?: return@runBlockingTool ToolResult.Error("missing 'proposalId' argument", "bad_args")
-                proposalStore.approve(proposalId)
-                val proposal = proposalStore.getById(proposalId)
-                    ?: return@runBlockingTool ToolResult.Error("proposal not found", "not_found")
-                when (val result = applySaga.apply(proposal)) {
-                    is EvolutionApplySaga.ApplyResult.Ok ->
-                        ToolResult.Ok(buildJson(mapOf("proposalId" to result.proposalId, "status" to "applied", "summary" to result.summary)))
-                    is EvolutionApplySaga.ApplyResult.Error ->
-                        ToolResult.Error(result.message)
-                    is EvolutionApplySaga.ApplyResult.NotYetImplemented ->
-                        ToolResult.Error("action not implemented")
-                }
+            val proposalId = call.arguments["proposalId"] as? String
+                ?: return@Tool ToolResult.Error("missing 'proposalId' argument", "bad_args")
+            proposalStore.approve(proposalId)
+            val proposal = proposalStore.getById(proposalId)
+                ?: return@Tool ToolResult.Error("proposal not found", "not_found")
+            when (val result = applySaga.apply(proposal)) {
+                is EvolutionApplySaga.ApplyResult.Ok ->
+                    ToolResult.Ok(buildJson(mapOf("proposalId" to result.proposalId, "status" to "applied", "summary" to result.summary)))
+                is EvolutionApplySaga.ApplyResult.Error ->
+                    ToolResult.Error(result.message)
+                is EvolutionApplySaga.ApplyResult.NotYetImplemented ->
+                    ToolResult.Error("action not implemented")
             }
         },
         category = "evolution",
@@ -64,17 +62,15 @@ class RollbackEvolutionTool @Inject constructor(
             required = listOf("proposalId"),
         ),
         execute = { call, _ ->
-            runBlockingTool {
-                val proposalId = call.arguments["proposalId"] as? String
-                    ?: return@runBlockingTool ToolResult.Error("missing 'proposalId' argument", "bad_args")
-                when (val result = rollbackManager.rollback(proposalId)) {
-                    is EvolutionRollbackManager.RollbackResult.Ok ->
-                        ToolResult.Ok(buildJson(mapOf("proposalId" to proposalId, "status" to "rolled_back", "summary" to result.summary)))
-                    is EvolutionRollbackManager.RollbackResult.Error ->
-                        ToolResult.Error(result.message)
-                    is EvolutionRollbackManager.RollbackResult.Conflict ->
-                        ToolResult.Error("conflict: ${result.message}")
-                }
+            val proposalId = call.arguments["proposalId"] as? String
+                ?: return@Tool ToolResult.Error("missing 'proposalId' argument", "bad_args")
+            when (val result = rollbackManager.rollback(proposalId)) {
+                is EvolutionRollbackManager.RollbackResult.Ok ->
+                    ToolResult.Ok(buildJson(mapOf("proposalId" to proposalId, "status" to "rolled_back", "summary" to result.summary)))
+                is EvolutionRollbackManager.RollbackResult.Error ->
+                    ToolResult.Error(result.message)
+                is EvolutionRollbackManager.RollbackResult.Conflict ->
+                    ToolResult.Error("conflict: ${result.message}")
             }
         },
         category = "evolution",
@@ -91,17 +87,12 @@ class TriggerEvolutionRunTool @Inject constructor(
         risk = ToolRisk.WRITE_LOCAL,
         parameters = ToolParameters(),
         execute = { _, _ ->
-            runBlockingTool {
-                val result = coordinator.runAll()
-                ToolResult.Ok("""{"candidateCount":${result.candidateCount},"promotedCount":${result.promotedCount},"durationMs":${result.durationMs}}""")
-            }
+            val result = coordinator.runAll()
+            ToolResult.Ok("""{"candidateCount":${result.candidateCount},"promotedCount":${result.promotedCount},"durationMs":${result.durationMs}}""")
         },
         category = "evolution",
     )
 }
-
-private inline fun <T> runBlockingTool(crossinline block: suspend () -> T): T =
-    kotlinx.coroutines.runBlocking { block() }
 
 private fun buildJson(entries: Map<String, String>): String {
     val body = entries.entries.joinToString(",") { (k, v) ->

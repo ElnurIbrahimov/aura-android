@@ -538,10 +538,10 @@ private fun HandsEmptyState() {
 
 @Composable
 private fun statusColor(status: String): Color = when (status) {
-    HandRunStatus.SUCCESS.value -> Color(0xFF5FD3A8)
+    HandRunStatus.SUCCESS.value -> AuraThemeTokens.colors.success
     HandRunStatus.RUNNING.value -> AuraThemeTokens.colors.actionPrimary
-    HandRunStatus.SKIPPED.value -> Color(0xFFE4B865)
-    HandRunStatus.NEEDS_PERMISSION.value, HandRunStatus.NEEDS_APPROVAL.value -> Color(0xFFE4B865)
+    HandRunStatus.SKIPPED.value -> AuraThemeTokens.colors.warning
+    HandRunStatus.NEEDS_PERMISSION.value, HandRunStatus.NEEDS_APPROVAL.value -> AuraThemeTokens.colors.warning
     else -> AuraThemeTokens.colors.error
 }
 

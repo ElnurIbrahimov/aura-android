@@ -605,7 +605,7 @@ private fun NodeType.color(): Color = when (this) {
     NodeType.PROJECT -> AuraThemeTokens.colors.assistantAccent
     NodeType.TOOL, NodeType.SKILL -> AuraThemeTokens.colors.assistantAccent
     NodeType.EVENT -> AuraThemeTokens.colors.error
-    NodeType.LOCATION -> Color(0xFF4DB6AC)
-    NodeType.EMOTION -> Color(0xFFE573A9)
+    NodeType.LOCATION -> AuraThemeTokens.colors.info
+    NodeType.EMOTION -> AuraThemeTokens.colors.assistantAccent
     else -> AuraThemeTokens.colors.textPrimary.copy(alpha = 0.68f)
 }

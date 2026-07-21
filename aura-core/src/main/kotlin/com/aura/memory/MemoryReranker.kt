@@ -3,6 +3,9 @@ package com.aura.memory
 import com.aura.agent.Brain
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -68,18 +71,20 @@ class MemoryReranker @Inject constructor(
         candidates: List<MemoryEntity>,
         model: String,
     ): Map<Int, Float> {
-        val scores = mutableMapOf<Int, Float>()
         val batches = candidates.chunked(BATCH_SIZE)
 
-        for ((batchIdx, batch) in batches.withIndex()) {
-            val offset = batchIdx * BATCH_SIZE
-            val batchScores = scoreOneBatch(query, batch, model)
-            batchScores.forEach { (localIdx, score) ->
-                scores[offset + localIdx] = score
-            }
+        // Run all batches in parallel — each batch is one LLM call.
+        // Sequential for-loop made 20 candidates = 5 sequential calls;
+        // parallel makes it 1 call wall time.
+        return coroutineScope {
+            batches.mapIndexed { batchIdx, batch ->
+                async {
+                    val offset = batchIdx * BATCH_SIZE
+                    val batchScores = scoreOneBatch(query, batch, model)
+                    batchScores.mapKeys { (localIdx, score) -> offset + localIdx }
+                }
+            }.awaitAll().fold(emptyMap<Int, Float>()) { acc, map -> acc + map }
         }
-
-        return scores
     }
 
     /**

@@ -130,6 +130,7 @@ internal fun isSafeMarkdownUrl(url: String): Boolean = runCatching {
 data class MarkdownColors(
     val link: Color,
     val linkDim: Color,
+    val codeBackground: Color,
 )
 
 /**
@@ -143,6 +144,7 @@ data class MarkdownColors(
 fun rememberMarkdownColors(): MarkdownColors = MarkdownColors(
     link = AuraThemeTokens.colors.actionPrimary,
     linkDim = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+    codeBackground = AuraThemeTokens.colors.surface2,
 )
 
 /**
@@ -154,6 +156,7 @@ fun parseMarkdown(text: String): AnnotatedString {
     val colors = MarkdownColors(
         link = AuraThemeTokens.colors.actionPrimary,
         linkDim = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+        codeBackground = AuraThemeTokens.colors.surface2,
     )
     return parseMarkdown(text, colors)
 }
@@ -272,7 +275,7 @@ private fun AnnotatedString.Builder.appendInlineMarkdown(text: String, colors: M
             "c" -> {
                 pushStyle(SpanStyle(
                     fontFamily = FontFamily.Monospace,
-                    background = Color(0x1A808080),
+                    background = colors.codeBackground,
                 ))
                 append(match.groupValues[contentGroup])
                 pop()
@@ -346,7 +349,7 @@ private fun AnnotatedString.Builder.appendInlineMarkdownClickable(text: String, 
             "c" -> {
                 pushStyle(SpanStyle(
                     fontFamily = FontFamily.Monospace,
-                    background = Color(0x1A808080),
+                    background = colors.codeBackground,
                 ))
                 append(match.groupValues[contentGroup])
                 pop()
@@ -415,6 +418,7 @@ fun MarkdownText(
     val colors = MarkdownColors(
         link = AuraThemeTokens.colors.actionPrimary,
         linkDim = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+        codeBackground = AuraThemeTokens.colors.surface2,
     )
     val annotated = parseMarkdownClickable(text, colors)
     val uriHandler = LocalUriHandler.current
@@ -452,6 +456,7 @@ fun MarkdownColumn(
     val colors = MarkdownColors(
         link = AuraThemeTokens.colors.actionPrimary,
         linkDim = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+        codeBackground = AuraThemeTokens.colors.surface2,
     )
     Column(modifier = modifier) {
         val blocks = splitMarkdownBlocks(text)
