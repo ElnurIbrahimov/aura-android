@@ -34,13 +34,12 @@ class EvolutionSafetyGuard @Inject constructor() {
         // OpenRouter: sk-or-...
         Regex("sk-or-[a-zA-Z0-9_-]{20,}", RegexOption.IGNORE_CASE),
         // Together AI: ... (varies, but often a long hex token)
-        Regex("[a-f0-9]{40,}", RegexOption.IGNORE_CASE),
-        // Brave: BSA... (Brave Search API keys)
+        // Tavily/Brave: hex API keys (40+ chars, must look like a key not a git hash)
+        // Require at least one non-hex character or a known prefix to avoid
+        // matching git commit hashes, SHA-256 content hashes, etc.
+        Regex("(?i)tvly-[a-zA-Z0-9_-]{20,}"),
+        // Brave Search API: BSA prefix + 30+ alphanumeric
         Regex("BSA[a-zA-Z0-9]{30,}", RegexOption.IGNORE_CASE),
-        // Tavily: tvly-...
-        Regex("tvly-[a-zA-Z0-9_-]{20,}", RegexOption.IGNORE_CASE),
-        // ElevenLabs: ...
-        Regex("[a-f0-9]{32}", RegexOption.IGNORE_CASE),
         // Generic Bearer token patterns
         Regex("Bearer\\s+[a-zA-Z0-9._-]{20,}", RegexOption.IGNORE_CASE),
     )

@@ -205,10 +205,16 @@ class EvolutionApplySaga @Inject constructor(
         val memoryIds = args["memoryIds"]?.split(",")?.map { it.trim() } ?: return ApplyResult.Error(proposal.id, "missing memoryIds")
         val consolidated = args["consolidatedContent"] ?: return ApplyResult.Error(proposal.id, "missing consolidatedContent")
         val category = args["category"] ?: "consolidated"
+        // Store the consolidated memory BEFORE deleting sources.
+        // If store() fails (write gate rejects, dedup blocks, DB error),
+        // the originals are preserved — no data loss.
+        val storedId = memoryStore.store(consolidated, "evolution:consolidate", category, 0.7f)
+        if (storedId == null) {
+            return ApplyResult.Error(proposal.id, "consolidated content was not stored (write gate rejected or dedup)")
+        }
         for (id in memoryIds) {
             memoryStore.forget(id)
         }
-        memoryStore.store(consolidated, "evolution:consolidate", category, 0.7f)
         proposalStore.markApplied(proposal.id, "consolidated ${memoryIds.size} memories")
         return ApplyResult.Ok(proposal.id, "consolidated ${memoryIds.size} memories")
     }
