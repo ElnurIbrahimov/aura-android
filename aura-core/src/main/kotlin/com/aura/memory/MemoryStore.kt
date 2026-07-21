@@ -185,7 +185,24 @@ class MemoryStore @Inject constructor(
 
         val escapedText = escapeLikeWildcards(retrievalQuery)
         val scopes = scopeFilter?.toList() ?: listOf("general")
-        val textHits = dao.searchByTextInScopes("%$escapedText%", scopes, limit * 3)
+        // Split the query into individual words and search for any match.
+        // A full-phrase LIKE (%programming languages i enjoy%) would match
+        // almost nothing — individual word LIKEs (%kotlin% OR %love% OR %programming%)
+        // catch any memory that shares at least one word with the query.
+        val queryWords = retrievalQuery.lowercase()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it.length > 2 }
+            .take(6)
+        val pad = List(6) { i -> if (i < queryWords.size) "%${escapeLikeWildcards(queryWords[i])}%" else "%%" }
+        val textHits = if (queryWords.isNotEmpty()) {
+            dao.searchByWordsInScopes(
+                word1 = pad[0], word2 = pad[1], word3 = pad[2],
+                word4 = pad[3], word5 = pad[4], word6 = pad[5],
+                scopes = scopes, limit = limit * 3,
+            )
+        } else {
+            dao.searchByTextInScopes("%$escapedText%", scopes, limit * 3)
+        }
         val qVec = embedder.embed(retrievalQuery)
 
         if (textHits.isEmpty()) {
@@ -489,7 +506,10 @@ class MemoryStore @Inject constructor(
 
 /** Fast cosine similarity between two same-dimension float arrays. */
 private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
-    if (a.size != b.size) return 0f
+    if (a.size != b.size) {
+        android.util.Log.w("MemoryStore", "Embedding dimension mismatch: ${a.size} vs ${b.size} — scoring 0.0. Rebuild embeddings to fix.")
+        return 0f
+    }
     var dot = 0f
     var aNorm = 0f
     var bNorm = 0f

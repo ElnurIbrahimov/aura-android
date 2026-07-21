@@ -25,6 +25,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // For production distribution, create a keystore and set these
+            // environment variables. The debug key is used as a fallback
+            // so `assembleRelease` works for testing without a real key.
+            // To ship: create a release keystore (`keytool -genkey`),
+            // set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+            // env vars, and uncomment the signingConfigs block below.
             signingConfig = signingConfigs.getByName("debug")
         }
         debug {

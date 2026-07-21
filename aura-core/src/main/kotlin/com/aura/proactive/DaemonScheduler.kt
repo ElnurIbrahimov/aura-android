@@ -8,12 +8,13 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Schedules the [DaemonWorker] as a periodic WorkManager job.
- * Runs every ~8 minutes when enabled.
+ * WorkManager enforces a 15-minute minimum floor for periodic work,
+ * so the requested 8-minute interval is effectively ~15 minutes.
  */
 object DaemonScheduler {
 
     private const val WORK_NAME = "aura_daemon_thinking"
-    private const val INTERVAL_MINUTES = 8L
+    private const val INTERVAL_MINUTES = 15L
 
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<DaemonWorker>(

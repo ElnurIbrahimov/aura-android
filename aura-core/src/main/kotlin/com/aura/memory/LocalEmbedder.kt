@@ -2,7 +2,6 @@ package com.aura.memory
 
 import java.security.MessageDigest
 import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,13 +25,20 @@ class LocalEmbedder @Inject constructor(
         val vec = FloatArray(dim)
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return vec
-        // Hash each token to multiple dims (the "random projection" trick)
-        for ((i, token) in tokens.withIndex()) {
-            val hash = sha256Long("$i:$token")
+        // Hash each token to multiple dims (the "random projection" trick).
+        // The hash is position-independent so the same word contributes to
+        // the same dimensions regardless of where it appears in the text.
+        // This is what makes "I love Kotlin" and "Kotlin is what I love"
+        // produce similar vectors — without it, the embedder can only match
+        // words at the same position, which is useless for semantic retrieval.
+        val seenTokens = mutableSetOf<kotlin.String>()
+        for (token in tokens) {
+            if (!seenTokens.add(token)) continue // deduplicate: same token same contribution
+            val hash = sha256Long(token)
             for (k in 0 until 4) {
                 val idx = ((hash ushr (k * 8)) and 0x7fffffff).toInt() % dim
                 val sign = if (((hash ushr (k * 8 + 32)) and 1L) == 1L) 1f else -1f
-                vec[idx] += sign * (1f + 0.1f * sin(i.toFloat() + k.toFloat()))
+                vec[idx] += sign
             }
         }
         // Add a tiny per-dimension offset derived from the token stream so

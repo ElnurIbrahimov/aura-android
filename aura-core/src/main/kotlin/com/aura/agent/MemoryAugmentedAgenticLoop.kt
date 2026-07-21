@@ -143,6 +143,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // agentic loop (5-10 steps per turn).
         var cachedPersonality: String? = null
         var cachedTasteContext: String? = null
+        // Cached cheap model ID — avoids 2 live /models API calls per step
+        // (rerankModel + rewriteModel resolution). The available models
+        // don't change mid-conversation.
+        var cachedCheapModel: kotlin.String? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -204,26 +208,36 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         // first configured provider's first model —
                         // reranking is a yes/no judgment, not a
                         // generation task, so a small fast model is
-                        // ideal.
-                        val rerankModel = runCatching {
-                            val providers = providerRegistry.configured()
-                            val firstProvider = providers.firstOrNull()
-                            val firstModel = firstProvider?.listModels()?.firstOrNull()
-                            if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-                        }.onFailure { android.util.Log.w("AgenticLoop", "rerank model resolution failed: ${it.message}") }.getOrNull()
+                        // ideal. Cached across steps to avoid repeated
+                        // live /models API calls.
+                        val rerankModel = if (cachedCheapModel != null) {
+                            cachedCheapModel!!
+                        } else {
+                            runCatching {
+                                val providers = providerRegistry.configured()
+                                val firstProvider = providers.firstOrNull()
+                                val firstModel = firstProvider?.listModels()?.firstOrNull()
+                                if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
+                            }.onFailure { android.util.Log.w("AgenticLoop", "rerank model resolution failed: ${it.message}") }.getOrNull()
+                        }
                         // Query rewriting is a generation task — prefer a
                         // smaller model when available to reduce latency.
                         // Falls back to the same model as reranking.
-                        val rewriteModel = runCatching {
-                            val providers = providerRegistry.configured()
-                            val firstProvider = providers.firstOrNull()
-                            val models = firstProvider?.listModels().orEmpty()
-                            // Pick the smallest model name (heuristic: short
-                            // names tend to be smaller models). Falls back
-                            // to the first model if no heuristic match.
-                            val smallModel = models.minByOrNull { it.length }
-                            if (firstProvider != null && smallModel != null) "${firstProvider.prefix}:$smallModel" else null
-                        }.onFailure { android.util.Log.w("AgenticLoop", "rewrite model resolution failed: ${it.message}") }.getOrNull() ?: rerankModel
+                        val rewriteModel = if (cachedCheapModel != null) {
+                            cachedCheapModel!!
+                        } else {
+                            runCatching {
+                                val providers = providerRegistry.configured()
+                                val firstProvider = providers.firstOrNull()
+                                val models = firstProvider?.listModels().orEmpty()
+                                val smallModel = models.minByOrNull { it.length }
+                                if (firstProvider != null && smallModel != null) "${firstProvider.prefix}:$smallModel" else null
+                            }.onFailure { android.util.Log.w("AgenticLoop", "rewrite model resolution failed: ${it.message}") }.getOrNull() ?: rerankModel
+                        }
+                        // Cache the resolved model for subsequent steps.
+                        if (cachedCheapModel == null && rerankModel != null) {
+                            cachedCheapModel = rerankModel
+                        }
                         // Build recent context for query rewriting —
                         // last 3 turns of conversation for pronoun/deictic
                         // resolution.

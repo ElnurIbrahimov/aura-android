@@ -213,6 +213,11 @@ class EvolutionApplySaga @Inject constructor(
     }
 
     private suspend fun applyForgetMemory(proposal: EvolutionProposalEntity): ApplyResult {
+        // Capture the memory before deleting so rollback can restore it.
+        val mem = memoryStore?.get(proposal.targetId)
+        if (mem != null) {
+            proposalStore.recordRollbackSnapshot(proposal.id, json.encodeToString(MemoryEntity.serializer(), mem))
+        }
         memoryStore?.forget(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "MemoryStore not available")
         proposalStore.markApplied(proposal.id, "forgot memory ${proposal.targetId}")

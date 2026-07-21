@@ -53,6 +53,7 @@ class EvolutionApplySagaTest {
         val memoryStore = mockk<MemoryStore>(relaxed = true)
         val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)
         val saga = EvolutionApplySaga(proposalStore, null, null, memoryStore, null)
+        coEvery { memoryStore.get("m1") } returns null
         coEvery { memoryStore.forget("m1") } just Runs
         coEvery { proposalStore.markApplied(any(), any()) } just Runs
 

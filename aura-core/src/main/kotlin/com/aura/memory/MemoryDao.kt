@@ -62,6 +62,19 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
     suspend fun searchByTextInScopes(query: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
 
+    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND " +
+        "content LIKE :word1 ESCAPE '\\\\' " +
+        "OR content LIKE :word2 ESCAPE '\\\\' " +
+        "OR content LIKE :word3 ESCAPE '\\\\' " +
+        "OR content LIKE :word4 ESCAPE '\\\\' " +
+        "OR content LIKE :word5 ESCAPE '\\\\' " +
+        "OR content LIKE :word6 ESCAPE '\\\\' " +
+        "ORDER BY decayScore DESC LIMIT :limit")
+    suspend fun searchByWordsInScopes(
+        word1: String, word2: String, word3: String, word4: String, word5: String, word6: String,
+        scopes: List<String>, limit: Int = 50,
+    ): List<MemoryEntity>
+
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC")
     suspend fun allByScopes(scopes: List<String>): List<MemoryEntity>
 
