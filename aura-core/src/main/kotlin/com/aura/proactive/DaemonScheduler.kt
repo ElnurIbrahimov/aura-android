@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit
  */
 object DaemonScheduler {
 
-    private const val WORK_NAME = "aura_daemon_thinking"
-    private const val INTERVAL_MINUTES = 15L
+    const val WORK_NAME = "aura_daemon_thinking"
+    internal const val INTERVAL_MINUTES = 15L
 
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<DaemonWorker>(

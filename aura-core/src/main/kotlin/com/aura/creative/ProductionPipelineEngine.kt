@@ -54,12 +54,14 @@ class ProductionPipelineEngine @Inject constructor(
 
     private fun stepsFor(pipeline: Pipeline, projectId: String, brief: String): List<StepSpec> {
         val escaped = brief.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-        val base = listOf(
-            StepSpec(
-                toolName = "creative_read_project",
-                toolArgs = """{"projectId":"$projectId"}""",
-                dependsOn = "[]",
-            ),
+        // Pre-generate UUIDs for all steps so we can reference them in
+        // dependsOn. DagResolver matches by step ID (UUID), not positional
+        // index — positional "[0]", "[1]" would never resolve.
+        val baseStep = StepSpec(
+            id = UUID.randomUUID().toString(),
+            toolName = "creative_read_project",
+            toolArgs = """{"projectId":"$projectId"}""",
+            dependsOn = "[]",
         )
         val specific = when (pipeline) {
             Pipeline.NOVEL -> listOf(
@@ -98,23 +100,24 @@ class ProductionPipelineEngine @Inject constructor(
                 creativeStep("continuity", projectId, escaped),
             )
         }
-        // Chain: each step depends on the previous one so outputs
-        // are available to subsequent steps and the executor runs
-        // them in order rather than all at once.
-        val chained = base + specific.mapIndexed { index, step ->
-            val prevIndex = index // 0-based from `specific`, base is index -1
-            val dependsOn = if (index == 0) "[0]" else "[$index]"
-            step.copy(dependsOn = dependsOn)
+        // Assign UUIDs to each specific step.
+        val specificWithIds = specific.map { it.copy(id = UUID.randomUUID().toString()) }
+        // Chain: each step depends on the previous one's UUID so the
+        // executor runs them in order, not all at once.
+        val chained = mutableListOf(baseStep)
+        for ((i, step) in specificWithIds.withIndex()) {
+            val prevId = if (i == 0) baseStep.id!! else specificWithIds[i - 1].id!!
+            chained.add(step.copy(dependsOn = "[\"$prevId\"]"))
         }
         // Final step: add a 'beat' to the project canon noting completion.
-        // Uses type+name+description (the tool's required args), NOT
-        // section+content which the tool does not accept.
-        val finalIndex = chained.size
+        val finalStepId = UUID.randomUUID().toString()
+        val lastStepId = chained.last().id!!
         return chained + listOf(
             StepSpec(
+                id = finalStepId,
                 toolName = "creative_add_world_item",
                 toolArgs = """{"projectId":"$projectId","type":"beat","name":"${pipeline.displayName} complete","description":"Pipeline ${pipeline.displayName} completed for: $escaped"}""",
-                dependsOn = "[$finalIndex]",
+                dependsOn = "[\"$lastStepId\"]",
             ),
         )
     }
