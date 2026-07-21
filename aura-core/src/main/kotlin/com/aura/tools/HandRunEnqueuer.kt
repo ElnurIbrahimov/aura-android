@@ -63,20 +63,23 @@ class HandRunEnqueuer @Inject constructor(
             modelId = modelId,
         )
         if (steps.isNotEmpty()) {
-            // Apply variable substitution to step args before serializing
-            // so the executor sees the final values, not template placeholders.
+            // Pre-generate step IDs so we can reference them in dependsOn.
+            // The DagResolver matches dependencies by step ID (UUID), not
+            // by positional index — so "[0]" or "[1]" would never resolve.
+            val stepIds = steps.map { java.util.UUID.randomUUID().toString() }
             agentRunStore.planSteps(
                 runId = run.id,
                 steps = steps.mapIndexed { index, step ->
                     val substitution = handRepository.substituteArgs(step.args, variables)
                     val merged = substitution.args + variables.mapValues { it.value }
                     StepSpec(
+                        id = stepIds[index],
                         toolName = step.tool,
                         toolArgs = Json.encodeToString(
                             MapSerializer(String.serializer(), String.serializer()),
                             merged,
                         ),
-                        dependsOn = if (index == 0) "[]" else "[$index]",
+                        dependsOn = if (index == 0) "[]" else "[\"${stepIds[index - 1]}\"]",
                     )
                 },
             )

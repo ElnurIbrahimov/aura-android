@@ -71,6 +71,32 @@ class ChatGptSubscriptionProvider(
                     put("content", msg.content)
                 }
             }))
+            // Tool declarations (OpenAI function calling format)
+            if (tools.isNotEmpty()) {
+                put("tools", JsonArray(tools.map { tool ->
+                    buildJsonObject {
+                        put("type", "function")
+                        put("function", buildJsonObject {
+                            put("name", tool.name)
+                            put("description", tool.description)
+                            put("parameters", buildJsonObject {
+                                put("type", "object")
+                                put("properties", buildJsonObject {
+                                    tool.parameters.properties.forEach { (key, prop) ->
+                                        put(key, buildJsonObject {
+                                            put("type", prop.type)
+                                            prop.description?.let { put("description", it) }
+                                        })
+                                    }
+                                })
+                                if (tool.parameters.required.isNotEmpty()) {
+                                    put("required", JsonArray(tool.parameters.required.map { JsonPrimitive(it) }))
+                                }
+                            })
+                        })
+                    }
+                }))
+            }
         }
         val request = Request.Builder()
             .url("$baseUrl/responses")
@@ -92,7 +118,9 @@ class ChatGptSubscriptionProvider(
                 if (done) channel.trySend(ProviderChunk(finishReason = FinishReason.stop))
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "unknown", retryable = true)))
+                val code = response?.code ?: 0
+                val retryable = code != 401 && code != 400 && code != 403
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
@@ -101,6 +129,7 @@ class ChatGptSubscriptionProvider(
         try {
             for (chunk in channel) emit(chunk)
         } finally {
+            activeEventSource?.cancel()
             activeEventSource = null
         }
     }.flowOn(Dispatchers.IO)

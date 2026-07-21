@@ -75,7 +75,7 @@ class AgentRunStore @Inject constructor(
     suspend fun planSteps(runId: kotlin.String, steps: List<StepSpec>) = mutex.withLock {
         stepDao.upsertAll(steps.mapIndexed { index, spec ->
             StepEntity(
-                id = UUID.randomUUID().toString(),
+                id = spec.id ?: UUID.randomUUID().toString(),
                 agentRunId = runId,
                 toolName = spec.toolName,
                 toolArgs = spec.toolArgs,
@@ -195,6 +195,10 @@ data class StepSpec(
     val toolName: kotlin.String,
     val toolArgs: kotlin.String = "{}",
     val dependsOn: kotlin.String = "[]",
+    /** Optional pre-generated step ID. If set, planSteps uses this
+     * instead of generating a UUID, so callers can reference it in
+     * [dependsOn] of subsequent steps. */
+    val id: kotlin.String? = null,
 )
 
 @Serializable

@@ -74,14 +74,19 @@ class AgentRunsViewModel @Inject constructor(
 
     fun approve(approvalId: String) {
         viewModelScope.launch {
+            // Look up the approval BEFORE flipping its status —
+            // pendingApprovals only returns PENDING entries, so
+            // calling approve() first would make the lookup return null.
+            val runId = _state.value.selectedRun?.id ?: ""
+            val approval = agentRunStore.pendingApprovals(runId)
+                .firstOrNull { it.id == approvalId }
             agentRunStore.approve(approvalId)
             // Reset the step that was awaiting approval back to PENDING
             // so the executor worker picks it up again.
-            val approval = agentRunStore.pendingApprovals(_state.value.selectedRun?.id ?: "").firstOrNull { it.id == approvalId }
             approval?.stepId?.let { stepId ->
                 agentRunStore.resetStep(stepId)
             }
-            _state.value.selectedRun?.id?.let { runId ->
+            if (runId.isNotBlank()) {
                 refreshDetail(runId)
                 AgentRunExecutorService.enqueue(appContext, runId)
             }

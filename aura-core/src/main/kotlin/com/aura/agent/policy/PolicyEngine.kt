@@ -31,8 +31,9 @@ class PolicyEngine @Inject constructor(
             return PolicyResult.Disabled(tool.name)
         }
 
-        // 2. User policy
-        val policy = policyStore.getPolicy(tool.name) ?: ToolPolicy(toolName = tool.name)
+        // 2. User policy, falling back to risk-based defaults
+        val policy = policyStore.getPolicy(tool.name)
+            ?: ToolPolicyDefaults.forTool(tool.name, tool.risk)
 
         if (!policy.enabled) {
             return PolicyResult.Disabled(tool.name)

@@ -88,7 +88,11 @@ open class OpenAiCompatProvider(
                 }
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "unknown", retryable = true)))
+                // 401/400/403 are not retryable — retrying with the same
+                // key won't help. 429 and 5xx are retryable.
+                val code = response?.code ?: 0
+                val retryable = code != 401 && code != 400 && code != 403
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
@@ -106,6 +110,11 @@ open class OpenAiCompatProvider(
             // Synthesize a finish so downstream loops terminate cleanly.
             emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
+            // Cancel the EventSource so the remote stream stops generating
+            // billable tokens. Without this, hitting "stop" in the UI only
+            // stops consuming the channel — the remote model keeps generating
+            // to completion.
+            activeEventSource?.cancel()
             activeEventSource = null
         }
     }

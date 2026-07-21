@@ -65,7 +65,7 @@ class GeminiProvider(
         options: ChatOptions,
         tools: List<ToolDefinition>,
     ): Flow<ProviderChunk> = flow {
-        val body = buildRequestBody(messages, options)
+        val body = buildRequestBody(messages, options, tools)
         val key = apiKey
         if (key.isBlank()) {
             emit(ProviderChunk(error = ProviderError("missing_api_key", "Gemini API key not configured", retryable = false)))
@@ -112,13 +112,27 @@ class GeminiProvider(
                     if (line.isBlank()) continue
                     val obj = try { Json.parseToJsonElement(line).jsonObject } catch (_: Exception) { continue }
 
-                    // Parse candidates[0].content.parts[0].text
+                    // Parse candidates[0].content.parts[0].text and functionCall
                     val candidates = obj["candidates"]?.jsonArray
                     val candidate = candidates?.firstOrNull()?.jsonObject
                     val content = candidate?.get("content")?.jsonObject
                     val parts = content?.get("parts")?.jsonArray
-                    val text = parts?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content
-                    if (text != null) emit(ProviderChunk(text = text))
+                    if (parts != null) {
+                        for (part in parts) {
+                            val partObj = part as? JsonObject ?: continue
+                            // Text part
+                            val text = partObj["text"]?.jsonPrimitive?.content
+                            if (text != null) emit(ProviderChunk(text = text))
+                            // Function call part (Gemini tool calling)
+                            val fnCall = partObj["functionCall"]?.jsonObject
+                            if (fnCall != null) {
+                                val fnName = fnCall["name"]?.jsonPrimitive?.content ?: ""
+                                val fnArgs = fnCall["args"]?.toString() ?: "{}"
+                                val callId = "gemini_${System.currentTimeMillis()}_${fnName.hashCode()}"
+                                emit(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
+                            }
+                        }
+                    }
 
                     // Check finish reason on the candidate
                     val finishReason = candidate?.get("finishReason")?.jsonPrimitive?.content
@@ -221,6 +235,7 @@ class GeminiProvider(
     private fun buildRequestBody(
         messages: List<ProviderMessage>,
         options: ChatOptions,
+        tools: List<ToolDefinition> = emptyList(),
     ): JsonObject = buildJsonObject {
         // Gemini supports system_instruction at the top level
         val systemMessages = messages.filter { it.role == ProviderMessage.Role.system }
@@ -256,6 +271,41 @@ class GeminiProvider(
                 put("stopSequences", JsonArray(options.stop.map { JsonPrimitive(it) }))
             }
         })
+
+        // Tool declarations (Gemini function calling format)
+        if (tools.isNotEmpty()) {
+            put("tools", buildJsonObject {
+                put("functionDeclarations", JsonArray(tools.map { tool ->
+                    buildJsonObject {
+                        put("name", tool.name)
+                        put("description", tool.description)
+                        val props = tool.parameters.properties
+                        if (props.isNotEmpty()) {
+                            put("parameters", buildJsonObject {
+                                put("type", "object")
+                                put("properties", buildJsonObject {
+                                    props.forEach { (key, prop) ->
+                                        put(key, buildJsonObject {
+                                            put("type", when (prop.type) {
+                                                "integer" -> "integer"
+                                                "number" -> "number"
+                                                "boolean" -> "boolean"
+                                                "array" -> "array"
+                                                else -> "string"
+                                            })
+                                            prop.description?.let { put("description", it) }
+                                        })
+                                    }
+                                })
+                                if (tool.parameters.required.isNotEmpty()) {
+                                    put("required", JsonArray(tool.parameters.required.map { JsonPrimitive(it) }))
+                                }
+                            })
+                        }
+                    }
+                }))
+            })
+        }
     }
 
     /**

@@ -245,7 +245,9 @@ class CustomOpenAiCompatProvider(
                 }
             }
             override fun onFailure(eventSource: okhttp3.sse.EventSource, t: Throwable?, response: okhttp3.Response?) {
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "unknown", retryable = true)))
+                val code = response?.code ?: 0
+                val retryable = code != 401 && code != 400 && code != 403
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
                 channel.close()
             }
             override fun onClosed(eventSource: okhttp3.sse.EventSource) { channel.close() }
@@ -254,6 +256,7 @@ class CustomOpenAiCompatProvider(
         try {
             for (chunk in channel) emit(chunk)
         } finally {
+            activeEventSource?.cancel()
             activeEventSource = null
         }
     }.flowOn(Dispatchers.IO)
