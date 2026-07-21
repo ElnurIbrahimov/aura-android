@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.aura.agent.runtime.AgentTraceEvent
 import com.aura.core.error.CrashLogEntry
 import com.aura.ui.viewmodel.DiagnosticsViewModel
 import java.text.SimpleDateFormat
@@ -189,11 +190,26 @@ fun DiagnosticsScreen(
             state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            state.entries.isEmpty() -> DiagnosticsEmptyState()
+            state.entries.isEmpty() && state.traceEvents.isEmpty() -> DiagnosticsEmptyState()
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (state.traceEvents.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Agent Trace (${state.traceCount} events)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.68f),
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                        )
+                    }
+                    items(state.traceEvents.takeLast(50), key = { it.id }) { event ->
+                        TraceEventCard(event)
+                    }
+                    item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                }
                 items(state.entries, key = { "${it.timestamp}:${it.code}:${it.message.hashCode()}" }) { entry ->
                     DiagnosticCard(entry)
                 }
@@ -277,6 +293,66 @@ private fun DiagnosticCard(entry: CrashLogEntry) {
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     color = AuraThemeTokens.colors.textPrimary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TraceEventCard(event: AgentTraceEvent) {
+    val accent = when {
+        !event.success -> AuraThemeTokens.colors.error
+        event.type.name.contains("FAIL") || event.type.name.contains("CANCEL") -> AuraThemeTokens.colors.warning
+        event.type.name.contains("TOOL") -> AuraThemeTokens.colors.assistantAccent
+        else -> AuraThemeTokens.colors.actionPrimary
+    }
+    Surface(
+        color = AuraThemeTokens.colors.surface1.copy(alpha = 0.38f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = accent.copy(alpha = 0.14f), shape = CircleShape) {
+                    Text(
+                        event.type.name,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    event.toolName ?: event.stepId ?: event.runId,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    DIAGNOSTIC_DATE_FORMAT.format(Date(event.timestamp)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                )
+            }
+            if (event.redactedPayload.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    event.redactedPayload,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.68f),
+                )
+            }
+            if (!event.success && event.errorCode != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "error: ${event.errorCode}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AuraThemeTokens.colors.error,
                 )
             }
         }

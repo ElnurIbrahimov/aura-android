@@ -210,7 +210,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             val firstProvider = providers.firstOrNull()
                             val firstModel = firstProvider?.listModels()?.firstOrNull()
                             if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-                        }.getOrNull()
+                        }.onFailure { android.util.Log.w("AgenticLoop", "rerank model resolution failed: ${it.message}") }.getOrNull()
                         // Query rewriting is a generation task — prefer a
                         // smaller model when available to reduce latency.
                         // Falls back to the same model as reranking.
@@ -223,7 +223,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             // to the first model if no heuristic match.
                             val smallModel = models.minByOrNull { it.length }
                             if (firstProvider != null && smallModel != null) "${firstProvider.prefix}:$smallModel" else null
-                        }.getOrNull() ?: rerankModel
+                        }.onFailure { android.util.Log.w("AgenticLoop", "rewrite model resolution failed: ${it.message}") }.getOrNull() ?: rerankModel
                         // Build recent context for query rewriting —
                         // last 3 turns of conversation for pronoun/deictic
                         // resolution.
@@ -284,7 +284,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }.joinToString("\n")
                         "\n\n# Known beliefs:\n$lines"
                     }
-                }.getOrDefault("")
+                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.getOrDefault("")
             } else ""
 
             // Update emotion state from the user's message and include
@@ -312,7 +312,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // change mid-turn. Falls back to empty string if no
             // TasteEngine is configured or no signals exist yet.
             val tasteContext = if (step == 1 && tasteEngine != null) {
-                runCatching { tasteEngine.getTasteContext() }.getOrDefault("")
+                runCatching { tasteEngine.getTasteContext() }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
             } else cachedTasteContext ?: ""
             if (step == 1) cachedTasteContext = tasteContext
 
@@ -323,7 +323,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             if (cachedPersonality == null && agentId != null) {
                 cachedPersonality = runCatching {
                     agentStore?.byId(agentId)?.personality()?.toPromptDirective()
-                }.getOrNull() ?: ""
+                }.onFailure { android.util.Log.w("AgenticLoop", "personality resolution failed: ${it.message}") }.getOrNull() ?: ""
             }
             val personalityDirective = cachedPersonality ?: ""
             val messages = buildList {
@@ -362,7 +362,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }
                         val raw = planBuilder.toString().trim()
                         if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""
-                    }.getOrDefault("")
+                    }.onFailure { android.util.Log.w("AgenticLoop", "planning step failed: ${it.message}") }.getOrDefault("")
                 } else ""
 
                 val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
@@ -578,7 +578,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         scope = storeScope,
                     )
                 }
-            }
+            }.onFailure { android.util.Log.w("AgenticLoop", "memory auto-store failed: ${it.message}") }
         }
 
         // 5) Extract user profile from the conversation.
@@ -588,10 +588,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         //    text as a secondary path (the assistant may echo user facts).
         if (memoryEnabled && lastUserMessage.isNotBlank()) {
             runCatching { extractProfileFromText(lastUserMessage) }
+                .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (user) failed: ${it.message}") }
         }
         val lastAssistant = currentConversation.turns.lastOrNull()?.assistant
         if (memoryEnabled && !lastAssistant.isNullOrBlank()) {
             runCatching { extractProfileFromText(lastAssistant) }
+                .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (assistant) failed: ${it.message}") }
         }
 
         if (!finished) {

@@ -3,6 +3,8 @@ package com.aura.ui.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aura.agent.runtime.AgentTraceEvent
+import com.aura.agent.runtime.TraceSink
 import com.aura.core.error.CrashLogEntry
 import com.aura.core.error.CrashLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +19,8 @@ import kotlinx.coroutines.launch
 
 data class DiagnosticsUiState(
     val entries: List<CrashLogEntry> = emptyList(),
+    val traceEvents: List<AgentTraceEvent> = emptyList(),
+    val traceCount: Int = 0,
     val loading: Boolean = true,
     val exporting: Boolean = false,
     val exportFile: File? = null,
@@ -26,6 +30,7 @@ data class DiagnosticsUiState(
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
     private val crashLogger: CrashLogger,
+    private val traceSink: TraceSink,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -41,7 +46,15 @@ class DiagnosticsViewModel @Inject constructor(
             _state.update { it.copy(loading = true) }
             runCatching { crashLogger.entries() }
                 .onSuccess { entries ->
-                    _state.update { it.copy(entries = entries, loading = false, error = null) }
+                    _state.update {
+                        it.copy(
+                            entries = entries,
+                            traceEvents = traceSink.recent(100),
+                            traceCount = traceSink.count(),
+                            loading = false,
+                            error = null,
+                        )
+                    }
                 }
                 .onFailure { failure ->
                     _state.update {
@@ -58,9 +71,17 @@ class DiagnosticsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 crashLogger.clear()
+                traceSink.clear()
                 crashLogger.entries()
             }.onSuccess { entries ->
-                _state.update { it.copy(entries = entries, error = null) }
+                _state.update {
+                    it.copy(
+                        entries = entries,
+                        traceEvents = emptyList(),
+                        traceCount = 0,
+                        error = null,
+                    )
+                }
             }.onFailure { failure ->
                 _state.update { it.copy(error = failure.message ?: failure.javaClass.simpleName) }
             }
