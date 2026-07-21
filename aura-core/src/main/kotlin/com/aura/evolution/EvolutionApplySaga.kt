@@ -140,6 +140,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyRetireSkill(proposal: EvolutionProposalEntity): ApplyResult {
         val existing = skillsStore?.findById(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "skill not found: ${proposal.targetId}")
+        proposalStore.recordRollbackSnapshot(proposal.id, json.encodeToString(Skill.serializer(), existing))
         skillsStore.remove(existing.id)
         proposalStore.markApplied(proposal.id, "retired skill ${existing.name}")
         return ApplyResult.Ok(proposal.id, "retired skill ${existing.name}")
@@ -287,6 +288,9 @@ class EvolutionApplySaga @Inject constructor(
         beliefDao ?: return ApplyResult.Error(proposal.id, "BeliefDao not available")
         val existing = beliefDao.getById(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "belief not found: ${proposal.targetId}")
+        // Snapshot before mutation so rollback can restore.
+        proposalStore.recordRollbackSnapshot(proposal.id,
+            """{"id":"${existing.id}","subject":"${existing.subject}","predicate":"${existing.predicate}","valueJson":"${existing.valueJson}","confidence":${existing.confidence},"status":"${existing.status}"}""")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
         }.getOrDefault(emptyMap())
@@ -303,6 +307,12 @@ class EvolutionApplySaga @Inject constructor(
 
     private suspend fun applyRetireBelief(proposal: EvolutionProposalEntity): ApplyResult {
         beliefDao ?: return ApplyResult.Error(proposal.id, "BeliefDao not available")
+        // Snapshot before retiring so rollback can restore.
+        val existing = beliefDao.getById(proposal.targetId)
+        if (existing != null) {
+            proposalStore.recordRollbackSnapshot(proposal.id,
+                """{"id":"${existing.id}","subject":"${existing.subject}","predicate":"${existing.predicate}","valueJson":"${existing.valueJson}","confidence":${existing.confidence},"status":"${existing.status}"}""")
+        }
         beliefDao.supersede(proposal.targetId, "retired", "", System.currentTimeMillis())
         proposalStore.markApplied(proposal.id, "retired belief ${proposal.targetId}")
         return ApplyResult.Ok(proposal.id, "retired belief ${proposal.targetId}")

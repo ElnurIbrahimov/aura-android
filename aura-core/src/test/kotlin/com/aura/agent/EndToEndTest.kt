@@ -52,12 +52,8 @@ class EndToEndTest {
         val brain = mockk<Brain>(relaxed = true)
         // Planning step -> tool call -> acknowledgment
         coEvery { brain.stream(any(), any(), any(), any()) } returnsMany listOf(
-            // Planning step
-            flowOf(
-                BrainChunk.Text("Use remember tool to store preference."),
-                BrainChunk.Finished(FinishReason.stop.name),
-            ),
-            // First call: model emits a remember tool call
+            // First call: model emits a remember tool call (no planning step
+            // for short messages — "I prefer dark mode" is < 20 chars threshold)
             flowOf(
                 BrainChunk.ToolCallStart("tc1", "remember"),
                 BrainChunk.ToolCallDelta(

@@ -353,7 +353,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // calling tools. The plan is injected as a system prefix so the
                 // model sees its own strategy. One cheap LLM call improves tool
                 // selection accuracy across all tasks. Falls back silently on error.
-                val plan = if (step == 1) {
+                // Skip for short messages — "hi", "thanks", "what time is it" don't
+                // need a planning round-trip. Threshold: < 20 chars or < 4 words.
+                val needsPlan = lastUserMessage.length > 20 &&
+                    lastUserMessage.split(Regex("\\s+")).filter { it.isNotBlank() }.size > 3
+                val plan = if (step == 1 && needsPlan) {
                     runCatching {
                         // Use a cheap model for planning — this is a 150-token
                         // outline, not a generation task. If the user selected
@@ -651,12 +655,21 @@ private suspend fun extractProfileFromText(text: String) {
      * This prevents a 150-token planning step from costing 3 API calls.
      */
     private suspend fun resolveCheapModel(userModel: kotlin.String): kotlin.String {
-        if (!userModel.startsWith("moa:")) return userModel
+        // For non-MoA models, we still want a cheap model for auxiliary
+        // tasks (planning, compaction, write gate). The user's main model
+        // might be an expensive Opus/GPT-4 — using it for a 150-token plan
+        // wastes money and adds latency. Pick the cheapest configured
+        // model by name-length heuristic (shorter names tend to be smaller).
         return runCatching {
             val providers = providerRegistry.configured()
-            val firstProvider = providers.firstOrNull()
-            val firstModel = firstProvider?.listModels()?.firstOrNull()
-            if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else userModel
+            // If the user's model is MoA, skip it — MoA is 3 API calls.
+            // Otherwise prefer the user's model only if no cheaper option
+            // exists.
+            val candidates = providers.flatMap { p ->
+                p.listModels().map { m -> "${p.prefix}:$m" }
+            }.filter { it != userModel && !it.startsWith("moa:") }
+            // Pick the shortest-named model (heuristic for smallest/cheapest)
+            candidates.minByOrNull { it.substringAfter(":").length } ?: userModel
         }.getOrDefault(userModel)
     }
 

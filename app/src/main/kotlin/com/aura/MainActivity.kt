@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.IntentCompat
 import androidx.core.view.WindowCompat
@@ -191,6 +192,17 @@ fun AuraRoot() {
     }
 
     LaunchedEffect(Unit) {
+        // Request notification permission on Android 13+ so morning briefs,
+        // reminders, and daemon insights can be posted. Without this, the
+        // notifications are silently dropped on API 33+.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val permission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (ContextCompat.checkSelfPermission(ctx, permission) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                (ctx as? android.app.Activity)?.requestPermissions(arrayOf(permission), 1001)
+            }
+        }
         val entry = EntryPointAccessors.fromApplication(
             ctx.applicationContext,
             FirstRunGateEntryPoint::class.java,
