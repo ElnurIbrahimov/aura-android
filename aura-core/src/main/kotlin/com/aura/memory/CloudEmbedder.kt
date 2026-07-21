@@ -45,6 +45,13 @@ class CloudEmbedder @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaType = "application/json".toMediaType()
 
+    override fun modelId(): kotlin.String {
+        val selected = providerKeys.embeddingModel
+        return if (selected.isNotBlank()) selected else "local-hash-v2"
+    }
+
+    override fun dimension(): Int = 384
+
     /** In-memory LRU cache: SHA-256(hex) → FloatArray. */
     private val cache = object : LinkedHashMap<String, FloatArray>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>): Boolean =

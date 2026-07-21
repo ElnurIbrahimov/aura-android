@@ -21,6 +21,10 @@ class LocalEmbedder @Inject constructor(
     private val dim: Int = 384,
 ) : Embedder {
 
+    override fun modelId(): kotlin.String = "local-hash-v2"
+
+    override fun dimension(): Int = dim
+
     override suspend fun embed(text: String): FloatArray {
         val vec = FloatArray(dim)
         val tokens = tokenize(text)

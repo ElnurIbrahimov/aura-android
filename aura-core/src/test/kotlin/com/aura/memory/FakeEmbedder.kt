@@ -17,6 +17,9 @@ class FakeEmbedder(
     val dim: Int = 384,
     val callCount: AtomicInteger = AtomicInteger(0),
 ) : Embedder {
+    override fun modelId(): kotlin.String = "fake-embedder"
+    override fun dimension(): Int = dim
+
     override suspend fun embed(text: String): FloatArray {
         callCount.incrementAndGet()
         if (text.isBlank()) return FloatArray(dim)

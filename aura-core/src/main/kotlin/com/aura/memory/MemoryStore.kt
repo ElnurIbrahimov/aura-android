@@ -127,6 +127,8 @@ class MemoryStore @Inject constructor(
                 category = category,
                 importance = importance,
                 embedding = Embedder.toBytes(embedding),
+                embeddingModel = embedder.modelId(),
+                embeddingVersion = embedder.dimension(),
                 createdAt = now,
                 accessedAt = now,
                 decayScore = 1.0f,

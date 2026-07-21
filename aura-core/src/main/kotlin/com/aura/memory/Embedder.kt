@@ -12,6 +12,12 @@ interface Embedder {
     /** Embed [text] into a unit-normalized vector. */
     suspend fun embed(text: String): FloatArray
 
+    /** Identifier of the model/method used (e.g. "local-hash-v2", "ollama:nomic-embed-text"). */
+    fun modelId(): kotlin.String
+
+    /** Dimensionality of the vectors produced by [embed]. */
+    fun dimension(): Int
+
     companion object {
         fun toBytes(vec: FloatArray): ByteArray {
             val out = ByteArray(vec.size * 4)
