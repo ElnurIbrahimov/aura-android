@@ -47,7 +47,8 @@ class AgentCouncil @Inject constructor(
         context: String = "",
         budgetMs: Long = 120_000L,
         directorAgentId: String? = null,
-    ): CouncilResult = withTimeout(budgetMs) {
+    ): CouncilResult = try {
+        withTimeout(budgetMs) {
         // Resolve agents
         val allAgents = agentStore.allOnce()
         val agents = if (agentIds.isEmpty()) {
@@ -119,6 +120,12 @@ class AgentCouncil @Inject constructor(
         CouncilResult(
             directorOutput = directorResult.output.ifBlank { "Council produced no output." },
             proposals = proposals,
+        )
+        }
+    } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+        CouncilResult(
+            directorOutput = "Council timed out after ${budgetMs / 1000}s.",
+            proposals = emptyList(),
         )
     }
 
