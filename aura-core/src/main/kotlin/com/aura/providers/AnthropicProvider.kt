@@ -103,7 +103,7 @@ class AnthropicProvider(
             try {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    emit(ProviderChunk(error = ProviderError("http_${resp.code}", resp.message, retryable = resp.code in 500..599)))
+                    emit(ProviderChunk(error = ProviderError("http_${resp.code}", resp.message, retryable = resp.code == 429 || resp.code in 500..599)))
                     return@use
                 }
                 val source = resp.body?.source() ?: return@use

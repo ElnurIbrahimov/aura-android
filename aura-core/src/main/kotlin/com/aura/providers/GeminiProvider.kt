@@ -101,7 +101,7 @@ class GeminiProvider(
                         resp.message
                     }
                     emit(ProviderChunk(
-                        error = ProviderError("http_${resp.code}", errorDetail, retryable = resp.code in 500..599)
+                        error = ProviderError("http_${resp.code}", errorDetail, retryable = resp.code == 429 || resp.code in 500..599)
                     ))
                     return@use
                 }
