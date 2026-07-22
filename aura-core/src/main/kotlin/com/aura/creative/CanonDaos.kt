@@ -35,6 +35,9 @@ interface CanonFactDao {
 
     @Query("DELETE FROM canon_facts WHERE projectId = :projectId")
     suspend fun deleteForProject(projectId: kotlin.String)
+
+    @Query("DELETE FROM canon_facts")
+    suspend fun deleteAll()
 }
 
 @Dao

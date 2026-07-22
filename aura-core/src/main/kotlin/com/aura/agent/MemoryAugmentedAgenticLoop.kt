@@ -118,9 +118,41 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
             else toolRegistry.definitions().filter { def ->
-                // Exact match for native tools, plus allow MCP-prefixed tools
-                // (mcp_serverId_toolName) so specialists can use MCP-connected tools.
-                def.name in allowed || def.name.startsWith("mcp_") || def.category == "mcp"
+                // Exact match for native tools, plus a controlled pass
+                // for MCP tools. Until v0.30.x the filter used
+                //   def.name.startsWith("mcp_") || def.category == "mcp"
+                // which let *any* MCP tool bypass the specialist's
+                // allowlist. That was a security boundary: a user who
+                // created a "research" specialist with `allowed=[web_search]`
+                // and then connected an MCP server exposing `delete_file`
+                // would see the specialist silently gain file-deletion
+                // capability without any UI indication.
+                //
+                // The correct rule: an MCP tool is allowed if its
+                // unprefixed base name (what the MCP server actually
+                // exposes) is in the specialist's allowlist. If the
+                // specialist doesn't have a base name match, the tool
+                // is hidden — even though the registry exposes it. This
+                // matches the user-visible intent of "this specialist
+                // can only call these tools."
+                if (def.category == "mcp" || def.name.startsWith("mcp_")) {
+                    val baseName = if (def.name.startsWith("mcp_")) {
+                        // mcp_<serverId>_<toolName> → <toolName>.
+                        // serverId is sanitized to no underscores so
+                        // the first segment after the prefix is the
+                        // server id; the rest is the tool name.
+                        val rest = def.name.removePrefix("mcp_")
+                        val firstUnderscore = rest.indexOf('_')
+                        if (firstUnderscore > 0) rest.substring(firstUnderscore + 1) else rest
+                    } else {
+                        // Tool was registered unprefixed because there
+                        // was no native collision — base name == def.name.
+                        def.name
+                    }
+                    baseName in allowed
+                } else {
+                    def.name in allowed
+                }
             }
         } ?: toolRegistry.definitions()
         // Hide search tools that need an API key the user hasn't configured.

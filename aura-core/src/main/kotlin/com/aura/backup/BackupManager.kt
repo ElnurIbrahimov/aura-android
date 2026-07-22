@@ -92,6 +92,8 @@ class BackupManager @Inject constructor(
     private val worldEventDao: com.aura.world.WorldEventDao? = null,
     private val opportunityDao: com.aura.world.OpportunityDao? = null,
     private val creativeArtifactDao: com.aura.creative.CreativeArtifactDao? = null,
+    private val creativeRevisionDao: com.aura.creative.CreativeRevisionDao? = null,
+    private val creativeBranchDao: com.aura.creative.CreativeBranchDao? = null,
     private val canonFactDao: com.aura.creative.CanonFactDao? = null,
     private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
     private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
@@ -212,6 +214,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             worldEvents = worldEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             opportunities = opportunityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             creativeArtifacts = creativeArtifactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            // CreativeRevision and CreativeBranch had types in AuraBackup.kt
+            // since v0.30.0 but BackupManager never populated them, so
+            // every snapshot silently wrote emptyList() for these fields.
+            // Until v0.30.x they were dropped on roundtrip; this wires
+            // them through snapshot+restore symmetrically.
+            creativeRevisions = creativeRevisionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            creativeBranches = creativeBranchDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             canonFacts = canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
@@ -267,6 +276,19 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val proactiveRows = backup.proactiveEvents.map { it.toEntity() }
         val profileRow = backup.userProfile?.toEntity()
         val agentRows = backup.agents.map { it.toEntity() }
+        // Schema v10: world model + creative + taste. Until v0.30.x these
+        // were silently dropped on restore because the toEntity() mappers
+        // and the DAOs' insertAll() methods didn't exist.
+        val beliefRows = backup.beliefs.map { it.toEntity() }
+        val evidenceRows = backup.evidence.map { it.toEntity() }
+        val worldEventRows = backup.worldEvents.map { it.toEntity() }
+        val opportunityRows = backup.opportunities.map { it.toEntity() }
+        val creativeArtifactRows = backup.creativeArtifacts.map { it.toEntity() }
+        val creativeRevisionRows = backup.creativeRevisions.map { it.toEntity() }
+        val creativeBranchRows = backup.creativeBranches.map { it.toEntity() }
+        val canonFactRows = backup.canonFacts.map { it.toEntity() }
+        val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
+        val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
 
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -281,6 +303,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         if (handRunRows.isNotEmpty()) handDao.insertAllRuns(handRunRows)
         if (taskRows.isNotEmpty()) taskDao.insertAll(taskRows)
+        if (beliefRows.isNotEmpty()) beliefDao?.insertAll(beliefRows)
+        if (evidenceRows.isNotEmpty()) evidenceDao?.insertAll(evidenceRows)
+        if (worldEventRows.isNotEmpty()) worldEventDao?.insertAll(worldEventRows)
+        if (opportunityRows.isNotEmpty()) opportunityDao?.insertAll(opportunityRows)
+        if (creativeArtifactRows.isNotEmpty()) creativeArtifactDao?.insertAll(creativeArtifactRows)
+        if (creativeRevisionRows.isNotEmpty()) creativeRevisionDao?.insertAll(creativeRevisionRows)
+        if (creativeBranchRows.isNotEmpty()) creativeBranchDao?.insertAll(creativeBranchRows)
+        if (canonFactRows.isNotEmpty()) canonFactDao?.upsertAll(canonFactRows)
+        if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
+        if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
         if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
         restoreReminders(reminderRows)
         // If the backup has a profile, replace the current one.
@@ -355,6 +387,17 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             evolutionSettings = backup.evolutionSettings.size,
             evolutionRevisions = backup.evolutionRevisions.size,
             agents = agentRows.size,
+            // Schema v10: previously missing from RestoreCounts entirely.
+            beliefs = beliefRows.size,
+            evidence = evidenceRows.size,
+            worldEvents = worldEventRows.size,
+            opportunities = opportunityRows.size,
+            creativeArtifacts = creativeArtifactRows.size,
+            creativeRevisions = creativeRevisionRows.size,
+            creativeBranches = creativeBranchRows.size,
+            canonFacts = canonFactRows.size,
+            preferenceSignals = preferenceSignalRows.size,
+            styleProfiles = styleProfileRows.size,
         )
     }
 
@@ -425,6 +468,20 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         evolutionSettingsDao.deleteAll()
         agentDao.deleteAllCustom()
         userProfileDao.deleteAll()
+        // Schema v10: world model + creative + taste tables. Without
+        // these, restore→purge→restore would leave stale rows in the
+        // world/creative/taste tables and the "clean slate" promise
+        // of purgeAll would be a lie.
+        beliefDao?.deleteAll()
+        evidenceDao?.deleteAll()
+        worldEventDao?.deleteAll()
+        opportunityDao?.deleteAll()
+        creativeArtifactDao?.deleteAll()
+        creativeRevisionDao?.deleteAll()
+        creativeBranchDao?.deleteAll()
+        canonFactDao?.deleteAll()
+        preferenceSignalDao?.deleteAll()
+        styleProfileDao?.deleteAll()
     }
 
     /**
@@ -440,25 +497,52 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
     fun exportFile(): File = File(context.cacheDir, defaultExportFileName())
 
     data class RestoreCounts(
-        val memories: Int,
-        val memoryEdits: Int,
-        val documents: Int,
-        val creativeProjects: Int,
-        val conversations: Int,
-        val nodes: Int,
-        val edges: Int,
-        val hands: Int,
-        val handRuns: Int,
-        val tasks: Int,
-        val reminders: Int,
-        val proactiveEvents: Int,
-        val profile: Int,
-        val evolutionProposals: Int = 0,
-        val evolutionSettings: Int = 0,
-        val evolutionRevisions: Int = 0,
-        val agents: Int = 0,
-    ) {
-        val total: Int get() = memories + memoryEdits + documents + creativeProjects + conversations + nodes + edges + hands + handRuns + tasks + reminders + proactiveEvents + profile + evolutionProposals + evolutionSettings + evolutionRevisions + agents
+            val memories: Int,
+            val memoryEdits: Int,
+            val documents: Int,
+            val creativeProjects: Int,
+            val conversations: Int,
+            val nodes: Int,
+            val edges: Int,
+            val hands: Int,
+            val handRuns: Int,
+            val tasks: Int,
+            val reminders: Int,
+            val proactiveEvents: Int,
+            val profile: Int,
+            val evolutionProposals: Int = 0,
+            val evolutionSettings: Int = 0,
+            val evolutionRevisions: Int = 0,
+            val agents: Int = 0,
+            // Schema v10 fields. Until v0.30.x these existed in the JSON
+            // but were silently dropped on restore. The defaults let the
+            // constructor stay backward-compatible with existing call sites.
+            val beliefs: Int = 0,
+            val evidence: Int = 0,
+            val worldEvents: Int = 0,
+            val opportunities: Int = 0,
+            val creativeArtifacts: Int = 0,
+            val creativeRevisions: Int = 0,
+            val creativeBranches: Int = 0,
+            val canonFacts: Int = 0,
+            val preferenceSignals: Int = 0,
+            val styleProfiles: Int = 0,
+        ) {
+            // Auto-derived: every non-self Int field summed. Until v0.30.x
+            // this was a 17-term hand-sum that fell out of sync with the
+            // schema v10 fields added below. Listing them explicitly here
+            // (instead of via reflection) keeps the build dep-free and
+            // makes the dependency obvious to the next person who adds a
+            // new count.
+            val total: Int get() = (
+                memories + memoryEdits + documents + creativeProjects +
+                conversations + nodes + edges + hands + handRuns +
+                tasks + reminders + proactiveEvents + profile +
+                evolutionProposals + evolutionSettings + evolutionRevisions +
+                agents + beliefs + evidence + worldEvents + opportunities +
+                creativeArtifacts + creativeRevisions + creativeBranches +
+                canonFacts + preferenceSignals + styleProfiles
+            )
     }
 }
 
@@ -774,7 +858,7 @@ private fun EvolutionRevisionBackup.toEntity() = com.aura.evolution.EvolutionRev
     createdAt = createdAt,
 )
 
-// ── Schema v10: World model mappers ──
+// ── Schema v10: World model mappers (toBackup)
 
 private fun com.aura.world.BeliefEntity.toBackup() = BeliefBackup(
     id = id, subject = subject, predicate = predicate, valueJson = valueJson,
@@ -801,7 +885,37 @@ private fun com.aura.world.OpportunityEntity.toBackup() = OpportunityBackup(
     createdAt = createdAt, resolvedAt = resolvedAt, snoozeUntil = snoozeUntil,
 )
 
-// ── Schema v10: Creative artifact mappers ──
+// ── Schema v10: World model mappers (toEntity)
+// Until v0.30.x, these backup types were serialized in snapshot() but
+// never read in restore() — silent data loss on every restore. These
+// toEntity() functions close the loop.
+
+private fun BeliefBackup.toEntity() = com.aura.world.BeliefEntity(
+    id = id, subject = subject, predicate = predicate, valueJson = valueJson,
+    confidence = confidence, validFrom = validFrom, validTo = validTo,
+    status = status, supersededBy = supersededBy, privacyClass = privacyClass,
+    createdAt = createdAt, updatedAt = updatedAt, lastVerifiedAt = lastVerifiedAt,
+)
+
+private fun EvidenceBackup.toEntity() = com.aura.world.EvidenceEntity(
+    id = id, beliefId = beliefId, source = source, summary = summary,
+    detailJson = detailJson, timestamp = timestamp, confidence = confidence,
+)
+
+private fun WorldEventBackup.toEntity() = com.aura.world.WorldEventEntity(
+    id = id, eventType = eventType, source = source, summary = summary,
+    payloadJson = payloadJson, timestamp = timestamp, consumed = consumed,
+)
+
+private fun OpportunityBackup.toEntity() = com.aura.world.OpportunityEntity(
+    id = id, title = title, description = description, kind = kind,
+    benefit = benefit, urgency = urgency, confidence = confidence,
+    costEstimateJson = costEstimateJson, evidenceJson = evidenceJson,
+    suggestedActionJson = suggestedActionJson, status = status,
+    createdAt = createdAt, resolvedAt = resolvedAt, snoozeUntil = snoozeUntil,
+)
+
+// ── Schema v10: Creative artifact mappers (toBackup)
 
 private fun com.aura.creative.CreativeArtifactEntity.toBackup() = CreativeArtifactBackup(
     id = id, projectId = projectId, branchId = branchId, kind = kind,
@@ -818,7 +932,55 @@ private fun com.aura.creative.CanonFactEntity.toBackup() = CanonFactBackup(
     createdAt = createdAt, updatedAt = updatedAt,
 )
 
-// ── Schema v10: Taste mappers ──
+// ── Schema v10: Creative artifact mappers (toEntity)
+// Until v0.30.x, CreativeArtifactBackup and CanonFactBackup were
+// written to JSON but never read back. Closing the loop now.
+
+private fun CreativeArtifactBackup.toEntity() = com.aura.creative.CreativeArtifactEntity(
+    id = id, projectId = projectId, branchId = branchId, kind = kind,
+    title = title, currentRevisionId = currentRevisionId, previewText = previewText,
+    mimeType = mimeType, storageUri = storageUri, contentHash = contentHash,
+    status = status, metadataJson = metadataJson, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+// CreativeRevisionEntity ↔ CreativeRevisionBackup (schema extended in
+// v0.30.x to match the entity's full field set; old backups remain
+// forward-compatible because every new field has a default value).
+private fun com.aura.creative.CreativeRevisionEntity.toBackup() = CreativeRevisionBackup(
+    id = id, artifactId = artifactId, branchId = branchId,
+    parentRevisionId = parentRevisionId, revisionNumber = 0,
+    contentText = contentText, contentJson = "{}", storageUri = storageUri,
+    contentHash = contentHash, summary = "", createdAt = createdAt,
+)
+
+private fun CreativeRevisionBackup.toEntity() = com.aura.creative.CreativeRevisionEntity(
+    id = id, artifactId = artifactId, branchId = branchId,
+    parentRevisionId = parentRevisionId, contentText = contentText,
+    storageUri = storageUri, contentHash = contentHash,
+    createdAt = createdAt,
+)
+
+private fun com.aura.creative.CreativeBranchEntity.toBackup() = CreativeBranchBackup(
+    id = id, projectId = projectId, name = name,
+    baseRevisionId = baseRevisionId, headRevisionId = headRevisionId,
+    status = status, createdAt = createdAt,
+)
+
+private fun CreativeBranchBackup.toEntity() = com.aura.creative.CreativeBranchEntity(
+    id = id, projectId = projectId, name = name,
+    baseRevisionId = baseRevisionId, headRevisionId = headRevisionId,
+    status = status, createdAt = createdAt,
+)
+
+private fun CanonFactBackup.toEntity() = com.aura.creative.CanonFactEntity(
+    id = id, projectId = projectId, branchId = branchId, subjectType = subjectType,
+    subjectId = subjectId, predicate = predicate, valueJson = valueJson,
+    validFrom = validFrom, validTo = validTo, confidence = confidence,
+    sourceRevisionId = sourceRevisionId, status = status,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+// ── Schema v10: Taste mappers (toBackup)
 
 private fun com.aura.taste.PreferenceSignalEntity.toBackup() = PreferenceSignalBackup(
     id = id, projectId = projectId, signalType = signalType, category = category,
@@ -827,6 +989,19 @@ private fun com.aura.taste.PreferenceSignalEntity.toBackup() = PreferenceSignalB
 )
 
 private fun com.aura.taste.StyleProfileEntity.toBackup() = StyleProfileBackup(
+    id = id, projectId = projectId, attributesJson = attributesJson,
+    signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+// ── Schema v10: Taste mappers (toEntity)
+
+private fun PreferenceSignalBackup.toEntity() = com.aura.taste.PreferenceSignalEntity(
+    id = id, projectId = projectId, signalType = signalType, category = category,
+    artifactId = artifactId, attributesJson = attributesJson,
+    weight = weight, createdAt = createdAt,
+)
+
+private fun StyleProfileBackup.toEntity() = com.aura.taste.StyleProfileEntity(
     id = id, projectId = projectId, attributesJson = attributesJson,
     signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
 )

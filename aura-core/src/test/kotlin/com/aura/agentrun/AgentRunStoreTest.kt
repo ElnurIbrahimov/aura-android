@@ -137,4 +137,32 @@ class AgentRunStoreTest {
         coVerify { approvalDao.decide("ap1", "APPROVED", "", any()) }
         coVerify { eventDao.insert(any()) }
     }
+
+    @Test
+    fun blockStep_writes_BLOCKED_status_with_reason() = runTest {
+        // Until v0.30.x, NeedsApproval/NeedsPermission paths in
+        // AgentRunExecutorWorker called failStep() with status="FAILED"
+        // — semantically wrong. A blocked step is not a failure; it's
+        // a paused state waiting on the user. The new blockStep() writes
+        // status="BLOCKED" and emits STEP_BLOCKED (not STEP_FAILED).
+        val step = StepEntity(
+            id = "s1",
+            agentRunId = "run1",
+            toolName = "web_search",
+            toolArgs = "{}",
+            dependsOn = "",
+            position = 0,
+            status = "PENDING",
+        )
+        val statusSlot = slot<String>()
+        val reasonSlot = slot<String>()
+        coEvery { stepDao.getById("s1") } returns step
+        coEvery { stepDao.fail("s1", capture(statusSlot), capture(reasonSlot), any()) } returns Unit
+
+        store.blockStep("s1", "Permission required: WRITE_LOCAL")
+
+        assertEquals("BLOCKED", statusSlot.captured)
+        assertEquals("Permission required: WRITE_LOCAL", reasonSlot.captured)
+        coVerify { eventDao.insert(match { it.type == "STEP_BLOCKED" }) }
+    }
 }

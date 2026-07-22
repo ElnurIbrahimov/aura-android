@@ -74,16 +74,28 @@ class AgentRunsViewModel @Inject constructor(
 
     fun approve(approvalId: String) {
         viewModelScope.launch {
-            // Look up the approval BEFORE flipping its status —
-            // pendingApprovals only returns PENDING entries, so
-            // calling approve() first would make the lookup return null.
+            // Atomicity: pendingApprovals() only returns PENDING entries,
+            // and approve() flips the status atomically. We must capture
+            // the approval's stepId BEFORE calling approve() — otherwise
+            // a concurrent deny() could land between lookup and step
+            // reset, and resetStep() would re-enable a step the user
+            // just denied.
             val runId = _state.value.selectedRun?.id ?: ""
             val approval = agentRunStore.pendingApprovals(runId)
                 .firstOrNull { it.id == approvalId }
+            if (approval == null) {
+                // Already approved/denied by another caller. Refresh
+                // the detail so the UI reflects the current state and
+                // don't touch the step.
+                if (runId.isNotBlank()) refreshDetail(runId)
+                return@launch
+            }
+            val stepId = approval.stepId
             agentRunStore.approve(approvalId)
             // Reset the step that was awaiting approval back to PENDING
-            // so the executor worker picks it up again.
-            approval?.stepId?.let { stepId ->
+            // so the executor worker picks it up again. Safe to do
+            // unconditionally now that we hold the captured stepId.
+            if (stepId.isNotBlank()) {
                 agentRunStore.resetStep(stepId)
             }
             if (runId.isNotBlank()) {

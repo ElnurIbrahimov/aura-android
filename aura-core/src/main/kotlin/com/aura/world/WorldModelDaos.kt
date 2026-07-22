@@ -11,6 +11,12 @@ interface BeliefDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(belief: BeliefEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(beliefs: List<BeliefEntity>)
+
+    @Query("DELETE FROM beliefs")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM beliefs WHERE subject = :subject AND predicate = :predicate AND status = 'active' ORDER BY confidence DESC LIMIT 1")
     suspend fun active(subject: kotlin.String, predicate: kotlin.String): BeliefEntity?
 
@@ -41,6 +47,12 @@ interface EvidenceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(evidence: EvidenceEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(evidence: List<EvidenceEntity>)
+
+    @Query("DELETE FROM evidence")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM evidence WHERE beliefId = :beliefId ORDER BY timestamp DESC")
     suspend fun forBelief(beliefId: kotlin.String): List<EvidenceEntity>
 
@@ -52,6 +64,12 @@ interface EvidenceDao {
 interface WorldEventDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(event: WorldEventEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(events: List<WorldEventEntity>)
+
+    @Query("DELETE FROM world_events")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM world_events WHERE consumed = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun unconsumed(limit: Int = 100): List<WorldEventEntity>
@@ -70,6 +88,12 @@ interface WorldEventDao {
 interface OpportunityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(opportunity: OpportunityEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(opportunities: List<OpportunityEntity>)
+
+    @Query("DELETE FROM opportunities")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM opportunities WHERE status = 'proposed' ORDER BY urgency DESC, benefit DESC LIMIT :limit")
     fun observeProposed(limit: Int = 50): Flow<List<OpportunityEntity>>

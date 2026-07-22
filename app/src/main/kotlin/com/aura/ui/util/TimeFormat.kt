@@ -45,7 +45,3 @@ private fun isSameYear(a: Long, b: Long): Boolean {
     val fmt = SimpleDateFormat("yyyy", Locale.US)
     return fmt.format(Date(a)) == fmt.format(Date(b))
 }
-
-/** Full clock time, e.g. "3:42 PM" — used for the timestamp tooltip. */
-fun formatClockTime(timestampMs: Long): String =
-    SimpleDateFormat("h:mm a", Locale.US).format(Date(timestampMs))

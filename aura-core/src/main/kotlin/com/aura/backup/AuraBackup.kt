@@ -473,8 +473,13 @@ data class CreativeArtifactBackup(
 data class CreativeRevisionBackup(
     val id: String,
     val artifactId: String,
-    val revisionNumber: Int,
-    val contentJson: String,
+    val branchId: String = "",
+    val parentRevisionId: String? = null,
+    val revisionNumber: Int = 0,
+    val contentText: String = "",
+    val contentJson: String = "{}",
+    val storageUri: String? = null,
+    val contentHash: String = "",
     val summary: String = "",
     val createdAt: Long,
 )
@@ -484,8 +489,11 @@ data class CreativeBranchBackup(
     val id: String,
     val projectId: String,
     val name: String,
+    val baseRevisionId: String? = null,
     val parentBranchId: String? = null,
+    val headRevisionId: String? = null,
     val headArtifactId: String? = null,
+    val status: String = "active",
     val createdAt: Long,
 )
 

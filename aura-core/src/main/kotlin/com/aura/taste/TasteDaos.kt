@@ -12,6 +12,12 @@ interface PreferenceSignalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(signal: PreferenceSignalEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(signals: List<PreferenceSignalEntity>)
+
+    @Query("DELETE FROM preference_signals")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM preference_signals WHERE projectId = :projectId ORDER BY createdAt DESC LIMIT :limit")
     suspend fun forProject(projectId: kotlin.String, limit: Int = 200): List<PreferenceSignalEntity>
 
@@ -44,6 +50,12 @@ interface PreferenceSignalDao {
 interface StyleProfileDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(profile: StyleProfileEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(profiles: List<StyleProfileEntity>)
+
+    @Query("DELETE FROM style_profiles")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM style_profiles WHERE projectId = :projectId LIMIT 1")
     suspend fun forProject(projectId: kotlin.String): StyleProfileEntity?

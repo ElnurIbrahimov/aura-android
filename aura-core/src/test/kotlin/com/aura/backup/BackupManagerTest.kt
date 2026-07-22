@@ -386,4 +386,133 @@ class BackupManagerTest {
         assertEquals(15, body.length, "expected YYYYMMDD-HHMMSS body, got: $body")
         assertTrue(body[8] == '-', "expected dash separator at index 8, got: $body")
     }
+
+    // ── Schema v10 roundtrip regression tests ──
+    // Until v0.30.x, beliefs/evidence/worldEvents/opportunities/creativeArtifacts/
+    // canonFacts/preferenceSignals/styleProfiles were written to the JSON
+    // backup but never read back. These tests pin the roundtrip.
+
+    @Test
+    fun `restore inserts schema v10 world model rows when DAOs are wired`() = runTest {
+        val beliefDao = mockk<com.aura.world.BeliefDao>(relaxed = true)
+        val evidenceDao = mockk<com.aura.world.EvidenceDao>(relaxed = true)
+        val worldEventDao = mockk<com.aura.world.WorldEventDao>(relaxed = true)
+        val opportunityDao = mockk<com.aura.world.OpportunityDao>(relaxed = true)
+        val mgr = BackupManager(
+            context = context, memoryDao = memoryDao, memoryEditDao = memoryEditDao,
+            documentDao = documentDao, creativeProjectDao = creativeProjectDao,
+            conversationDao = conversationDao, kgDao = kgDao, handDao = handDao,
+            taskDao = taskDao, reminderDao = reminderDao,
+            proactiveEventDao = proactiveEventDao, userProfileDao = userProfileDao,
+            providerKeys = providerKeys, userPreferences = userPreferences,
+            reminderScheduler = reminderScheduler, handScheduler = handScheduler,
+            usageTracker = usageTracker, evolutionProposalDao = evolutionProposalDao,
+            evolutionSettingsDao = evolutionSettingsDao,
+            evolutionRevisionDao = evolutionRevisionDao, agentDao = agentDao,
+            beliefDao = beliefDao, evidenceDao = evidenceDao,
+            worldEventDao = worldEventDao, opportunityDao = opportunityDao,
+        )
+
+        val backup = AuraBackup(
+            exportedAt = 1_700_000_000_000L,
+            appVersionName = "0.30.0",
+            beliefs = listOf(BeliefBackup(
+                id = "b1", subject = "user", predicate = "name",
+                valueJson = "\"Alice\"", createdAt = 1000L, updatedAt = 2000L,
+            )),
+            evidence = listOf(EvidenceBackup(
+                id = "e1", beliefId = "b1", source = "user_statement",
+                summary = "stated name", timestamp = 1500L,
+            )),
+            worldEvents = listOf(WorldEventBackup(
+                id = "w1", eventType = "calendar", source = "system",
+                summary = "cal invite", timestamp = 2500L,
+            )),
+            opportunities = listOf(OpportunityBackup(
+                id = "o1", title = "Test", description = "test",
+                createdAt = 3000L,
+            )),
+        )
+        coEvery { memoryDao.allForExport() } returns emptyList()
+        coEvery { memoryEditDao.allForBackup() } returns emptyList()
+        coEvery { documentDao.allForBackup() } returns emptyList()
+        coEvery { creativeProjectDao.allForBackup() } returns emptyList()
+        coEvery { conversationDao.allForExport() } returns emptyList()
+        coEvery { kgDao.allNodes() } returns emptyList()
+        coEvery { kgDao.allEdges() } returns emptyList()
+        coEvery { handDao.getAll() } returns emptyList()
+        coEvery { handDao.allRunsForBackup() } returns emptyList()
+        coEvery { taskDao.all() } returns emptyList()
+        coEvery { proactiveEventDao.allForBackup() } returns emptyList()
+        coEvery { agentDao.allOnce() } returns emptyList()
+
+        // The default mocked DAOs return null/absent which is fine for the
+        // "no rows" path; we just need to verify the schema v10 DAOs
+        // got their insertAll() calls.
+        val counts = mgr.restore(backup)
+        assertEquals(1, counts.beliefs)
+        assertEquals(1, counts.evidence)
+        assertEquals(1, counts.worldEvents)
+        assertEquals(1, counts.opportunities)
+        coVerify(exactly = 1) { beliefDao.insertAll(match { it.size == 1 && it[0].id == "b1" }) }
+        coVerify(exactly = 1) { evidenceDao.insertAll(match { it.size == 1 && it[0].id == "e1" }) }
+        coVerify(exactly = 1) { worldEventDao.insertAll(match { it.size == 1 && it[0].id == "w1" }) }
+        coVerify(exactly = 1) { opportunityDao.insertAll(match { it.size == 1 && it[0].id == "o1" }) }
+    }
+
+    @Test
+    fun `restore silently skips schema v10 tables when DAOs are null`() = runTest {
+        // BackupManager with no schema v10 DAOs (default constructor
+        // params) should not throw when given a backup with schema v10
+        // data. The RestoreCounts reflects what was in the backup (so
+        // the UI can show "10 beliefs restored"), not what was actually
+        // inserted (which is 0 when the DAOs are absent). The
+        // contract is: no exception + no insert attempted.
+        val backup = AuraBackup(
+            exportedAt = 1_700_000_000_000L,
+            appVersionName = "0.30.0",
+            beliefs = listOf(BeliefBackup(
+                id = "b1", subject = "user", predicate = "name",
+                valueJson = "\"x\"", createdAt = 1L, updatedAt = 2L,
+            )),
+        )
+        coEvery { memoryDao.allForExport() } returns emptyList()
+        coEvery { memoryEditDao.allForBackup() } returns emptyList()
+        coEvery { documentDao.allForBackup() } returns emptyList()
+        coEvery { creativeProjectDao.allForBackup() } returns emptyList()
+        coEvery { conversationDao.allForExport() } returns emptyList()
+        coEvery { kgDao.allNodes() } returns emptyList()
+        coEvery { kgDao.allEdges() } returns emptyList()
+        coEvery { handDao.getAll() } returns emptyList()
+        coEvery { handDao.allRunsForBackup() } returns emptyList()
+        coEvery { taskDao.all() } returns emptyList()
+        coEvery { proactiveEventDao.allForBackup() } returns emptyList()
+        coEvery { agentDao.allOnce() } returns emptyList()
+
+        val counts = manager.restore(backup)
+        // Restore counts reflect backup content, not insert result.
+        // The "no insert" guarantee is that no exception is thrown
+        // (the call returned successfully) and no calls were made on
+        // the absent DAOs.
+        assertEquals(1, counts.beliefs)
+    }
+
+    @Test
+    fun `RestoreCounts total includes schema v10 fields`() {
+        // The auto-derived total used to be a 17-term hand-sum that
+        // fell out of sync with schema v10. Pin that it now includes
+        // the 10 new fields.
+        val counts = BackupManager.RestoreCounts(
+            memories = 1, memoryEdits = 1, documents = 1, creativeProjects = 1,
+            conversations = 1, nodes = 1, edges = 1, hands = 1, handRuns = 1,
+            tasks = 1, reminders = 1, proactiveEvents = 1, profile = 1,
+            evolutionProposals = 1, evolutionSettings = 1, evolutionRevisions = 1,
+            agents = 1, beliefs = 1, evidence = 1, worldEvents = 1,
+            opportunities = 1, creativeArtifacts = 1, creativeRevisions = 1,
+            creativeBranches = 1, canonFacts = 1, preferenceSignals = 1,
+            styleProfiles = 1,
+        )
+        // 17 legacy + 10 schema-v10 = 27
+        assertEquals(27, counts.total)
+    }
 }

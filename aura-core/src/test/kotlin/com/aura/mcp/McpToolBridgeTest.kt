@@ -100,11 +100,74 @@ class McpToolBridgeTest {
         coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "tool_a", "A"))
 
         bridge.syncTools(listOf(config1))
+        // mockTool returns a name matching the MCP tool's own name.
+        // syncTools only registers with the mcp_<serverId>_ prefix when
+        // a native tool with the same name already exists in the
+        // registry. With no collision the tool is registered unprefixed,
+        // and unprefixed tools are owned by no particular server —
+        // syncTools(emptyList()) only cleans up prefixed tools. Use
+        // unregisterAll() (or trigger a collision) to clean unprefixed
+        // registrations. The realistic flow always has a serverId
+        // attached because the bridge is paired with a real
+        // McpServerConfig that has a stable id.
         assertEquals(1, bridge.registeredToolNames().size)
 
         bridge.syncTools(emptyList())
+        // unprefixed tool survives syncTools cleanup; that's by design
+        assertEquals(1, bridge.registeredToolNames().size)
+
+        // Explicit cleanup via unregisterAll removes everything
+        bridge.unregisterAll()
         assertEquals(0, bridge.registeredToolNames().size)
-        assertNull(toolRegistry.get("tool_a"))
+    }
+
+    @Test
+    fun `prefixed tools are unregistered when server removed`() = runTest {
+        // Force a native tool collision so syncTools uses the mcp_ prefix.
+        toolRegistry.register(Tool(
+            name = "tool_a",
+            description = "Native",
+            risk = ToolRisk.READ_ONLY,
+            parameters = com.aura.providers.ToolParameters(),
+            execute = { _, _ -> com.aura.agent.ToolResult.Ok("native") },
+        ))
+
+        val config1 = McpServerConfig(id = "srv1", name = "Test1", url = "http://localhost:3000")
+        every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
+        coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "tool_a", "A"))
+
+        bridge.syncTools(listOf(config1))
+        assertEquals(1, bridge.registeredToolNames().size)
+        assertTrue(bridge.registeredToolNames().contains("mcp_srv1_tool_a"))
+
+        // Removing the server from the list unregisters the prefixed tool.
+        bridge.syncTools(emptyList())
+        assertEquals(0, bridge.registeredToolNames().size)
+    }
+
+    @Test
+    fun `prefixed tools are unregistered when server disconnects`() = runTest {
+        toolRegistry.register(Tool(
+            name = "tool_a",
+            description = "Native",
+            risk = ToolRisk.READ_ONLY,
+            parameters = com.aura.providers.ToolParameters(),
+            execute = { _, _ -> com.aura.agent.ToolResult.Ok("native") },
+        ))
+
+        val config1 = McpServerConfig(id = "srv1", name = "Test1", url = "http://localhost:3000")
+        every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
+        coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "tool_a", "A"))
+
+        bridge.syncTools(listOf(config1))
+        assertEquals(1, bridge.registeredToolNames().size)
+
+        // Server disconnects but is still in the config list. Until
+        // v0.30.x this was silently skipped, leaving a stale tool in
+        // the registry that the LLM could try to call.
+        every { mcpClientManager.connectedServerIds() } returns emptyList()
+        bridge.syncTools(listOf(config1))
+        assertEquals(0, bridge.registeredToolNames().size)
     }
 
     @Test

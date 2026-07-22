@@ -56,9 +56,23 @@ class McpToolBridge @Inject constructor(
     suspend fun syncTools(servers: List<McpServerConfig>) {
         // Unregister tools from servers that are no longer in the list
         val currentServerIds = servers.map { it.id }.toSet()
+        val connectedServerIds = mcpClientManager.connectedServerIds()
         val staleNames = registeredNames.filter { name ->
             val serverId = extractServerId(name)
-            serverId !in currentServerIds
+            // Stale if the server was removed entirely, OR if it's
+            // still in the list but is no longer connected. Until
+            // v0.30.x the second case was silently skipped, leaving
+            // the LLM able to call tools whose server had dropped the
+            // connection (call would fail, but the tool remained in
+            // the registry and in the loop's allowed-set evaluation).
+            //
+            // Tools without a parseable server id (e.g. registered by
+            // syncToolsUnprefixed with a bare base name) are owned by
+            // no particular server, so we leave them alone here —
+            // unregisterAll() is the only way to clean those up.
+            serverId != null && (
+                serverId !in currentServerIds || serverId !in connectedServerIds
+            )
         }
         for (name in staleNames) {
             toolRegistry.unregister(name)
@@ -68,8 +82,7 @@ class McpToolBridge @Inject constructor(
         // Register tools from connected servers
         for (config in servers) {
             if (!config.enabled) continue
-            val connected = mcpClientManager.connectedServerIds()
-            if (config.id !in connected) continue
+            if (config.id !in connectedServerIds) continue
 
             val tools = mcpClientManager.listTools(config.id)
             for (mcpTool in tools) {

@@ -100,6 +100,24 @@ class AgentRunStore @Inject constructor(
         emitEvent(step.agentRunId, "STEP_FAILED", stepId = stepId, success = false)
     }
 
+    /**
+     * Mark a step as BLOCKED (waiting on permission/approval). Distinct
+     * from FAILED — a blocked step is not an error, just paused. The
+     * executor worker calls this when the tool returns NeedsPermission
+     * or NeedsApproval; the run is resumed only after the user grants
+     * the permission via AgentRunsViewModel.approve().
+     *
+     * Until v0.30.x the worker used failStep() for these cases, which
+     * (a) surfaced blocked steps as failures in the AgentRun detail UI
+     * and (b) emitted STEP_FAILED events, making approval flows look
+     * broken to the user.
+     */
+    suspend fun blockStep(stepId: kotlin.String, reason: kotlin.String) {
+        val step = stepDao.getById(stepId) ?: return
+        stepDao.fail(stepId, "BLOCKED", reason, System.currentTimeMillis())
+        emitEvent(step.agentRunId, "STEP_BLOCKED", stepId = stepId)
+    }
+
     suspend fun checkpoint(runId: kotlin.String): RunCheckpointEntity = mutex.withLock {
         val steps = stepDao.forRun(runId)
         val state = CheckpointState(

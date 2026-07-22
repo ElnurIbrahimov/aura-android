@@ -59,7 +59,13 @@ class GlobalSearchRepository @Inject constructor(
         val q = query.trim()
 
         return coroutineScope {
-            val conversations = async { runCatching { conversationDao.search(escaped, limit) }.getOrDefault(emptyList()) }
+            // searchVisible filters soft-deleted rows (deletedAt IS NULL).
+            // The un-filtered conversationDao.search() would let users
+            // find soft-deleted conversations in the global search drawer
+            // and tap them to resume — sidestepping the soft-delete/undo
+            // workflow. Same fix as ConversationStore.search() at the
+            // DAO level; this is the only caller of the un-filtered variant.
+            val conversations = async { runCatching { conversationDao.searchVisible(escaped, limit) }.getOrDefault(emptyList()) }
             val memories = async { runCatching { memoryDao.searchByText("%$escaped%", limit) }.getOrDefault(emptyList()) }
             val tasks = async { runCatching { taskDao.all() }.getOrDefault(emptyList()) }
             val hands = async { runCatching { handDao.getAll() }.getOrDefault(emptyList()) }

@@ -38,6 +38,9 @@ interface CreativeArtifactDao {
 
     @Query("DELETE FROM creative_artifacts WHERE projectId = :projectId")
     suspend fun deleteAllForProject(projectId: kotlin.String)
+
+    @Query("DELETE FROM creative_artifacts")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -47,6 +50,9 @@ interface CreativeRevisionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(revisions: List<CreativeRevisionEntity>)
+
+    @Query("DELETE FROM creative_revisions")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM creative_revisions WHERE artifactId = :artifactId ORDER BY createdAt DESC")
     suspend fun forArtifact(artifactId: kotlin.String): List<CreativeRevisionEntity>
@@ -74,6 +80,12 @@ interface CreativeRevisionDao {
 interface CreativeBranchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(branch: CreativeBranchEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(branches: List<CreativeBranchEntity>)
+
+    @Query("DELETE FROM creative_branches")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM creative_branches WHERE projectId = :projectId ORDER BY createdAt ASC")
     suspend fun forProject(projectId: kotlin.String): List<CreativeBranchEntity>

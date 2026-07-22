@@ -22,12 +22,19 @@ object ToolCategories {
     const val CREATIVE = "creative"
     const val SKILLS = "skills"
     const val EVOLUTION = "evolution"
+    const val AGENTS = "agents"
     const val DEVICE = "device"
     const val OTHER = "other"
 
+    // Order matters: this list drives the order categories appear in
+    // the Tools browser. Until v0.30.x SKILLS, EVOLUTION, and AGENTS
+    // were missing here, so tools with those categories were grouped
+    // under OTHER by the fallback (their category was preserved, but
+    // they were sorted to the bottom instead of getting their own row).
     val ALL: List<String> = listOf(
         MEMORY, WEB, PRODUCTIVITY, SYSTEM, COMMUNICATION,
-        MEDIA, VISION, AUTOMATION, KNOWLEDGE, CREATIVE, DEVICE, OTHER,
+        MEDIA, VISION, AUTOMATION, KNOWLEDGE, CREATIVE,
+        AGENTS, SKILLS, EVOLUTION, DEVICE, OTHER,
     )
 
     fun displayName(category: String): String = when (category) {
@@ -41,6 +48,7 @@ object ToolCategories {
         AUTOMATION -> "Automation"
         KNOWLEDGE -> "Knowledge"
         CREATIVE -> "Creative Studio"
+        AGENTS -> "Agents"
         SKILLS -> "Skills"
         EVOLUTION -> "Evolution"
         DEVICE -> "Device"
@@ -58,6 +66,7 @@ object ToolCategories {
         AUTOMATION -> "🪄"
         KNOWLEDGE -> "🔗"
         CREATIVE -> "✍️"
+        AGENTS -> "🤝"
         SKILLS -> "📚"
         EVOLUTION -> "🧬"
         DEVICE -> "📱"

@@ -100,15 +100,18 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                     // shouldn't block independent steps in the same batch.
                 }
                 is ToolResult.NeedsPermission -> {
+                    // Mark step as BLOCKED (not FAILED) so the run can
+                    // resume after the user grants the permission via
+                    // AgentRunsViewModel.approve(). Until v0.30.x this
+                    // called failStep(), which surfaced approval-gated
+                    // tools as run failures.
                     agentRunStore.requestApproval(
                         runId = runId,
                         stepId = step.id,
                         toolName = step.toolName,
                         rationale = "Permission needed: ${result.permission}",
                     )
-                    // Mark step as blocked — it will be retried after approval
-                    // For now, just fail it so the run doesn't hang forever
-                    agentRunStore.failStep(step.id, "Permission required: ${result.permission}")
+                    agentRunStore.blockStep(step.id, "Permission required: ${result.permission}")
                 }
                 is ToolResult.NeedsApproval -> {
                     agentRunStore.requestApproval(
@@ -117,7 +120,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                         toolName = step.toolName,
                         rationale = result.rationale,
                     )
-                    agentRunStore.failStep(step.id, "Approval required: ${result.rationale}")
+                    agentRunStore.blockStep(step.id, "Approval required: ${result.rationale}")
                 }
             }
         }

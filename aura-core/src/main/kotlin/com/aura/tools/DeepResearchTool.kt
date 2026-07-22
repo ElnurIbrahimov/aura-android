@@ -63,7 +63,10 @@ class DeepResearchTool @Inject constructor(
     private val mediaType = "application/json".toMediaType()
     private val ddg by lazy { DuckDuckGoSearch(httpClient) }
 
-    data class Citation(val index: Int, val title: String, val url: String)
+    // Citation type lives at com.aura.tools.Citation (top-level) — used
+    // by every UI consumer (MessageBubble, ChatDialogs, ChatViewModel).
+    // The old nested DeepResearchTool.Citation was a duplicate; removed
+    // in v0.30.x.
 
     fun definition() = ToolParameters(
         properties = mapOf(
