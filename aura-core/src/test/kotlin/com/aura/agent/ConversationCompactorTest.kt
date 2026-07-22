@@ -119,6 +119,26 @@ class ConversationCompactorTest {
         compactor.compactIfNeeded(conversation, "test:model")
     }
 
+    @Test
+    fun `compactIfNeeded is a no-op when below threshold and is safe to call every step`() = runTest {
+        // The MemoryAugmentedAgenticLoop calls compactIfNeeded after every
+        // tool result (F7 fix in v0.30.2). When the conversation is
+        // under the threshold, the call must be a no-op and must NOT
+        // hit the network. Until v0.30.2, mid-loop calls could fire a
+        // summary on a tiny conversation and pay the model round-trip
+        // cost for nothing.
+        val conversation = conversationWithTurns(5)  // 5 turns * 500 chars = ~625 tokens
+        coEvery { registry.chat(any(), any(), any(), any()) } returns flow {
+            emit(ProviderChunk(text = "should not happen", finishReason = FinishReason.stop))
+        }
+
+        repeat(10) {
+            val result = compactor.compactIfNeeded(conversation, "test:model")
+            assertSame(conversation, result, "step $it: compactor must return the same conversation when below threshold")
+        }
+        coVerify(exactly = 0) { registry.chat(any(), any(), any(), any()) }
+    }
+
     /**
      * Build a conversation with [count] turns, each with enough
      * content to test token-based compaction. At ~500 chars per

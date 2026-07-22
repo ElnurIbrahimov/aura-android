@@ -573,6 +573,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val needsPerm = if (result is ToolResult.NeedsPermission) result.permission else null
                 val permRationale = if (result is ToolResult.NeedsPermission) result.rationale else null
                 currentConversation = currentConversation.setToolResult(id, resultText)
+                // Mid-loop compaction: the conversation grows by ~4k chars
+                // per tool result. Without re-compacting, a 10-step run can
+                // blow past the model's input budget and fail on the next
+                // call. Until v0.30.x this was a one-shot at line 164
+                // (before the loop), so step 5+ on a long tool chain
+                // could exceed the model's context window. compactIfNeeded
+                // is a no-op when below threshold (cheap char-sum, no
+                // network), so the call is safe to make every step.
+                currentConversation = conversationCompactor.compactIfNeeded(currentConversation, model)
                 emit(AgentEvent.ToolResult(id, name, args, resultText, needsPerm, permRationale))
             }
         }
