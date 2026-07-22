@@ -55,7 +55,10 @@ class ConversationStore @Inject constructor(
     }
 
     suspend fun recent(limit: Int = 50): List<Conversation> =
-        dao.recent(limit).map { entityToConversation(it) }
+        // Show only non-deleted rows. The full recent() is kept available
+        // for callers that explicitly want tombstones (e.g. the purge
+        // sweep). Prefer [recentVisible] for user-facing lists.
+        dao.recentVisible(limit).map { entityToConversation(it) }
 
     /**
      * Search across conversation title + serialized turn content. Returns
@@ -67,10 +70,32 @@ class ConversationStore @Inject constructor(
     suspend fun search(query: String, limit: Int = 50): List<Conversation> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
-        return dao.search(escapeLikeWildcards(trimmed), limit).map { entityToConversation(it) }
+        return dao.searchVisible(escapeLikeWildcards(trimmed), limit).map { entityToConversation(it) }
     }
 
-    suspend fun delete(id: String) = dao.delete(id)
+    suspend fun delete(id: String) {
+        // Soft-delete: stamp the tombstone so the row is hidden from
+        // the History list but still recoverable via [restore]. A
+        // background sweep hard-deletes tombstones older than the
+        // retention window.
+        dao.softDelete(id, System.currentTimeMillis())
+    }
+
+    /** Clear a soft-delete tombstone. Returns the restored conversation, or null. */
+    suspend fun restore(id: String): Conversation? {
+        dao.restore(id)
+        return dao.getById(id)?.let { entityToConversation(it) }
+    }
+
+    /**
+     * Hard-delete tombstones older than the retention window. Returns
+     * the number of rows purged. The background sweep calls this
+     * periodically so the table doesn't grow forever with dead rows.
+     */
+    suspend fun purgeDeletedOlderThan(retentionMs: Long = ConversationEntity.SOFT_DELETE_RETENTION_MS): Int {
+        val cutoff = System.currentTimeMillis() - retentionMs
+        return dao.purgeDeletedBefore(cutoff)
+    }
 
     suspend fun deleteAll() = dao.deleteAll()
 

@@ -680,14 +680,19 @@ private fun CodeBlock(language: String, code: String) {
                     copied = false
                 }
             }
-            Text(
-                text = code,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                ),
-                color = codeFg,
-                overflow = TextOverflow.Visible,
-            )
+            // SelectionContainer lets the user highlight and copy a
+            // single line or phrase from the code block. Previously
+            // only the "Copy code" button copied the whole block.
+            SelectionContainer {
+                Text(
+                    text = code,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    color = codeFg,
+                    overflow = TextOverflow.Visible,
+                )
+            }
         }
     }
 }
@@ -704,14 +709,16 @@ private fun TableBlock(headers: List<String>, rows: List<List<String>>) {
         // Header row
         Row(modifier = Modifier.background(headerBg)) {
             for (h in headers) {
-                Text(
-                    text = h,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                SelectionContainer {
+                    Text(
+                        text = h,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(8.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
         // Body rows
@@ -721,13 +728,15 @@ private fun TableBlock(headers: List<String>, rows: List<List<String>>) {
             else Color.Transparent
             Row(modifier = Modifier.background(rowBg)) {
                 for (cell in row) {
-                    Text(
-                        text = cell,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    SelectionContainer {
+                        Text(
+                            text = cell,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }

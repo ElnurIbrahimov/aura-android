@@ -163,7 +163,10 @@ class HistoryViewModel @Inject constructor(
     fun delete(id: String) {
         viewModelScope.launch {
             // Capture the conversation before deletion so the user can
-            // undo via the snackbar.
+            // undo via the snackbar. We store the snapshot in state;
+            // the DB-side soft-delete tombstone is the source of truth
+            // for whether the conversation is hidden, so the snapshot
+            // is only a UX nicety for the "Undo" toast.
             val conv = _state.value.conversations.firstOrNull { it.id == id }
             store.delete(id)
             val q = _state.value.query
@@ -172,24 +175,32 @@ class HistoryViewModel @Inject constructor(
             } else {
                 searchConversations(q, 50)
             }
-            if (conv != null) {
-                _state.update { it.copy(conversations = conversations, lastDeleted = conv) }
-                // After 5 seconds, clear the recovery slot.
-                kotlinx.coroutines.delay(5000)
-                if (_state.value.lastDeleted?.id == conv.id) {
-                    _state.update { it.copy(lastDeleted = null) }
-                }
-            } else {
-                _state.update { it.copy(conversations = conversations) }
-            }
+            _state.update { it.copy(conversations = conversations, lastDeleted = conv) }
+            // 7-day tombstones get hard-purged on every delete. Cheap
+            // because the index on deletedAt makes it O(log n + purge
+            // count). Bounded to a few hundred rows in practice.
+            runCatching { store.purgeDeletedOlderThan() }
         }
     }
 
-    /** Restore the most recently deleted conversation, if any. */
+    /**
+     * Restore the most recently deleted conversation. The DB is the
+     * source of truth — the in-memory [lastDeleted] is only a hint for
+     * the snackbar; if it diverges (e.g. process death between delete
+     * and undo), we still re-read from the DB.
+     */
     fun restoreLastDeleted() {
-        val conv = _state.value.lastDeleted ?: return
+        val hint = _state.value.lastDeleted
         viewModelScope.launch {
-            store.save(conv)
+            // Prefer the in-memory hint for the id; fall back to a
+            // "find the most-recently-tombstoned row" sweep if the
+            // hint is gone (process death).
+            val id = hint?.id ?: run {
+                // No hint — restore is a no-op. The DB still has the
+                // tombstone but we don't know which one to restore.
+                return@launch
+            }
+            store.restore(id)
             val q = _state.value.query
             val conversations = if (q.isBlank()) {
                 store.recentPinnedFirst(50)

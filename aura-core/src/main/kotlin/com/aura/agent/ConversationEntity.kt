@@ -29,7 +29,20 @@ data class ConversationEntity(
     val summaryThroughTurn: Int = 0,
     /** Agent associated with this conversation. Null = General/default. */
     val agentId: String? = null,
+    /**
+     * Soft-delete tombstone. Null = conversation is visible. Non-null = the
+     * epoch-ms when it was deleted. After [SOFT_DELETE_RETENTION_MS] a
+     * background job hard-deletes the row. The History screen filters out
+     * non-null rows by default; restoring just sets it back to null.
+     */
+    val deletedAt: Long? = null,
 ) {
+    companion object {
+        /** 7 days — long enough to recover from a fat-finger, short enough
+         *  that the table doesn't grow forever. */
+        const val SOFT_DELETE_RETENTION_MS: Long = 7L * 24L * 60L * 60L * 1000L
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ConversationEntity) return false

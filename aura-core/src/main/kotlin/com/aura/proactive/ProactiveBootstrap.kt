@@ -49,6 +49,7 @@ class ProactiveBootstrap @Inject constructor(
     private val mcpToolBridge: McpToolBridge,
     private val secureDataStore: SecureDataStore,
     private val agentStore: com.aura.agent.AgentStore,
+    private val conversationStore: com.aura.agent.ConversationStore,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -66,6 +67,12 @@ class ProactiveBootstrap @Inject constructor(
     fun start() {
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }
+        // Soft-delete sweep on app start: hard-purges tombstones older
+        // than the retention window. Cheap (indexed), no UI impact, no
+        // need for a separate Worker.
+        scope.launch {
+            runCatching { conversationStore.purgeDeletedOlderThan() }
+        }
         // Keep one long-lived reconciliation collector.
         // their persisted defaults immediately and every Settings mutation
         // thereafter, so schedules and the foreground service converge in

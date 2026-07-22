@@ -51,6 +51,19 @@ object ConversationModule {
         }
     }
 
+    /**
+     * Soft-delete tombstone. When set, the row is hidden from History but
+     * still recoverable. Index on the column so the "purge after 7 days"
+     * sweep and the "show only visible" filter are O(log n) instead of
+     * scanning the whole table.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN deletedAt INTEGER DEFAULT NULL")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_conversations_deletedAt ON conversations(deletedAt)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ConversationDatabase =
@@ -58,7 +71,7 @@ object ConversationModule {
             context,
             ConversationDatabase::class.java,
             "aura-conversations.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6),
         ).build()
 
     @Provides

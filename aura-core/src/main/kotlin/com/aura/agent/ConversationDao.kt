@@ -21,6 +21,14 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations ORDER BY updatedAt DESC LIMIT :limit")
     suspend fun recent(limit: Int = 50): List<ConversationEntity>
 
+    /**
+     * Like [recent] but excludes soft-deleted rows. This is what the
+     * History screen should call — the user already deleted tombstones
+     * shouldn't show up in the live list.
+     */
+    @Query("SELECT * FROM conversations WHERE deletedAt IS NULL ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun recentVisible(limit: Int = 50): List<ConversationEntity>
+
     @Query("SELECT * FROM conversations ORDER BY createdAt ASC")
     suspend fun allForExport(): List<ConversationEntity>
 
@@ -51,6 +59,19 @@ interface ConversationDao {
     )
     suspend fun search(escapedQuery: kotlin.String, limit: Int = 50): List<ConversationEntity>
 
+    /** Like [search] but excludes soft-deleted rows. */
+    @Query(
+        """
+        SELECT * FROM conversations
+        WHERE deletedAt IS NULL
+          AND (title LIKE '%' || :escapedQuery || '%' ESCAPE '\'
+            OR turnsJson LIKE '%' || :escapedQuery || '%' ESCAPE '\')
+        ORDER BY updatedAt DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchVisible(escapedQuery: kotlin.String, limit: Int = 50): List<ConversationEntity>
+
     @Query("SELECT * FROM conversations ORDER BY updatedAt DESC LIMIT 1")
     suspend fun mostRecent(): ConversationEntity?
 
@@ -59,6 +80,28 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
+
+    /**
+     * Soft-delete: stamp the tombstone instead of removing the row. The
+     * History list stops showing it but [getById] still returns it so
+     * "Undo" can restore it. Use [restore] to clear the tombstone or
+     * [purgeDeletedBefore] to hard-delete tombstones older than the
+     * retention window.
+     */
+    @Query("UPDATE conversations SET deletedAt = :deletedAt WHERE id = :id")
+    suspend fun softDelete(id: String, deletedAt: Long)
+
+    /** Clear the soft-delete tombstone. Called by the History "Undo" snackbar. */
+    @Query("UPDATE conversations SET deletedAt = NULL WHERE id = :id")
+    suspend fun restore(id: String)
+
+    /**
+     * Hard-delete tombstones older than the cutoff. The background
+     * sweep runs periodically (e.g. on app start) so the table doesn't
+     * grow forever with dead rows.
+     */
+    @Query("DELETE FROM conversations WHERE deletedAt IS NOT NULL AND deletedAt < :cutoff")
+    suspend fun purgeDeletedBefore(cutoff: Long): Int
 
     @Query("DELETE FROM conversations")
     suspend fun deleteAll()

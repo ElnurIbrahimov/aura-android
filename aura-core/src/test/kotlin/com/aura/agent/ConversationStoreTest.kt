@@ -71,9 +71,9 @@ class ConversationStoreTest {
     @Test
     fun `delete delegates to DAO`() = runTest {
         val store = ConversationStore(dao, embedder)
-        coEvery { dao.delete("id1") } returns Unit
+        coEvery { dao.softDelete("id1", any()) } returns Unit
         store.delete("id1")
-        coVerify { dao.delete("id1") }
+        coVerify { dao.softDelete("id1", any()) }
     }
 
     @Test
@@ -102,7 +102,7 @@ class ConversationStoreTest {
     @Test
     fun `recent maps DAO entities to Conversations`() = runTest {
         val store = ConversationStore(dao, embedder)
-        coEvery { dao.recent(50) } returns listOf(
+        coEvery { dao.recentVisible(50) } returns listOf(
             ConversationEntity(id = "1", title = "First", createdAt = 1L, updatedAt = 2L, systemPrompt = null, model = null, metadataJson = "{}", turnsJson = "[]"),
             ConversationEntity(id = "2", title = "Second", createdAt = 3L, updatedAt = 4L, systemPrompt = null, model = null, metadataJson = "{}", turnsJson = "[]"),
         )
