@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +73,7 @@ fun ChatComposer(
     onGalleryClick: () -> Unit = {},
     onAudioClick: () -> Unit = {},
     onDocumentClick: () -> Unit = {},
+    onImagePasted: (android.graphics.Bitmap) -> Unit = {},
     skills: List<Skill> = emptyList(),
     onUseSkill: (Skill) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -81,6 +83,29 @@ fun ChatComposer(
     val attachmentState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hapticView = LocalView.current
     val canSend = sendEnabled && draft.isNotBlank()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Detect pasted images from clipboard (e.g. screenshots copied in Gboard)
+    LaunchedEffect(Unit) {
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+            as? android.content.ClipboardManager
+        if (clipboard != null) {
+            val clip = clipboard.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                val item = clip.getItemAt(0)
+                val uri = item.uri
+                if (uri != null && uri.toString().startsWith("content://")) {
+                    runCatching {
+                        val resolver = context.contentResolver
+                        val bitmap = android.graphics.ImageDecoder.decodeBitmap(
+                            android.graphics.ImageDecoder.createSource(resolver, uri)
+                        )
+                        onImagePasted(bitmap)
+                    }
+                }
+            }
+        }
+    }
 
     Surface(
         modifier = modifier

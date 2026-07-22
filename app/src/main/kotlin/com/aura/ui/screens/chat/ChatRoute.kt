@@ -441,6 +441,9 @@ fun ChatRoute(
                 },
                 onAudioClick = { audioLauncher.launch("audio/*") },
                 onDocumentClick = { documentLauncher.launch(DOCUMENT_MIME_TYPES) },
+                onImagePasted = { bitmap ->
+                    viewModel.onImageCaptured(bitmap)
+                },
                 skills = skills,
                 onUseSkill = { skill ->
                     val directive = "/use_skill ${skill.name}\n"

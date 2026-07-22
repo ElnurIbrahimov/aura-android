@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -96,6 +97,30 @@ fun ChatContent(
                 onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
             )
+
+            if (!state.isOnline) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AuraThemeTokens.colors.warning.copy(alpha = 0.12f))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Filled.CloudOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AuraThemeTokens.colors.warning,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "You're offline",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AuraThemeTokens.colors.warning,
+                    )
+                }
+            }
 
             if (state.deepModeActive) {
                 MoaThinkingIndicator(Modifier.padding(horizontal = 16.dp, vertical = 6.dp))

@@ -215,6 +215,8 @@ data class ChatUiState(
      * repeated autosave failures don't spam the UI.
      */
     val saveWarning: String? = null,
+    /** False when device is offline — shows a banner above chat. */
+    val isOnline: Boolean = true,
 )
 
 /**
@@ -302,6 +304,25 @@ class ChatViewModel @Inject constructor(
 
     init {
         textToSpeech.initialize()
+        // Observe network connectivity and update UI state.
+        viewModelScope.launch {
+            runCatching {
+                val cm = application.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                    as? android.net.ConnectivityManager
+                if (cm != null) {
+                    val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+                        override fun onAvailable(network: android.net.Network) {
+                            _state.update { it.copy(isOnline = true) }
+                        }
+                        override fun onLost(network: android.net.Network) {
+                            _state.update { it.copy(isOnline = false) }
+                        }
+                    }
+                    cm.registerDefaultNetworkCallback(callback)
+                    _state.update { it.copy(isOnline = cm.activeNetwork != null) }
+                }
+            }
+        }
         // Pre-load skills so the composer attachment sheet renders
         // the list on first launch instead of flashing empty.
         viewModelScope.launch { skillsStore?.awaitLoaded() }
