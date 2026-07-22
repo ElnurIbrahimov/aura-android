@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
@@ -274,6 +276,8 @@ fun MessageBubble(
     animationIndex: Int = 0,
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
+    onEdit: () -> Unit = {},
+    onShare: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
@@ -283,6 +287,7 @@ fun MessageBubble(
         UserBubble(
             text = text,
             animationIndex = animationIndex,
+            onEdit = onEdit,
         )
     } else {
         // ── Assistant: avatar + content, NO bubble ─────────────────────
@@ -304,12 +309,14 @@ fun MessageBubble(
             },
             onShowSources = onShowSources,
             onReact = onReact,
+            onShare = onShare,
         )
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun UserBubble(text: String, animationIndex: Int) {
+private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {}) {
     val springEased = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) {
         springEased.animateTo(
@@ -346,6 +353,10 @@ private fun UserBubble(text: String, animationIndex: Int) {
                         ),
                     ),
                 )
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onEdit,
+                )
                 .padding(horizontal = 22.dp, vertical = 12.dp),
         ) {
             Text(
@@ -375,6 +386,7 @@ private fun AssistantMessage(
     onCopy: () -> Unit,
     onShowSources: () -> Unit,
     onReact: (Reaction) -> Unit,
+    onShare: () -> Unit = {},
 ) {
     val springEased = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) {
@@ -513,6 +525,12 @@ private fun AssistantMessage(
                         icon = androidx.compose.material.icons.Icons.Filled.ContentCopy,
                         label = if (copied) "Copied" else "Copy",
                         onClick = onCopy,
+                    )
+                    // Share action
+                    BubbleAction(
+                        icon = Icons.Filled.Share,
+                        label = "Share",
+                        onClick = onShare,
                     )
                 }
             }

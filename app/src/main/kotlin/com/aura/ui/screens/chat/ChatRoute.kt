@@ -65,6 +65,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -217,6 +218,19 @@ fun ChatRoute(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // Persist draft across process death so typed text survives app kill.
+    var savedDraft by rememberSaveable { mutableStateOf("") }
+    // Sync saved draft to ViewModel on first composition
+    LaunchedEffect(Unit) {
+        if (savedDraft.isNotBlank() && state.draft.isBlank()) {
+            viewModel.setDraft(savedDraft)
+        }
+    }
+    // Sync ViewModel draft back to savedDraft for persistence
+    LaunchedEffect(state.draft) {
+        savedDraft = state.draft
+    }
+
     var showModelPicker by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
     var showVoiceOverlay by remember { mutableStateOf(false) }
@@ -242,6 +256,10 @@ fun ChatRoute(
         onKeepStreaming = { showStopStreamConfirm = false },
     )
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editingTurnIndex by remember { mutableStateOf(0) }
+    var editingText by remember { mutableStateOf("") }
 
     var micPermissionState by remember(context) {
         mutableStateOf(MicPermissionState(granted = checkMicPermission(context)))
@@ -341,6 +359,29 @@ fun ChatRoute(
         onDeleteConversation = { showDeleteConfirm = true },
         onToggleDeepMode = viewModel::toggleDeepMode,
         onToggleIncognito = viewModel::toggleIncognito,
+        onRegenerate = viewModel::retryLast,
+        onExport = {
+            val markdown = viewModel.exportConversation()
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/markdown"
+                putExtra(android.content.Intent.EXTRA_TEXT, markdown)
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "${state.conversation.title}.md")
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Export conversation"))
+        },
+        onClear = { showClearConfirm = true },
+        onEditMessage = { index, text ->
+            editingTurnIndex = index
+            editingText = text
+            showEditDialog = true
+        },
+        onShareMessage = { text ->
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, text)
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Share"))
+        },
         onSendSuggestion = { prompt ->
             followLiveEdge = true
             viewModel.setDraft(prompt)
@@ -530,6 +571,52 @@ fun ChatRoute(
         },
         onDismiss = { showDeleteConfirm = false },
     )
+
+    if (showClearConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { androidx.compose.material3.Text("Clear chat?") },
+            text = { androidx.compose.material3.Text("This removes all messages from this conversation. The conversation itself is kept.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showClearConfirm = false
+                    viewModel.clearConversation()
+                }) { androidx.compose.material3.Text("Clear") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            },
+        )
+    }
+
+    if (showEditDialog) {
+        var editFieldText by remember { mutableStateOf(editingText) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { androidx.compose.material3.Text("Edit and resend") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = editFieldText,
+                    onValueChange = { editFieldText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showEditDialog = false
+                    viewModel.editAndResend(editingTurnIndex, editFieldText)
+                }) { androidx.compose.material3.Text("Send") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showEditDialog = false }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            },
+        )
+    }
 
 }
 

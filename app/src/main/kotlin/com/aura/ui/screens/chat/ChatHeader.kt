@@ -21,8 +21,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -65,6 +68,9 @@ fun ChatHeader(
     onDeleteConversation: () -> Unit = {},
     onToggleDeepMode: () -> Unit = {},
     onToggleIncognito: () -> Unit = {},
+    onRegenerate: () -> Unit = {},
+    onExport: () -> Unit = {},
+    onClear: () -> Unit = {},
     onShowModelPicker: () -> Unit = {},
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
@@ -211,6 +217,30 @@ fun ChatHeader(
                         onClick = {
                             overflowExpanded = false
                             onHistory()
+                        },
+                    )
+                    ChatMenuItem(
+                        label = "Regenerate",
+                        icon = Icons.Filled.Refresh,
+                        onClick = {
+                            overflowExpanded = false
+                            onRegenerate()
+                        },
+                    )
+                    ChatMenuItem(
+                        label = "Export as Markdown",
+                        icon = Icons.Filled.FileDownload,
+                        onClick = {
+                            overflowExpanded = false
+                            onExport()
+                        },
+                    )
+                    ChatMenuItem(
+                        label = "Clear chat",
+                        icon = Icons.Filled.CleaningServices,
+                        onClick = {
+                            overflowExpanded = false
+                            onClear()
                         },
                     )
                     ChatMenuItem(

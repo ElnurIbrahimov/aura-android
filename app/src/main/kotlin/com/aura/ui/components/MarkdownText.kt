@@ -1,7 +1,9 @@
 package com.aura.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,9 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.text.Regex
-import androidx.compose.foundation.border
 
 import com.aura.ui.theme.AuraThemeTokens
 /**
@@ -581,6 +590,8 @@ private fun CodeBlock(language: String, code: String) {
     val codeBg = AuraThemeTokens.colors.surface1
     val codeFg = AuraThemeTokens.colors.textPrimary
     val borderColor = AuraThemeTokens.colors.borderDefault.copy(alpha = 0.3f)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var copied by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -592,23 +603,75 @@ private fun CodeBlock(language: String, code: String) {
             if (language.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(
-                                AuraThemeTokens.colors.actionPrimary,
-                                androidx.compose.foundation.shape.CircleShape,
-                            ),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = language,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AuraThemeTokens.colors.actionPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    AuraThemeTokens.colors.actionPrimary,
+                                    androidx.compose.foundation.shape.CircleShape,
+                                ),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = language,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AuraThemeTokens.colors.actionPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    // Copy button
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
+                            copied = true
+                        },
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
+                            contentDescription = if (copied) "Copied" else "Copy code",
+                            modifier = Modifier.size(16.dp),
+                            tint = AuraThemeTokens.colors.textSecondary,
+                        )
+                    }
+                }
+            } else {
+                // No language label — still show a copy button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
+                            copied = true
+                        },
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
+                            contentDescription = if (copied) "Copied" else "Copy code",
+                            modifier = Modifier.size(16.dp),
+                            tint = AuraThemeTokens.colors.textSecondary,
+                        )
+                    }
+                }
+            }
+            // Auto-reset copied state after 2 seconds
+            if (copied) {
+                LaunchedEffect(copied) {
+                    kotlinx.coroutines.delay(2000)
+                    copied = false
                 }
             }
             Text(

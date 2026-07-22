@@ -278,7 +278,7 @@ class ChatViewModel @Inject constructor(
             extractCitations = ::extractCitations,
             setErrorWithAutoDismiss = ::setErrorWithAutoDismiss,
             generateTitle = ::generateTitle,
-            onError = { msg -> _state.update { it.copy(error = msg) } },
+            onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
         )
     }
 
@@ -629,6 +629,65 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun clearConversation() {
+        cancel()
+        val conv = _state.value.conversation
+        _state.update {
+            it.copy(
+                conversation = conv.copy(turns = emptyList()),
+                draft = "",
+                error = null,
+                errorRetryable = false,
+                errorTyped = null,
+                deepModeActive = false,
+                inFlightToolCalls = emptyList(),
+            )
+        }
+        viewModelScope.launch {
+            conversationStore.save(_state.value.conversation)
+        }
+    }
+
+    fun exportConversation(): kotlin.String {
+        val conv = _state.value.conversation
+        val sb = StringBuilder()
+        sb.appendLine("# ${conv.title.ifBlank { "Conversation" }}")
+        sb.appendLine()
+        for (turn in conv.turns) {
+            turn.user?.let {
+                sb.appendLine("## User")
+                sb.appendLine()
+                sb.appendLine(it)
+                sb.appendLine()
+            }
+            turn.assistant?.let {
+                sb.appendLine("## Aura")
+                sb.appendLine()
+                sb.appendLine(it)
+                sb.appendLine()
+            }
+        }
+        return sb.toString()
+    }
+
+    fun editAndResend(turnIndex: Int, newText: kotlin.String) {
+        if (_state.value.streaming) return
+        val conv = _state.value.conversation
+        if (turnIndex < 0 || turnIndex >= conv.turns.size) return
+        // Truncate to the turn being edited, replace the user message, resend
+        val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex))
+        _state.update {
+            it.copy(
+                conversation = truncated,
+                draft = "",
+                error = null,
+                errorRetryable = false,
+                errorTyped = null,
+            )
+        }
+        sendController.runSend(viewModelScope, retryUserText = newText)
+    }
+
     /**
      * Delete the current conversation from the store and start a
      * fresh one. The deleted conversation is gone for good — no
@@ -805,7 +864,8 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun setErrorWithAutoDismiss(error: String, retryable: Boolean = false, typed: AuraError? = null) {
-        _state.update { it.copy(error = error, errorRetryable = retryable, errorTyped = typed) }
+        val friendly = com.aura.ui.components.friendlyErrorMessage(error)
+        _state.update { it.copy(error = friendly, errorRetryable = retryable, errorTyped = typed) }
         crashLogger.log(
             code = typed?.code ?: "error",
             message = error,

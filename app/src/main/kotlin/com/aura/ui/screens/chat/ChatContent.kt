@@ -52,6 +52,11 @@ fun ChatContent(
     onDeleteConversation: () -> Unit,
     onToggleDeepMode: () -> Unit,
     onToggleIncognito: () -> Unit,
+    onRegenerate: () -> Unit,
+    onExport: () -> Unit,
+    onClear: () -> Unit,
+    onEditMessage: (Int, String) -> Unit = { _, _ -> },
+    onShareMessage: (String) -> Unit = {},
     onSendSuggestion: (String) -> Unit,
     onRetry: () -> Unit,
     onDismissError: () -> Unit,
@@ -86,6 +91,9 @@ fun ChatContent(
                 onDeleteConversation = onDeleteConversation,
                 onToggleDeepMode = onToggleDeepMode,
                 onToggleIncognito = onToggleIncognito,
+                onRegenerate = onRegenerate,
+                onExport = onExport,
+                onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
             )
 
@@ -109,6 +117,8 @@ fun ChatContent(
                     onShowSourcesForLastTurn = onShowSources,
                     onSendSuggestion = onSendSuggestion,
                     onReact = onReact,
+                    onEditMessage = onEditMessage,
+                    onShareMessage = onShareMessage,
                     modifier = Modifier.weight(1f),
                 )
             }

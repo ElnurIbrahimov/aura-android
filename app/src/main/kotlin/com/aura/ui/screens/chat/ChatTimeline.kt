@@ -39,6 +39,8 @@ fun ChatTimeline(
     onSendSuggestion: (String) -> Unit = {},
     onShowSourcesForLastTurn: () -> Unit = {},
     onReact: (Long, Reaction) -> Unit = { _, _ -> },
+    onEditMessage: (Int, String) -> Unit = { _, _ -> },
+    onShareMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (state.conversationLoading) {
@@ -74,7 +76,12 @@ fun ChatTimeline(
             ) {
                 Column {
                     turn.user?.let {
-                        MessageBubble(text = it, isUser = true, timestamp = turn.timestamp)
+                        MessageBubble(
+                            text = it,
+                            isUser = true,
+                            timestamp = turn.timestamp,
+                            onEdit = { onEditMessage(index, it) },
+                        )
                     }
                     turn.assistant?.let { assistant ->
                         val isLast = turn === state.conversation.turns.lastOrNull()
@@ -89,6 +96,7 @@ fun ChatTimeline(
                             reaction = turn.reaction,
                             onShowSources = onShowSourcesForLastTurn,
                             onReact = { reaction -> onReact(turn.timestamp, reaction) },
+                            onShare = { onShareMessage(assistant) },
                         )
                         if (isLast && !isStreaming) {
                             FollowUpSuggestionChips(
