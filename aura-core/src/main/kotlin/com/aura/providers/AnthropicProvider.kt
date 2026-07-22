@@ -122,7 +122,7 @@ class AnthropicProvider(
                     when ((obj["type"] as? JsonPrimitive)?.content) {
                         "content_block_start" -> {
                             val block = (obj["content_block"] as? JsonObject)
-                            if (block?.get("type")?.let { (it as JsonPrimitive).content } == "tool_use") {
+                            if (block?.get("type")?.let { (it as? JsonPrimitive)?.content } == "tool_use") {
                                 val id = (block["id"] as? JsonPrimitive)?.content ?: ""
                                 val name = (block["name"] as? JsonPrimitive)?.content ?: ""
                                 // Emit with empty arguments; downstream BrainChunk

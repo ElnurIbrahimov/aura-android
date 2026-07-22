@@ -143,12 +143,28 @@ class ChatGptSubscriptionProvider(
         })
         activeEventSource = src
         try {
-            for (chunk in channel) emit(chunk)
+            // 5-min defensive timeout matching OpenAiCompatProvider. The
+            // ChatGPT Responses API occasionally stops sending chunks
+            // mid-stream without closing; without this, the for-loop
+            // would suspend forever and the agent loop would hang.
+            kotlinx.coroutines.withTimeout(STREAM_READ_TIMEOUT_MS) {
+                for (chunk in channel) emit(chunk)
+            }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+            // Synthesize a finish so downstream loops terminate cleanly.
+            emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
             activeEventSource?.cancel()
             activeEventSource = null
         }
     }.flowOn(Dispatchers.IO)
+
+    companion object {
+        // 5 minutes: long enough for a slow model + max_tokens worth of
+        // tokens, short enough that a misbehaving server doesn't hang
+        // the agent loop. Mirrors OpenAiCompatProvider.STREAM_READ_TIMEOUT_MS.
+        const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
+    }
 
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         // Use the same model list as openai (live catalog), so the user

@@ -169,6 +169,61 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun `deleteSelected sets lastDeleted to the most-recently-updated snapshot`() = runTest {
+        // Regression guard for batch-delete UX: without this, the
+        // Undo snackbar has nothing to bind to and multi-select
+        // delete creates tombstones the user can't restore.
+        val older = com.aura.agent.Conversation(
+            id = "c-old", title = "Older", createdAt = 1L, updatedAt = 100L,
+        )
+        val newer = com.aura.agent.Conversation(
+            id = "c-new", title = "Newer", createdAt = 2L, updatedAt = 500L,
+        )
+        coEvery { store.recentPinnedFirst(50) } returns listOf(older, newer)
+        coEvery { store.delete(any()) } returns Unit
+        coEvery { store.purgeDeletedOlderThan() } returns 0
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.toggleSelectMode()
+        vm.toggleSelected("c-old")
+        vm.toggleSelected("c-new")
+        vm.deleteSelected()
+        advanceUntilIdle()
+        // The most-recently-updated is the undo target — the one
+        // the user is most likely to regret.
+        assertEquals("c-new", vm.state.value.lastDeleted?.id)
+        coVerify { store.delete("c-old") }
+        coVerify { store.delete("c-new") }
+    }
+
+    @Test
+    fun `deleteSelected exits select mode and clears the selection`() = runTest {
+        // After batch delete, the UI should drop out of multi-select
+        // mode so the user isn't stranded with a stale selection.
+        val conv = com.aura.agent.Conversation(
+            id = "c1", title = "X", createdAt = 1L, updatedAt = 2L,
+        )
+        coEvery { store.recentPinnedFirst(50) } returns listOf(conv)
+        coEvery { store.delete(any()) } returns Unit
+        coEvery { store.purgeDeletedOlderThan() } returns 0
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.toggleSelectMode()
+        vm.toggleSelected("c1")
+        vm.deleteSelected()
+        advanceUntilIdle()
+        assertFalse(vm.state.value.selectMode)
+        assertTrue(vm.state.value.selectedIds.isEmpty())
+    }
+
+    @Test
+    fun `deleteSelected with empty selection is a no-op`() = runTest {
+        // Don't call store.delete('') for an empty selection.
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.deleteSelected()
+        advanceUntilIdle()
+        coVerify(exactly = 0) { store.delete(any()) }
+    }
+
+    @Test
     fun `setTitle writes to store and updates local list`() = runTest {
         coEvery { store.setTitle("c1", "New title") } returns true
         coEvery { store.recentPinnedFirst(50) } returns emptyList()

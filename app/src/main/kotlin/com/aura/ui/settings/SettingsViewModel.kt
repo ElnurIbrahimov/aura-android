@@ -152,10 +152,6 @@ data class SettingsUiState(
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
     val evolutionShadowEnabled: Boolean = false,
-    // Settings toggles that existed in prefs but had no UI control.
-    val ttsEnabled: Boolean = true,
-    val incognitoDefault: Boolean = false,
-    val imageModel: String = "",
     val daemonEnabled: Boolean = false,
     /** Distinct from credentialStates["custom"]: the URL/key are stored
      *  outside ProviderKeys, so this is a separate UI state. */
@@ -271,9 +267,6 @@ class SettingsViewModel @Inject constructor(
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
-            val ttsEnabled = userPreferences.ttsEnabled.first()
-            val incognitoDefault = userPreferences.incognitoDefault.first()
-            val imageModel = userPreferences.imageModel.first()
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
@@ -315,9 +308,6 @@ class SettingsViewModel @Inject constructor(
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
                 evolutionShadowEnabled = evolutionShadowEnabled,
-                ttsEnabled = ttsEnabled,
-                incognitoDefault = incognitoDefault,
-                imageModel = imageModel,
                 daemonEnabled = daemonEnabled,
             )
         }
@@ -454,24 +444,23 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setTtsEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferences.setTtsEnabled(enabled)
-            _state.update { it.copy(ttsEnabled = enabled) }
-        }
+        // Persist directly to DataStore; the ChatViewModel observes
+        // ttsEnabled from its own DataStore Flow. No need to mirror
+        // into SettingsUiState — the toggle isn't displayed in
+        // Settings UI yet, and ChatContent reads from ChatViewModel.
+        viewModelScope.launch { userPreferences.setTtsEnabled(enabled) }
     }
 
     fun setIncognitoDefault(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferences.setIncognitoDefault(enabled)
-            _state.update { it.copy(incognitoDefault = enabled) }
-        }
+        // Same shape as setTtsEnabled: ChatViewModel observes
+        // incognitoDefault from its own DataStore Flow. No state mirror.
+        viewModelScope.launch { userPreferences.setIncognitoDefault(enabled) }
     }
 
     fun setImageModel(model: String) {
-        viewModelScope.launch {
-            userPreferences.setImageModel(model)
-            _state.update { it.copy(imageModel = model) }
-        }
+        // ImageGenTool reads from UserPreferences.imageModel directly;
+        // no UI state needed in Settings.
+        viewModelScope.launch { userPreferences.setImageModel(model) }
     }
 
     fun setDaemonEnabled(enabled: Boolean) {

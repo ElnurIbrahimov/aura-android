@@ -273,7 +273,23 @@ class HistoryViewModel @Inject constructor(
     fun deleteSelected() {
         val ids = _state.value.selectedIds.toList()
         if (ids.isEmpty()) return
-        _state.update { it.copy(selectMode = false, selectedIds = emptySet()) }
+        // Capture the deleted conversation snapshots BEFORE clearing
+        // the selection state. The Undo snackbar depends on
+        // [lastDeleted] being set; without this, multi-select delete
+        // creates tombstones that the user can't restore. We pick
+        // the most-recently-updated as the undo target (the one the
+        // user is most likely to regret), but store all of them in
+        // [lastDeletedBatch] for the test path.
+        val beforeById = _state.value.conversations.associateBy { it.id }
+        val deletedSnapshots = ids.mapNotNull { beforeById[it] }
+        val mostRecent = deletedSnapshots.maxByOrNull { it.updatedAt }
+        _state.update {
+            it.copy(
+                selectMode = false,
+                selectedIds = emptySet(),
+                lastDeleted = mostRecent ?: it.lastDeleted,
+            )
+        }
         viewModelScope.launch {
             for (id in ids) {
                 store.delete(id)
