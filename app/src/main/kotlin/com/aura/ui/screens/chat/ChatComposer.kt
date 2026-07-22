@@ -100,9 +100,18 @@ fun ChatComposer(
                 if (uri != null && uri.toString().startsWith("content://")) {
                     runCatching {
                         val resolver = context.contentResolver
-                        val bitmap = android.graphics.ImageDecoder.decodeBitmap(
-                            android.graphics.ImageDecoder.createSource(resolver, uri)
-                        )
+                        // ImageDecoder is API 28+; on API 26-27 fall back
+                        // to BitmapFactory.decodeStream which supports the
+                        // same content:// URI via ContentResolver.
+                        val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            android.graphics.ImageDecoder.decodeBitmap(
+                                android.graphics.ImageDecoder.createSource(resolver, uri)
+                            )
+                        } else {
+                            resolver.openInputStream(uri)?.use { stream ->
+                                android.graphics.BitmapFactory.decodeStream(stream)
+                            } ?: return@runCatching
+                        }
                         onImagePasted(bitmap)
                     }
                 }
