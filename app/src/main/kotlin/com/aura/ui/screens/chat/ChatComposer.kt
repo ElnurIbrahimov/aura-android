@@ -47,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +86,7 @@ fun ChatComposer(
     val hapticView = LocalView.current
     val canSend = sendEnabled && draft.isNotBlank()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // Detect pasted images from clipboard (e.g. screenshots copied in Gboard)
     LaunchedEffect(Unit) {
@@ -228,6 +231,9 @@ fun ChatComposer(
                         onCancel()
                     } else if (canSend) {
                         Haptics.send(hapticView)
+                        // Hide the soft keyboard immediately so the user
+                        // sees the response, not the input bar.
+                        keyboardController?.hide()
                         onSend()
                     }
                 },

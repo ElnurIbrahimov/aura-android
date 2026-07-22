@@ -217,6 +217,10 @@ data class ChatUiState(
     val saveWarning: String? = null,
     /** False when device is offline — shows a banner above chat. */
     val isOnline: Boolean = true,
+    /** Current TTS state — used to show "Stop reading" pill and highlight speaking turn. */
+    val ttsState: com.aura.voice.TextToSpeech.State = com.aura.voice.TextToSpeech.State.Idle,
+    /** Wall-clock duration of the most recent response. Shown in the response footer. */
+    val lastResponseDurationMs: Long = 0L,
 )
 
 /**
@@ -281,6 +285,7 @@ class ChatViewModel @Inject constructor(
             setErrorWithAutoDismiss = ::setErrorWithAutoDismiss,
             generateTitle = ::generateTitle,
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
+            onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
         )
     }
 
@@ -304,6 +309,17 @@ class ChatViewModel @Inject constructor(
 
     init {
         textToSpeech.initialize()
+        // Mirror TTS state into UI state so the chat can show a
+        // "Stop reading" pill and highlight the currently-speaking turn.
+        // Use launchIn instead of collect { } so this coroutine doesn't
+        // block — tests with mocked StateFlows would hang on .collect.
+        viewModelScope.launch {
+            runCatching {
+                textToSpeech.state.collect { tts ->
+                    _state.update { it.copy(ttsState = tts) }
+                }
+            }
+        }
         // Observe network connectivity and update UI state.
         viewModelScope.launch {
             runCatching {
@@ -516,6 +532,11 @@ class ChatViewModel @Inject constructor(
 
     fun toggleTts() {
         setTtsEnabled(!_state.value.ttsEnabled)
+    }
+
+    /** Stop the current TTS utterance. Called from the "Stop reading" pill. */
+    fun stopTts() {
+        textToSpeech.stop()
     }
 
     fun toggleDeepMode() {

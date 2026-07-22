@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -274,6 +275,7 @@ fun MessageBubble(
     isProactive: Boolean = false,
     reaction: Reaction? = null,
     animationIndex: Int = 0,
+    durationMs: Long = 0L,
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
@@ -298,6 +300,7 @@ fun MessageBubble(
             isProactive = isProactive,
             timestamp = timestamp,
             modelLabel = modelLabel,
+            durationMs = durationMs,
             reaction = reaction,
             animationIndex = animationIndex,
             copied = copied,
@@ -359,14 +362,18 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
                 )
                 .padding(horizontal = 22.dp, vertical = 12.dp),
         ) {
-            Text(
-                text = text.ifBlank { "…" },
-                color = AuraThemeTokens.colors.onUserBubble,
-                fontFamily = InterDisplay,
-                fontWeight = FontWeight.Medium,
-                fontSize = 16.sp,
-                lineHeight = 26.sp,
-            )
+            // SelectionContainer lets the user highlight and copy
+            // just a phrase from their own message, not the whole thing.
+            SelectionContainer {
+                Text(
+                    text = text.ifBlank { "…" },
+                    color = AuraThemeTokens.colors.onUserBubble,
+                    fontFamily = InterDisplay,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    lineHeight = 26.sp,
+                )
+            }
         }
     }
 }
@@ -379,6 +386,7 @@ private fun AssistantMessage(
     isProactive: Boolean,
     timestamp: Long,
     modelLabel: String?,
+    durationMs: Long,
     reaction: Reaction?,
     animationIndex: Int,
     copied: Boolean,
@@ -491,6 +499,14 @@ private fun AssistantMessage(
                     if (!modelLabel.isNullOrBlank()) {
                         Text(
                             text = modelLabel,
+                            fontFamily = JetBrainsMono,
+                            fontSize = 10.sp,
+                            color = AuraThemeTokens.colors.textTertiary,
+                        )
+                    }
+                    if (durationMs > 0) {
+                        Text(
+                            text = formatDuration(durationMs),
                             fontFamily = JetBrainsMono,
                             fontSize = 10.sp,
                             color = AuraThemeTokens.colors.textTertiary,
@@ -658,4 +674,11 @@ private fun BubbleAction(
             )
         }
     }
+}
+
+/** Format a duration in ms as a short string: "1.2s" / "850ms" / "2.3m". */
+private fun formatDuration(ms: Long): String = when {
+    ms < 1000 -> "${ms}ms"
+    ms < 60_000 -> String.format(java.util.Locale.US, "%.1fs", ms / 1000.0)
+    else -> String.format(java.util.Locale.US, "%.1fm", ms / 60_000.0)
 }

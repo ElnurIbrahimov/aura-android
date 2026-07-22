@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
@@ -496,18 +497,23 @@ private fun ClickableMarkdownBlock(
 ) {
     val annotated = parseMarkdownClickable(text, colors)
     val uriHandler = LocalUriHandler.current
-    ClickableText(
-        text = annotated,
-        style = style,
-        overflow = TextOverflow.Visible,
-        onClick = { offset ->
-            annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()
-                ?.let { annotation ->
-                    runCatching { uriHandler.openUri(annotation.item) }
-                }
-        },
-    )
+    // SelectionContainer lets the user long-press to select a phrase
+    // and copy just that phrase. ClickableText still handles link
+    // taps; selection takes priority for non-link segments.
+    SelectionContainer {
+        ClickableText(
+            text = annotated,
+            style = style,
+            overflow = TextOverflow.Visible,
+            onClick = { offset ->
+                annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                    .firstOrNull()
+                    ?.let { annotation ->
+                        runCatching { uriHandler.openUri(annotation.item) }
+                    }
+            },
+        )
+    }
 }
 
 private fun splitMarkdownBlocks(text: String): List<MarkdownBlock> {

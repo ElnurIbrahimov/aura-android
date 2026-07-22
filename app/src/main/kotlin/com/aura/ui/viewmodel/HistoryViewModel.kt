@@ -33,6 +33,12 @@ data class HistoryUiState(
      * is preserved across scroll.
      */
     val selectedIds: Set<String> = emptySet(),
+    /**
+     * The most recently deleted conversation, kept for 5 seconds so
+     * the user can tap "Undo" in the snackbar to restore it. Null
+     * when nothing is recoverable.
+     */
+    val lastDeleted: Conversation? = null,
 )
 
 /**
@@ -156,6 +162,9 @@ class HistoryViewModel @Inject constructor(
 
     fun delete(id: String) {
         viewModelScope.launch {
+            // Capture the conversation before deletion so the user can
+            // undo via the snackbar.
+            val conv = _state.value.conversations.firstOrNull { it.id == id }
             store.delete(id)
             val q = _state.value.query
             val conversations = if (q.isBlank()) {
@@ -163,7 +172,31 @@ class HistoryViewModel @Inject constructor(
             } else {
                 searchConversations(q, 50)
             }
-            _state.update { it.copy(conversations = conversations) }
+            if (conv != null) {
+                _state.update { it.copy(conversations = conversations, lastDeleted = conv) }
+                // After 5 seconds, clear the recovery slot.
+                kotlinx.coroutines.delay(5000)
+                if (_state.value.lastDeleted?.id == conv.id) {
+                    _state.update { it.copy(lastDeleted = null) }
+                }
+            } else {
+                _state.update { it.copy(conversations = conversations) }
+            }
+        }
+    }
+
+    /** Restore the most recently deleted conversation, if any. */
+    fun restoreLastDeleted() {
+        val conv = _state.value.lastDeleted ?: return
+        viewModelScope.launch {
+            store.save(conv)
+            val q = _state.value.query
+            val conversations = if (q.isBlank()) {
+                store.recentPinnedFirst(50)
+            } else {
+                searchConversations(q, 50)
+            }
+            _state.update { it.copy(conversations = conversations, lastDeleted = null) }
         }
     }
 

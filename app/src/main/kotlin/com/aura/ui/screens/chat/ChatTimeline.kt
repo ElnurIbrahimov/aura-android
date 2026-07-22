@@ -93,6 +93,9 @@ fun ChatTimeline(
                             isStreaming = isStreaming,
                             timestamp = turn.timestamp,
                             modelLabel = state.conversation.model,
+                            // Only show the duration on the most recent turn —
+                            // older turns have no recorded value.
+                            durationMs = if (isLast) state.lastResponseDurationMs else 0L,
                             reaction = turn.reaction,
                             onShowSources = onShowSourcesForLastTurn,
                             onReact = { reaction -> onReact(turn.timestamp, reaction) },

@@ -67,6 +67,7 @@ class ChatSendController(
     private val setErrorWithAutoDismiss: (String, Boolean, AuraError?) -> Unit,
     private val generateTitle: (String) -> String,
     private val onError: (String) -> Unit,
+    private val onRunComplete: (Long) -> Unit = {},
 ) {
     /** Active streaming coroutine, if any. */
     var runJob: Job? = null
@@ -81,6 +82,14 @@ class ChatSendController(
 
     /** Count of consecutive streaming failures; triggers MoA escalation at 3. */
     var consecutiveFailures: Int = 0
+        private set
+
+    /** Wall-clock when the current run started — used for the response footer duration. */
+    private var runStartTimeMs: Long = 0L
+
+    /** Wall-clock duration of the most recently completed run in ms. */
+    var lastRunDurationMs: Long = 0L
+        private set
 
     /** User-correction regexes used to detect "try again" / "no, I meant" turns. */
     private val correctionPatterns: List<Regex> = listOf(
@@ -102,6 +111,7 @@ class ChatSendController(
         val text = (retryUserText ?: current.draft).trim()
         val retryingExistingTurn = retryUserText != null
         if (text.isEmpty() || current.streaming) return
+        runStartTimeMs = System.currentTimeMillis()
 
         // Adaptive MoA escalation: if the user corrected the last response
         // or the model has been struggling, auto-enable Deep Mode.
@@ -321,6 +331,11 @@ class ChatSendController(
                         is AgentEvent.Done -> {
                             // Reset failure counter on successful completion.
                             consecutiveFailures = 0
+                            // Record wall-clock duration for the response footer.
+                            if (runStartTimeMs > 0) {
+                                lastRunDurationMs = System.currentTimeMillis() - runStartTimeMs
+                                onRunComplete(lastRunDurationMs)
+                            }
                             if (state.value.ttsEnabled && responseBuffer.isNotBlank()) {
                                 textToSpeech.speak(
                                     text = responseBuffer.toString(),

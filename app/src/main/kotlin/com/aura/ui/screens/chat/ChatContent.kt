@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.agent.Specialist
@@ -58,6 +60,7 @@ fun ChatContent(
     onClear: () -> Unit,
     onEditMessage: (Int, String) -> Unit = { _, _ -> },
     onShareMessage: (String) -> Unit = {},
+    onStopTts: () -> Unit = {},
     onSendSuggestion: (String) -> Unit,
     onRetry: () -> Unit,
     onDismissError: () -> Unit,
@@ -126,6 +129,9 @@ fun ChatContent(
                 MoaThinkingIndicator(Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             }
             if (state.incognitoMode) IncognitoBanner()
+            if (state.ttsState is com.aura.voice.TextToSpeech.State.Speaking) {
+                TtsStopPill(onStop = onStopTts)
+            }
 
             when {
                 state.conversationLoading -> ChatTimeline(
@@ -235,6 +241,44 @@ private fun JumpToLatest(onClick: () -> Unit) {
                     fontFamily = InterDisplay,
                     fontSize = 12.sp,
                     color = AuraThemeTokens.colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TtsStopPill(onStop: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Surface(
+            onClick = onStop,
+            shape = RoundedCornerShape(999.dp),
+            color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f),
+            contentColor = AuraThemeTokens.colors.actionPrimary,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.3f),
+            ),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Filled.Stop,
+                    contentDescription = "Stop reading",
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = "Tap to stop reading",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }

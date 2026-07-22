@@ -382,6 +382,7 @@ fun ChatRoute(
             }
             context.startActivity(android.content.Intent.createChooser(intent, "Share"))
         },
+        onStopTts = viewModel::stopTts,
         onSendSuggestion = { prompt ->
             followLiveEdge = true
             viewModel.setDraft(prompt)

@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,12 +81,37 @@ fun HistoryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
     val subtitle = if (state.selectMode) {
         val n = state.selectedIds.size
         "$n selected"
     } else if (state.query.isBlank()) "${state.conversations.size} saved conversations"
         else "${state.conversations.size} match${if (state.conversations.size == 1) "" else "es"} for \"${state.query}\""
+
+    // Show "Undo" snackbar when a conversation is deleted.
+    androidx.compose.runtime.LaunchedEffect(state.lastDeleted?.id) {
+        val deleted = state.lastDeleted ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Conversation deleted",
+            actionLabel = "Undo",
+            withDismissAction = true,
+            duration = androidx.compose.material3.SnackbarDuration.Short,
+        )
+        when (result) {
+            androidx.compose.material3.SnackbarResult.ActionPerformed -> {
+                viewModel.restoreLastDeleted()
+            }
+            androidx.compose.material3.SnackbarResult.Dismissed -> {
+                // user ignored or it timed out — leave lastDeleted alone,
+                // the 5s timer in the ViewModel will clear it.
+            }
+        }
+        // Suppress unused warning for `deleted`
+        @Suppress("UNUSED_VARIABLE") val _u = deleted
+    }
+
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         val headerAction: (@Composable () -> Unit)? = when {
             // Bulk action bar — replaces the normal "Export all" action
@@ -256,6 +282,14 @@ fun HistoryScreen(
                 }
             }
         }
+    }
+    // SnackbarHost overlays the screen so "Undo" appears on top of the list.
+    androidx.compose.material3.SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(androidx.compose.ui.Alignment.BottomCenter)
+            .padding(16.dp),
+    )
     }
 }
 
