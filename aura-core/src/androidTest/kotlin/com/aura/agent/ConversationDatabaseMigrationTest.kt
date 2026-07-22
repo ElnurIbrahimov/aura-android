@@ -92,4 +92,46 @@ class ConversationDatabaseMigrationTest {
         }
         migrated.close()
     }
+
+    @Test
+    fun migrate5To6_preservesConversations_andAddsDeletedAt() {
+        // Soft-delete was added in commit e21d6d55. Migration 5→6
+        // adds the deletedAt column (nullable, no default = NULL for
+        // existing rows = visible). Without this test, an invalid
+        // SQL statement or column type mismatch would silently break
+        // on upgrade — every existing user would lose their History.
+        val db = helper.createDatabase("test-conversations-5-6.db", 5)
+        db.execSQL(
+            "INSERT INTO conversations (id, title, createdAt, updatedAt, systemPrompt, model, " +
+                "metadataJson, turnsJson, contextSummary, summaryThroughTurn, agentId) " +
+                "VALUES ('conv-5', 'Pre-soft-delete chat', 1, 2, '', 'test:model', '{}', " +
+                "'[{\"user\":\"hello\"}]', '', 0, 'coder')",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            "test-conversations-5-6.db", 6, true, ConversationModule.MIGRATION_5_6,
+        )
+
+        // The pre-existing row should survive with all its data intact.
+        migrated.query(
+            "SELECT title, agentId, deletedAt FROM conversations WHERE id = 'conv-5'",
+        ).use {
+            assert(it.moveToFirst())
+            assert(it.getString(0) == "Pre-soft-delete chat")
+            assert(it.getString(1) == "coder")
+            // deletedAt must exist and default to NULL for visible rows.
+            assert(it.isNull(2)) { "deletedAt should default to NULL (visible)" }
+        }
+
+        // Verify the column is actually present (not just the data).
+        migrated.query("PRAGMA table_info('conversations')").use {
+            var found = false
+            while (it.moveToNext()) {
+                found = found || it.getString(it.getColumnIndexOrThrow("name")) == "deletedAt"
+            }
+            assert(found) { "deletedAt column should exist after migration" }
+        }
+        migrated.close()
+    }
 }

@@ -18,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -117,6 +118,54 @@ class HistoryViewModelTest {
         val vm = HistoryViewModel(mockk(relaxed = true), store)
         vm.delete("c1")
         coVerifyOrder { store.delete("c1"); store.recentPinnedFirst(50) }
+    }
+
+    @Test
+    fun `delete captures the conversation as lastDeleted for undo`() = runTest {
+        // The Undo snackbar depends on the lastDeleted hint being set
+        // when the user deletes a conversation. Without this, the
+        // snackbar's "Undo" action is a no-op.
+        val old = com.aura.agent.Conversation(
+            id = "c1", title = "Old chat", createdAt = 1L, updatedAt = 2L,
+        )
+        coEvery { store.recentPinnedFirst(50) } returns listOf(old)
+        coEvery { store.delete("c1") } returns Unit
+        coEvery { store.purgeDeletedOlderThan() } returns 0
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.delete("c1")
+        advanceUntilIdle()
+        assertEquals("c1", vm.state.value.lastDeleted?.id)
+    }
+
+    @Test
+    fun `restoreLastDeleted calls store_restore and reloads`() = runTest {
+        // The "Undo" action on the snackbar — verify it round-trips
+        // through store.restore() and clears the lastDeleted hint so
+        // a second tap doesn't try to restore the same id.
+        val old = com.aura.agent.Conversation(
+            id = "c1", title = "Old chat", createdAt = 1L, updatedAt = 2L,
+        )
+        coEvery { store.recentPinnedFirst(50) } returns listOf(old)
+        coEvery { store.delete("c1") } returns Unit
+        coEvery { store.purgeDeletedOlderThan() } returns 0
+        coEvery { store.restore("c1") } returns old
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.delete("c1")
+        advanceUntilIdle()
+        vm.restoreLastDeleted()
+        advanceUntilIdle()
+        coVerify { store.restore("c1") }
+        assertNull(vm.state.value.lastDeleted)
+    }
+
+    @Test
+    fun `restoreLastDeleted is a no-op when no hint is set`() = runTest {
+        // After process death the in-memory hint is gone; tapping Undo
+        // shouldn't error or try to restore a random row.
+        val vm = HistoryViewModel(mockk(relaxed = true), store)
+        vm.restoreLastDeleted()
+        advanceUntilIdle()
+        coVerify(exactly = 0) { store.restore(any()) }
     }
 
     @Test

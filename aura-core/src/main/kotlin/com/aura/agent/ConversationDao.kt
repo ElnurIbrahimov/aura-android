@@ -72,7 +72,7 @@ interface ConversationDao {
     )
     suspend fun searchVisible(escapedQuery: kotlin.String, limit: Int = 50): List<ConversationEntity>
 
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC LIMIT 1")
+    @Query("SELECT * FROM conversations WHERE deletedAt IS NULL ORDER BY updatedAt DESC LIMIT 1")
     suspend fun mostRecent(): ConversationEntity?
 
     @Query("SELECT COUNT(*) FROM conversations")
@@ -107,15 +107,23 @@ interface ConversationDao {
     suspend fun deleteAll()
 
     /**
-     * All conversations that have a non-null embedding. Used by
+     * All VISIBLE conversations that have a non-null embedding. Used by
      * [ConversationStore.semanticSearch] to scan for cosine similarity
-     * matches.
+     * matches. Soft-deleted rows (deletedAt != null) are excluded — they
+     * shouldn't be discoverable via search even if their embedding is
+     * still in the cache, because the user has chosen to hide them.
+     * The embedding byte array stays on the row so undo() can find the
+     * conversation quickly; it just isn't surfaced.
      */
-    @Query("SELECT * FROM conversations WHERE embedding IS NOT NULL ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations WHERE embedding IS NOT NULL AND deletedAt IS NULL ORDER BY updatedAt DESC")
     suspend fun allWithEmbeddings(): List<ConversationEntity>
 
-    /** Bounded legacy-row source for semantic-search backfill. */
-    @Query("SELECT * FROM conversations WHERE embedding IS NULL ORDER BY updatedAt DESC LIMIT :limit")
+    /**
+     * Bounded legacy-row source for semantic-search backfill. Same
+     * deletedAt filter as [allWithEmbeddings] — backfilling embeddings
+     * for soft-deleted rows would just waste an API call.
+     */
+    @Query("SELECT * FROM conversations WHERE embedding IS NULL AND deletedAt IS NULL ORDER BY updatedAt DESC LIMIT :limit")
     suspend fun missingEmbeddings(limit: Int): List<ConversationEntity>
 
     /**

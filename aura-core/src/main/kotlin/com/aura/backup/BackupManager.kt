@@ -202,6 +202,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 mcpServersJson = userPreferences.mcpServersJson.first(),
                 evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
+                daemonEnabled = userPreferences.daemonEnabled.first(),
             ),
             usage = usageTracker.snapshot.value,
             agents = agentDao.allOnce().map { it.toBackup() },
@@ -328,6 +329,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         userPreferences.setEvolutionShadowEnabled(backup.preferences.evolutionShadowEnabled)
         userPreferences.setEvolutionOnboardingShown(backup.preferences.evolutionOnboardingShown)
+        userPreferences.setDaemonEnabled(backup.preferences.daemonEnabled)
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
         // Restore custom agents. Builtins are re-seeded on startup
@@ -554,6 +556,11 @@ private fun ConversationEntity.toBackup() = ConversationBackup(
     contextSummary = contextSummary,
     summaryThroughTurn = summaryThroughTurn,
     agentId = agentId,
+    // Preserve the soft-delete tombstone across the backup roundtrip.
+    // The ConversationStore.delete() / restore() lifecycle depends on
+    // this field; if it were dropped here, every restore would bring
+    // soft-deleted conversations back as visible rows.
+    deletedAt = deletedAt,
 )
 
 private fun ConversationBackup.toEntity() = ConversationEntity(
@@ -568,6 +575,11 @@ private fun ConversationBackup.toEntity() = ConversationEntity(
     contextSummary = contextSummary,
     summaryThroughTurn = summaryThroughTurn,
     agentId = agentId,
+    // Same reasoning as toBackup above. The default `null` in the
+    // backup data class (for old backups) means a pre-soft-delete
+    // restore shows everything as visible, which matches the behavior
+    // at the time the backup was written.
+    deletedAt = deletedAt,
 )
 
 private fun NodeEntity.toBackup() = NodeBackup(

@@ -6,7 +6,13 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "conversations",
-    indices = [Index(value = ["updatedAt"])],
+    // updatedAt index speeds up ORDER BY updatedAt DESC LIMIT N (History
+    // list, mostRecent). deletedAt index speeds up the soft-delete
+    // filter (recentVisible, searchVisible) and the retention sweep
+    // (purgeDeletedBefore). Both are needed for fresh installs — the
+    // MIGRATION_5_6 ALTER TABLE creates the deletedAt index only on
+    // upgrade paths; new installs get it from this declaration.
+    indices = [Index(value = ["updatedAt"]), Index(value = ["deletedAt"])],
 )
 data class ConversationEntity(
     @PrimaryKey val id: String,

@@ -40,6 +40,18 @@ class ConversationStore @Inject constructor(
             embedding = embedding,
             contextSummary = conversation.contextSummary,
             summaryThroughTurn = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size),
+            // Carry forward agentId from the previous row. The [Conversation]
+            // domain object does not expose agentId (it's a storage-layer
+            // concern), so without this lookup the agent association
+            // would be silently lost on every save. The previous row
+            // was already fetched above for the embedding cache check,
+            // so we use it here too.
+            agentId = previous?.agentId,
+            // Same reasoning for the soft-delete tombstone: a save() must
+            // never resurrect a deleted conversation. If the previous
+            // row was soft-deleted, preserve that state — only an
+            // explicit restore() can clear it.
+            deletedAt = previous?.deletedAt,
         )
         dao.insert(entity)
     }

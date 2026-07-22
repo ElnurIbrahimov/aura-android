@@ -61,7 +61,7 @@ fun EmotionDaemonSection(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Updated ${formatRelativeTime(emotionSnapshot.updatedAt)}",
+                text = "Updated ${formatRelativeTimeLong(emotionSnapshot.updatedAt)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
             )
@@ -155,7 +155,13 @@ private fun EmotionBar(
     }
 }
 
-private fun formatRelativeTime(timestampMs: Long): String {
+// Settings-panel relative time: verbose "5 min ago" / "3h ago" format
+// for the emotion/daemon status. Distinct from the chat-screen's brief
+// `formatRelativeTime` in com.aura.ui.util.TimeFormat (which says "5m").
+// Kept separate because the two surfaces call for different tone: the
+// chat shows seconds-old context ("just now"), settings shows
+// "updated 3 hours ago" — the latter reads more naturally in verbose form.
+private fun formatRelativeTimeLong(timestampMs: Long): String {
     val diff = System.currentTimeMillis() - timestampMs
     return when {
         diff < 60_000 -> "just now"

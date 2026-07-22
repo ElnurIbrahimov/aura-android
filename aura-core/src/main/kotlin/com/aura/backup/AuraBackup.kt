@@ -184,6 +184,15 @@ data class ConversationBackup(
     val contextSummary: String = "",
     val summaryThroughTurn: Int = 0,
     val agentId: String? = null,
+    /**
+     * Soft-delete tombstone (epoch-ms when deleted, null = visible).
+     * Without this field, a backup→restore roundtrip would silently
+     * resurrect soft-deleted conversations. The default `null` keeps
+     * backups written before the soft-delete migration (schema <10)
+     * forward-compatible — they restore as visible rows, which is the
+     * original behavior at the time they were written.
+     */
+    val deletedAt: Long? = null,
 )
 
 @Serializable
@@ -332,6 +341,10 @@ data class PreferencesBackup(
     val mcpServersJson: String = "[]",
     val evolutionShadowEnabled: Boolean = false,
     val evolutionOnboardingShown: Boolean = false,
+    // Daemon thinking worker (every 8 min) — Settings toggle exists in the
+    // UI but was previously lost on backup/restore. Default off; users
+    // who have enabled it explicitly will get their preference back.
+    val daemonEnabled: Boolean = false,
 )
 
 @Serializable

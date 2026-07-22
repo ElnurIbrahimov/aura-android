@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "12aa544949115876020753fb76ddbf0c",
+    "identityHash": "2c429b7110f9c5bee5757238b9fbf599",
     "entities": [
       {
         "tableName": "conversations",
@@ -102,6 +102,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_updatedAt` ON `${TABLE_NAME}` (`updatedAt`)"
+          },
+          {
+            "name": "index_conversations_deletedAt",
+            "unique": false,
+            "columnNames": [
+              "deletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_deletedAt` ON `${TABLE_NAME}` (`deletedAt`)"
           }
         ],
         "foreignKeys": []
@@ -110,7 +119,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '12aa544949115876020753fb76ddbf0c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2c429b7110f9c5bee5757238b9fbf599')"
     ]
   }
 }

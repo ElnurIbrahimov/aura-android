@@ -111,6 +111,7 @@ class BackupManagerTest {
         every { userPreferences.mcpServersJson } returns flowOf("[]")
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        every { userPreferences.daemonEnabled } returns flowOf(false)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
         val backup = manager.snapshot(appVersionName = "0.1.0")
