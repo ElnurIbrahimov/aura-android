@@ -57,6 +57,15 @@ interface EvolutionProposalDao {
     @Query("SELECT * FROM evolution_proposals WHERE status IN ('PENDING_REVIEW', 'APPROVED', 'APPLY_FAILED') ORDER BY createdAt DESC")
     suspend fun open(): List<EvolutionProposalEntity>
 
+    /**
+     * Reactive count of proposals awaiting user action (PENDING_REVIEW
+     * only — APPROVED/APPLY_FAILED are already in flight). Used by the
+     * bottom-nav badge so the user can see "3 new proposals" without
+     * opening the inbox.
+     */
+    @Query("SELECT COUNT(*) FROM evolution_proposals WHERE status = 'PENDING_REVIEW'")
+    fun observePendingCount(): Flow<Int>
+
     @Query("SELECT * FROM evolution_proposals WHERE domain = :domain ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byDomain(domain: kotlin.String, limit: Int = 200): List<EvolutionProposalEntity>
 

@@ -88,9 +88,9 @@ class EvolutionInboxViewModel @Inject constructor(
         }
     }
 
-    fun reject(id: kotlin.String) {
+    fun reject(id: kotlin.String, reason: kotlin.String = "") {
         viewModelScope.launch {
-            proposalStore.reject(id)
+            proposalStore.reject(id, reason)
             load()
         }
     }

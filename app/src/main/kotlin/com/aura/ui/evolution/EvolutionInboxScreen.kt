@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,11 @@ fun EvolutionInboxScreen(
     modifier: Modifier = Modifier,
 ) {
     var selectedProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
+    // Proposal awaiting a rejection reason. When non-null, the
+    // RejectReasonDialog is shown. The actual `reject` call only
+    // fires from the dialog's confirm button — never from the
+    // card's "Reject" button alone.
+    var rejectingProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
     val proposals = viewModel.proposals.collectAsStateWithLifecycle().value
     val settings = viewModel.settings.collectAsStateWithLifecycle().value
     val showOnboarding = viewModel.showOnboarding.collectAsStateWithLifecycle().value
@@ -88,7 +94,7 @@ fun EvolutionInboxScreen(
                 ProposalCard(
                     proposal = proposal,
                     onApprove = { viewModel.approve(proposal.id) },
-                    onReject = { viewModel.reject(proposal.id) },
+                    onReject = { rejectingProposal = proposal },
                     onDetail = { selectedProposal = proposal },
                     onRollback = { onRollback(proposal.id) },
                 )
@@ -133,6 +139,108 @@ fun EvolutionInboxScreen(
             },
         )
     }
+
+    rejectingProposal?.let { proposal ->
+        RejectReasonDialog(
+            proposalTitle = proposal.title,
+            onConfirm = { reason ->
+                viewModel.reject(proposal.id, reason)
+                rejectingProposal = null
+            },
+            onDismiss = { rejectingProposal = null },
+        )
+    }
+}
+
+/**
+ * Modal asking the user WHY they want to reject a proposal.
+ *
+ * Why: rejection reasons feed EvolutionCandidateDetectors
+ * (the system tracks "users reject X because Y" patterns to lower
+ * confidence in similar future proposals) and EvolutionSafetyGuard
+ * (patterns of "rejected N times for credential leak" become
+ * hard-blocks). A bare reject() call with no reason loses this
+ * signal and the system repeats the same mistake.
+ *
+ * UX: four preset chips (most common rejection reasons) + a free-text
+ * field. The confirm button is enabled when something is selected
+ * or typed — empty rejections aren't allowed.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun RejectReasonDialog(
+    proposalTitle: String,
+    onConfirm: (reason: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val presets = listOf(
+        "Not relevant",
+        "Already have this",
+        "Too risky / unsafe",
+        "Wording is wrong",
+    )
+    var selectedPreset by remember { mutableStateOf<String?>(null) }
+    var customText by remember { mutableStateOf("") }
+    val finalReason: String = when {
+        customText.isNotBlank() -> customText
+        else -> selectedPreset ?: ""
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reject proposal?") },
+        text = {
+            Column {
+                Text(
+                    text = proposalTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+                Text(
+                    text = "Why? This helps the system learn what to avoid proposing.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                // Preset chips in a FlowRow so they wrap on small screens.
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    presets.forEach { preset ->
+                        FilterChip(
+                            selected = selectedPreset == preset,
+                            onClick = {
+                                selectedPreset = if (selectedPreset == preset) null else preset
+                                if (selectedPreset != null) customText = ""
+                            },
+                            label = { Text(preset) },
+                        )
+                    }
+                }
+                androidx.compose.material3.OutlinedTextField(
+                    value = customText,
+                    onValueChange = {
+                        customText = it
+                        if (it.isNotBlank()) selectedPreset = null
+                    },
+                    label = { Text("Or write your own") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(finalReason) },
+                enabled = finalReason.isNotBlank(),
+            ) { Text("Reject") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep") }
+        },
+    )
 }
 
 @Composable

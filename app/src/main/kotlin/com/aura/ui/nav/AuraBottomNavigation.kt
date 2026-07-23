@@ -33,6 +33,8 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -85,6 +87,7 @@ fun AuraBottomNavigation(
     onRouteSelected: (TopLevelRoute) -> Unit,
     modifier: Modifier = Modifier,
     navigationBarInsets: WindowInsets = WindowInsets.navigationBars,
+    badgeCounts: Map<String, Int> = emptyMap(),
 ) {
     val colors = AuraThemeTokens.colors
     val baseRoute = normalizedBaseRoute(currentRoute)
@@ -134,12 +137,34 @@ fun AuraBottomNavigation(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            Icon(
-                                imageVector = if (selected) route.selectedIcon else route.unselectedIcon,
-                                contentDescription = null,
-                                tint = contentColor,
-                                modifier = Modifier.size(21.dp),
-                            )
+                            val badgeCount = badgeCounts[route.route] ?: 0
+                            val iconWithBadge: @Composable () -> Unit = {
+                                Icon(
+                                    imageVector = if (selected) route.selectedIcon else route.unselectedIcon,
+                                    contentDescription = null,
+                                    tint = contentColor,
+                                    modifier = Modifier.size(21.dp),
+                                )
+                            }
+                            if (badgeCount > 0) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge(
+                                            containerColor = colors.actionPrimary,
+                                            contentColor = colors.onActionPrimary,
+                                        ) {
+                                            Text(
+                                                text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                                                fontSize = 10.sp,
+                                            )
+                                        }
+                                    },
+                                ) {
+                                    iconWithBadge()
+                                }
+                            } else {
+                                iconWithBadge()
+                            }
                             Text(
                                 text = route.label,
                                 fontSize = 11.sp,
