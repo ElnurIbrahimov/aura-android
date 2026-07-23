@@ -153,6 +153,16 @@ data class SettingsUiState(
     val evolutionIntervalHours: Int = 24,
     val evolutionShadowEnabled: Boolean = false,
     val daemonEnabled: Boolean = false,
+    /** Whether the dream consolidator is enabled (default true). */
+    val dreamEnabled: Boolean = true,
+    /** Last dream cycle timestamp, 0 = never. */
+    val dreamLastRunAt: Long = 0L,
+    /** One-line stats from the last cycle. Empty if never ran. */
+    val dreamLastRunStats: String = "",
+    /** Count of dream summaries ever written. */
+    val dreamTotalSummaries: Int = 0,
+    /** True while a manual "Run now" cycle is in progress. */
+    val dreamRunning: Boolean = false,
     /** Distinct from credentialStates["custom"]: the URL/key are stored
      *  outside ProviderKeys, so this is a separate UI state. */
 )
@@ -190,6 +200,9 @@ class SettingsViewModel @Inject constructor(
     private val mcpClientManager: McpClientManager,
     private val mcpToolBridge: com.aura.mcp.McpToolBridge,
     private val secureDataStore: com.aura.security.SecureDataStore,
+    private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao,
+    @dagger.hilt.android.qualifiers.ApplicationContext
+    private val appContext: android.content.Context,
 ) : ViewModel() {
 
     private fun configuredProviderLabels(): List<String> =
@@ -268,6 +281,10 @@ class SettingsViewModel @Inject constructor(
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
             val daemonEnabled = userPreferences.daemonEnabled.first()
+            val dreamEnabled = userPreferences.dreamEnabled.first()
+            val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
+            val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
+            val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.getOrDefault(0)
             val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
@@ -309,6 +326,10 @@ class SettingsViewModel @Inject constructor(
                 evolutionIntervalHours = evolutionIntervalHours,
                 evolutionShadowEnabled = evolutionShadowEnabled,
                 daemonEnabled = daemonEnabled,
+                dreamEnabled = dreamEnabled,
+                dreamLastRunAt = dreamLastRunAt,
+                dreamLastRunStats = dreamLastRunStats,
+                dreamTotalSummaries = dreamTotalSummaries,
             )
         }
     }
@@ -467,6 +488,53 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDaemonEnabled(enabled)
             _state.update { it.copy(daemonEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Toggle the dream consolidator. Same pattern as
+     * [setMorningBriefEnabled]: persist the choice, the actual
+     * schedule change happens in
+     * [com.aura.proactive.ProactiveBootstrap] on the next
+     * preference emission.
+     */
+    fun setDreamEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setDreamEnabled(enabled)
+            _state.update { it.copy(dreamEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Run one dream consolidation cycle now. Enqueues a one-shot
+     * WorkRequest and tracks the in-progress state in the UI.
+     * We delegate the actual work to [com.aura.dream.DreamWorker]
+     * so the cycle runs on the WorkManager coroutine context with
+     * the right cancellation semantics — running the LLM call
+     * directly in viewModelScope would be risky (could be killed
+     * mid-summarization when the ViewModel clears).
+     */
+    fun runDreamNow() {
+        if (_state.value.dreamRunning) return
+        _state.update { it.copy(dreamRunning = true) }
+        viewModelScope.launch {
+            try {
+                val request = androidx.work.OneTimeWorkRequestBuilder<com.aura.dream.DreamWorker>()
+                    .addTag("dream-consolidation-manual")
+                    .build()
+                androidx.work.WorkManager.getInstance(appContext).enqueue(request)
+            } finally {
+                // We don't poll; the worker is fire-and-forget from
+                // the UI's perspective. The "Running…" state will be
+                // cleared the next time reload() is called (when
+                // the user navigates back to the screen, or when
+                // the cycle finishes — but we don't observe
+                // completion here). Reset the flag after a short
+                // delay so the user sees the "Running…" label
+                // briefly.
+                kotlinx.coroutines.delay(1_500)
+                _state.update { it.copy(dreamRunning = false) }
+            }
         }
     }
 

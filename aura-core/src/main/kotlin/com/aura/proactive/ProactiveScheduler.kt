@@ -73,4 +73,39 @@ class ProactiveScheduler @Inject constructor(
     fun cancelDecay() {
         WorkManager.getInstance(context).cancelUniqueWork(DecayWorker.UNIQUE_NAME)
     }
+
+    /**
+     * Enqueue a periodic dream-consolidation worker that runs the
+     * [com.aura.dream.DreamConsolidator] every 24h. The two
+     * constraints — battery-not-low + charging — match the Python
+     * "sleep" semantic: do the work overnight when the phone is
+     * plugged in. 24h interval because that's the minimum useful
+     * cadence for memory consolidation (any faster and the
+     * paraphrase count hasn't grown enough to find clusters).
+     *
+     * If the LLM call fails (rate limit, network), the worker
+     * returns Result.retry() and WorkManager backs off per its
+     * default policy (30s, 5min, 30min, 2hr, 5hr, 12hr, 24hr).
+     */
+    fun scheduleDream() {
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .setRequiresCharging(true)
+            .build()
+        val request = PeriodicWorkRequestBuilder<com.aura.dream.DreamWorker>(1, TimeUnit.DAYS)
+            .setConstraints(constraints)
+            .setInitialDelay(2, TimeUnit.HOURS) // give app time to settle
+            .addTag("dream-consolidation")
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                com.aura.dream.DreamWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request,
+            )
+    }
+
+    fun cancelDream() {
+        WorkManager.getInstance(context).cancelUniqueWork(com.aura.dream.DreamWorker.UNIQUE_NAME)
+    }
 }

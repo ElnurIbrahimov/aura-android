@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -62,6 +63,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,6 +107,7 @@ fun MemoryScreen(
     var showClearCategoryConfirm by remember { mutableStateOf(false) }
     var showAddNote by remember { mutableStateOf(false) }
     var showDocuments by remember { mutableStateOf(false) }
+    var showDreamSummaries by remember { mutableStateOf(false) }
     var historyMemory by remember { mutableStateOf<MemoryEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -261,6 +265,27 @@ fun MemoryScreen(
 
         if (state.memories.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Dream summaries stat row. Visible when the count is > 0
+            // (so it doesn't show on a fresh install with no cycles
+            // run). Tappable → shows the full list of summaries in a
+            // dialog. This is the user-visible signal that the
+            // consolidator is doing its job.
+            if (state.dreamSummaryCount > 0) {
+                OutlinedButton(
+                    onClick = { showDreamSummaries = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text("${state.dreamSummaryCount} dream summaries")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Rebuild embeddings action. Visible only once there is something
             // to rebuild.
@@ -466,6 +491,57 @@ fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRebuildConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    // Dream summaries dialog. Shows the list of consolidated
+    // summaries so the user can verify the consolidator is doing
+    // what it claims (paraphrases got merged into a single row).
+    // Each row shows: the summary text, the source count, the
+    // creation date. Source memories are NOT listed individually
+    // (the dialog would be too long); tapping a summary could in
+    // a future iteration show the source list, but v1 keeps it
+    // simple.
+    if (showDreamSummaries) {
+        LaunchedEffect(Unit) { viewModel.loadDreamSummaries() }
+        AlertDialog(
+            onDismissRequest = { showDreamSummaries = false },
+            title = { Text("Dream summaries (${state.dreamSummaryCount})") },
+            text = {
+                if (state.dreamSummariesLoading) {
+                    Text("Loading…")
+                } else if (state.dreamSummaries.isEmpty()) {
+                    Text("No dream summaries yet.")
+                } else {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        state.dreamSummaries.forEach { summary ->
+                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(
+                                    text = summary.compressedText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    text = "${summary.sourceCount} sources · " +
+                                        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                                            .format(java.util.Date(summary.createdAt)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AuraThemeTokens.colors.textSecondary,
+                                )
+                                if (summary.dominantTags.isNotEmpty()) {
+                                    Text(
+                                        text = summary.dominantTags,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AuraThemeTokens.colors.textTertiary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDreamSummaries = false }) { Text("Close") }
             },
         )
     }

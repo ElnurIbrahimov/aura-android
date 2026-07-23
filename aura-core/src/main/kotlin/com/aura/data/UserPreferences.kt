@@ -67,6 +67,9 @@ internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interva
 internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
 internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
+internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
+internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
+internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
@@ -237,6 +240,42 @@ class UserPreferences @Inject constructor(
 
     /** Whether the user has seen the evolution onboarding screen. */
     val daemonEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DAEMON_ENABLED] ?: false }
+
+    /**
+     * Whether the dream consolidator is enabled. Default true (opt-out
+     * matches Python's always-on behavior; user can flip off in
+     * Settings). When false, the periodic worker is cancelled.
+     */
+    val dreamEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DREAM_ENABLED] ?: true }
+
+    /**
+     * Wall-clock millis of the last successful dream cycle. 0 = never.
+     * Surfaced as "Last ran: 2 days ago" in Settings → Memory.
+     */
+    val dreamLastRunAt: Flow<Long> = context.auraPrefs.data.map { it[KEY_DREAM_LAST_RUN_AT] ?: 0L }
+
+    /**
+     * One-line stats from the last cycle ("3 summaries, 1 cluster, 240 chars saved").
+     * Surfaced in Settings → Memory below the "last ran" stat.
+     */
+    val dreamLastRunStats: Flow<String> = context.auraPrefs.data.map { it[KEY_DREAM_LAST_RUN_STATS] ?: "" }
+
+    suspend fun setDreamEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_DREAM_ENABLED] = enabled }
+    }
+
+    /**
+     * Record the result of a successful dream cycle. Called by
+     * [com.aura.dream.DreamWorker] after `runCycle` returns. The
+     * stats string is what the user sees in Settings.
+     */
+    suspend fun recordDreamRun(report: com.aura.dream.DreamCycleReport) {
+        context.auraPrefs.edit { prefs ->
+            prefs[KEY_DREAM_LAST_RUN_AT] = System.currentTimeMillis()
+            prefs[KEY_DREAM_LAST_RUN_STATS] = report.statsLine()
+        }
+    }
+
     val evolutionOnboardingShown: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_EVOLUTION_ONBOARDING_SHOWN] ?: false
     }

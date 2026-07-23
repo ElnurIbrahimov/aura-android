@@ -26,6 +26,7 @@ import com.aura.ui.settings.UsageViewModel
 import com.aura.ui.settings.sections.AiAndModelsSection
 import com.aura.ui.settings.sections.AppearanceSection
 import com.aura.ui.settings.sections.DataAndBackupSection
+import com.aura.ui.settings.sections.DreamConsolidationSection
 import com.aura.ui.settings.sections.EmotionDaemonSection
 import com.aura.ui.settings.sections.EvolutionSettingsSection
 import com.aura.ui.settings.sections.McpServersSection
@@ -212,6 +213,20 @@ fun SettingsScreen(
             onCancelImport = backupViewModel::cancelImport,
             onClearResult = backupViewModel::clearResult,
             onNavigateDiagnostics = onNavigateDiagnostics,
+        )
+
+        // 12. Memory consolidation (Dream)
+        // Lives next to Data & Backup because dream operates on
+        // the same memory data. The section is collapsed by default
+        // so it doesn't take vertical space on first open.
+        DreamConsolidationSection(
+            enabled = state.dreamEnabled,
+            lastRunAt = state.dreamLastRunAt,
+            lastRunStats = state.dreamLastRunStats,
+            totalSummaries = state.dreamTotalSummaries,
+            isRunning = state.dreamRunning,
+            onSetEnabled = viewModel::setDreamEnabled,
+            onRunNow = viewModel::runDreamNow,
         )
 
         // Footer

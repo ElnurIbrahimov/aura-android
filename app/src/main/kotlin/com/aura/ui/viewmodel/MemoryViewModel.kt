@@ -40,6 +40,21 @@ data class MemoryUiState(
     val editHistoryMemoryId: String? = null,
     val editHistory: List<MemoryEditEntity> = emptyList(),
     val editHistoryLoading: Boolean = false,
+    /**
+     * Count of dream summaries ever written by [com.aura.dream.DreamWorker].
+     * Surfaced as "X dream summaries" stat row in the Memory screen.
+     * Source memories are NOT deleted in v1, so this is a
+     * subset-of-row-count number, not a replacement.
+     */
+    val dreamSummaryCount: Int = 0,
+    /**
+     * Recent dream summaries for the "X dream summaries" dialog.
+     * Loaded on-demand when the user taps the stat row. Limit 50
+     * — summaries are concise, so a long list is fine to scroll
+     * but we cap to avoid a memory hit on a multi-year install.
+     */
+    val dreamSummaries: List<com.aura.dream.DreamSummaryEntity> = emptyList(),
+    val dreamSummariesLoading: Boolean = false,
 )
 
 @HiltViewModel
@@ -47,6 +62,7 @@ class MemoryViewModel @Inject constructor(
     private val memoryStore: MemoryStore,
     private val feedbackDao: MemoryFeedbackDao,
     private val evolutionHooks: EvolutionHooks? = null,
+    private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MemoryUiState())
@@ -65,6 +81,17 @@ class MemoryViewModel @Inject constructor(
         // Auto-refresh whenever the memory count changes (new memory stored or deleted).
         viewModelScope.launch {
             memoryStore.observeCount().collect { refresh() }
+        }
+        // Observe the dream summary count so the "X dream summaries" stat
+        // in the Memory screen updates when DreamWorker writes new
+        // summaries. Done as a separate flow (not via the count-based
+        // refresh) so we don't re-fetch the memory list on every dream
+        // cycle — dream writes are infrequent and don't invalidate the
+        // memory list.
+        viewModelScope.launch {
+            runCatching { dreamConsolidationDao?.observeCount()?.collect { count ->
+                _state.update { it.copy(dreamSummaryCount = count) }
+            } }
         }
     }
 
@@ -256,6 +283,27 @@ class MemoryViewModel @Inject constructor(
 
     fun clearRebuildResult() {
         _state.update { it.copy(rebuildResult = null) }
+    }
+
+    /**
+     * Load the most recent dream summaries into [MemoryUiState.dreamSummaries]
+     * for the "X dream summaries" dialog. Idempotent — calling twice
+     * re-queries (the user might tap "Refresh" in a future iteration).
+     */
+    fun loadDreamSummaries() {
+        if (_state.value.dreamSummariesLoading) return
+        _state.update { it.copy(dreamSummariesLoading = true) }
+        viewModelScope.launch {
+            val rows = runCatching { dreamConsolidationDao?.all() ?: emptyList() }
+                .getOrDefault(emptyList())
+                .take(50)
+            _state.update {
+                it.copy(
+                    dreamSummaries = rows,
+                    dreamSummariesLoading = false,
+                )
+            }
+        }
     }
 
     /**

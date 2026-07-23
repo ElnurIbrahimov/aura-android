@@ -103,6 +103,15 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
+        // Dream reconciliation — separate flow for the same reason:
+        // the 5-way combine above is already at the overload limit.
+        // dreamEnabled flips drive scheduleDream / cancelDream.
+        scope.launch {
+            userPreferences.dreamEnabled.distinctUntilChanged().collect { dreamOn ->
+                reconcileDream(dreamOn)
+            }
+        }
+
         // Startup decay remains one-shot.
         // merely changes a schedule toggle or time.
         scope.launch {
@@ -180,6 +189,27 @@ class ProactiveBootstrap @Inject constructor(
                 DaemonScheduler.cancel(appContext)
             }
         } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * Start or stop the periodic dream-consolidation worker. Mirrors
+     * [reconnectMcpServers] in the sense that both run a one-shot
+     * pass on app start (the MCP pass reconnects; the dream pass
+     * runs the cycle immediately if the user previously had it on).
+     * The periodic schedule is then kicked off by
+     * [ProactiveScheduler.scheduleDream].
+     */
+    private fun reconcileDream(dreamOn: Boolean) {
+        try {
+            if (dreamOn) {
+                scheduler.scheduleDream()
+            } else {
+                scheduler.cancelDream()
+            }
+        } catch (_: Throwable) {
+            // Scheduling is best-effort; the next DataStore emission or
+            // process launch reconciles it again.
         }
     }
 
