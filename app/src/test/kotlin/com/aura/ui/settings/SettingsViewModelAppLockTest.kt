@@ -107,6 +107,9 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.incognitoDefault } returns flowOf(false)
         every { userPreferences.imageModel } returns flowOf("")
         every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { userPreferences.dreamEnabled } returns flowOf(false)
+        every { userPreferences.dreamLastRunAt } returns flowOf(0L)
+        every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")
         coEvery { identityStore.readCurrent() } returns ""
         coEvery { identityStore.hasOverride() } returns false
