@@ -3,7 +3,6 @@ package com.aura.ui.viewmodel
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
-import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 
@@ -14,7 +13,6 @@ import com.aura.agent.MemoryAugmentedAgenticLoop
 import com.aura.agent.Reaction
 import com.aura.agent.Specialist
 import com.aura.agent.SpecialistRouter
-import com.aura.agent.ToolCall
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolRegistry
@@ -32,10 +30,8 @@ import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
 import com.aura.taste.TasteEngine
 import com.aura.tools.Citation
-import com.aura.tools.MAX_TRANSCRIPTION_AUDIO_BYTES
 import com.aura.voice.TextToSpeech
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,8 +43,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.ByteArrayOutputStream
-import java.util.UUID
 import javax.inject.Inject
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -85,6 +79,79 @@ private fun extractCitations(toolName: String, result: String): List<Citation> {
         }
         else -> emptyList()
     }
+}
+
+/**
+ * Generate a short conversation title from the first user message.
+ * Smarter than just first-6-words:
+ * - strips conversational starters ("can you", "please", "i want to")
+ * - uses up to the first question mark
+ * - falls back to first 6 content words
+ * - truncates to 50 chars
+ * - capitalizes the first letter
+ * No LLM call — deterministic and instant.
+ */
+internal fun generateConversationTitle(text: String): String {
+    val raw = text.trim()
+    if (raw.isEmpty()) return "New conversation"
+
+    val firstSentence = raw.split(Regex("[.!?\\n]")).firstOrNull()?.trim().orEmpty()
+
+    val starterPatterns = listOf(
+        "can you", "could you", "would you", "will you",
+        "please", "hey", "hi ", "hello", "yo ",
+        "i want to", "i need to", "i'd like to", "i would like to",
+        "help me", "i have a question", "i was wondering",
+    )
+    val lowered = firstSentence.lowercase()
+    var cleaned = firstSentence
+    for (starter in starterPatterns) {
+        if (lowered.startsWith(starter)) {
+            cleaned = firstSentence.substring(starter.length).trimStart(' ', ',', '.')
+            break
+        }
+    }
+
+    val words = cleaned
+        .split(Regex("\\s+"))
+        .filter { it.length > 1 || it.all(Char::isLetter) }
+        .take(6)
+    var title = words.joinToString(" ").trim().ifBlank { raw.take(50) }
+
+    if (title.length > 50) {
+        title = title.take(47) + "…"
+    }
+    if (title.isNotEmpty() && title[0].isLowerCase()) {
+        title = title[0].uppercaseChar() + title.substring(1)
+    }
+    return title.ifBlank { "New conversation" }
+}
+
+/**
+ * Record a taste signal from a user's thumbs-up/thumbs-down reaction
+ * on a chat turn. Extracted as a file-level function so it can be
+ * tested without constructing a full ChatViewModel.
+ */
+internal suspend fun recordTasteSignalFromReaction(
+    tasteEngine: TasteEngine,
+    turn: com.aura.agent.Turn,
+    reaction: Reaction?,
+    modelId: String,
+    specialistName: String?,
+) {
+    tasteEngine.recordSignal(
+        signalType = "chat_reaction",
+        category = "general",
+        artifactId = turn.timestamp.toString(),
+        attributes = mapOf(
+            "reaction" to (reaction?.name ?: "cleared"),
+            "modelId" to modelId,
+            "specialist" to (specialistName ?: "none"),
+            "length" to turn.assistant.orEmpty().length.toString(),
+        ),
+        weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
+    )
+    tasteEngine.recomputeProfile()
 }
 
 sealed interface ModelSelectionState {
@@ -286,6 +353,24 @@ class ChatViewModel @Inject constructor(
             generateTitle = ::generateTitle,
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
             onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
+        )
+    }
+
+    /**
+     * Media controller — owns vision (image), audio (transcription),
+     * and document (PDF/text) handling. Extracted from ChatViewModel
+     * to reduce its line count and isolate media I/O.
+     */
+    private val mediaController: ChatMediaController by lazy {
+        ChatMediaController(
+            application = application,
+            state = _state,
+            toolRegistry = toolRegistry,
+            crashLogger = crashLogger,
+            scope = viewModelScope,
+            documentTextExtractor = documentTextExtractor,
+            onSaveConversation = { saveConversation() },
+            onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
         )
     }
 
@@ -816,19 +901,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val turn = _state.value.conversation.turns.find { it.timestamp == turnTimestamp } ?: return@launch
             val modelId = _state.value.conversation.model?.ifBlank { _state.value.activeModel } ?: _state.value.activeModel
-            tasteEngine.recordSignal(
-                signalType = "chat_reaction",
-                category = "general",
-                artifactId = turn.timestamp.toString(),
-                attributes = mapOf(
-                    "reaction" to (reaction?.name ?: "cleared"),
-                    "modelId" to modelId,
-                    "specialist" to (_state.value.selectedSpecialist?.name ?: "none"),
-                    "length" to turn.assistant.orEmpty().length.toString(),
-                ),
-                weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
+            recordTasteSignalFromReaction(
+                tasteEngine = tasteEngine,
+                turn = turn,
+                reaction = reaction,
+                modelId = modelId,
+                specialistName = _state.value.selectedSpecialist?.name,
             )
-            tasteEngine.recomputeProfile()
         }
     }
 
@@ -854,45 +933,7 @@ class ChatViewModel @Inject constructor(
      * - capitalizes the first letter
      * No LLM call — deterministic and instant.
      */
-    private fun generateTitle(text: String): String {
-        val raw = text.trim()
-        if (raw.isEmpty()) return "New conversation"
-
-        // Cut at the first sentence terminator if it exists and is short.
-        val firstSentence = raw.split(Regex("[.!?\\n]")).firstOrNull()?.trim().orEmpty()
-
-        // Strip conversational starters so "Can you help me plan my day" →
-        // "Plan my day" rather than "Can you help".
-        val starterPatterns = listOf(
-            "can you", "could you", "would you", "will you",
-            "please", "hey", "hi ", "hello", "yo ",
-            "i want to", "i need to", "i'd like to", "i would like to",
-            "help me", "i have a question", "i was wondering",
-        )
-        val lowered = firstSentence.lowercase()
-        var cleaned = firstSentence
-        for (starter in starterPatterns) {
-            if (lowered.startsWith(starter)) {
-                cleaned = firstSentence.substring(starter.length).trimStart(' ', ',', '.')
-                break
-            }
-        }
-
-        // Take first 6 content words (filter very short ones).
-        val words = cleaned
-            .split(Regex("\\s+"))
-            .filter { it.length > 1 || it.all(Char::isLetter) }
-            .take(6)
-        var title = words.joinToString(" ").trim().ifBlank { raw.take(50) }
-
-        if (title.length > 50) {
-            title = title.take(47) + "…"
-        }
-        if (title.isNotEmpty() && title[0].isLowerCase()) {
-            title = title[0].uppercaseChar() + title.substring(1)
-        }
-        return title.ifBlank { "New conversation" }
-    }
+    private fun generateTitle(text: String): String = generateConversationTitle(text)
 
     private fun refreshKgNodeCount() {
         viewModelScope.launch {
@@ -999,206 +1040,20 @@ class ChatViewModel @Inject constructor(
         sendController.runSend(viewModelScope)
     }
 
-    /**
-     * Capture/pick an image and stage it for vision. The user is
-     * shown a small row of 3 chips (Describe / Read text / Translate)
-     * above the input bar and picks the prompt they want. The
-     * bitmap is held in [ChatUiState.pendingVisionBitmap] until a
-     * chip is tapped, at which point [runVisionPrompt] is called
-     * with the picked prompt and the bitmap is cleared.
-     *
-     * If no chips are visible (the user can still see the photo
-     * in their gallery / camera roll), the default behavior — a
-     * direct vision call — is preserved.
-     */
-    fun onImageCaptured(bitmap: Bitmap, question: String = "Describe this image in detail") {
-        // Stage the bitmap. The UI will show the quick-question
-        // chips if they haven't been answered yet. If the user
-        // dismisses the row (or if a chip fires immediately), the
-        // bitmap is cleared by runVisionPrompt / dismissPendingVision.
-        _state.update { it.copy(pendingVisionBitmap = bitmap) }
-        // If the caller passed a non-default question, fire
-        // immediately. This keeps the gallery / camera flow
-        // backward-compatible — gallery "describe" still works.
-        if (question != "Describe this image in detail") {
-            runVisionPrompt(bitmap, question)
-        }
-    }
+    // ---- Media handling (delegated to ChatMediaController) ----
 
-    /**
-     * Send the staged bitmap to vision with the chosen prompt.
-     * Clears the staged bitmap from state once the call starts.
-     */
-    fun runVisionPrompt(bitmap: Bitmap, question: String) {
-        _state.update { it.copy(pendingVisionBitmap = null) }
-        viewModelScope.launch(Dispatchers.IO) {
-            val base64 = bitmap.toBase64Jpeg()
-            val tool = toolRegistry.get("vision") ?: run {
-                _state.update { it.copy(error = "vision tool not available") }
-                return@launch
-            }
-            // Add the user's question as a real user turn so the
-            // agentic loop's memory recall, profile extraction, and
-            // KG extraction all see it. Previously this bypassed the
-            // loop entirely — the vision query was invisible to future
-            // memory recall.
-            _state.update { old ->
-                old.copy(
-                    conversation = old.conversation.addUser(question),
-                    streaming = true,
-                )
-            }
-            val toolCallId = UUID.randomUUID().toString()
-            val result = tool.execute(
-                ToolCall(
-                    id = toolCallId,
-                    name = "vision",
-                    arguments = mapOf("image_base64" to base64, "prompt" to question),
-                ),
-                ToolContext(
-                    conversationId = _state.value.conversation.id,
-                    memoryEnabled = !_state.value.incognitoMode,
-                ),
-            )
-            val text = when (result) {
-                is ToolResult.Ok -> result.output
-                is ToolResult.Error -> "Vision error: ${result.message}"
-                is ToolResult.NeedsPermission -> "Permission needed: ${result.permission}"
-                is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
-            }
-            // Add the tool result as a tool turn and an assistant turn
-            // so the conversation history is coherent. The agentic loop
-            // post-processing (KG extraction, profile extraction, memory
-            // write gate) runs via saveConversation + the next send().
-            _state.update { old ->
-                val conv = old.conversation
-                    .attachCompletedToolTurn(toolCallId, "vision", "{}", text)
-                    .addAssistant(text)
-                old.copy(
-                    conversation = conv,
-                    streaming = false,
-                )
-            }
-            saveConversation()
-        }
-    }
+    fun onImageCaptured(bitmap: Bitmap, question: String = "Describe this image in detail") =
+        mediaController.onImageCaptured(bitmap, question)
 
-    /**
-     * Clear a staged vision bitmap without sending it. The user
-     * can hit a small X on the chip row to dismiss the staged
-     * image (e.g. they captured the wrong thing).
-     */
-    fun dismissPendingVision() {
-        _state.update { it.copy(pendingVisionBitmap = null) }
-    }
+    fun runVisionPrompt(bitmap: Bitmap, question: String) =
+        mediaController.runVisionPrompt(bitmap, question)
 
-    /**
-     * Transcribe an audio file picked by the user and insert the text as a user
-     * message so the agent can act on it.
-     */
-    fun onAudioPicked(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val resolver = getApplication<Application>().contentResolver
-            val knownSize = runCatching {
-                resolver.query(
-                    uri,
-                    arrayOf(android.provider.OpenableColumns.SIZE),
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
-                }
-            }.getOrNull()
-            if (knownSize != null && knownSize > MAX_TRANSCRIPTION_AUDIO_BYTES) {
-                _state.update { it.copy(error = "Audio is larger than the 25 MB limit.") }
-                return@launch
-            }
+    fun dismissPendingVision() =
+        mediaController.dismissPendingVision()
 
-            val bytes = try {
-                val stream = resolver.openInputStream(uri) ?: run {
-                    _state.update { it.copy(error = "failed to open audio") }
-                    return@launch
-                }
-                stream.use { readStreamWithinLimit(it, MAX_TRANSCRIPTION_AUDIO_BYTES) }
-            } catch (e: Exception) {
-                _state.update { it.copy(error = "failed to read audio: ${e.message}") }
-                return@launch
-            }
-            if (bytes == null) {
-                _state.update { it.copy(error = "Audio is larger than the 25 MB limit.") }
-                return@launch
-            }
-            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            val tool = toolRegistry.get("transcribe") ?: run {
-                _state.update { it.copy(error = "transcribe tool not available") }
-                return@launch
-            }
-            _state.update { it.copy(streaming = true) }
-            val result = tool.execute(
-                ToolCall(
-                    id = UUID.randomUUID().toString(),
-                    name = "transcribe",
-                    arguments = mapOf("audio_base64" to base64, "language" to "en"),
-                ),
-                ToolContext(conversationId = _state.value.conversation.id),
-            )
-            val text = when (result) {
-                is ToolResult.Ok -> result.output
-                is ToolResult.Error -> "Transcription error: ${result.message}"
-                is ToolResult.NeedsPermission -> "Permission needed: ${result.permission}"
-                is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
-            }
-            _state.update { old ->
-                old.copy(
-                    conversation = old.conversation.addUser("🎤 $text"),
-                    streaming = false,
-                )
-            }
-            saveConversation()
-        }
-    }
+    fun onAudioPicked(uri: Uri) =
+        mediaController.onAudioPicked(uri)
 
-    /**
-     * Extract text from a picked document (PDF, DOCX, TXT, MD, CSV, JSON,
-     * YAML, XML, HTML, source code) and insert it as a user message so the
-     * agent can act on it. The message is prefixed with the file name so
-     * the model knows where the content came from. Errors surface as a
-     * non-blocking chat error.
-     */
-    fun onDocumentPicked(uri: Uri) {
-        val extractor = documentTextExtractor ?: run {
-            _state.update { it.copy(error = "Document extraction is not available.") }
-            return
-        }
-        viewModelScope.launch {
-            _state.update { it.copy(streaming = true) }
-            val result = runCatching { extractor.extract(uri) }
-            result.onFailure { e ->
-                crashLogger.log(code = "document_extract", message = e.message ?: e.javaClass.simpleName)
-                _state.update { it.copy(streaming = false, error = "Could not read document: ${e.message ?: "unknown error"}") }
-            }
-            result.onSuccess { doc ->
-                val prefix = "Attached document: ${doc.name}"
-                val body = doc.text.take(12000)
-                val suffix = if (doc.text.length > 12000) {
-                    "\n\n[${doc.text.length - 12000} more characters truncated]"
-                } else ""
-                val message = "$prefix\n\n$body$suffix"
-                _state.update { old ->
-                    old.copy(
-                        conversation = old.conversation.addUser(message),
-                        streaming = false,
-                    )
-                }
-                saveConversation()
-            }
-        }
-    }
-
-    private fun Bitmap.toBase64Jpeg(quality: Int = 85): String {
-        val stream = ByteArrayOutputStream()
-        compress(Bitmap.CompressFormat.JPEG, quality, stream)
-        return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-    }
+    fun onDocumentPicked(uri: Uri) =
+        mediaController.onDocumentPicked(uri)
 }
