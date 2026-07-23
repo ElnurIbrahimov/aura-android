@@ -11,12 +11,26 @@ import androidx.room.RoomDatabase
  * dream iterations off the main `memory.db` which the chat loop reads
  * on every turn. If dream is disabled, this DB never grows past
  * version 1.
+ *
+ * Schema policy: v1 was the original 1-table release. v2 (2026-07-23)
+ * added the routines, kg_edge_proposals, and contradictions tables
+ * to back the v2 9-phase pipeline. The MIGRATION_1_2 in
+ * [DreamConsolidationModule] creates the new tables on upgrade; fresh
+ * installs at v2 get them directly from the schema declaration.
  */
 @Database(
-    entities = [DreamSummaryEntity::class],
-    version = 1,
-    exportSchema = true,
+    entities = [
+        DreamSummaryEntity::class,
+        RoutineEntity::class,
+        KgEdgeProposalEntity::class,
+        ContradictionEntity::class,
+    ],
+    version = 2,
+    exportSchema = false,
 )
 abstract class DreamConsolidationDatabase : RoomDatabase() {
     abstract fun dreamConsolidationDao(): DreamConsolidationDao
+    abstract fun routineDao(): RoutineDao
+    abstract fun kgEdgeProposalDao(): KgEdgeProposalDao
+    abstract fun contradictionDao(): ContradictionDao
 }

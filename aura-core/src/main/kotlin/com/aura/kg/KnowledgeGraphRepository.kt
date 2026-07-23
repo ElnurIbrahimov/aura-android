@@ -192,6 +192,14 @@ class KnowledgeGraphRepository @Inject constructor(
         edgeCount = dao.edgeCount(),
     )
 
+    /**
+     * All edges in the graph. Used by
+     * [com.aura.dream.DreamConsolidator.densifyGraph] to avoid
+     * re-proposing edges that already exist. Returns a defensive
+     * copy — the caller can mutate freely.
+     */
+    suspend fun allEdges(): List<KgEdge> = dao.allEdges().map { KgEdge.fromEntity(it) }
+
     data class Neighbors(
         val incoming: List<KgEdge>,
         val outgoing: List<KgEdge>,

@@ -55,6 +55,8 @@ data class MemoryUiState(
      */
     val dreamSummaries: List<com.aura.dream.DreamSummaryEntity> = emptyList(),
     val dreamSummariesLoading: Boolean = false,
+    val routineCount: Int = 0,
+    val contradictionCount: Int = 0,
 )
 
 @HiltViewModel
@@ -63,6 +65,8 @@ class MemoryViewModel @Inject constructor(
     private val feedbackDao: MemoryFeedbackDao,
     private val evolutionHooks: EvolutionHooks? = null,
     private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao? = null,
+    private val routineDao: com.aura.dream.RoutineDao? = null,
+    private val contradictionDao: com.aura.dream.ContradictionDao? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MemoryUiState())
@@ -91,6 +95,20 @@ class MemoryViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { dreamConsolidationDao?.observeCount()?.collect { count ->
                 _state.update { it.copy(dreamSummaryCount = count) }
+            } }
+        }
+        // Observe the v2 dream phase outputs (routines + contradictions).
+        // The count is the cheap stat the user sees in the Memory header;
+        // the bodies are only loaded on demand (loadDreamSummaries or a
+        // future tap-into-row action).
+        viewModelScope.launch {
+            runCatching { routineDao?.observeCount()?.collect { c ->
+                _state.update { it.copy(routineCount = c) }
+            } }
+        }
+        viewModelScope.launch {
+            runCatching { contradictionDao?.observeUnresolvedCount()?.collect { c ->
+                _state.update { it.copy(contradictionCount = c) }
             } }
         }
     }

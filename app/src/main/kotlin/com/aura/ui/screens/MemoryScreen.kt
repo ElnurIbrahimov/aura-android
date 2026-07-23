@@ -31,16 +31,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -268,7 +270,7 @@ fun MemoryScreen(
 
             // Dream summaries stat row. Visible when the count is > 0
             // (so it doesn't show on a fresh install with no cycles
-            // run). Tappable → shows the full list of summaries in a
+            // run). Tappable -> shows the full list of summaries in a
             // dialog. This is the user-visible signal that the
             // consolidator is doing its job.
             if (state.dreamSummaryCount > 0) {
@@ -283,6 +285,46 @@ fun MemoryScreen(
                     )
                     Spacer(Modifier.size(8.dp))
                     Text("${state.dreamSummaryCount} dream summaries")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // v2 phase stats: routines + contradictions. Tappable for
+            // the future "open routines screen" but for now they're
+            // just informative chips on the main Memory header.
+            if (state.routineCount > 0 || state.contradictionCount > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (state.routineCount > 0) {
+                        AssistChip(
+                            onClick = { /* TODO: open routines screen */ },
+                            label = { Text("${state.routineCount} routines") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Repeat,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                        )
+                    }
+                    if (state.contradictionCount > 0) {
+                        AssistChip(
+                            onClick = { /* TODO: open contradictions screen */ },
+                            label = { Text("${state.contradictionCount} contradictions") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }

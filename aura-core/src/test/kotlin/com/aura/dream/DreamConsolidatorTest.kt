@@ -1,12 +1,17 @@
 package com.aura.dream
 
+import com.aura.agent.ConversationStore
+import com.aura.core.error.CrashLogger
+import com.aura.kg.KnowledgeGraphRepository
 import com.aura.memory.Embedder
 import com.aura.memory.MemoryEntity
 import com.aura.memory.MemoryStore
+import com.aura.profile.UserProfileStore
 import com.aura.providers.FinishReason
 import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderRegistry
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -17,7 +22,7 @@ import org.junit.Test
 /**
  * Unit tests for the [DreamConsolidator] orchestration class.
  *
- * Scope: the parts worth pinning — the cluster threshold, the
+ * Scope: the parts worth pinning - the cluster threshold, the
  * empty-input fast-path, and the LLM-failure safe-fallback. The
  * cosine math is verified by [MemoryStoreCosineTest] in the
  * memory package; we only assert here that [DreamConsolidator]
@@ -79,17 +84,50 @@ class DreamConsolidatorTest {
 
     private fun mockDao(): DreamConsolidationDao = mockk<DreamConsolidationDao>(relaxed = true)
 
+    /**
+     * Build a DreamConsolidator with all the v2-phase dependencies
+     * stubbed out. The empty memories and provider stubs are
+     * passed in; the new DAOs and Lazy providers are mocked to
+     * no-op so the test focuses on the cluster/summarize logic
+     * without exercising the routine/contradiction/densify paths.
+     */
+    private fun buildConsolidator(
+        memoryStore: MemoryStore,
+        provider: ProviderRegistry,
+    ): DreamConsolidator = DreamConsolidator(
+        memoryStore = memoryStore,
+        dreamDao = mockDao(),
+        routineDao = mockk(relaxed = true),
+        kgProposalDao = mockk(relaxed = true),
+        contradictionDao = mockk(relaxed = true),
+        providerRegistry = provider,
+        embedder = mockk(relaxed = true),
+        crashLogger = mockk<CrashLogger>(relaxed = true).also {
+            // CrashLogger.logException is called from inside catch blocks
+            // and uses android.util.Log under the hood; the JVM-unit
+            // relaxed mock satisfies both.
+            every { it.logException(any(), any()) } returns Unit
+        },
+        conversationStoreProvider = dagger.Lazy { mockk<ConversationStore>(relaxed = true) },
+        userProfileStoreProvider = dagger.Lazy {
+            mockk<UserProfileStore>(relaxed = true).also { store ->
+                coEvery { store.awaitLoaded() } returns Unit
+                coEvery { store.update() } returns Unit
+            }
+        },
+        knowledgeGraphRepositoryProvider = dagger.Lazy {
+            mockk<KnowledgeGraphRepository>(relaxed = true).also { kg ->
+                coEvery { kg.recent(any()) } returns emptyList()
+                coEvery { kg.allEdges() } returns emptyList()
+            }
+        },
+    )
+
     @Test
     fun `runCycle on empty memory list returns zero-everything report`() = runBlocking {
         val store = mockStore(emptyList())
         val provider = mockProvider(emptyList())
-        val consolidator = DreamConsolidator(
-            memoryStore = store,
-            dreamDao = mockDao(),
-            providerRegistry = provider,
-            embedder = mockk(relaxed = true),
-            crashLogger = mockk(relaxed = true),
-        )
+        val consolidator = buildConsolidator(store, provider)
         val report = consolidator.runCycle()
         assertEquals(0, report.summariesWritten)
         assertEquals(0, report.clustersFormed)
@@ -108,13 +146,7 @@ class DreamConsolidatorTest {
             )
         )
         val provider = mockProvider(emptyList())
-        val consolidator = DreamConsolidator(
-            memoryStore = store,
-            dreamDao = mockDao(),
-            providerRegistry = provider,
-            embedder = mockk(relaxed = true),
-            crashLogger = mockk(relaxed = true),
-        )
+        val consolidator = buildConsolidator(store, provider)
         val report = consolidator.runCycle()
         assertEquals(0, report.summariesWritten)
         assertEquals(0, report.clustersFormed)
@@ -123,8 +155,8 @@ class DreamConsolidatorTest {
 
     @Test
     fun `runCycle clusters similar memories and writes summaries`() = runBlocking {
-        // 6 memories: 3 with tag=1 (identical vectors) → cluster A,
-        // 3 with tag=2 (orthogonal) → cluster B. Both clusters
+        // 6 memories: 3 with tag=1 (identical vectors) -> cluster A,
+        // 3 with tag=2 (orthogonal) -> cluster B. Both clusters
         // clear MIN_CLUSTER_SIZE=3 so both should be written.
         val store = mockStore(
             listOf(
@@ -142,13 +174,7 @@ class DreamConsolidatorTest {
                 "User is based in Baku",
             )
         )
-        val consolidator = DreamConsolidator(
-            memoryStore = store,
-            dreamDao = mockDao(),
-            providerRegistry = provider,
-            embedder = mockk(relaxed = true),
-            crashLogger = mockk(relaxed = true),
-        )
+        val consolidator = buildConsolidator(store, provider)
         val report = consolidator.runCycle()
         assertEquals(2, report.clustersFormed)
         assertEquals(2, report.summariesWritten)
@@ -164,17 +190,14 @@ class DreamConsolidatorTest {
                 mem("c", "Codes in Kotlin", 1),
             )
         )
-        val consolidator = DreamConsolidator(
+        val consolidator = buildConsolidator(
             memoryStore = store,
-            dreamDao = mockDao(),
-            providerRegistry = mockProviderFailing(),
-            embedder = mockk(relaxed = true),
-            crashLogger = mockk(relaxed = true),
+            provider = mockProviderFailing(),
         )
         val report = consolidator.runCycle()
         // When LLM fails, the consolidator falls back to the
         // first memory's content (truncated to 300 chars). The
-        // summary IS still written — just with raw text — and
+        // summary IS still written - just with raw text - and
         // summariesFailedLlm=1 records the failure for the UI.
         assertEquals(1, report.clustersFormed)
         assertEquals(1, report.summariesWritten)
