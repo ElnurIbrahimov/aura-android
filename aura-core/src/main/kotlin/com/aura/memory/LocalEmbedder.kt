@@ -25,7 +25,33 @@ class LocalEmbedder @Inject constructor(
 
     override fun dimension(): Int = dim
 
+    // P1 MEMORY C2: simple in-process cache. LocalEmbedder
+    // is deterministic (same text → same vector), so the
+    // cache is safe. Bounded by MAX_CACHE_ENTRIES to avoid
+    // unbounded growth during long sessions. The cloud
+    // embedder has a similar cache (CloudEmbedder.kt:62)
+    // — local was missing.
+    private val cache = LinkedHashMap<String, FloatArray>(16, 0.75f, true)
+    private val cacheLock = Any()
+
     override suspend fun embed(text: String): FloatArray {
+        // Fast path: cache hit
+        synchronized(cacheLock) {
+            cache[text]?.let { return it }
+        }
+        val vec = computeEmbedding(text)
+        synchronized(cacheLock) {
+            // Evict oldest if over limit
+            while (cache.size >= MAX_CACHE_ENTRIES) {
+                val first = cache.keys.firstOrNull() ?: break
+                cache.remove(first)
+            }
+            cache[text] = vec
+        }
+        return vec
+    }
+
+    private fun computeEmbedding(text: String): FloatArray {
         val vec = FloatArray(dim)
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return vec
@@ -79,5 +105,10 @@ class LocalEmbedder @Inject constructor(
         var result = 0L
         for (i in 0 until 8) result = (result shl 8) or (bytes[i].toLong() and 0xffL)
         return result
+    }
+
+    companion object {
+        /** Max cache entries before LRU eviction. ~500KB at 384-dim. */
+        private const val MAX_CACHE_ENTRIES = 1024
     }
 }
