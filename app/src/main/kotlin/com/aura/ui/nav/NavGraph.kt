@@ -52,6 +52,7 @@ import com.aura.ui.screens.ToolsScreen
 import com.aura.ui.screens.MemoryScreen
 import com.aura.ui.screens.ProactiveHistoryScreen
 import com.aura.ui.screens.RemindersScreen
+import com.aura.ui.screens.DreamsScreen
 import com.aura.ui.screens.ProfileScreen
 import com.aura.ui.screens.SettingsScreen
 import com.aura.ui.screens.AgentEditorScreen
@@ -228,6 +229,7 @@ fun NavGraph(
             composable(TopLevelRoute.Memory.route) {
                 MemoryScreen(
                     onOpenKnowledgeGraph = { navController.navigate("knowledge_graph") },
+                    onOpenDreams = { navController.navigate("dreams") },
                     onOpenSourceConversation = { convId, turnTimestamp ->
                         navController.navigate(
                             "chat?convId=${android.net.Uri.encode(convId)}&focusTurn=$turnTimestamp"
@@ -278,6 +280,9 @@ fun NavGraph(
             composable("tasks") { TasksScreen() }
             composable("tools") { ToolsScreen() }
             composable("proactive") { ProactiveHistoryScreen() }
+            composable("dreams") {
+                DreamsScreen(onBack = { navController.popBackStack() })
+            }
             composable("reminders") {
                 RemindersScreen(onBack = { navController.popBackStack() })
             }

@@ -96,6 +96,7 @@ private val MEMORY_CATEGORIES = listOf("fact", "preference", "episode", "person"
 @Composable
 fun MemoryScreen(
     onOpenKnowledgeGraph: () -> Unit = {},
+    onOpenDreams: () -> Unit = {},
     onOpenSourceConversation: (String, Long) -> Unit = { _, _ -> },
     viewModel: MemoryViewModel = hiltViewModel(),
     documentViewModel: DocumentImportViewModel = hiltViewModel(),
@@ -301,7 +302,7 @@ fun MemoryScreen(
                 ) {
                     if (state.routineCount > 0) {
                         AssistChip(
-                            onClick = { /* TODO: open routines screen */ },
+                            onClick = onOpenDreams,
                             label = { Text("${state.routineCount} routines") },
                             leadingIcon = {
                                 Icon(
@@ -314,7 +315,7 @@ fun MemoryScreen(
                     }
                     if (state.contradictionCount > 0) {
                         AssistChip(
-                            onClick = { /* TODO: open contradictions screen */ },
+                            onClick = onOpenDreams,
                             label = { Text("${state.contradictionCount} contradictions") },
                             leadingIcon = {
                                 Icon(
