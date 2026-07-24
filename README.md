@@ -8,7 +8,7 @@ This is my personal copy.
 
 ## Status
 
-**v0.30.2** (versionCode 32).
+**v0.31.0** (versionCode 33).
 
 - 61 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, production pipelines, document indexing, canon query, media generation, agent delegation, agent council)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)
@@ -24,7 +24,7 @@ This is my personal copy.
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - 4-tab bottom nav (Home, Chat, Memory, Settings) + 20 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode)
-- Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service) + daemon thinking worker (every 8 min, background model)
+- Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service) + daemon thinking worker (every ~15 min, background model)
 - Emotional state engine (4 dimensions: tension, connection, energy, focus — with inertia, decay, and heuristic signal detection)
 - Adaptive response profiles (tone adapts based on emotional state)
 - Share receiver (`text/plain` + `image/*` from Android share sheet)
@@ -43,7 +43,7 @@ This is my personal copy.
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v10)
-- 192 unit test files, 1,156 tests, 0 failures (was 202 / 1,115 at v0.26.0)
+- 215 unit test files, 1,173 tests, 0 failures (was 202 / 1,115 at v0.26.0)
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
 - 4 daily-use UX round-2 fixes (offline indicator, image paste, TTS state mirror + stop pill, response duration footer)
@@ -373,4 +373,4 @@ aura-android/
 
 ## Changelog
 
-`git log --oneline` is the changelog. 416 commits across the full development history.
+`git log --oneline` is the changelog. 468 commits across the full development history.
