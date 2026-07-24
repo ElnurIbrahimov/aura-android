@@ -31,8 +31,19 @@ class NavigationReachabilityTest {
 
     @Test
     fun `every navigate() target has a matching composable() route`() {
-        val appMain = File("D:/aura-android-clean/app/src/main")
-        if (!appMain.exists()) {
+        // Find the app/src/main directory across platforms.
+        // Local dev on Windows: D:/aura-android-clean/app/src/main
+        // CI on Linux: <cwd>/app/src/main (where <cwd> is
+        // /home/runner/work/aura-android/aura-android or similar)
+        val candidates = listOf(
+            "D:/aura-android-clean/app/src/main",
+            "app/src/main",
+            "/home/runner/work/aura-android/aura-android/app/src/main",
+        )
+        val appMain = candidates
+            .map { File(it) }
+            .firstOrNull { it.exists() }
+        if (appMain == null) {
             // Skip if the app module isn't on disk (shouldn't
             // happen for normal test runs).
             return

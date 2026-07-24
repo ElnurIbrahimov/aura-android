@@ -104,20 +104,53 @@ class NonRetryableStatusCodesTest {
     }
 
     private fun readFile(path: String): String {
-        val file = java.io.File(path)
-        return if (file.exists()) file.readText() else ""
+        // Try the absolute path first (works in local dev on
+        // Windows where the repo is at D:/aura-android-clean/).
+        // Fall back to relative-from-cwd for CI runners (Linux
+        // checks out the repo at the runner's working directory).
+        val candidates = listOf(
+            path,
+            // Linux CI: /home/runner/work/<repo>/<repo>/...
+            path.replace("D:/aura-android-clean/", "src/../"),
+            path.replace("D:/aura-android-clean/", ""),
+            // Generic relative path
+            "aura-core/src/main/kotlin/com/aura/providers/" + path.substringAfterLast("/"),
+        )
+        for (c in candidates) {
+            val file = java.io.File(c)
+            if (file.exists()) return file.readText()
+        }
+        return ""
     }
 
     companion object {
         // The provider files that need the 401/400/403
         // non-retryable check. New providers should be
         // added here as they're created.
-        private val PROVIDER_FILES = listOf(
-            "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/AnthropicProvider.kt",
-            "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/GeminiProvider.kt",
-            "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/ChatGptSubscriptionProvider.kt",
-            "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/CustomOpenAiCompatProvider.kt",
-            "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/OpenAiCompatProvider.kt",
+        //
+        // We use file basenames only — the test resolves
+        // the actual path at runtime via readFile()'s
+        // cross-platform fallback. This way the same test
+        // works on Windows (D:/...) and Linux CI
+        // (home/runner/...) without env-var gymnastics.
+        private val PROVIDER_BASENAMES = listOf(
+            "AnthropicProvider.kt",
+            "GeminiProvider.kt",
+            "ChatGptSubscriptionProvider.kt",
+            "CustomOpenAiCompatProvider.kt",
+            "OpenAiCompatProvider.kt",
         )
+
+        // Resolved at test time to the actual file paths.
+        private val PROVIDER_FILES: List<String> by lazy {
+            PROVIDER_BASENAMES.mapNotNull { basename ->
+                val candidates = listOf(
+                    "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/$basename",
+                    "aura-core/src/main/kotlin/com/aura/providers/$basename",
+                    "/home/runner/work/aura-android/aura-android/aura-core/src/main/kotlin/com/aura/providers/$basename",
+                )
+                candidates.firstOrNull { java.io.File(it).exists() }
+            }
+        }
     }
 }
