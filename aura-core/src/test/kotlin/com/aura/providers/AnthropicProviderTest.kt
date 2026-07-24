@@ -46,9 +46,18 @@ class AnthropicProviderTest {
             every { keyFor("anthropic") } returns "test-api-key"
             every { isConfigured("anthropic") } returns true
         }
+        // Use a client with followRedirects(false) to match the
+        // production ProviderModule base client (PROVIDERS_AUDIT C1).
+        // Without this the test would use a default OkHttpClient that
+        // follows redirects, and the redirect-blocked assertions
+        // would never fire.
+        val secureClient = OkHttpClient.Builder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
         provider = AnthropicProvider(
             providerKeys = keys,
-            httpClient = OkHttpClient(),
+            httpClient = secureClient,
             baseUrl = server.url("/").toString().removeSuffix("/"),
         )
     }
@@ -302,6 +311,65 @@ class AnthropicProviderTest {
         val finishReasons = chunks.mapNotNull { it.finishReason }
         assertTrue(finishReasons.isNotEmpty(), "expected a finish reason")
         assertEquals(FinishReason.tool_calls, finishReasons.last())
+    }
+
+    /**
+     * Regression test for PROVIDERS_AUDIT C1 — base OkHttpClient
+     * follows redirects, opening an SSRF window via 3xx responses
+     * to internal IPs (e.g. 169.254.169.254 cloud metadata).
+     *
+     * The ProviderModule's base client now disables both redirect
+     * types. This test pins that contract: a 302 response to a
+     * metadata endpoint must NOT be followed. The request returns
+     * 302, not 200 from the redirect target.
+     */
+    /**
+     * Regression test for PROVIDERS_AUDIT C1 — base OkHttpClient
+     * follows redirects, opening an SSRF window via 3xx responses
+     * to internal IPs (e.g. 169.254.169.254 cloud metadata).
+     *
+     * The ProviderModule's base client now disables both redirect
+     * types. This test pins that contract: a 302 response must NOT
+     * be followed. We enqueue two responses on the MockWebServer —
+     * a 302 to /after-redirect, then a 200. If the client follows
+     * the redirect, the 200 is consumed and the chat call sees a
+     * successful empty SSE body (which produces 0 tool/text chunks
+     * and no error). If the redirect is blocked, OkHttp returns the
+     * 302 directly — AnthropicProvider treats 3xx as `isSuccessful`
+     * (OkHttp definition), so the SSE body is read and is empty,
+     * which ALSO produces 0 chunks. The discriminator: the request
+     * count. With redirects blocked, exactly 1 request is made
+     * (the 302). With redirects followed, exactly 2 requests are
+     * made (302 + the redirected /after-redirect).
+     */
+    @Test
+    fun `base OkHttpClient does not follow redirects`() = runBlocking<Unit> {
+        // Enqueue a 302 redirect to a path on the same MockWebServer
+        // and a 200 that the redirect target would return. If the
+        // client follows the redirect, both responses are consumed.
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(302)
+                .addHeader("Location", "/v1/messages?after-redirect"),
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"),
+        )
+        val chunks = mutableListOf<ProviderChunk>()
+        provider.chat(
+            model = "claude-test",
+            messages = listOf(ProviderMessage(ProviderMessage.Role.user, "hi")),
+        ).collect { chunks += it }
+        // Stronger assertion: the queued 200 was NOT consumed. If
+        // the client followed the redirect, the 200 would be the
+        // response and requestCount would be 2.
+        val requestCount = server.requestCount
+        assertEquals(
+            1, requestCount,
+            "expected exactly 1 request (the 302) — the redirect must not be followed. Got $requestCount requests.",
+        )
     }
 
     /**

@@ -38,6 +38,18 @@ object ProviderModule {
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .pingInterval(30, TimeUnit.SECONDS)
+        // SECURITY: base client must not follow redirects. Provider API
+        // URLs are hardcoded so a malicious provider host could only
+        // redirect to a same-domain URL, but the `custom` and
+        // `chatgpt` providers accept user-controlled base URLs, and
+        // OkHttp's default redirect-following opens an SSRF window
+        // (e.g. 169.254.169.254 cloud metadata). `SsrfGuard.pinnedClient`
+        // already follows this pattern for the user-input surface; this
+        // brings the provider surface in line. Providers that need to
+        // follow 3xx should re-enable redirects explicitly on a custom
+        // builder.
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
 
     @Provides
