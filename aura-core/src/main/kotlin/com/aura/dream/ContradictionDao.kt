@@ -28,6 +28,12 @@ interface ContradictionDao {
     @Query("SELECT * FROM contradictions ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<ContradictionEntity>>
 
+    @Query("SELECT * FROM contradictions ORDER BY createdAt DESC")
+    suspend fun allForBackup(): List<ContradictionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(contradictions: List<ContradictionEntity>): List<Long>
+
     @Query("SELECT COUNT(*) FROM contradictions WHERE status = 'UNRESOLVED'")
     suspend fun unresolvedCount(): Int
 

@@ -57,9 +57,14 @@ data class AuraBackup(
     val canonFacts: List<CanonFactBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
+    // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
+    val dreamSummaries: List<DreamSummaryBackup> = emptyList(),
+    val routines: List<RoutineBackup> = emptyList(),
+    val contradictions: List<ContradictionBackup> = emptyList(),
+    val kgEdgeProposals: List<KgEdgeProposalBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 10
+        const val SCHEMA_VERSION = 11
     }
 }
 
@@ -537,5 +542,62 @@ data class StyleProfileBackup(
     val signalCount: Int = 0,
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+// ── Dream database (schema v11: dream summaries, routines, contradictions, KG proposals) ──
+
+@Serializable
+data class DreamSummaryBackup(
+    val id: String,
+    val clusterId: String,
+    val compressedText: String,
+    val sourceMemoryIds: String,
+    val dominantTags: String,
+    val sourceCount: Int,
+    val modelUsed: String,
+    val createdAt: Long,
+)
+
+@Serializable
+data class RoutineBackup(
+    val id: String,
+    val signature: String,
+    val displayLabel: String,
+    val occurrenceCount: Int,
+    val distinctConversations: Int,
+    val sourceConversationIds: String,
+    val firstSeenAt: Long,
+    val lastSeenAt: Long,
+    val description: String = "",
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class ContradictionBackup(
+    val id: String,
+    val olderSummaryId: String,
+    val newerSummaryId: String,
+    val olderText: String,
+    val newerText: String,
+    val triggerPhrase: String,
+    val confidence: Float = 0.6f,
+    val status: String = "UNRESOLVED",
+    val createdAt: Long,
+    val resolvedAt: Long? = null,
+)
+
+@Serializable
+data class KgEdgeProposalBackup(
+    val id: String,
+    val fromNodeId: String,
+    val toNodeId: String,
+    val fromLabel: String,
+    val toLabel: String,
+    val similarity: Float,
+    val proposedEdge: String = "RELATES_TO",
+    val status: String = "PENDING",
+    val createdAt: Long,
+    val decidedAt: Long? = null,
 )
 

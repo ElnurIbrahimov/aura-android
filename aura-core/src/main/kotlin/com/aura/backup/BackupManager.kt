@@ -97,6 +97,11 @@ class BackupManager @Inject constructor(
     private val canonFactDao: com.aura.creative.CanonFactDao? = null,
     private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
     private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
+    // Schema v11: dream database DAOs.
+    private val dreamSummaryDao: com.aura.dream.DreamConsolidationDao? = null,
+    private val routineDao: com.aura.dream.RoutineDao? = null,
+    private val contradictionDao: com.aura.dream.ContradictionDao? = null,
+    private val kgEdgeProposalDao: com.aura.dream.KgEdgeProposalDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -224,6 +229,11 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             canonFacts = canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v11: dream database.
+            dreamSummaries = dreamSummaryDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            routines = routineDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            contradictions = contradictionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            kgEdgeProposals = kgEdgeProposalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
         )
     }
 
@@ -289,6 +299,11 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val canonFactRows = backup.canonFacts.map { it.toEntity() }
         val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
         val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
+        // Schema v11: dream database.
+        val dreamSummaryRows = backup.dreamSummaries.map { it.toEntity() }
+        val routineRows = backup.routines.map { it.toEntity() }
+        val contradictionRows = backup.contradictions.map { it.toEntity() }
+        val kgEdgeProposalRows = backup.kgEdgeProposals.map { it.toEntity() }
 
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -313,6 +328,11 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (canonFactRows.isNotEmpty()) canonFactDao?.upsertAll(canonFactRows)
         if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
         if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
+        // Schema v11: dream database.
+        if (dreamSummaryRows.isNotEmpty()) dreamSummaryDao?.insertAll(dreamSummaryRows)
+        if (routineRows.isNotEmpty()) routineDao?.insertAll(routineRows)
+        if (contradictionRows.isNotEmpty()) contradictionDao?.insertAll(contradictionRows)
+        if (kgEdgeProposalRows.isNotEmpty()) kgEdgeProposalDao?.insertAll(kgEdgeProposalRows)
         if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
         restoreReminders(reminderRows)
         // If the backup has a profile, replace the current one.
@@ -482,6 +502,11 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         canonFactDao?.deleteAll()
         preferenceSignalDao?.deleteAll()
         styleProfileDao?.deleteAll()
+        // Schema v11: dream database.
+        dreamSummaryDao?.deleteAll()
+        routineDao?.deleteAll()
+        contradictionDao?.deleteAll()
+        kgEdgeProposalDao?.deleteAll()
     }
 
     /**
@@ -527,6 +552,11 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val canonFacts: Int = 0,
             val preferenceSignals: Int = 0,
             val styleProfiles: Int = 0,
+            // Schema v11: dream database.
+            val dreamSummaries: Int = 0,
+            val routines: Int = 0,
+            val contradictions: Int = 0,
+            val kgEdgeProposals: Int = 0,
         ) {
             // Auto-derived: every non-self Int field summed. Until v0.30.x
             // this was a 17-term hand-sum that fell out of sync with the
@@ -541,7 +571,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionProposals + evolutionSettings + evolutionRevisions +
                 agents + beliefs + evidence + worldEvents + opportunities +
                 creativeArtifacts + creativeRevisions + creativeBranches +
-                canonFacts + preferenceSignals + styleProfiles
+                canonFacts + preferenceSignals + styleProfiles +
+                dreamSummaries + routines + contradictions + kgEdgeProposals
             )
     }
 }
@@ -1004,4 +1035,58 @@ private fun PreferenceSignalBackup.toEntity() = com.aura.taste.PreferenceSignalE
 private fun StyleProfileBackup.toEntity() = com.aura.taste.StyleProfileEntity(
     id = id, projectId = projectId, attributesJson = attributesJson,
     signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+// ── Schema v11: Dream database mappers ──
+
+private fun com.aura.dream.DreamSummaryEntity.toBackup() = DreamSummaryBackup(
+    id = id, clusterId = clusterId, compressedText = compressedText,
+    sourceMemoryIds = sourceMemoryIds, dominantTags = dominantTags,
+    sourceCount = sourceCount, modelUsed = modelUsed, createdAt = createdAt,
+)
+
+private fun DreamSummaryBackup.toEntity() = com.aura.dream.DreamSummaryEntity(
+    id = id, clusterId = clusterId, compressedText = compressedText,
+    sourceMemoryIds = sourceMemoryIds, dominantTags = dominantTags,
+    sourceCount = sourceCount, modelUsed = modelUsed, createdAt = createdAt,
+)
+
+private fun com.aura.dream.RoutineEntity.toBackup() = RoutineBackup(
+    id = id, signature = signature, displayLabel = displayLabel,
+    occurrenceCount = occurrenceCount, distinctConversations = distinctConversations,
+    sourceConversationIds = sourceConversationIds, firstSeenAt = firstSeenAt,
+    lastSeenAt = lastSeenAt, description = description,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+private fun RoutineBackup.toEntity() = com.aura.dream.RoutineEntity(
+    id = id, signature = signature, displayLabel = displayLabel,
+    occurrenceCount = occurrenceCount, distinctConversations = distinctConversations,
+    sourceConversationIds = sourceConversationIds, firstSeenAt = firstSeenAt,
+    lastSeenAt = lastSeenAt, description = description,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+private fun com.aura.dream.ContradictionEntity.toBackup() = ContradictionBackup(
+    id = id, olderSummaryId = olderSummaryId, newerSummaryId = newerSummaryId,
+    olderText = olderText, newerText = newerText, triggerPhrase = triggerPhrase,
+    confidence = confidence, status = status, createdAt = createdAt, resolvedAt = resolvedAt,
+)
+
+private fun ContradictionBackup.toEntity() = com.aura.dream.ContradictionEntity(
+    id = id, olderSummaryId = olderSummaryId, newerSummaryId = newerSummaryId,
+    olderText = olderText, newerText = newerText, triggerPhrase = triggerPhrase,
+    confidence = confidence, status = status, createdAt = createdAt, resolvedAt = resolvedAt,
+)
+
+private fun com.aura.dream.KgEdgeProposalEntity.toBackup() = KgEdgeProposalBackup(
+    id = id, fromNodeId = fromNodeId, toNodeId = toNodeId,
+    fromLabel = fromLabel, toLabel = toLabel, similarity = similarity,
+    proposedEdge = proposedEdge, status = status, createdAt = createdAt, decidedAt = decidedAt,
+)
+
+private fun KgEdgeProposalBackup.toEntity() = com.aura.dream.KgEdgeProposalEntity(
+    id = id, fromNodeId = fromNodeId, toNodeId = toNodeId,
+    fromLabel = fromLabel, toLabel = toLabel, similarity = similarity,
+    proposedEdge = proposedEdge, status = status, createdAt = createdAt, decidedAt = decidedAt,
 )
