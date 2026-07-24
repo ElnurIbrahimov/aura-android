@@ -23,12 +23,38 @@ interface Provider {
     ): Flow<ProviderChunk>
 
     /**
-     * List models this provider exposes. May be a hardcoded list or fetched from /models.
+     * List model names this provider exposes. May be a hardcoded
+     * list or fetched from /models. Implementations that know the
+     * context window for each model should override
+     * [listModelsWithContext] instead — the compactor uses that to
+     * decide when to compact.
      */
     suspend fun listModels(): List<String>
+
+    /**
+     * List models with metadata (name + context window in tokens).
+     * Default implementation returns models with null context window,
+     * which means the compactor falls back to its default threshold.
+     *
+     * Providers should override this when they can return the real
+     * context window from their /models endpoint, /api/show
+     * endpoint, or a known static mapping.
+     */
+    suspend fun listModelsWithContext(): List<ModelInfo> {
+        return listModels().map { ModelInfo(name = it, contextWindow = null) }
+    }
 
     /**
      * Cancel an in-flight request. Implementations should propagate to the underlying HTTP/SDK call.
      */
     suspend fun cancel()
 }
+
+/**
+ * Model metadata. [contextWindow] is in tokens (null = unknown —
+ * caller should fall back to a sane default).
+ */
+data class ModelInfo(
+    val name: String,
+    val contextWindow: Int? = null,
+)

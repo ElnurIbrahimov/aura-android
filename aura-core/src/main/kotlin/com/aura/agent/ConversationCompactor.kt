@@ -46,7 +46,7 @@ class ConversationCompactor @Inject constructor(
             val assistantChars = turn.assistant?.length ?: 0
             (userChars + assistantChars) / 4
         }
-        if (estimatedTokens <= resolveThreshold(compactModel)) return conversation
+        if (estimatedTokens <= resolveThreshold(compactModel, lookupContextWindow(compactModel))) return conversation
 
         val compactThrough = conversation.turns.size - RECENT_TURNS_TO_KEEP
         if (compactThrough <= summarizedThrough) return conversation
@@ -100,6 +100,26 @@ class ConversationCompactor @Inject constructor(
         append("\n</prior_summary>\n\n<newly_old_turns_json>\n")
         append(json.encodeToString(turns))
         append("\n</newly_old_turns_json>\n\nReturn only the replacement summary.")
+    }
+
+    /**
+     * Look up the actual context window (in tokens) for [model]
+     * from the provider's model catalog. Returns null if the
+     * provider doesn't know — caller falls back to
+     * [DEFAULT_UNCOMPACTED_TOKENS].
+     *
+     * Uses the compactor's [providerRegistry] cache. The lookup
+     * is best-effort: a failed catalog fetch returns null, not
+     * a default — the user might have removed the model or the
+     * provider might be unconfigured, and the compactor should
+     * behave like "context unknown" in both cases.
+     */
+    private suspend fun lookupContextWindow(model: String): Int? {
+        return runCatching {
+            val (provider, modelName) = providerRegistry.parse(model)
+            val models = provider.listModelsWithContext()
+            models.firstOrNull { it.name == modelName }?.contextWindow
+        }.getOrNull()
     }
 
     companion object {
