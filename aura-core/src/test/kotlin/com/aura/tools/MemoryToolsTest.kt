@@ -13,16 +13,31 @@ import kotlin.test.assertTrue
 class MemoryToolsTest {
 
     @Test
-    fun `remember tool calls memoryStore store`() = runTest {
+    fun `remember tool calls memoryStore storeIfAbsent (dedup-aware)`() = runTest {
         val store = mockk<MemoryStore>(relaxed = true)
-        coEvery { store.store(any(), any(), any(), any(), any()) } returns "mem-1"
+        coEvery { store.storeIfAbsent(any(), any(), any(), any(), any()) } returns "mem-1"
         val tool = RememberTool(store).tool
         val result = tool.execute(
             com.aura.agent.ToolCall(id = "tc1", name = "remember", arguments = mapOf("fact" to "User likes dark mode", "category" to "preference")),
             com.aura.agent.ToolContext(conversationId = "conv-1"),
         )
         assertTrue(result is com.aura.agent.ToolResult.Ok)
-        coVerify { store.store("User likes dark mode", "user", "preference", 0.7f, emptyList()) }
+        coVerify { store.storeIfAbsent("User likes dark mode", "user", "preference", 0.7f, emptyList()) }
+    }
+
+    @Test
+    fun `remember tool returns Ok with 'duplicate' id when content already exists`() = runTest {
+        val store = mockk<MemoryStore>(relaxed = true)
+        // storeIfAbsent returns null when content already exists (dedup'd).
+        coEvery { store.storeIfAbsent(any(), any(), any(), any(), any()) } returns null
+        val tool = RememberTool(store).tool
+        val result = tool.execute(
+            com.aura.agent.ToolCall(id = "tc1", name = "remember", arguments = mapOf("fact" to "User likes dark mode", "category" to "preference")),
+            com.aura.agent.ToolContext(conversationId = "conv-1"),
+        )
+        assertTrue(result is com.aura.agent.ToolResult.Ok)
+        assertTrue((result as com.aura.agent.ToolResult.Ok).output.contains("duplicate"),
+            "Dedup'd remember should return 'duplicate' id, got: ${result.output}")
     }
 
     @Test
