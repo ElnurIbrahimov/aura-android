@@ -27,6 +27,7 @@ import io.mockk.mockk
 import com.aura.taste.TasteEngine
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -197,7 +198,15 @@ class ChatViewModelTest {
         val vm = createViewModel()
         advanceUntilIdle()
         coEvery { toolExecutor.execute("calendar_read", "{}", any()) } returns ToolResult.Ok("event")
-        _stateDirectly(vm, ChatUiState(pendingToolRetry = "calendar_read" to "{}"))
+        // The conversation needs at least one turn — addToolCall
+        // throws IllegalStateException on an empty conversation
+        // (AGENTIC A5 fix). Seed a user turn so the tool call
+        // has a parent turn to attach to.
+        val seedConv = Conversation().addUser("Permission needed for calendar")
+        _stateDirectly(vm, ChatUiState(
+            pendingToolRetry = "calendar_read" to "{}",
+            conversation = seedConv,
+        ))
 
         vm.retryAfterPermission("android.permission.READ_CALENDAR")
         advanceUntilIdle()

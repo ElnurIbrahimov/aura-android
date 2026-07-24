@@ -48,6 +48,9 @@ android {
         jvmTarget = "17"
         freeCompilerArgs += listOf("-Xjvm-default=all")
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
     buildFeatures {
         compose = true
         buildConfig = true

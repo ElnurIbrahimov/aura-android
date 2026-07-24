@@ -9,6 +9,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -53,7 +54,7 @@ class ProviderKeysTest {
     @Test
     fun `keyFor returns null when no key is set`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertNull(keys.keyFor("ollama"))
         assertNull(keys.keyFor("anthropic"))
     }
@@ -61,14 +62,14 @@ class ProviderKeysTest {
     @Test
     fun `keyFor returns null for blank keys`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertFalse(keys.isConfigured("ollama"))
     }
 
     @Test
     fun `isConfigured is false for unknown prefix`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertFalse(keys.isConfigured("nonexistent-provider"))
     }
 
@@ -98,7 +99,7 @@ class ProviderKeysTest {
     @Test
     fun `initial credential states are NotConfigured after load`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         for (prefix in ProviderKeys.PREFIXES) {
             assertEquals(
                 ProviderCredentialState.NotConfigured,
@@ -111,7 +112,7 @@ class ProviderKeysTest {
     @Test
     fun `initial state map is empty`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertTrue(keys.state.value.isEmpty())
     }
 
@@ -119,14 +120,14 @@ class ProviderKeysTest {
     fun `loaded is initially false and becomes true after init`() = runTest {
         val keys = createProviderKeys()
         assertFalse(keys.loaded.value, "loaded should be false before init completes")
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertTrue(keys.loaded.value, "loaded should be true after init completes")
     }
 
     @Test
     fun `set stores key and returns it exactly`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-test-123-abc")
         assertEquals("sk-test-123-abc", keys.keyFor("ollama"))
         assertTrue(keys.isConfigured("ollama"))
@@ -135,7 +136,7 @@ class ProviderKeysTest {
     @Test
     fun `set updates credential state to Saved`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
     }
@@ -143,7 +144,7 @@ class ProviderKeysTest {
     @Test
     fun `set with blank key clears credential`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
         assertTrue(keys.isConfigured("ollama"))
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
@@ -157,7 +158,7 @@ class ProviderKeysTest {
     @Test
     fun `set with whitespace-only key clears credential`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
         assertTrue(keys.isConfigured("ollama"))
 
@@ -170,7 +171,7 @@ class ProviderKeysTest {
     @Test
     fun `setting one provider does not affect others`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         keys.set("ollama", "sk-ollama-value")
         keys.set("anthropic", "sk-anthropic-value")
@@ -183,7 +184,7 @@ class ProviderKeysTest {
     @Test
     fun `overwriting a key returns the latest value`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "old-key")
         keys.set("ollama", "new-key")
         assertEquals("new-key", keys.keyFor("ollama"))
@@ -193,7 +194,7 @@ class ProviderKeysTest {
     @Test
     fun `credential state transitions NotConfigured to Saved to NotConfigured`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         // Initial
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["ollama"])
@@ -210,7 +211,7 @@ class ProviderKeysTest {
     @Test
     fun `only target provider credential state changes on set`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         keys.set("ollama", "sk-ollama")
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
@@ -222,7 +223,7 @@ class ProviderKeysTest {
     @Test
     fun `state flow preserves backward compat`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         keys.set("ollama", "sk-ollama-val")
         keys.set("anthropic", "sk-anthro-val")
@@ -266,7 +267,7 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         assertEquals(ProviderCredentialState.StorageError, keys.credentialStates.value["ollama"])
         assertNull(keys.keyFor("ollama"))
@@ -284,14 +285,14 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertTrue(keys.loaded.value, "loaded must become true even on decryption failures")
     }
 
     @Test
     fun `concurrent sets for different providers both succeed`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         // Simulate concurrent writes using async from the runTest scope
         val job1 = async {
@@ -310,7 +311,7 @@ class ProviderKeysTest {
     @Test
     fun `serial writes to same provider always reflect the latest`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         // Sequential writes to the same provider - only the last should win
         keys.set("ollama", "key-1")
@@ -323,7 +324,7 @@ class ProviderKeysTest {
     @Test
     fun `setEmbeddingModel preserves credential states`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         keys.set("ollama", "sk-ollama")
         keys.setEmbeddingModel("custom-model")
@@ -341,7 +342,7 @@ class ProviderKeysTest {
         // removes the key (no stale embedding model
         // value after user clears it).
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         keys.setEmbeddingModel("nomic-embed-text")
         assertEquals("nomic-embed-text", keys.embeddingModel)
@@ -356,7 +357,7 @@ class ProviderKeysTest {
     @Test
     fun `keyFor only returns keys for Saved providers`() = runTest {
         val keys = createProviderKeys()
-        keys.awaitLoaded()
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         // Initially NotConfigured - should return null
         assertNull(keys.keyFor("openai"))
