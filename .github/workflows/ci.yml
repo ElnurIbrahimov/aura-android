@@ -50,9 +50,10 @@ jobs:
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/daemon
-            ~/.gradle/native
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/transforms-4
+            ~/.gradle/caches/8.10.2
+            ~/.gradle/caches/jars-9
           # Cache key includes all build files so dependency changes
           # bust the cache. The fallback restore-keys let a partial
           # cache hit from a prior version speed up the download even
