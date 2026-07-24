@@ -229,4 +229,156 @@ class AnthropicProviderTest {
 
         assertTrue(stoppedPromptly, "cancelling the flow did not cancel the Anthropic call")
     }
+
+    // ── SSE streaming (P0 audit fixes for A1 + A2) ──────────────────────
+
+    /**
+     * Regression test for AGENTIC_LOOP_AUDIT A1 (renamed to PROVIDERS A1).
+     * Before the fix, Anthropic `input_json_delta` chunks were emitted with
+     * id="" and name="" — the Brain then had to fall back to "last seen id"
+     * which mis-routed deltas when the model emitted parallel tool calls.
+     *
+     * The fix tracks `index → id` in the provider and emits deltas with
+     * the tool id filled in, so the Brain routes by id directly. This test
+     * pins the single-tool-call case (index 0) to lock the contract.
+     */
+    @Test
+    fun `chat emits tool call with id filled in for input_json_delta`() = runBlocking<Unit> {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    event: message_start
+                    data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-3"}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01","name":"search","input":{}}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"query\":"}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"hello\"}"}}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":1}
+
+                    event: message_delta
+                    data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+
+                    """.trimIndent(),
+                )
+                .setHeader("Content-Type", "text/event-stream"),
+        )
+        val chunks = mutableListOf<ProviderChunk>()
+        provider.chat(
+            model = "claude-test",
+            messages = listOf(ProviderMessage(ProviderMessage.Role.user, "hi")),
+        ).collect { chunks += it }
+
+        val toolCalls = chunks.mapNotNull { it.toolCall }
+        // The first toolCall chunk is the start (id+name, no args).
+        // All subsequent deltas must carry id="toolu_01" (NOT "").
+        assertTrue(toolCalls.isNotEmpty(), "expected at least one toolCall chunk")
+        assertEquals("toolu_01", toolCalls.first().id)
+        assertEquals("search", toolCalls.first().name)
+        for (delta in toolCalls.drop(1)) {
+            assertEquals("toolu_01", delta.id, "input_json_delta must carry tool id (was \"\" before the fix)")
+        }
+        // The accumulated args equal the joined partial_json.
+        val accumulatedArgs = toolCalls.drop(1).joinToString(separator = "") { it.arguments }
+        assertEquals("""{"query":"hello"}""", accumulatedArgs)
+        // Final chunk: finish reason = tool_calls (from message_delta's
+        // stop_reason, NOT from message_stop which is a no-op since the
+        // audit fix — the message_stop finish would have overwritten
+        // this with `stop`, causing the loop to skip tool execution).
+        val finishReasons = chunks.mapNotNull { it.finishReason }
+        assertTrue(finishReasons.isNotEmpty(), "expected a finish reason")
+        assertEquals(FinishReason.tool_calls, finishReasons.last())
+    }
+
+    /**
+     * Regression test for PROVIDERS_AUDIT A2 — the audit's "parallel
+     * tool calls can't be associated" finding.
+     *
+     * Before the fix, two parallel `tool_use` blocks had their
+     * `input_json_delta` chunks both routed to the Brain's "last seen
+     * id" — meaning tc1's deltas went to tc2 and vice versa. The fix
+     * tracks `index → id` so each delta carries the right id.
+     */
+    @Test
+    fun `chat routes input_json_delta by SSE index for parallel tool calls`() = runBlocking<Unit> {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_alpha","name":"search","input":{}}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_beta","name":"recall","input":{}}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"q\":\"A\"}"}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"q\":\"B\"}"}}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":0}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":1}
+
+                    event: message_delta
+                    data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+
+                    """.trimIndent(),
+                )
+                .setHeader("Content-Type", "text/event-stream"),
+        )
+        val chunks = mutableListOf<ProviderChunk>()
+        provider.chat(
+            model = "claude-test",
+            messages = listOf(ProviderMessage(ProviderMessage.Role.user, "hi")),
+        ).collect { chunks += it }
+
+        // The two starts must come first (any order).
+        val starts = chunks.filter { it.toolCall?.name?.isNotEmpty() == true }
+        val startNames = starts.map { it.toolCall!!.name }.toSet()
+        assertEquals(setOf("search", "recall"), startNames)
+
+        // After the starts, deltas must be tagged with the right id
+        // by index, NOT by "last seen" — index 0 deltas → toolu_alpha,
+        // index 1 deltas → toolu_beta. Before the fix, all deltas
+        // would be tagged "toolu_beta" (the last-seen key).
+        val deltas = chunks.filter { it.toolCall?.id?.isNotEmpty() == true && it.toolCall?.name?.isEmpty() == true }
+        assertTrue(deltas.isNotEmpty(), "expected delta chunks")
+        for (delta in deltas) {
+            val id = delta.toolCall!!.id
+            // The id must be one of the two parallel tool ids.
+            assertTrue(
+                id == "toolu_alpha" || id == "toolu_beta",
+                "delta id must be a real tool id, got '$id'",
+            )
+        }
+        // Stronger assertion: the deltas must include BOTH ids.
+        val deltaIds = deltas.map { it.toolCall!!.id }.toSet()
+        assertEquals(
+            setOf("toolu_alpha", "toolu_beta"),
+            deltaIds,
+            "parallel tool deltas must cover both ids — pre-fix this would be {toolu_beta} only",
+        )
+    }
 }

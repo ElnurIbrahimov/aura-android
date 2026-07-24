@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
@@ -112,6 +113,15 @@ class AnthropicProvider(
                 // events we care about are 'message_stop' (Anthropic's normal end)
                 // and finish_reason=tool_calls in 'message_delta' (which we also
                 // map to FinishReason.tool_calls so the loop dispatches tools).
+                //
+                // Anthropic parallel tool calls: each content_block_start and
+                // content_block_delta carries an `index` field that links deltas
+                // to the originating tool id. We track `index -> id` in
+                // `pendingByIndex` so a delta's id is filled in even when the
+                // previous delta just came in (no name re-emit). Without this,
+                // two parallel `tool_use` blocks would have their deltas
+                // mis-routed by the Brain's "last seen id" fallback heuristic.
+                val pendingByIndex = mutableMapOf<Int, String>()
                 while (true) {
                     val line = source.readUtf8Line() ?: break
                     if (line.isEmpty()) continue
@@ -125,6 +135,10 @@ class AnthropicProvider(
                             if (block?.get("type")?.let { (it as? JsonPrimitive)?.content } == "tool_use") {
                                 val id = (block["id"] as? JsonPrimitive)?.content ?: ""
                                 val name = (block["name"] as? JsonPrimitive)?.content ?: ""
+                                val index = (obj["index"] as? JsonPrimitive)?.intOrNull
+                                if (index != null && id.isNotEmpty()) {
+                                    pendingByIndex[index] = id
+                                }
                                 // Emit with empty arguments; downstream BrainChunk
                                 // emits ToolCallStart (id+name, no args) which the
                                 // agentic loop will associate with subsequent
@@ -141,11 +155,35 @@ class AnthropicProvider(
                                 }
                                 "input_json_delta" -> {
                                     val partial = (delta["partial_json"] as? JsonPrimitive)?.content
-                                    if (partial != null) emit(ProviderChunk(toolCall = ToolCall("", "", partial)))
+                                    if (partial != null) {
+                                        // Resolve the tool id by `index` so parallel
+                                        // tool_use blocks route their deltas
+                                        // correctly. Fall back to "" for legacy
+                                        // Brain fallback if index is missing.
+                                        val index = (obj["index"] as? JsonPrimitive)?.intOrNull
+                                        val id = index?.let { pendingByIndex[it] } ?: ""
+                                        emit(ProviderChunk(toolCall = ToolCall(id, "", partial)))
+                                    }
                                 }
                             }
                         }
-                        "message_stop" -> emit(ProviderChunk(finishReason = FinishReason.stop))
+                        "content_block_stop" -> {
+                            // Drop the index mapping once the block is complete
+                            // to keep the map small across long streams.
+                            (obj["index"] as? JsonPrimitive)?.intOrNull?.let {
+                                pendingByIndex.remove(it)
+                            }
+                        }
+                        // `message_stop` is the protocol-level end-of-stream
+                        // signal. We DO NOT emit a `FinishReason.stop` chunk
+                        // here — the `message_delta` event already emitted the
+                        // real stop reason (tool_use / end_turn / max_tokens)
+                        // one event earlier, and emitting a second finish
+                        // reason would overwrite the loop's `finishReason`
+                        // variable, causing the loop to exit cleanly and skip
+                        // tool execution. EOF (readUtf8Line returning null)
+                        // is the natural end-of-stream signal.
+                        "message_stop" -> { /* no-op: see comment above */ }
                         "message_delta" -> {
                             val stop = (obj["delta"] as? JsonObject)?.get("stop_reason")
                             val reason = when ((stop as? JsonPrimitive)?.content) {
