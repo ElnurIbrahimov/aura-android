@@ -255,7 +255,7 @@ class BackupManagerTest {
                 exportedAt = 0L,
                 appVersionName = "0.1.0",
                 memories = listOf(
-                    MemoryBackup("m1", "c", "user", "preference", 0.5f, 1L, 1L, 0, 1f, "", "{}")
+                    MemoryBackup("m1", "c", "user", "preference", "general", 0.5f, 1L, 1L, 0, 1f, "", "{}")
                 ),
                 documents = listOf(
                     DocumentBackup("hash", "notes.md", "text/markdown", "content://notes", 1L, 100, 1),
@@ -495,6 +495,203 @@ class BackupManagerTest {
         // (the call returned successfully) and no calls were made on
         // the absent DAOs.
         assertEquals(1, counts.beliefs)
+    }
+
+    // ── Memory scope roundtrip (MEMORY_AUDIT A1) ───────────────────────
+    // Until the scope field was added to MemoryBackup, every restore
+    // dropped scope on the floor and all memories became "general" —
+    // meaning agent-private memories leaked into the General agent's
+    // recall scope on every backup roundtrip. The default "general" in
+    // the backup data class keeps old backups forward-compatible.
+
+    @Test
+    fun `snapshot preserves memory scope in MemoryBackup`() = runTest {
+        // Wire memoryDao to return one memory with a non-default
+        // scope (agent:agent_coder).
+        val entity = com.aura.memory.MemoryEntity(
+            id = "m1",
+            content = "user prefers Tailwind CSS over inline styles",
+            source = "user",
+            category = "preference",
+            scope = "agent:agent_coder",
+            importance = 0.7f,
+            createdAt = 1000L,
+            accessedAt = 1000L,
+            accessCount = 0,
+            decayScore = 1.0f,
+            tags = "ui,framework",
+            metadata = "{}",
+        )
+        coEvery { memoryDao.allForExport() } returns listOf(entity)
+        coEvery { memoryEditDao.allForBackup() } returns emptyList()
+        coEvery { documentDao.allForBackup() } returns emptyList()
+        coEvery { creativeProjectDao.allForBackup() } returns emptyList()
+        coEvery { conversationDao.allForExport() } returns emptyList()
+        coEvery { kgDao.allNodes() } returns emptyList()
+        coEvery { kgDao.allEdges() } returns emptyList()
+        coEvery { handDao.getAll() } returns emptyList()
+        coEvery { handDao.allRunsForBackup() } returns emptyList()
+        coEvery { taskDao.all() } returns emptyList()
+        coEvery { reminderDao.allForBackup() } returns emptyList()
+        coEvery { proactiveEventDao.allForBackup() } returns emptyList()
+        coEvery { userProfileDao.get() } returns null
+        coEvery { agentDao.allOnce() } returns emptyList()
+        // Stub the schema v10 DAOs to empty so the snapshot doesn't
+        // try to read from them via relaxed-null.
+        val beliefDao = mockk<com.aura.world.BeliefDao>(relaxed = true)
+        val evidenceDao = mockk<com.aura.world.EvidenceDao>(relaxed = true)
+        val worldEventDao = mockk<com.aura.world.WorldEventDao>(relaxed = true)
+        val opportunityDao = mockk<com.aura.world.OpportunityDao>(relaxed = true)
+        val creativeArtifactDao = mockk<com.aura.creative.CreativeArtifactDao>(relaxed = true)
+        val creativeRevisionDao = mockk<com.aura.creative.CreativeRevisionDao>(relaxed = true)
+        val creativeBranchDao = mockk<com.aura.creative.CreativeBranchDao>(relaxed = true)
+        val canonFactDao = mockk<com.aura.creative.CanonFactDao>(relaxed = true)
+        val preferenceSignalDao = mockk<com.aura.taste.PreferenceSignalDao>(relaxed = true)
+        val styleProfileDao = mockk<com.aura.taste.StyleProfileDao>(relaxed = true)
+        coEvery { beliefDao.allForBackup() } returns emptyList()
+        coEvery { evidenceDao.allForBackup() } returns emptyList()
+        coEvery { worldEventDao.allForBackup() } returns emptyList()
+        coEvery { opportunityDao.allForBackup() } returns emptyList()
+        coEvery { creativeArtifactDao.allForBackup() } returns emptyList()
+        coEvery { creativeRevisionDao.allForBackup() } returns emptyList()
+        coEvery { creativeBranchDao.allForBackup() } returns emptyList()
+        coEvery { canonFactDao.allForBackup() } returns emptyList()
+        coEvery { preferenceSignalDao.allForBackup() } returns emptyList()
+        coEvery { styleProfileDao.allForBackup() } returns emptyList()
+        // Stub the userPreferences flows so the snapshot's
+        // `userPreferences.foo.first()` calls don't throw
+        // NoSuchElementException on the class-level relaxed mock.
+        every { userPreferences.defaultModel } returns flowOf("ollama:deepseek-v4-pro:cloud")
+        every { userPreferences.firstRunComplete } returns flowOf(true)
+        every { userPreferences.appLockEnabled } returns flowOf(false)
+        every { userPreferences.lastSeenProactiveAt } returns flowOf(0L)
+        every { userPreferences.morningBriefEnabled } returns flowOf(true)
+        every { userPreferences.calendarMonitorEnabled } returns flowOf(true)
+        every { userPreferences.ttsEnabled } returns flowOf(true)
+        every { userPreferences.incognitoDefault } returns flowOf(false)
+        every { userPreferences.themeMode } returns flowOf("system")
+        every { userPreferences.customIdentity } returns flowOf("")
+        every { userPreferences.specialistOverrides } returns flowOf("{}")
+        every { userPreferences.morningBriefHour } returns flowOf(7)
+        every { userPreferences.specialistToolOverrides } returns flowOf("{}")
+        every { userPreferences.visionModel } returns flowOf(null)
+        every { userPreferences.backgroundModel } returns flowOf(null)
+        every { userPreferences.deepModeModel } returns flowOf(null)
+        every { userPreferences.moaReferenceModels } returns flowOf(emptyList())
+        every { userPreferences.moaAggregatorModel } returns flowOf(null)
+        every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.smtpHost } returns flowOf("")
+        every { userPreferences.smtpPort } returns flowOf(587)
+        every { userPreferences.smtpUsername } returns flowOf("")
+        every { userPreferences.smtpFrom } returns flowOf("")
+        every { userPreferences.mcpServersJson } returns flowOf("[]")
+        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { providerKeys.embeddingModel } returns "nomic-embed-text"
+
+        val mgr = BackupManager(
+            context = context, memoryDao = memoryDao, memoryEditDao = memoryEditDao,
+            documentDao = documentDao, creativeProjectDao = creativeProjectDao,
+            conversationDao = conversationDao, kgDao = kgDao, handDao = handDao,
+            taskDao = taskDao, reminderDao = reminderDao,
+            proactiveEventDao = proactiveEventDao, userProfileDao = userProfileDao,
+            providerKeys = providerKeys, userPreferences = userPreferences,
+            reminderScheduler = reminderScheduler, handScheduler = handScheduler,
+            usageTracker = usageTracker, evolutionProposalDao = evolutionProposalDao,
+            evolutionSettingsDao = evolutionSettingsDao,
+            evolutionRevisionDao = evolutionRevisionDao, agentDao = agentDao,
+            beliefDao = beliefDao, evidenceDao = evidenceDao,
+            worldEventDao = worldEventDao, opportunityDao = opportunityDao,
+            creativeArtifactDao = creativeArtifactDao,
+            creativeRevisionDao = creativeRevisionDao,
+            creativeBranchDao = creativeBranchDao, canonFactDao = canonFactDao,
+            preferenceSignalDao = preferenceSignalDao, styleProfileDao = styleProfileDao,
+        )
+
+        val backup = mgr.snapshot(appVersionName = "0.33.0")
+        assertEquals(1, backup.memories.size)
+        val out = backup.memories.single()
+        assertEquals("m1", out.id)
+        assertEquals(
+            "agent:agent_coder", out.scope,
+            "snapshot must preserve non-default scope — MEMORY_AUDIT A1",
+        )
+    }
+
+    @Test
+    fun `restore inserts memories with the scope from the backup`() = runTest {
+        coEvery { memoryDao.insertAll(any()) } returns Unit
+
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.33.0",
+                memories = listOf(
+                    MemoryBackup(
+                        id = "m1", content = "agent-private fact",
+                        source = "user", category = "fact",
+                        scope = "agent:agent_researcher",
+                        importance = 0.5f, createdAt = 1L, accessedAt = 1L,
+                        accessCount = 0, decayScore = 1f, tags = "", metadata = "{}",
+                    ),
+                ),
+            ),
+        )
+
+        // Verify the inserted row's scope. We use a "match" that
+        // grabs the argument and asserts the scope field. The
+        // [io.mockk.Matcher] lets us pin behavior in a single
+        // expression without capture-slot setup.
+        coVerify {
+            memoryDao.insertAll(match { rows ->
+                rows.single().scope == "agent:agent_researcher"
+            })
+        }
+    }
+
+    @Test
+    fun `restore defaults missing scope to general for forward compatibility`() = runTest {
+        // Old backups (written before the scope field was added) have
+        // no `scope` key in the JSON. The default "general" in the
+        // MemoryBackup data class must kick in and the restored row
+        // should have scope = "general" — which matches the behavior
+        // at the time the backup was written (no agent scoping existed).
+        coEvery { memoryDao.insertAll(any()) } returns Unit
+
+        // Use a JSON literal that omits the scope field — simulates
+        // an old backup.
+        val legacyJson = """
+            {
+              "schemaVersion": 11,
+              "exportedAt": 0,
+              "exportedBy": "aura-android",
+              "appVersionName": "0.30.0",
+              "memories": [
+                {
+                  "id": "m1",
+                  "content": "legacy memory",
+                  "source": "user",
+                  "category": "preference",
+                  "importance": 0.5,
+                  "createdAt": 1,
+                  "accessedAt": 1,
+                  "accessCount": 0,
+                  "decayScore": 1.0,
+                  "tags": "",
+                  "metadata": "{}"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        manager.restore(manager.decodeFromJson(legacyJson))
+
+        coVerify {
+            memoryDao.insertAll(match { rows ->
+                rows.single().scope == "general"
+            })
+        }
     }
 
     @Test

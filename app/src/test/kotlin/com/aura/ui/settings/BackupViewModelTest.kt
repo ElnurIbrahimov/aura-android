@@ -61,7 +61,7 @@ class BackupViewModelTest {
         val sampleBackup = AuraBackup(
             exportedAt = 1L, appVersionName = "0.1.0",
             memories = listOf(
-                com.aura.backup.MemoryBackup("m1", "x", "user", "preference", 0.5f, 1L, 1L, 0, 1f, "", "{}")
+                com.aura.backup.MemoryBackup("m1", "x", "user", "preference", "general", 0.5f, 1L, 1L, 0, 1f, "", "{}")
             ),
         )
         coEvery { backupManager.snapshot(any()) } returns sampleBackup

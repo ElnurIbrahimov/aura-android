@@ -584,6 +584,11 @@ private fun MemoryEntity.toBackup() = MemoryBackup(
     content = content,
     source = source,
     category = category,
+    // Preserve scope across the backup roundtrip. Without this,
+    // agent-private memories (scope = "agent:<id>") would silently
+    // be restored with the default "general" scope and leak into
+    // the General agent's recall on restore. See MEMORY_AUDIT A1.
+    scope = scope,
     importance = importance,
     createdAt = createdAt,
     accessedAt = accessedAt,
@@ -600,6 +605,12 @@ private fun MemoryBackup.toEntity() = MemoryEntity(
     content = content,
     source = source,
     category = category,
+    // Same reasoning as toBackup above. The default "general" in
+    // the backup data class (for old backups) means a pre-scope
+    // restore shows memories as general — which matches the
+    // behavior at the time the backup was written (no agent
+    // scoping existed).
+    scope = scope,
     importance = importance,
     // Embedding left null — caller rebuilds via Settings → Rebuild.
     embedding = null,

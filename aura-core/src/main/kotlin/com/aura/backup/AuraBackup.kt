@@ -126,6 +126,17 @@ data class MemoryBackup(
     val content: String,
     val source: String,
     val category: String,
+    /**
+     * Memory scope — "general" (shared across all agents), or
+     * "agent:<id>" (private to a single agent). Until this field
+     * was added, every restore dropped scope on the floor and all
+     * memories became "general", which meant agent-private memories
+     * leaked into the General agent's recall scope on every backup
+     * roundtrip. The default "general" keeps old backups
+     * forward-compatible — they restore as the original general
+     * scope they had at backup-write time.
+     */
+    val scope: String = "general",
     val importance: Float,
     val createdAt: Long,
     val accessedAt: Long,
