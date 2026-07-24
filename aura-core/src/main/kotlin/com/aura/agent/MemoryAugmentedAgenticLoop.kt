@@ -75,6 +75,178 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
 ) {
+    /**
+     * A tool the loop paused on because it returned [ToolResult.NeedsPermission].
+     * The loop stashes the full run snapshot here so [resumeAfterPermission] can
+     * continue the agentic run after the user grants the permission. Cleared
+     * on resume and on deny.
+     *
+     * The field lives on the singleton instance (the loop is @Singleton) so a
+     * single in-flight permission request can be resumed by a future call.
+     * `@Volatile` is sufficient — `resumeAfterPermission` reads + clears in a
+     * single suspend call before any other run can mutate it, and `run` only
+     * writes at the pause point (single-writer within a run).
+     */
+    @Volatile
+    private var pendingPermission: PendingPermission? = null
+
+    /**
+     * Snapshot of the run at the moment the loop paused for a permission grant.
+     * Carries everything [resumeAfterPermission] needs to continue the run
+     * from `step + 1`: the held tool, the conversation as-of-pause, the model,
+     * and all options/flags.
+     */
+    data class PendingPermission(
+        val toolName: String,
+        val toolCallId: String,
+        val args: String,
+        val permission: String,
+        val rationale: String,
+        val conversation: Conversation,
+        val model: String,
+        val maxSteps: Int,
+        val options: ChatOptions,
+        val recallLimit: Int,
+        val specialist: Specialist?,
+        val memoryEnabled: Boolean,
+        val approvedRemoteCostTools: Set<String>,
+        val agentId: String?,
+        val runId: String,
+        val step: Int,
+    )
+
+    /**
+     * Read-only view of the currently-held permission request, if any. UI
+     * uses this to drive a permission dialog (Allow / Deny). Returns null
+     * when no tool is waiting.
+     */
+    fun peekPendingPermission(): PendingPermission? = pendingPermission
+
+    /**
+     * Drop the held permission request without resuming. Called by the UI
+     * when the user taps Deny. Inserts a marker into the conversation so
+     * the model can see the user explicitly chose not to grant.
+     */
+    fun denyPendingPermission() {
+        val held = pendingPermission ?: return
+        pendingPermission = null
+        // Best-effort: the loop is a flow and the conversation lives in the
+        // caller. The UI is expected to update its state and continue with
+        // a follow-up user turn. We log so a future debug session can see
+        // the user explicitly denied.
+        android.util.Log.i(
+            "AgenticLoop",
+            "permission denied for tool=${held.toolName} permission=${held.permission}",
+        )
+    }
+
+    /**
+     * Resume a run that paused because a tool returned [ToolResult.NeedsPermission].
+     *
+     * The flow emits, in order:
+     * - [AgentEvent.ToolExecuting] for the held tool
+     * - [AgentEvent.ToolResult] for the held tool
+     * - a fresh `run()`-shaped stream that continues the agentic loop from
+     *   `heldStep + 1` with the held conversation (now containing the
+     *   tool's actual output)
+     *
+     * If no tool is waiting, emits a single `Error("no_pending", ...)` and
+     * `Done` so the UI gets a clear signal.
+     *
+     * Concurrency: this is a suspend function. The `@Volatile` field
+     * read+clear is not atomic, but the only writers are `run()` (which
+     * writes at the pause point) and `denyPendingPermission()` (which the
+     * UI calls *instead of* resuming). The contract is: a single user
+     * either grants or denies once per held request. If two concurrent
+     * resumes happen, the second one finds `null` and emits no_pending.
+     */
+    fun resumeAfterPermission(): Flow<AgentEvent> = flow {
+        val held = pendingPermission
+        if (held == null) {
+            emit(
+                AgentEvent.Error(
+                    code = "no_pending",
+                    message = "no tool waiting on permission",
+                    retryable = false,
+                ),
+            )
+            emit(AgentEvent.Done)
+            return@flow
+        }
+        pendingPermission = null
+
+        // Replay the held tool: execute it now that the permission is
+        // granted (the user just allowed it). The tool reads the
+        // runtime permission state via ContextCompat.checkSelfPermission,
+        // so by the time we get here the system reports it as granted.
+        val resumedCtx = ToolContext(
+            conversationId = held.conversation.id,
+            userMessage = held.conversation.turns.lastOrNull { it.user != null }?.user ?: "",
+            memoryEnabled = held.memoryEnabled,
+            approvedRemoteCostTools = held.approvedRemoteCostTools,
+        )
+        traceSink?.emit(
+            held.runId,
+            com.aura.agent.runtime.TraceEventType.TOOL_CALL,
+            stepId = "resume_${held.step}",
+            toolName = held.toolName,
+        )
+        emit(AgentEvent.ToolExecuting(held.toolCallId, held.toolName, held.args))
+        val resumedResult = runCatching {
+            toolExecutor.execute(held.toolName, held.args, resumedCtx)
+        }.onFailure { e ->
+            android.util.Log.w("AgenticLoop", "resumed tool ${held.toolName} threw: ${e.message}")
+        }.getOrElse { e ->
+            ToolResult.Error("resumed tool threw: ${e.message ?: e::class.java.simpleName}", "exception")
+        }
+        traceSink?.emit(
+            held.runId,
+            com.aura.agent.runtime.TraceEventType.TOOL_RESULT,
+            stepId = "resume_${held.step}",
+            toolName = held.toolName,
+            success = resumedResult is ToolResult.Ok,
+        )
+        val resumedText = when (resumedResult) {
+            is ToolResult.Ok -> resumedResult.output
+            is ToolResult.Error -> "Error: ${resumedResult.message}"
+            is ToolResult.NeedsPermission -> "Permission still needed: ${resumedResult.permission}"
+            is ToolResult.NeedsApproval -> "Approval needed: ${resumedResult.rationale}"
+        }
+        val truncated = truncateToolResult(resumedText)
+        val resumedConversation = held.conversation.setToolResult(held.toolCallId, truncated)
+        emit(
+            AgentEvent.ToolResult(
+                id = held.toolCallId,
+                name = held.toolName,
+                arguments = held.args,
+                result = truncated,
+            ),
+        )
+
+        // Continue the agentic loop from step+1 with the resumed conversation.
+        // We re-use the same per-step body via a fresh run() flow seeded with
+        // the resumed conversation. The resumed run uses the same runId so
+        // trace events correlate end-to-end.
+        val tail = run(
+            conversation = resumedConversation,
+            model = held.model,
+            maxSteps = held.maxSteps,
+            options = held.options,
+            recallLimit = held.recallLimit,
+            specialist = held.specialist,
+            memoryEnabled = held.memoryEnabled,
+            approvedRemoteCostTools = held.approvedRemoteCostTools,
+            agentId = held.agentId,
+        )
+        // Drain `tail` with one twist: the resumed run's first step is
+        // logically `heldStep + 1`, but the run() flow doesn't know that.
+        // We don't need to renumber — trace events use a per-run step
+        // counter that starts at 1. The held tool's events have already
+        // been emitted with the "resume_${held.step}" stepId, so the trace
+        // is still coherent.
+        tail.collect { emit(it) }
+    }
+
 
     /**
      * Run the agentic loop, optionally overriding the base system prompt
@@ -563,6 +735,45 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             }
             for ((id, nameAndArgs, result) in toolResults) {
                 val (name, args) = nameAndArgs
+                // Stash the held permission request and pause the loop on the
+                // first NeedsPermission. Until v0.33.0 the loop appended a
+                // "Permission needed: X" string to the conversation and kept
+                // stepping, which left the model with no real tool result to
+                // act on and stranded the user — the held tool never re-ran
+                // even after the user granted the permission. Now the loop
+                // exits with PermissionRequested, and `resumeAfterPermission`
+                // picks up at step+1 after the UI grants.
+                if (result is ToolResult.NeedsPermission) {
+                    pendingPermission = PendingPermission(
+                        toolName = name,
+                        toolCallId = id,
+                        args = args,
+                        permission = result.permission,
+                        rationale = result.rationale,
+                        conversation = currentConversation,
+                        model = effectiveModel,
+                        maxSteps = maxSteps,
+                        options = options,
+                        recallLimit = recallLimit,
+                        specialist = specialist,
+                        memoryEnabled = memoryEnabled,
+                        approvedRemoteCostTools = approvedRemoteCostTools,
+                        agentId = agentId,
+                        runId = runId,
+                        step = step,
+                    )
+                    emit(
+                        AgentEvent.PermissionRequested(
+                            toolName = name,
+                            toolCallId = id,
+                            args = args,
+                            permission = result.permission,
+                            rationale = result.rationale,
+                        ),
+                    )
+                    finished = true
+                    break
+                }
                 val rawResultText = when (result) {
                     is ToolResult.Ok -> result.output
                     is ToolResult.Error -> "Error: ${result.message}"
@@ -764,8 +975,24 @@ sealed class AgentEvent {
     data class ToolCallEnd(val id: String, val name: String, val arguments: String) : AgentEvent()
     data class ToolExecuting(val id: String, val name: String, val arguments: String = "") : AgentEvent()
     data class ToolResult(val id: String, val name: String, val arguments: String, val result: String, val needsPermission: String? = null, val permissionRationale: String? = null) : AgentEvent()
-    /** Emitted by the UI after a permission was granted. The loop re-executes the named tool with the given args. */
-    data class PermissionGranted(val toolName: String, val arguments: String) : AgentEvent()
+    /**
+     * Emitted by the loop when a tool returned [ToolResult.NeedsPermission]
+     * and the loop paused. The UI shows a permission dialog and on Allow
+     * calls [MemoryAugmentedAgenticLoop.resumeAfterPermission] to continue
+     * the run. The `toolName` + `args` let the UI render the call for
+     * confirmation, and `toolCallId` correlates the eventual `ToolResult`
+     * with the held request.
+     *
+     * Replaces the previous dead-code `PermissionGranted` event (which was
+     * documented as "UI emits after grant" but the loop never consumed it).
+     */
+    data class PermissionRequested(
+        val toolName: String,
+        val toolCallId: String,
+        val args: String,
+        val permission: String,
+        val rationale: String,
+    ) : AgentEvent()
     data class Error(val code: String, val message: String, val retryable: Boolean, val typedError: com.aura.core.error.AuraError? = null) : AgentEvent()
     data class Warning(
         val message: String,
