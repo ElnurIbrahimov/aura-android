@@ -79,9 +79,6 @@ class EvolutionInboxViewModel @Inject constructor(
                     is EvolutionApplySaga.ApplyResult.Error -> {
                         proposalStore.markApplyFailed(id, result.message)
                     }
-                    is EvolutionApplySaga.ApplyResult.NotYetImplemented -> {
-                        proposalStore.markApplyFailed(id, "action not implemented: ${result.action}")
-                    }
                 }
             }
             load()

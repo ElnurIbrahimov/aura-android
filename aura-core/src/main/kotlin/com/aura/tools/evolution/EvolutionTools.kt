@@ -39,8 +39,6 @@ class ApproveEvolutionProposalTool @Inject constructor(
                     ToolResult.Ok(buildJson(mapOf("proposalId" to result.proposalId, "status" to "applied", "summary" to result.summary)))
                 is EvolutionApplySaga.ApplyResult.Error ->
                     ToolResult.Error(result.message)
-                is EvolutionApplySaga.ApplyResult.NotYetImplemented ->
-                    ToolResult.Error("action not implemented")
             }
         },
         category = "evolution",

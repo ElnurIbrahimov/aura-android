@@ -412,6 +412,5 @@ class EvolutionApplySaga @Inject constructor(
     sealed interface ApplyResult {
         data class Ok(val proposalId: kotlin.String, val summary: kotlin.String) : ApplyResult
         data class Error(val proposalId: kotlin.String, val message: kotlin.String) : ApplyResult
-        data class NotYetImplemented(val action: kotlin.String) : ApplyResult
     }
 }
