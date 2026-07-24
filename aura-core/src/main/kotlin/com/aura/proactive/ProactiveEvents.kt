@@ -24,7 +24,13 @@ import javax.inject.Singleton
  *   Dispatchers.Default for production. Tests inject
  *   `TestScope`/`StandardTestDispatcher` so the internal launches
  *   drain on `advanceUntilIdle()`.
+ *
+ * Singleton-scoped so the internal SupervisorJob scope lives for the
+ * app lifetime, not per-Activity-creation. Without @Singleton each
+ * HomeViewModel or ProactiveHistoryViewModel instantiation would leak
+ * a new SupervisorJob that never closes.
  */
+@Singleton
 class ProactiveEvents(
     private val bus: ProactiveEventBus,
     private val dao: ProactiveEventDao,

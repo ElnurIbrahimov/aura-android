@@ -132,6 +132,13 @@ class MoaProviderTest {
         val second = launch { moa.chat("default", emptyList(), ChatOptions(), emptyList()).collect {} }
         started.receive()
         runCurrent()
+        // Give the cancellation chain time to propagate: cancelling the
+        // channelFlow's Job needs to resume the async{} children, throw
+        // CancellationException through await(), close the channel, and
+        // cancel the collecting launch. runCurrent() alone doesn't always
+        // process all these rounds in one pass on the test dispatcher.
+        advanceTimeBy(1L)
+        runCurrent()
 
         assertTrue(first.isCancelled)
         second.cancel()
