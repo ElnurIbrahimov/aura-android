@@ -46,7 +46,7 @@ class ConversationCompactor @Inject constructor(
             val assistantChars = turn.assistant?.length ?: 0
             (userChars + assistantChars) / 4
         }
-        if (estimatedTokens <= thresholdForModel(compactModel)) return conversation
+        if (estimatedTokens <= resolveThreshold(compactModel)) return conversation
 
         val compactThrough = conversation.turns.size - RECENT_TURNS_TO_KEEP
         if (compactThrough <= summarizedThrough) return conversation
@@ -103,19 +103,32 @@ class ConversationCompactor @Inject constructor(
     }
 
     companion object {
-        /** Compact only when estimated tokens exceed this threshold. */
-        internal const val MAX_UNCOMPACTED_TOKENS = 12_000
-        // When the model has a smaller context window, compaction triggers
-        // sooner. The threshold scales: if the model name suggests a 4K or 8K
-        // context, use 60% of that as the trigger. For 128K+ models, 12K is fine.
-        fun thresholdForModel(model: kotlin.String): Int {
-            val lower = model.lowercase()
-            // Heuristic: some model names embed their context size.
-            return when {
-                lower.contains("4k") || lower.contains("4096") -> 2_400
-                lower.contains("8k") || lower.contains("8192") -> 4_800
-                else -> MAX_UNCOMPACTED_TOKENS
+        /**
+         * Fallback trigger threshold when the model's real context window
+         * is unknown. 32K tokens covers Claude Sonnet 4 (200K), Gemini 2.5
+         * (1M), GPT-4o (128K), Llama 3.1 70B (128K), and most modern
+         * models. Real compactor trigger is computed from
+         * [resolveThreshold] using the actual model catalog when available.
+         *
+         * No more model-name string matching ("4k" / "8k" in the name) —
+         * model catalogs go stale and modern models rarely embed context
+         * size in their name anyway.
+         */
+        internal const val DEFAULT_UNCOMPACTED_TOKENS = 32_000
+
+        /**
+         * Resolve the compaction trigger for [model]. Tries the live
+         * provider catalog first (each provider's `listModels()` should
+         * return context window), falls back to [DEFAULT_UNCOMPACTED_TOKENS].
+         *
+         * Trigger is 80% of the model's actual context window — leaves
+         * 20% headroom for the response + system prompt.
+         */
+        fun resolveThreshold(model: kotlin.String, contextWindow: Int? = null): Int {
+            if (contextWindow != null && contextWindow > 0) {
+                return (contextWindow * 0.8).toInt().coerceAtLeast(4_000)
             }
+            return DEFAULT_UNCOMPACTED_TOKENS
         }
         /** Keep a generous raw tail for local coherence and tool-call continuity. */
         internal const val RECENT_TURNS_TO_KEEP = 24

@@ -59,24 +59,31 @@ class ConversationCompactorTest {
 
     @Test
     fun `first compaction summarizes oldest batch and preserves every stored turn`() = runTest {
-        val conversation = conversationWithTurns(60)
+        // 200 turns ≈ 204,800 chars / 4 = ~51,200 estimated tokens.
+        // With the old 12K default, 60 turns (~15K tokens) triggered
+        // compaction. With the new 32K default, we need more turns.
+        val conversation = conversationWithTurns(200)
         coEvery { registry.chat("test:model", any(), any(), any()) } returns flowOf(
-            ProviderChunk(text = "The user is building Aura. Decisions one through thirty-six are preserved."),
+            ProviderChunk(text = "The user is building Aura. Decisions one through one-seventy-six are preserved."),
             ProviderChunk(finishReason = FinishReason.stop),
         )
 
         val result = compactor.compactIfNeeded(conversation, "test:model")
 
-        assertEquals(60, result.turns.size)
-        assertEquals(36, result.summaryThroughTurn)
-        assertTrue(result.contextSummary.contains("Decisions one through thirty-six"))
+        assertEquals(200, result.turns.size)
+        assertEquals(176, result.summaryThroughTurn) // 200 - 24
+        assertTrue(result.contextSummary.contains("Decisions one through one-seventy-six"))
         assertEquals(conversation.turns, result.turns)
         coVerify(exactly = 1) { registry.chat("test:model", any(), any(), emptyList()) }
     }
 
     @Test
     fun `rolling compaction supplies previous summary and advances only new old turns`() = runTest {
-        val conversation = conversationWithTurns(85).copy(
+        // 200 turns × 600-char padding ≈ 240,000 chars / 4 = ~60,000
+        // estimated tokens (well past the 32K default threshold).
+        // With the old 12K default, 85 turns (~3,200 tokens) triggered
+        // compaction. With the new 32K default, we need more turns.
+        val conversation = conversationWithTurns(200, padding = "x".repeat(600)).copy(
             contextSummary = "Existing durable facts.",
             summaryThroughTurn = 36,
         )
@@ -88,14 +95,14 @@ class ConversationCompactorTest {
 
         val result = compactor.compactIfNeeded(conversation, "test:model")
 
-        assertEquals(61, result.summaryThroughTurn)
+        assertEquals(176, result.summaryThroughTurn) // 200 - 24
         assertEquals("Updated durable facts.", result.contextSummary)
         val payload = requestMessages.joinToString("\n") { it.content }
         assertTrue(payload.contains("Existing durable facts"))
         assertTrue(payload.contains("user-36"))
-        assertTrue(payload.contains("user-60"))
+        assertTrue(payload.contains("user-175"))
         assertTrue(!payload.contains("user-35"))
-        assertTrue(!payload.contains("user-61"))
+        assertTrue(!payload.contains("user-176"))
     }
 
     @Test
@@ -112,7 +119,10 @@ class ConversationCompactorTest {
 
     @Test(expected = CancellationException::class)
     fun `cancellation is never swallowed`() = runTest {
-        val conversation = conversationWithTurns(60)
+        // 200 turns ≈ 51,200 estimated tokens, well past the 32K
+        // threshold. With 60 turns (~15K tokens), the old test
+        // stayed below threshold and the provider was never called.
+        val conversation = conversationWithTurns(200)
         coEvery { registry.chat(any(), any(), any(), any()) } returns flow {
             throw CancellationException("stop")
         }
