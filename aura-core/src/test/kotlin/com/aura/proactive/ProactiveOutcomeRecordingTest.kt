@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.resetMain
 import org.junit.Assert.assertEquals
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
@@ -49,8 +50,13 @@ class ProactiveOutcomeRecordingTest {
         hooks = EvolutionHooks(EvolutionEvidenceRecorder(evidenceDao))
     }
 
+    @After
+    fun tearDown() {
+        kotlinx.coroutines.Dispatchers.resetMain()
+    }
+
     @Test
-    fun `recordInteraction writes interaction row and emits proactive_dismissed evidence`() = runTest(testDispatcher) {
+    fun `recordInteraction writes interaction row and emits proactive_dismissed evidence`() = runTest(testDispatcher, dispatchTimeoutMs = 10_000) {
         val captured = mutableListOf<EvolutionEvidenceEntity>()
         coEvery { evidenceDao.upsert(capture(captured)) } returns Unit
 
@@ -60,15 +66,19 @@ class ProactiveOutcomeRecordingTest {
             interactionDao = interactionDao,
             evolutionHooks = hooks,
             userPreferences = userPreferences,
-            scope = CoroutineScope(testDispatcher + SupervisorJob()),
+            scope = CoroutineScope(testDispatcher + kotlinx.coroutines.Job()),
         )
-        advanceUntilIdle()
+        try {
+            advanceUntilIdle()
 
-        events.recordInteraction(eventId = 42L, eventType = "MorningBriefReady", action = "dismissed")
-        advanceUntilIdle()
+            events.recordInteraction(eventId = 42L, eventType = "MorningBriefReady", action = "dismissed")
+            advanceUntilIdle()
 
-        coVerify { interactionDao.insert(match { it.eventId == 42L && it.action == "dismissed" }) }
-        assertEquals(1, captured.size)
-        assertEquals("proactive_dismissed", captured[0].kind)
+            coVerify { interactionDao.insert(match { it.eventId == 42L && it.action == "dismissed" }) }
+            assertEquals(1, captured.size)
+            assertEquals("proactive_dismissed", captured[0].kind)
+        } finally {
+            events.cancel()
+        }
     }
 }

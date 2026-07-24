@@ -4,6 +4,7 @@ import com.aura.data.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -98,19 +99,21 @@ class ProactiveEvents(
     init {
         // Load persisted history first, then collect new events
         scope.launch {
-            val persisted = dao.recent(100)
-            _history.value = persisted.mapNotNull { it.toEvent() }
-            // Re-run the unread count after loading history (lastSeenAt
-            // is already flowing, but the initial value of
-            // countFlow is 0 — this is the first "real" computation).
-            _refreshTick.value = System.currentTimeMillis()
-            // Bounded retention: drop events older than 30 days so the
-            // table doesn't grow forever. 30 days is wide enough to keep
-            // a month's worth of morning briefs/calendar warnings visible
-            // in the Proactive history screen while keeping the table
-            // small. Errors are swallowed — cleanup is best-effort.
-            val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
-            runCatching { dao.deleteOlderThan(cutoff) }
+            runCatching {
+                val persisted = dao.recent(100)
+                _history.value = persisted.mapNotNull { it.toEvent() }
+                // Re-run the unread count after loading history (lastSeenAt
+                // is already flowing, but the initial value of
+                // countFlow is 0 — this is the first "real" computation).
+                _refreshTick.value = System.currentTimeMillis()
+                // Bounded retention: drop events older than 30 days so the
+                // table doesn't grow forever. 30 days is wide enough to keep
+                // a month's worth of morning briefs/calendar warnings visible
+                // in the Proactive history screen while keeping the table
+                // small. Errors are swallowed — cleanup is best-effort.
+                val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+                dao.deleteOlderThan(cutoff)
+            }
         }
         scope.launch {
             bus.events.collect { event ->
@@ -136,6 +139,16 @@ class ProactiveEvents(
                 }
             }
         }
+    }
+
+    /**
+     * Cancel all internal coroutines. Call from tests' tearDown
+     * to prevent the SupervisorJob scope from leaking background
+     * work into the next test (causes UncaughtExceptionsBeforeTest
+     * on cold CI runners).
+     */
+    fun cancel() {
+        scope.cancel()
     }
 
     fun dismiss() {

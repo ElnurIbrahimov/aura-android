@@ -68,6 +68,7 @@ class ProactiveBootstrapTest {
         every { userPreferences.morningBriefHour } returns flowOf(7)
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         every { userPreferences.evolutionIntervalHours } returns flowOf(24)
+        every { userPreferences.decayEnabled } returns flowOf(true)
         every { userPreferences.mcpServersJson } returns flowOf("")
     }
 
@@ -136,7 +137,6 @@ class ProactiveBootstrapTest {
         every { userPreferences.morningBriefEnabled } returns morningEnabled
         every { userPreferences.calendarMonitorEnabled } returns calendarEnabled
         every { userPreferences.morningBriefHour } returns briefHour
-        every { userPreferences.decayEnabled } returns flowOf(true)
 
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, agentStore, conversationStore)
         bootstrap.start()

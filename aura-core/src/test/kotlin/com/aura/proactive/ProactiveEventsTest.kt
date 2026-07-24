@@ -66,8 +66,12 @@ class ProactiveEventsTest {
 
     @After
     fun tearDown() {
+        events?.cancel()
+        events = null
         Dispatchers.resetMain()
     }
+
+    private var events: ProactiveEvents? = null
 
     private fun newProactiveEvents(): ProactiveEvents =
         ProactiveEvents(
@@ -77,8 +81,8 @@ class ProactiveEventsTest {
             evolutionHooks = null,
             userPreferences = userPreferences,
             // Test-controlled scope: drain on advanceUntilIdle().
-            scope = CoroutineScope(testDispatcher + kotlinx.coroutines.SupervisorJob()),
-        )
+            scope = CoroutineScope(testDispatcher + kotlinx.coroutines.Job()),
+        ).also { events = it }
 
     @Test
     fun `unreadCount starts at 0 on a fresh install with no events`() = runTest(testDispatcher) {
