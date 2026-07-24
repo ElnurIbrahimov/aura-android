@@ -101,9 +101,27 @@ data class Conversation(
         return replaceLastTurn(turns.last().copy(assistant = text))
     }
 
-    /** Append a tool call to the current turn. */
+    /**
+     * Append a tool call to the current turn.
+     *
+     * Pre-fix (P1 AGENTIC A5): on an empty conversation this
+     * method created a `Turn` with no `user` text and no
+     * `assistant` text — just `toolTurns`. The downstream
+     * provider would see a tool call without any preceding
+     * user message, breaking the conversation contract for
+     * strict providers (Anthropic rejects tool_use blocks
+     * without a preceding user turn).
+     *
+     * Fix: refuse to add a tool call to an empty conversation.
+     * Callers must add a user message first via addUser().
+     */
     fun addToolCall(id: String, name: String, args: String): Conversation {
-        if (turns.isEmpty()) return copy(turns = listOf(Turn(toolTurns = listOf(ToolTurn(id, name, args, "")))))
+        if (turns.isEmpty()) {
+            // No preceding user turn. Silently no-op rather
+            // than create a malformed turn. The caller should
+            // call addUser() first.
+            return this
+        }
         val last = turns.last()
         return replaceLastTurn(last.copy(toolTurns = last.toolTurns + ToolTurn(id, name, args, "")))
     }

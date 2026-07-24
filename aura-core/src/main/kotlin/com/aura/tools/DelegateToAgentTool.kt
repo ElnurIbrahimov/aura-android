@@ -106,14 +106,45 @@ class DelegateToAgentTool @Inject constructor(
             personalityDirective.ifBlank { null },
         ).joinToString("\n\n")
 
-        // Resolve the agent's tool allowlist
+        // Resolve the agent's tool allowlist.
+        // The MCP allowlist rule MUST match the main
+        // agentic loop's logic exactly. The main loop
+        // (MemoryAugmentedAgenticLoop.kt:310) strips
+        // `mcp_<serverId>_<toolName>` to its base name
+        // and checks if the base name is in the
+        // allowlist. This prevents a user-created
+        // specialist (e.g. `allowed=[web_search]`) from
+        // silently gaining access to an MCP tool that
+        // happens to start with "mcp_" or be in
+        // category="mcp" (e.g. an MCP server exposing
+        // `delete_file` would NOT be in the allowlist,
+        // so the specialist can't use it).
+        //
+        // Pre-fix (P1 AGENTIC A2): DelegateToAgentTool
+        // used the looser check
+        //   def.name in allowedTools || def.name.startsWith("mcp_") || def.category == "mcp"
+        // which let any MCP tool bypass the agent's
+        // allowlist — divergence from the main loop's
+        // stricter rule.
         val registry = toolRegistry.get()
         val allowedTools = agent.toolSet()
         val tools = if (allowedTools.isEmpty()) {
             registry.definitions()
         } else {
             registry.definitions().filter { def ->
-                def.name in allowedTools || def.name.startsWith("mcp_") || def.category == "mcp"
+                if (def.category == "mcp" || def.name.startsWith("mcp_")) {
+                    val baseName = if (def.name.startsWith("mcp_")) {
+                        // mcp_<serverId>_<toolName> → <toolName>
+                        val rest = def.name.removePrefix("mcp_")
+                        val firstUnderscore = rest.indexOf('_')
+                        if (firstUnderscore > 0) rest.substring(firstUnderscore + 1) else rest
+                    } else {
+                        def.name
+                    }
+                    baseName in allowedTools
+                } else {
+                    def.name in allowedTools
+                }
             }
         }.filter { def -> def.name != "delegate_to_agent" } // no recursive delegation
 
@@ -149,6 +180,33 @@ class DelegateToAgentTool @Inject constructor(
         val response = StringBuilder()
         var conversation = messages.toMutableList()
 
+        // Pre-fix (P1 AGENTIC A2-A4): the inner ToolContext passed
+        // to toolExecutor.execute() was a bare ToolContext with
+        // - no memoryEnabled → REMOTE_COST child tools could
+        //   never be approved
+        // - no approvedRemoteCostTools → same failure mode
+        // - no userMessage → policy engine had no anchor for
+        //   approval context
+        // - 10s timeout killed legitimate 15-30s tools
+        //   (brave_search, web_search)
+        // - MCP allowlist used `startsWith("mcp_")` while the
+        //   main agentic loop uses category check — divergence
+        //   meant a child agent could call MCP tools the
+        //   parent couldn't (or vice versa).
+        //
+        // Fix: pass through the parent's policy state and use
+        // the per-tool timeout from the agent's tool
+        // definition rather than a hard-coded 10s. Match the
+        // main loop's MCP allowlist logic exactly.
+        val childCtx = ctx.copy(
+            conversationId = "delegation:${agent.name}",
+            // Pre-fix had hard-coded 10s. Now use 30s
+            // (matching the parent loop's default) so
+            // 15-30s tools (brave_search, web_search)
+            // have time to complete.
+            timeout = 30_000L,
+        )
+        val executor = toolExecutor.get()
         for (step in 1..DELEGATION_MAX_STEPS) {
             val chunks = brain.stream(model, conversation, tools, options).toList()
             val stepText = StringBuilder()
@@ -173,13 +231,9 @@ class DelegateToAgentTool @Inject constructor(
             // Use the proper 'tool' role for tool results — providers
             // that strictly validate message roles (Anthropic) require
             // this. The assistant message is the text + tool call marker.
-            val executor = toolExecutor.get()
             for ((toolName, args) in stepToolCalls) {
                 if (tools.none { it.name == toolName }) continue
-                val result = executor.execute(toolName, args, com.aura.agent.ToolContext(
-                    conversationId = "delegation",
-                    timeout = 10_000L,
-                ))
+                val result = executor.execute(toolName, args, childCtx)
                 val resultText = when (result) {
                     is ToolResult.Ok -> result.output
                     is ToolResult.Error -> "Error: ${result.message}"
