@@ -8,6 +8,7 @@ import kotlin.math.sqrt
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 @Singleton
 class MemoryStore @Inject constructor(
@@ -43,7 +44,9 @@ class MemoryStore @Inject constructor(
         // mode") that exact-match misses. When a match is found, we
         // merge — keep the richer (longer) version and re-null its
         // embedding so the next recall re-embeds with the updated text.
-        val existing = runCatching { dao.allWithEmbeddings() }.getOrDefault(emptyList())
+        val existing = runCatching { dao.allWithEmbeddings() }
+            .onFailure { Log.w("MemoryStore", "allWithEmbeddings failed during dedup", it) }
+            .getOrDefault(emptyList())
         if (existing.isNotEmpty()) {
             val match = existing.firstOrNull { mem ->
                 mem.embedding?.let {
@@ -62,7 +65,7 @@ class MemoryStore @Inject constructor(
                             embedding = null,
                             accessedAt = System.currentTimeMillis(),
                         ))
-                    }
+                    }.onFailure { Log.w("MemoryStore", "dao.update during dedup merge failed", it) }
                 }
                 // Either way, we don't store a new memory.
                 return null
@@ -140,7 +143,7 @@ class MemoryStore @Inject constructor(
         )
         runCatching {
             evolutionHooks?.onMemoryStored(id, category, runId = null, provenance.conversationId, provenance.turnTimestamp)
-        }
+        }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryStored failed (non-fatal)", it) }
         return id
     }
 
@@ -229,7 +232,7 @@ class MemoryStore @Inject constructor(
             } else {
                 vectorResults.take(limit)
             }
-            for (mem in results) { runCatching { touch(mem.id) } }
+            for (mem in results) { runCatching { touch(mem.id) }.onFailure { Log.w("MemoryStore", "inline touch in vector fallback failed", it) } }
             return results
         }
 
@@ -281,9 +284,10 @@ class MemoryStore @Inject constructor(
         // Touch is fire-and-forget; we don't want a failed decay update to break recall.
         for ((index, mem) in results.withIndex()) {
             runCatching { touch(mem.id) }
+                .onFailure { Log.w("MemoryStore", "touch on recall failed", it) }
             runCatching {
                 evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
-            }
+            }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled failed (non-fatal)", it) }
         }
         return results
     }
@@ -339,6 +343,7 @@ class MemoryStore @Inject constructor(
     suspend fun forget(id: String) {
         dao.delete(id)
         runCatching { evolutionHooks?.onMemoryForgotten(id) }
+            .onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryForgotten failed (non-fatal)", it) }
     }
 
     suspend fun recordFeedback(memoryId: String, kind: String, note: String = "") {
@@ -349,6 +354,7 @@ class MemoryStore @Inject constructor(
             note = note,
         )
         runCatching { memoryFeedbackDao.insert(row) }
+            .onFailure { Log.w("MemoryStore", "memoryFeedbackDao.insert failed", it) }
     }
 
     suspend fun deleteBySource(source: String) = dao.deleteBySource(source)
@@ -413,7 +419,9 @@ class MemoryStore @Inject constructor(
             val ok = runCatching {
                 val vec = embedder.embed(mem.content)
                 dao.update(mem.copy(embedding = Embedder.toBytes(vec)))
-            }.isSuccess
+            }
+                .onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
+                .isSuccess
             if (ok) rebuilt += 1
         }
         return rebuilt
@@ -446,7 +454,7 @@ class MemoryStore @Inject constructor(
                     editedBy = "user",
                 )
             )
-        }
+        }.onFailure { Log.w("MemoryStore", "memoryEditDao.insert during update() failed (audit trail lost, main update still applied)", it) }
         dao.update(
             existing.copy(
                 content = content,
@@ -471,7 +479,9 @@ class MemoryStore @Inject constructor(
      * Used by the Memory edit dialog to show what changed and when.
      */
     suspend fun getEditHistory(memoryId: String): List<MemoryEditEntity> {
-        return runCatching { memoryEditDao.getForMemory(memoryId) }.getOrDefault(emptyList())
+        return runCatching { memoryEditDao.getForMemory(memoryId) }
+            .onFailure { Log.w("MemoryStore", "getEditHistory for $memoryId failed", it) }
+            .getOrDefault(emptyList())
     }
 
     /** Reinsert the exact deleted row and its CASCADE-deleted audit trail. */
