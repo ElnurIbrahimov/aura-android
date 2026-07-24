@@ -105,10 +105,10 @@ class ConversationCompactor @Inject constructor(
     companion object {
         /**
          * Fallback trigger threshold when the model's real context window
-         * is unknown. 32K tokens covers Claude Sonnet 4 (200K), Gemini 2.5
-         * (1M), GPT-4o (128K), Llama 3.1 70B (128K), and most modern
-         * models. Real compactor trigger is computed from
-         * [resolveThreshold] using the actual model catalog when available.
+         * is unknown. 32K tokens gives every modern model enough headroom
+         * to handle a normal conversation without premature compaction.
+         * Real compactor trigger is computed from [resolveThreshold] using
+         * the actual model catalog when available.
          *
          * No more model-name string matching ("4k" / "8k" in the name) —
          * model catalogs go stale and modern models rarely embed context

@@ -9,27 +9,26 @@ import org.junit.Test
  *
  * Pre-fix, the compactor used string-matching on the model
  * name ("4k" / "8k" / "4096" / "8192") to decide when to
- * compact. Modern models rarely embed context size in the
- * name (Claude Sonnet 4 doesn't say "200k" anywhere), so
- * the compactor would either trigger too early on a small
- * model that happened to have "8k" in its name, or skip
- * compaction on a huge-context model that didn't.
+ * compact. Models that didn't have those substrings in the
+ * name fell to a hardcoded 12K threshold — which fired way
+ * too early for any model with more than ~12K of working
+ * context.
  *
  * Post-fix, the compactor asks for the model's actual
  * context window. When unknown, it uses a generous 32K
- * default that covers Claude Sonnet 4, Gemini 2.5,
- * GPT-4o, Llama 3.1 70B, and most modern models.
+ * default that doesn't trigger on the first 8K of context.
  */
 class ConversationCompactorThresholdTest {
 
     @Test
     fun `resolveThreshold with explicit context window returns 80 percent`() {
-        // Claude Sonnet 4 has 200K context. 80% = 160,000.
-        assertEquals(160_000, ConversationCompactor.resolveThreshold("claude-sonnet-4", 200_000))
-        // Gemini 2.5 has 1M context. 80% = 800,000.
-        assertEquals(800_000, ConversationCompactor.resolveThreshold("gemini-2.5-flash", 1_000_000))
-        // GPT-4o has 128K context. 80% = 102,400.
-        assertEquals(102_400, ConversationCompactor.resolveThreshold("gpt-4o", 128_000))
+        // Pick three different context sizes to pin the 80% rule.
+        // 80% of 100K = 80,000.
+        assertEquals(80_000, ConversationCompactor.resolveThreshold("any-model", 100_000))
+        // 80% of 200K = 160,000.
+        assertEquals(160_000, ConversationCompactor.resolveThreshold("any-model", 200_000))
+        // 80% of 8K = 6,400.
+        assertEquals(6_400, ConversationCompactor.resolveThreshold("any-model", 8_000))
     }
 
     @Test
@@ -43,52 +42,47 @@ class ConversationCompactorThresholdTest {
     @Test
     fun `resolveThreshold with null context window uses default`() {
         // No catalog data: use the generous 32K default
-        // that covers all modern models without false
-        // positives. Previously "claude-sonnet-4" would
-        // fall to MAX_UNCOMPACTED_TOKENS=12K and compact
-        // way too early (every ~3K chars).
+        // so the compactor doesn't fire on the first
+        // ~8K of context. Previously, any model without
+        // "4k" or "8k" in its name hit MAX_UNCOMPACTED_TOKENS=12K
+        // and compacted way too early.
         assertEquals(
             ConversationCompactor.DEFAULT_UNCOMPACTED_TOKENS,
-            ConversationCompactor.resolveThreshold("claude-sonnet-4"),
-        )
-        assertEquals(
-            ConversationCompactor.DEFAULT_UNCOMPACTED_TOKENS,
-            ConversationCompactor.resolveThreshold("gemini-2.5-flash"),
+            ConversationCompactor.resolveThreshold("any-model"),
         )
     }
 
     @Test
     fun `resolveThreshold no longer matches model name strings`() {
         // The old API (thresholdForModel) had branches for
-        // "4k", "8k", "4096", "8192" in the name. Modern
-        // models don't use that convention, so the new
+        // "4k", "8k", "4096", "8192" in the name. The new
         // function ignores the model name entirely when
-        // contextWindow is null. Any model name returns
-        // the same default.
+        // contextWindow is null — no string matching at all.
         val allNames = listOf(
-            "claude-sonnet-4",
-            "gpt-4o",
-            "gemini-2.5-flash",
-            "llama-3.1-70b",
-            "mixtral-8x7b",
-            "qwen2.5-coder-32b",
+            "any-model",
+            "some-llm",
+            "gpt-style",
+            "claude-style",
+            "llama-style",
         )
         val allSame = allNames.map { ConversationCompactor.resolveThreshold(it) }.toSet()
         assertEquals(
-            "All modern models should map to the same default when context is unknown",
+            "All model names should map to the same default when context is unknown",
             1,
             allSame.size,
         )
     }
 
     @Test
-    fun `default threshold is at least 32K for modern models`() {
+    fun `default threshold is at least 32K to avoid premature compaction`() {
         // Sanity check: DEFAULT_UNCOMPACTED_TOKENS is at
-        // least 32,000 so it covers Claude Sonnet 4's
-        // useful working context without premature
-        // compaction.
+        // least 32,000 so the compactor doesn't fire on
+        // normal-sized conversations. The old 12K default
+        // was too aggressive — a normal 20-turn chat
+        // would compact mid-conversation on big-context
+        // models.
         assertTrue(
-            "DEFAULT_UNCOMPACTED_TOKENS must be >= 32,000 for modern models",
+            "DEFAULT_UNCOMPACTED_TOKENS must be >= 32,000",
             ConversationCompactor.DEFAULT_UNCOMPACTED_TOKENS >= 32_000,
         )
     }
