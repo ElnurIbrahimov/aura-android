@@ -52,8 +52,35 @@ class SmsSendTool @Inject constructor(
                 ?: return@Tool ToolResult.Error("missing 'to' argument", "bad_args")
             val body = call.arguments["body"] as? String ?: ""
 
+            // P1 AGENTIC C2: validate phone number before
+            // building the smsto: URI. Pre-fix the tool
+            // would happily pass any string the model
+            // produced — including literal "not a number"
+            // or a SQL-injection-style payload — straight
+            // to Uri.parse(). Uri.parse doesn't validate,
+            // it just wraps. The Intent system later
+            // would either crash (UriSyntaxException for
+            // paths with spaces) or open the SMS app
+            // with a bogus "to" the user has to clear
+            // manually.
+            //
+            // Accept: 7-15 digits, optional leading '+',
+            // spaces/dashes/parens are allowed and stripped.
+            // Reject anything else with a clear error so
+            // the model can self-correct.
+            val digits = to.filter { it.isDigit() }
+            if (digits.length !in 7..15) {
+                return@Tool ToolResult.Error(
+                    "Invalid phone number '$to': expected 7-15 digits " +
+                    "(e.g. +12025551234 or (202) 555-1234)",
+                    "invalid_phone",
+                )
+            }
+
             try {
-                val uri = Uri.parse("smsto:$to")
+                // Strip spaces/dashes/parens before building URI
+                val cleanNumber = to.filter { !it.isWhitespace() && it !in "-()" }
+                val uri = Uri.parse("smsto:$cleanNumber")
                 val intent = Intent(Intent.ACTION_SENDTO, uri).apply {
                     putExtra(Intent.EXTRA_TEXT, body)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK

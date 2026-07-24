@@ -41,7 +41,15 @@ class UseSkillTool @Inject constructor(
         name = "use_skill",
         description = "Invoke a user-authored skill by name. Returns the skill body " +
             "(free-form markdown instructions) which the agent should follow for the next turn.",
-        risk = ToolRisk.WRITE_LOCAL,
+        // P1 AGENTIC C1: was WRITE_LOCAL (mismatched the
+        // KDoc which said READ_ONLY). The tool only reads
+        // a skill from SkillsStore and returns the body
+        // as a tool result — it never mutates state. The
+        // wrong risk metadata caused the policy engine
+        // to demand an extra confirmation gate for a
+        // benign read of the user's own data. READ_ONLY
+        // matches the actual behavior.
+        risk = ToolRisk.READ_ONLY,
         parameters = definition(),
         execute = { call, ctx ->
             val name = call.arguments["name"] as? String

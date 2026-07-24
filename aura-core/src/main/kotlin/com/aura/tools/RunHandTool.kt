@@ -63,21 +63,37 @@ class RunHandTool @Inject constructor(
             } else {
                 com.aura.hands.HandRunTrigger.AGENT.value
             }
-            handRunEnqueuer.enqueue(
+            val enqueueResult = handRunEnqueuer.enqueue(
                 handName = name,
                 variablesJson = variablesRaw,
                 trigger = triggerValue,
                 conversationId = ctx.conversationId,
-            )?.let { runId ->
-                return@Tool ToolResult.Ok("Queued hand '${hand.name}' as agent run $runId")
-            }
-            repository.run(
-                hand = hand,
-                executor = executor.get(),
-                ctx = ctx,
-                variables = variables,
-                trigger = triggerValue,
             )
+            if (enqueueResult != null) {
+                return@Tool ToolResult.Ok("Queued hand '${hand.name}' as agent run $enqueueResult")
+            }
+            // P1 AGENTIC D1: pre-fix, a null enqueue result
+            // (hand missing, hand disabled, condition failed)
+            // fell through to `repository.run()` which
+            // executes the hand in-process, bypassing the
+            // AgentRun pipeline. This meant:
+            //   1. A disabled hand would still execute if
+            //      `repository.getByName(name)` returned a
+            //      cached non-disabled version
+            //   2. Hands that failed their conditions
+            //      would silently run anyway
+            //   3. The run wouldn't appear in the Agent
+            //      Runs screen
+            //
+            // Fix: if enqueue returns null, the hand
+            // should NOT run. Surface the reason to the
+            // model so it can self-correct.
+            val disabled = !hand.enabled
+            val reason = when {
+                disabled -> "Hand '$name' is disabled"
+                else -> "Hand '$name' cannot run (condition failed or enqueue unavailable)"
+            }
+            ToolResult.Error(reason, "hand_not_runnable")
         },
     category = "automation")
 }
