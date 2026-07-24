@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -228,6 +229,42 @@ class GeminiProvider(
     override suspend fun cancel() {
         activeCall?.cancel()
         activeCall = null
+    }
+
+    /**
+     * Gemini's /v1beta/models returns a `inputTokenLimit`
+     * field per model — the real context window. We
+     * re-fetch the catalog to get both name and limit,
+     * stripping the "models/" prefix to match the
+     * model name format used elsewhere in the app.
+     */
+    override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/v1beta/models?key=$apiKey&pageSize=100")
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyList<ModelInfo>()
+                val body = response.body?.string() ?: return@use emptyList<ModelInfo>()
+                val models = Json.parseToJsonElement(body).jsonObject["models"] as? JsonArray
+                    ?: return@use emptyList<ModelInfo>()
+                models.mapNotNull { item ->
+                    val obj = item as? JsonObject ?: return@mapNotNull null
+                    val fullName = (obj["name"] as? JsonPrimitive)?.content
+                        ?: return@mapNotNull null
+                    val name = fullName.removePrefix("models/").takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    val inputTokenLimit = (obj["inputTokenLimit"] as? JsonPrimitive)
+                        ?.content?.toIntOrNull()
+                    ModelInfo(name = name, contextWindow = inputTokenLimit)
+                }
+            }
+        } catch (e: Exception) {
+            // If /v1beta/models fails, fall through to plain
+            // listModels() with null context windows — the
+            // compactor uses the 32K default.
+            listModels().map { ModelInfo(name = it, contextWindow = null) }
+        }
     }
 
     // ---- internal helpers ----

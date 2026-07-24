@@ -36,9 +36,9 @@ import okhttp3.sse.EventSources
 open class OpenAiCompatProvider(
     override val prefix: String,
     override val displayName: String,
-    private val baseUrl: String,
-    private val providerKeys: ProviderKeys,
-    private val httpClient: OkHttpClient,
+    protected val baseUrl: String,
+    protected val providerKeys: ProviderKeys,
+    protected val httpClient: OkHttpClient,
     protected val defaultModels: List<String> = emptyList(),
 ) : Provider {
 
@@ -184,6 +184,23 @@ open class OpenAiCompatProvider(
     override suspend fun cancel() {
         activeEventSource?.cancel()
         activeEventSource = null
+    }
+
+    /**
+     * OpenAI-compatible /v1/models does NOT return a
+     * context window per model (just id + owned_by). So
+     * we fall back to [ProviderContextWindows] which has
+     * a snapshot for OpenAI, Groq, ChatGPT. Unknown
+     * models return null context — the compactor uses
+     * the 32K default. CustomOpenAiCompat (user's own
+     * endpoint) and OpenRouter (which DOES return
+     * context_length in the response) override this
+     * method.
+     */
+    override suspend fun listModelsWithContext(): List<ModelInfo> {
+        return listModels().map { name ->
+            ModelInfo(name = name, contextWindow = ProviderContextWindows.lookup(prefix, name))
+        }
     }
 
     private fun buildRequest(

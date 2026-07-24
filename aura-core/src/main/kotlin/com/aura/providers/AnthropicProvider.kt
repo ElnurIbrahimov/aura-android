@@ -267,6 +267,20 @@ class AnthropicProvider(
         activeCall = null
     }
 
+    /**
+     * Anthropic's /v1/models endpoint does NOT return a
+     * context_window field — only the model id. So we
+     * look up the context from [ProviderContextWindows]
+     * (hardcoded snapshot, falls through to null for
+     * unknown models). The compactor handles null by
+     * using its 32K default.
+     */
+    override suspend fun listModelsWithContext(): List<ModelInfo> {
+        return listModels().map { name ->
+            ModelInfo(name = name, contextWindow = ProviderContextWindows.lookup(prefix, name))
+        }
+    }
+
     private fun splitSystem(messages: List<ProviderMessage>): Pair<String?, List<ProviderMessage>> {
         val sys = messages.filter { it.role == ProviderMessage.Role.system }.joinToString("\n\n") { it.content }
         val rest = messages.filter { it.role != ProviderMessage.Role.system }

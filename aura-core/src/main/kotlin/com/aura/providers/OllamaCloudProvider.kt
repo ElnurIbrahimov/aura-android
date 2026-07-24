@@ -27,9 +27,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class OllamaCloudProvider(
     override val prefix: String,
     override val displayName: String,
-    private val baseUrl: String,
-    private val providerKeys: ProviderKeys,
-    private val httpClient: OkHttpClient,
+    baseUrl: String,
+    providerKeys: ProviderKeys,
+    httpClient: OkHttpClient,
 ) : OpenAiCompatProvider(
     prefix = prefix,
     displayName = displayName,
