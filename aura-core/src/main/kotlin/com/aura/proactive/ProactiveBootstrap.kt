@@ -112,20 +112,31 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
-        // Startup decay remains one-shot.
-        // merely changes a schedule toggle or time.
+        // Decay reconciliation — separate flow for the same reason.
+        // decayEnabled gates both the periodic schedule and the
+        // startup decay pass.
         scope.launch {
-            runCatching { memoryStore.runDecayPass() }
-                .onFailure { error ->
-                    try {
-                        android.util.Log.w(
-                            "ProactiveBootstrap",
-                            "startup decay pass failed: ${error.message}",
-                        )
-                    } catch (_: RuntimeException) {
-                        // android.util.Log is unavailable in pure JVM tests.
+            userPreferences.decayEnabled.distinctUntilChanged().collect { decayOn ->
+                if (decayOn) scheduler.scheduleDecay() else scheduler.cancelDecay()
+            }
+        }
+
+        // Startup decay pass — only if decay is enabled.
+        scope.launch {
+            val decayOn = userPreferences.decayEnabled.first()
+            if (decayOn) {
+                runCatching { memoryStore.runDecayPass() }
+                    .onFailure { error ->
+                        try {
+                            android.util.Log.w(
+                                "ProactiveBootstrap",
+                                "startup decay pass failed: ${error.message}",
+                            )
+                        } catch (_: RuntimeException) {
+                            // android.util.Log is unavailable in pure JVM tests.
+                        }
                     }
-                }
+            }
         }
 
         // Reconnect MCP servers and register their tools into the ToolRegistry
@@ -270,10 +281,8 @@ class ProactiveBootstrap @Inject constructor(
     internal fun applyGates(morningBriefOn: Boolean, calendarMonitorOn: Boolean, briefHour: Int = 7): GatedDecisions {
         if (morningBriefOn) {
             scheduler.scheduleMorningBrief(briefHour)
-            scheduler.scheduleDecay()
         } else {
             scheduler.cancelMorningBrief()
-            scheduler.cancelDecay()
         }
         return GatedDecisions(
             morningBriefScheduled = morningBriefOn,

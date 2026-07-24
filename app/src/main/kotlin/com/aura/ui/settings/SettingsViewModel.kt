@@ -155,6 +155,8 @@ data class SettingsUiState(
     val daemonEnabled: Boolean = false,
     /** Whether the dream consolidator is enabled (default true). */
     val dreamEnabled: Boolean = true,
+    /** Whether the memory decay worker is enabled (default true). */
+    val decayEnabled: Boolean = true,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -282,6 +284,7 @@ class SettingsViewModel @Inject constructor(
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
+            val decayEnabled = userPreferences.decayEnabled.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
             val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.getOrDefault(0)
@@ -327,6 +330,7 @@ class SettingsViewModel @Inject constructor(
                 evolutionShadowEnabled = evolutionShadowEnabled,
                 daemonEnabled = daemonEnabled,
                 dreamEnabled = dreamEnabled,
+                decayEnabled = decayEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -502,6 +506,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDreamEnabled(enabled)
             _state.update { it.copy(dreamEnabled = enabled) }
+        }
+    }
+
+    fun setDecayEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setDecayEnabled(enabled)
+            _state.update { it.copy(decayEnabled = enabled) }
         }
     }
 

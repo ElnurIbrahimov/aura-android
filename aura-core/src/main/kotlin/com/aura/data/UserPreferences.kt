@@ -70,6 +70,7 @@ internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
 internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
+internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
@@ -249,6 +250,13 @@ class UserPreferences @Inject constructor(
     val dreamEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DREAM_ENABLED] ?: true }
 
     /**
+     * Whether the memory decay worker runs every 6h. Default true.
+     * When disabled, all memories retain their full decayScore
+     * indefinitely — useful for users who want to preserve everything.
+     */
+    val decayEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DECAY_ENABLED] ?: true }
+
+    /**
      * Wall-clock millis of the last successful dream cycle. 0 = never.
      * Surfaced as "Last ran: 2 days ago" in Settings → Memory.
      */
@@ -356,6 +364,10 @@ class UserPreferences @Inject constructor(
 
     suspend fun setDaemonEnabled(enabled: Boolean) {
         context.auraPrefs.edit { prefs -> prefs[KEY_DAEMON_ENABLED] = enabled }
+    }
+
+    suspend fun setDecayEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { prefs -> prefs[KEY_DECAY_ENABLED] = enabled }
     }
 
     suspend fun setEvolutionOnboardingShown(shown: Boolean) {

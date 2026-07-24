@@ -108,6 +108,7 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.imageModel } returns flowOf("")
         every { userPreferences.daemonEnabled } returns flowOf(false)
         every { userPreferences.dreamEnabled } returns flowOf(false)
+        every { userPreferences.decayEnabled } returns flowOf(true)
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")

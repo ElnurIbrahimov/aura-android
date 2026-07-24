@@ -36,10 +36,12 @@ fun PrivacySection(
     morningBriefEnabled: Boolean,
     morningBriefHour: Int,
     calendarMonitorEnabled: Boolean,
+    decayEnabled: Boolean,
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
     onSetCalendarMonitor: (Boolean) -> Unit,
+    onSetDecayEnabled: (Boolean) -> Unit,
     onNavigateProfile: () -> Unit,
 ) {
     SettingsSection(
@@ -168,6 +170,19 @@ fun PrivacySection(
                 )
             }
             Switch(checked = calendarMonitorEnabled, onCheckedChange = onSetCalendarMonitor)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Memory decay", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (decayEnabled) "On - fades memories over 14 days"
+                    else "Off - preserves all memories at full importance",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = decayEnabled, onCheckedChange = onSetDecayEnabled)
         }
     }
 }

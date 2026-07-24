@@ -154,10 +154,12 @@ fun SettingsScreen(
             morningBriefEnabled = state.morningBriefEnabled,
             morningBriefHour = state.morningBriefHour,
             calendarMonitorEnabled = state.calendarMonitorEnabled,
+            decayEnabled = state.decayEnabled,
             onSetAppLock = viewModel::setAppLockEnabled,
             onSetMorningBrief = viewModel::setMorningBriefEnabled,
             onSetMorningBriefHour = viewModel::setMorningBriefHour,
             onSetCalendarMonitor = viewModel::setCalendarMonitorEnabled,
+            onSetDecayEnabled = viewModel::setDecayEnabled,
             onNavigateProfile = onNavigateProfile,
         )
 

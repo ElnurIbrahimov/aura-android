@@ -72,24 +72,20 @@ class ProactiveBootstrapTest {
     }
 
     @Test
-    fun `morning brief on schedules both workers`() {
+    fun `morning brief on schedules morning brief only`() {
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, agentStore, conversationStore)
         bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
         verify(exactly = 1) { scheduler.scheduleMorningBrief() }
-        verify(exactly = 1) { scheduler.scheduleDecay() }
         verify(exactly = 0) { scheduler.cancelMorningBrief() }
-        verify(exactly = 0) { scheduler.cancelDecay() }
     }
 
     @Test
-    fun `morning brief off cancels both workers`() {
+    fun `morning brief off cancels morning brief only`() {
         every { userPreferences.morningBriefEnabled } returns flowOf(false)
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, agentStore, conversationStore)
         bootstrap.applyGates(morningBriefOn = false, calendarMonitorOn = false)
         verify(exactly = 0) { scheduler.scheduleMorningBrief() }
-        verify(exactly = 0) { scheduler.scheduleDecay() }
         verify(exactly = 1) { scheduler.cancelMorningBrief() }
-        verify(exactly = 1) { scheduler.cancelDecay() }
     }
 
     @Test
@@ -129,7 +125,7 @@ class ProactiveBootstrapTest {
         awaitVerification("scheduleMorningBrief was not called within 2s") {
             verify(exactly = 1) { scheduler.scheduleMorningBrief() }
         }
-        verify(exactly = 1) { scheduler.scheduleDecay() }
+        verify(exactly = 1) { scheduler.scheduleMorningBrief() }
     }
 
     @Test
@@ -140,6 +136,7 @@ class ProactiveBootstrapTest {
         every { userPreferences.morningBriefEnabled } returns morningEnabled
         every { userPreferences.calendarMonitorEnabled } returns calendarEnabled
         every { userPreferences.morningBriefHour } returns briefHour
+        every { userPreferences.decayEnabled } returns flowOf(true)
 
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, agentStore, conversationStore)
         bootstrap.start()
@@ -155,7 +152,6 @@ class ProactiveBootstrapTest {
         morningEnabled.value = false
         awaitVerification("disabled morning brief was not cancelled") {
             verify(atLeast = 1) { scheduler.cancelMorningBrief() }
-            verify(atLeast = 1) { scheduler.cancelDecay() }
         }
     }
 

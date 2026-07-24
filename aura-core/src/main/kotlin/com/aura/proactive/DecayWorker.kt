@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.aura.memory.MemoryStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 
 /**
  * WorkManager periodic worker that runs a single decay pass over all memories.
@@ -21,6 +22,7 @@ class DecayWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val memoryStore: MemoryStore,
+    private val userPreferences: com.aura.data.UserPreferences,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runNow()
@@ -29,17 +31,24 @@ class DecayWorker @AssistedInject constructor(
      * Run a single decay pass. Returns a [Result] the same way
      * [doWork] does so the ProactiveRunner can surface
      * success / retry / failure to the UI.
+     *
+     * Respects the decayEnabled preference. When disabled, exits
+     * cleanly without running the decay pass — the user chose to
+     * preserve all memories at full importance.
      */
-    suspend fun runNow(): Result = try {
-        memoryStore.runDecayPass()
-        Result.success()
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        try {
-            android.util.Log.w("DecayWorker", "decay pass failed: ${e.message}")
-        } catch (_: RuntimeException) {}
-        Result.retry()
+    suspend fun runNow(): Result {
+        return try {
+            if (!userPreferences.decayEnabled.first()) return Result.success()
+            memoryStore.runDecayPass()
+            Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            try {
+                android.util.Log.w("DecayWorker", "decay pass failed: ${e.message}")
+            } catch (_: RuntimeException) {}
+            Result.retry()
+        }
     }
 
     companion object {
