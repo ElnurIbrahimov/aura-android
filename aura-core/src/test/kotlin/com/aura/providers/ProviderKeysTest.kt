@@ -334,6 +334,26 @@ class ProviderKeysTest {
     }
 
     @Test
+    fun `setEmbeddingModel with blank string removes the stored value`() = runTest {
+        // P1 PROVIDERS F1 regression: pre-fix audit
+        // questioned whether removeString actually
+        // persisted. Pin the contract: blank input
+        // removes the key (no stale embedding model
+        // value after user clears it).
+        val keys = createProviderKeys()
+        keys.awaitLoaded()
+
+        keys.setEmbeddingModel("nomic-embed-text")
+        assertEquals("nomic-embed-text", keys.embeddingModel)
+
+        keys.setEmbeddingModel("") // blank → remove
+        assertEquals("", keys.embeddingModel)
+
+        keys.setEmbeddingModel("   ") // whitespace → also remove
+        assertEquals("", keys.embeddingModel)
+    }
+
+    @Test
     fun `keyFor only returns keys for Saved providers`() = runTest {
         val keys = createProviderKeys()
         keys.awaitLoaded()
