@@ -28,8 +28,14 @@ class CloudEmbedderTest {
 
     private val jsonMediaType = "application/json".toMediaType()
 
-    /** A realistic 384-dim embedding response from Ollama Cloud. */
-    private val sampleEmbedding = FloatArray(384) { (it % 100) / 100f + 0.5f }
+    /**
+     * A realistic 768-dim embedding response from Ollama Cloud.
+     * nomic-embed-text is 768-dim (see CloudEmbedderTest.dimension
+     * for the full model → dim map). 384 was the OLD wrong default
+     * before the B2 fix landed; the test fixture was updated to
+     * match the real model dimension.
+     */
+    private val sampleEmbedding = FloatArray(768) { (it % 100) / 100f + 0.5f }
 
     // ─── helpers ──────────────────────────────────────────────────────────
 
@@ -102,9 +108,7 @@ class CloudEmbedderTest {
     @Test
     fun `cloud embedding returns float array`() = runTest {
         val embedBody =
-            """{"embedding":[${
-                sampleEmbedding.joinToString(",") { it.toString() }
-            }]}"""
+            """{"embedding":[${sampleEmbedding.joinToString(",") { it.toString() }}]}"""
         val httpClient = mockHttp(embedBody)
         val keys = providerKeys(key = "sk-test-key")
         val local = mockk<LocalEmbedder>(relaxed = true)
@@ -112,7 +116,10 @@ class CloudEmbedderTest {
         val sut = CloudEmbedder(local, keys, httpClient)
         val result = sut.embed("test text")
 
-        assertEquals(384, result.size)
+        // Default model is "ollama:nomic-embed-text" (768-dim). The
+        // sampleEmbedding was bumped to 768 to match the real
+        // model dimension — see sampleEmbedding definition above.
+        assertEquals(768, result.size)
         assertFloatArrayEquals(sampleEmbedding, result, 0.001f)
         // Local fallback must NOT have been called
         coVerify(exactly = 0) { local.embed(any()) }
@@ -192,7 +199,7 @@ class CloudEmbedderTest {
             }]}"""
         val embedBodyB =
             """{"embedding":[${
-                FloatArray(384) { (it % 100 + 50) / 100f + 0.5f }.joinToString(",") { it.toString() }
+                FloatArray(768) { (it % 100 + 50) / 100f + 0.5f }.joinToString(",") { it.toString() }
             }]}"""
 
         // Return different responses for different request bodies by checking
@@ -232,5 +239,138 @@ class CloudEmbedderTest {
         }
         assertTrue(diffs > 0, "Different texts should produce different embeddings")
         verify(exactly = 2) { httpClient.newCall(any()) }
+    }
+
+    // ── dimension() regression (MEMORY_AUDIT B2) ────────────────────────
+    // Before the fix, dimension() always returned 384 regardless of
+    // the configured embedding model. Picking a non-384-dim cloud
+    // model (e.g. nomic-embed-text = 768) caused every cloud call
+    // to fail the dimension validation in cloudEmbed() and fall
+    // back to the local embedder. So users picking any cloud model
+    // silently got local 384-dim embeddings.
+
+    @Test
+    fun `dimension returns 384 for local-hash-v2 and 384-dim models`() {
+        for (model in listOf(
+            "local-hash-v2",
+            "ollama:all-minilm:l6-v2",
+            "ollama:snowflake-arctic-embed:110m",
+            "ollama:bge-small-en-v1.5",
+        )) {
+            val keys = mockk<ProviderKeys>(relaxed = true) {
+                every { embeddingModel } returns model
+            }
+            val local = mockk<LocalEmbedder>(relaxed = true)
+            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+            assertEquals(384, sut.dimension(), "model '$model' should return 384")
+        }
+    }
+
+    @Test
+    fun `dimension returns 768 for nomic-embed-text and 768-dim models`() {
+        for (model in listOf(
+            "ollama:nomic-embed-text",
+            "ollama:nomic-embed-text:v1.5",
+            "ollama:all-mpnet-base-v2",
+            "ollama:mxbai-embed-large",
+            "ollama:bge-base-en-v1.5",
+        )) {
+            val keys = mockk<ProviderKeys>(relaxed = true) {
+                every { embeddingModel } returns model
+            }
+            val local = mockk<LocalEmbedder>(relaxed = true)
+            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+            assertEquals(768, sut.dimension(), "model '$model' should return 768")
+        }
+    }
+
+    @Test
+    fun `dimension returns 1024 for bge-large and 1024-dim models`() {
+        for (model in listOf(
+            "ollama:bge-large",
+            "ollama:bge-large-en-v1.5",
+            "ollama:bge-m3",
+            "ollama:cohere-embed-multilingual-v3",
+        )) {
+            val keys = mockk<ProviderKeys>(relaxed = true) {
+                every { embeddingModel } returns model
+            }
+            val local = mockk<LocalEmbedder>(relaxed = true)
+            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+            assertEquals(1024, sut.dimension(), "model '$model' should return 1024")
+        }
+    }
+
+    @Test
+    fun `dimension returns 1536 for OpenAI text-embedding-3-small`() {
+        val keys = mockk<ProviderKeys>(relaxed = true) {
+            every { embeddingModel } returns "ollama:text-embedding-3-small"
+        }
+        val local = mockk<LocalEmbedder>(relaxed = true)
+        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+        assertEquals(1536, sut.dimension())
+    }
+
+    @Test
+    fun `dimension returns 3072 for OpenAI text-embedding-3-large`() {
+        val keys = mockk<ProviderKeys>(relaxed = true) {
+            every { embeddingModel } returns "ollama:text-embedding-3-large"
+        }
+        val local = mockk<LocalEmbedder>(relaxed = true)
+        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+        assertEquals(3072, sut.dimension())
+    }
+
+    @Test
+    fun `dimension defaults to local embedder dimension when model is blank`() {
+        val keys = mockk<ProviderKeys>(relaxed = true) {
+            every { embeddingModel } returns ""
+        }
+        val local = mockk<LocalEmbedder> {
+            every { dimension() } returns 512 // hypothetical
+        }
+        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+        assertEquals(512, sut.dimension())
+    }
+
+    @Test
+    fun `dimension defaults to 384 with warning for unknown model`() {
+        val keys = mockk<ProviderKeys>(relaxed = true) {
+            every { embeddingModel } returns "ollama:totally-new-model-2026"
+        }
+        val local = mockk<LocalEmbedder>(relaxed = true)
+        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
+        // Unknown models fall back to 384 with a Log.w warning —
+        // this is a safety net so the embedding pipeline doesn't
+        // break for new Ollama catalog entries. The user sees the
+        // Log.w in logcat and can add the model to the when{}.
+        assertEquals(384, sut.dimension())
+    }
+
+    @Test
+    fun `cloud embed accepts 768-dim response for nomic-embed-text`() = runTest {
+        // Regression test for the dimension validation in cloudEmbed().
+        // Before the dimension() fix, this scenario would:
+        //  1. cloudEmbed() returns 768-dim vec
+        //  2. validation: vec.size (768) != dimension() (384)
+        //  3. throws RuntimeException → falls back to local
+        //  4. User picked nomic-embed-text but got local 384-dim.
+        // After the fix, dimension() returns 768 for nomic-embed-text,
+        // the validation passes, and the cloud 768-dim vec is used.
+        val vec768 = FloatArray(768) { (it % 50) / 50f }
+        val embedBody = """{"embedding":[${vec768.joinToString(",") { it.toString() }}]}"""
+        val httpClient = mockHttp(embedBody)
+        // Use the production model id format: "<provider>:<model>".
+        // The embed() parser splits on ':' and takes the model part
+        // after the "ollama" prefix.
+        val keys = providerKeys(key = "sk-test-key", model = "ollama:nomic-embed-text")
+        val local = mockk<LocalEmbedder>(relaxed = true)
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        val result = sut.embed("test text")
+
+        assertEquals(768, result.size, "should accept 768-dim cloud embedding for nomic-embed-text")
+        assertFloatArrayEquals(vec768, result, 0.001f)
+        coVerify(exactly = 0) { local.embed(any()) }
     }
 }

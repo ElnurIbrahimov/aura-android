@@ -50,7 +50,63 @@ class CloudEmbedder @Inject constructor(
         return if (selected.isNotBlank()) selected else "local-hash-v2"
     }
 
-    override fun dimension(): Int = 384
+    /**
+     * Embedding dimensionality. Returns the dimension for the currently
+     * configured model rather than always 384 (the local embedder
+     * default). Without this, picking a non-384-dim cloud model
+     * (e.g. nomic-embed-text = 768, mxbai-embed-large = 1024,
+     * bge-large = 1024) caused every cloudEmbed() call to fall back
+     * to the local embedder because the dimension validation
+     * in cloudEmbed() compared vec.size against the hard-coded 384.
+     *
+     * The model id is the part AFTER the provider prefix (e.g. for
+     * "ollama:nomic-embed-text" the model is "nomic-embed-text"),
+     * matching the parse in embed(). Unknown models default to 384
+     * with a runtime warning so new Ollama catalog entries don't
+     * break the embedding pipeline.
+     */
+    override fun dimension(): Int {
+        val model = selectedModelName()
+        if (model.isBlank()) return localEmbedder.dimension()
+        return when (model) {
+            // 384-dim models — match LocalEmbedder.
+            "local-hash-v2", "all-minilm:l6-v2", "all-minilm:l12-v2",
+            "snowflake-arctic-embed:33m", "snowflake-arctic-embed:110m",
+            "bge-small", "bge-small-en-v1.5", "bge-small-zh-v1.5" -> 384
+            // 768-dim models.
+            "nomic-embed-text", "nomic-embed-text:v1.5",
+            "all-mpnet-base-v2", "bge-base", "bge-base-en-v1.5",
+            "mxbai-embed-large", "snowflake-arctic-embed:335m" -> 768
+            // 1024-dim models.
+            "bge-large", "bge-large-en-v1.5", "bge-large-zh-v1.5",
+            "bge-m3", "cohere-embed-multilingual-v3" -> 1024
+            // 1536-dim OpenAI.
+            "text-embedding-ada-002", "text-embedding-3-small" -> 1536
+            "text-embedding-3-large" -> 3072
+            else -> {
+                android.util.Log.w(
+                    "CloudEmbedder",
+                    "Unknown embedding model '$model' — defaulting to 384. " +
+                        "Add the model to dimension() in CloudEmbedder.kt to avoid " +
+                        "fallback to the local 384-dim embedder.",
+                )
+                384
+            }
+        }
+    }
+
+    /**
+     * Parse the configured model id the same way embed() does:
+     * split on ':' and return the part after the 'ollama' prefix
+     * (or the whole string if there's no prefix). This keeps
+     * dimension() in sync with the cloud-call path.
+     */
+    private fun selectedModelName(): String {
+        val selected = providerKeys.embeddingModel
+        if (selected.isBlank()) return ""
+        val parts = selected.split(":", limit = 2)
+        return if (parts.size == 2 && parts[0] == "ollama") parts[1] else selected
+    }
 
     /** In-memory LRU cache: SHA-256(hex) → FloatArray. */
     private val cache = object : LinkedHashMap<String, FloatArray>(16, 0.75f, true) {
