@@ -19,7 +19,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -49,19 +49,38 @@ jobs:
       - name: Cache Gradle home (dependencies and caches)
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
-          path: ~/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}-aura-android-v1
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/daemon
+            ~/.gradle/native
+          # Cache key includes all build files so dependency changes
+          # bust the cache. The fallback restore-keys let a partial
+          # cache hit from a prior version speed up the download even
+          # when the exact key doesn't match.
+          key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-      - name: Build and run tests
-        run: ./gradlew --no-daemon --no-configuration-cache :aura-core:assembleDebug :aura-core:testDebugUnitTest :app:assembleDebug :app:testDebugUnitTest
-
-      - name: Run lint
-        run: ./gradlew --no-daemon --no-configuration-cache :app:lintDebug :aura-core:lintDebug
+      - name: Build, test, and lint
+        run: ./gradlew :aura-core:assembleDebug :aura-core:testDebugUnitTest :aura-core:lintDebug :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 
       - name: Upload debug APK
+        if: always()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: test-results
+          path: |
+            aura-core/build/reports/tests/
+            aura-core/build/test-results/
+            app/build/reports/tests/
+            app/build/test-results/
           retention-days: 7
