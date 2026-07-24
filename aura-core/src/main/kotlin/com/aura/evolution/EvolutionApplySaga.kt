@@ -205,18 +205,48 @@ class EvolutionApplySaga @Inject constructor(
         val memoryIds = args["memoryIds"]?.split(",")?.map { it.trim() } ?: return ApplyResult.Error(proposal.id, "missing memoryIds")
         val consolidated = args["consolidatedContent"] ?: return ApplyResult.Error(proposal.id, "missing consolidatedContent")
         val category = args["category"] ?: "consolidated"
+        // P1 MEMORY A5: scope leak on consolidation.
+        // Pre-fix, the consolidated memory was stored via
+        // memoryStore.store(consolidated, ..., scope = "general")
+        // (the default), then the source memories were
+        // forgotten. If the source memories were agent-scoped
+        // (e.g. scope = "agent:researcher"), the consolidated
+        // version landed in "general" — meaning every agent
+        // would see it on their next recall.
+        //
+        // Fix: read each source memory's scope. If all
+        // sources share the same scope, use that. If they
+        // span multiple scopes, store in "general" and log
+        // (because there's no single correct scope for a
+        // cross-agent consolidation). If the sources list is
+        // empty or all sources are gone, default to general.
+        val sourceScopes = memoryIds
+            .mapNotNull { id -> memoryStore?.let { runCatching { it.get(id) }.getOrNull()?.scope } }
+        val targetScope = when {
+            sourceScopes.isEmpty() -> "general"
+            sourceScopes.toSet().size == 1 -> sourceScopes.first()
+            else -> {
+                android.util.Log.w(
+                    "EvolutionApplySaga",
+                    "applyConsolidateMemories: cross-scope consolidation " +
+                    "(${sourceScopes.toSet().size} distinct scopes: ${sourceScopes.toSet()}) — " +
+                    "storing consolidated memory in 'general' (will be visible to all agents)",
+                )
+                "general"
+            }
+        }
         // Store the consolidated memory BEFORE deleting sources.
         // If store() fails (write gate rejects, dedup blocks, DB error),
         // the originals are preserved — no data loss.
-        val storedId = memoryStore.store(consolidated, "evolution:consolidate", category, 0.7f)
+        val storedId = memoryStore.store(consolidated, "evolution:consolidate", category, 0.7f, scope = targetScope)
         if (storedId == null) {
             return ApplyResult.Error(proposal.id, "consolidated content was not stored (write gate rejected or dedup)")
         }
         for (id in memoryIds) {
             memoryStore.forget(id)
         }
-        proposalStore.markApplied(proposal.id, "consolidated ${memoryIds.size} memories")
-        return ApplyResult.Ok(proposal.id, "consolidated ${memoryIds.size} memories")
+        proposalStore.markApplied(proposal.id, "consolidated ${memoryIds.size} memories into scope '$targetScope'")
+        return ApplyResult.Ok(proposal.id, "consolidated ${memoryIds.size} memories into scope '$targetScope'")
     }
 
     private suspend fun applyForgetMemory(proposal: EvolutionProposalEntity): ApplyResult {

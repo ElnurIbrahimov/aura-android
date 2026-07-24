@@ -28,14 +28,14 @@ class MemoryStore @Inject constructor(
         source: String = "user",
         scope: String = "general",
         provenance: ConversationProvenance = ConversationProvenance(),
-    ): String? {
+    ): String? = exactInsertMutex.withLock {
         val decision = writeGate.evaluate(content, source)
-        if (!decision.shouldStore) return null
+        if (!decision.shouldStore) return@withLock null
         // Dedup: skip if an identical memory already exists. This
         // prevents "I prefer dark mode" from being stored 3 times
         // across 3 conversations, which would waste recall slots
         // and skew the RRF ranking with duplicate hits.
-        if (dao.existsByContent(content) > 0) return null
+        if (dao.existsByContent(content) > 0) return@withLock null
         val embedding = embedder.embed(content)
 
         // Semantic dedup: scan existing memories with embeddings for
@@ -68,7 +68,7 @@ class MemoryStore @Inject constructor(
                     }.onFailure { Log.w("MemoryStore", "dao.update during dedup merge failed", it) }
                 }
                 // Either way, we don't store a new memory.
-                return null
+                return@withLock null
             }
         }
 
@@ -90,7 +90,7 @@ class MemoryStore @Inject constructor(
                 scope = scope,
             )
         )
-        return id
+        id
     }
 
     /**

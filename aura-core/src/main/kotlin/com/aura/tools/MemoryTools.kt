@@ -41,7 +41,22 @@ class RememberTool @Inject constructor(
             val fact = call.arguments["fact"] as? String ?: return@Tool ToolResult.Error("missing 'fact'", "bad_args")
             val category = call.arguments["category"] as? String ?: "fact"
             try {
-                val id = memoryStore.store(fact, source = "user", category = category, importance = 0.7f)
+                // P1 MEMORY A4: pre-fix used memoryStore.store()
+                // which has NO dedup check. Calling the same
+                // 'remember' tool with the same fact twice
+                // would create two identical memories (waste of
+                // recall slots, RRF ranking pollution).
+                // Now uses storeIfAbsent which is dedup-aware
+                // (mutates the existing one if found, inserts
+                // new otherwise). The tool returns Ok with the
+                // existing id if dedup'd, so the model gets
+                // confirmation.
+                val id = memoryStore.storeIfAbsent(
+                    content = fact,
+                    source = "user",
+                    category = category,
+                    importance = 0.7f,
+                ) ?: "duplicate"
                 ToolResult.Ok("Remembered: $fact (id $id)")
             } catch (e: Exception) {
                 ToolResult.Error("remember failed: ${e.message}", "exception")
