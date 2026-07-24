@@ -233,6 +233,19 @@ class MemoryStore @Inject constructor(
                 vectorResults.take(limit)
             }
             for (mem in results) { runCatching { touch(mem.id) }.onFailure { Log.w("MemoryStore", "inline touch in vector fallback failed", it) } }
+            // P1 MEMORY B1: vector-fallback recall path
+            // skipped evolutionHooks.onMemoryRecalled until
+            // now. The main path (BM25+vector) at line ~289
+            // calls it, so the EvolutionShadowEvaluator's
+            // recall telemetry was half-wired — it saw
+            // BM25-hits but never saw fallback hits. Now
+            // both paths fire the same telemetry so the
+            // Evolution engine can rank memories honestly.
+            for ((index, mem) in results.withIndex()) {
+                runCatching {
+                    evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
+                }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled in vector fallback failed (non-fatal)", it) }
+            }
             return results
         }
 

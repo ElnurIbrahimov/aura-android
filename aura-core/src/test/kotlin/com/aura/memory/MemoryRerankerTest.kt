@@ -105,6 +105,48 @@ class MemoryRerankerTest {
     }
 
     @Test
+    fun `out-of-order explicit indices are mapped to the right candidate`() = runTest {
+        // P1 MEMORY B4 regression: pre-fix, the parser was
+        // strictly positional. If the LLM returned
+        // "Memory 4: 0.9\nMemory 1: 0.5\n..." out of
+        // order, the score for candidate[3] would be
+        // assigned to candidates[0]. Now the parser
+        // extracts the explicit index and uses it to
+        // map scores to the correct candidate.
+        val brain = mockBrain("Memory 4: 0.9\nMemory 1: 0.1\nMemory 2: 0.5\nMemory 3: 0.3")
+        val reranker = MemoryReranker(brain)
+        val candidates = listOf(
+            mem("m1", "first"),
+            mem("m2", "second"),
+            mem("m3", "third"),
+            mem("m4", "fourth"),
+        )
+        val result = reranker.rerank("query", candidates, "model", topK = 4)
+        // m4 has the highest score (0.9), should be first
+        assertEquals("m4", result[0].id)
+        assertEquals("m2", result[1].id) // 0.5
+        assertEquals("m3", result[2].id) // 0.3
+        assertEquals("m1", result[3].id) // 0.1
+    }
+
+    @Test
+    fun `mismatched line count defaults missing candidates to neutral`() = runTest {
+        // P1 MEMORY B4: when the LLM under-responds (3 lines
+        // for 4 candidates), the missing candidate gets the
+        // neutral 0.5f score instead of being dropped.
+        val brain = mockBrain("0.9\n0.8\n0.7")
+        val reranker = MemoryReranker(brain)
+        val candidates = (1..4).map { mem("m$it", "memory $it") }
+        val result = reranker.rerank("query", candidates, "model", topK = 4)
+        // m1 (0.9) first, m2 (0.8) second, m3 (0.7) third,
+        // m4 (default 0.5) last
+        assertEquals("m1", result[0].id)
+        assertEquals("m2", result[1].id)
+        assertEquals("m3", result[2].id)
+        assertEquals("m4", result[3].id)
+    }
+
+    @Test
     fun `handles malformed LLM response gracefully`() = runTest {
         val brain = mockBrain("I think the scores are:\n0.8\nnot a number\n0.3")
         val reranker = MemoryReranker(brain)

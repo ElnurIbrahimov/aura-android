@@ -1,5 +1,6 @@
 package com.aura.memory
 
+import android.util.Log
 import com.aura.providers.ProviderKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -134,8 +135,20 @@ class CloudEmbedder @Inject constructor(
                 val vec = cloudEmbed(text, apiKey, model)
                 synchronized(cache) { cache[cacheKey] = vec }
                 return@withContext vec
-            } catch (_: Exception) {
-                // Fall through to local fallback
+            } catch (e: Exception) {
+                // P1 MEMORY B3: pre-fix, every cloud embed
+                // failure (auth, network, rate-limit, model
+                // 404, parse error) was silently swallowed
+                // and fell through to the local fallback.
+                // The user would see "I prefer dark mode"
+                // stored with a 384-dim local hash embedding
+                // instead of their configured Ollama model's
+                // real 768/1024-dim embedding — silently
+                // degrading recall quality. Now log so the
+                // failure is visible in logcat and the
+                // user can see "Aura: cloud embed failed
+                // (XXX), falling back to local".
+                Log.w("CloudEmbedder", "cloud embed failed for model=$model, falling back to local", e)
             }
         }
 

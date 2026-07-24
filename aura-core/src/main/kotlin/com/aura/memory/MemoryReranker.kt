@@ -1,5 +1,6 @@
 package com.aura.memory
 
+import android.util.Log
 import com.aura.agent.Brain
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
@@ -134,24 +135,73 @@ class MemoryReranker @Inject constructor(
         // Parse lines as floats. Models return scores in various formats:
         // "0.8", "1. 0.8", "Memory 1: 0.8", "- 0.8", "1) 0.8"
         // Strip all prefixes/labels and extract the first float on each line.
-        val lines = response.toString()
-            .trim()
-            .lines()
-            .filter { it.isNotBlank() }
-            .mapNotNull { line ->
-                // Remove common prefixes: "1. ", "- ", "1) ", "Memory N: "
-                val cleaned = line.trim()
-                    .replace(Regex("^\\d+[.):]\\s*"), "") // "1. " or "1) "
-                    .replace(Regex("^[-*]\\s*"), "")        // "- " or "* "
-                    .replace(Regex("(?i)^Memory\\s*\\d+\\s*:?\\s*"), "") // "Memory 1: "
-                    .trim()
-                // Extract first float from the remaining text
-                Regex("""\d*\.?\d+""").find(cleaned)?.value?.toFloatOrNull()
-            }
+        val responseText = response.toString()
+        val rawLines = responseText.trim().lines().filter { it.isNotBlank() }
 
-        return batch.indices.associateWith { idx ->
-            lines.getOrNull(idx) ?: 0.5f
+        // Parse each line as (optional index, score). If the model
+        // included "Memory N:" or "N." or "N)" prefixes, we can
+        // match score to the candidate by index. Otherwise fall
+        // back to positional order. P1 MEMORY B4: pre-fix, the
+        // parser was strictly positional — if the model returned
+        // scores out of order (e.g. "Memory 4: 0.8\nMemory 1: 0.7")
+        // or skipped a line, the wrong score would be assigned to
+        // the wrong candidate, silently degrading rerank quality.
+        data class ParsedLine(val candidateIdx: Int?, val score: Float)
+        val parsedLines = rawLines.mapNotNull { line ->
+            val cleaned = line.trim()
+                .replace(Regex("""^\d+[.)]\s+"""), "") // "1. " or "1) " — REQUIRES whitespace
+                .replace(Regex("""^[-*]\s+"""), "")     // "- " or "* " — REQUIRES whitespace
+                .replace(Regex("""(?i)^Memory\s*(\d+)\s*:?\s*"""), "$1 ") // "Memory 1: " → "1 "
+                .trim()
+            // Try to find an explicit candidate index (1-based)
+            // at the start of the line. If present, strip it
+            // so the score regex doesn't grab the index as
+            // the score (e.g. "4 0.9" — index=4, score=0.9,
+            // not index=null, score=4.0).
+            val idxMatch = Regex("""^(\d+)\s+(?=\d*\.?\d+)""").find(cleaned)
+            val explicitIdx = idxMatch?.groupValues?.get(1)?.toIntOrNull()
+            val scoreCleaned = idxMatch?.let { cleaned.removePrefix(idxMatch.value) } ?: cleaned
+            // Extract the first float from the (cleaned) remaining text
+            val score = Regex("""\d*\.?\d+""").find(scoreCleaned)?.value?.toFloatOrNull()
+                ?: return@mapNotNull null
+            val candidateIdx = explicitIdx?.let { if (it in 1..batch.size) it - 1 else null }
+            ParsedLine(candidateIdx, score.coerceIn(0f, 1f))
         }
+
+        // Build the score map. If a line had an explicit candidate
+        // index, use it. Otherwise assign positionally to remaining
+        // candidates in order. If counts mismatch, log a warning
+        // so the user can see the model is mis-behaving.
+        val result = mutableMapOf<Int, Float>()
+        val usedByIdx = mutableSetOf<Int>()
+        // First pass: explicit indices
+        for (pl in parsedLines) {
+            val idx = pl.candidateIdx
+            if (idx != null && idx !in usedByIdx) {
+                result[idx] = pl.score
+                usedByIdx.add(idx)
+            }
+        }
+        // Second pass: positional for the rest
+        val remaining = parsedLines.filter { it.candidateIdx == null }
+        val positionalIdx = batch.indices.filter { it !in usedByIdx }
+        for ((pl, idx) in remaining.zip(positionalIdx)) {
+            result[idx] = pl.score
+            usedByIdx.add(idx)
+        }
+        // Default remaining candidates to neutral (0.5f) so the
+        // ranking is stable even when the model under-responds.
+        for (idx in batch.indices) {
+            if (idx !in result) result[idx] = 0.5f
+        }
+        if (parsedLines.size != batch.size) {
+            Log.w(
+                "MemoryReranker",
+                "reranker response had ${parsedLines.size} score lines for ${batch.size} candidates " +
+                "(some scores defaulted to 0.5)",
+            )
+        }
+        return result
     }
 
     companion object {
