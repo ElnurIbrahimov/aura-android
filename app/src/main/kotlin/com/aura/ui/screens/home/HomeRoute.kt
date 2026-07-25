@@ -14,6 +14,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HomeRoute(
     viewModel: HomeViewModel = hiltViewModel(),
+    onOpenSearch: () -> Unit = {},
     onOpenChat: (prefillDraft: String) -> Unit = {},
     onOpenChatWithBrief: (briefText: String) -> Unit = {},
     onOpenProactive: () -> Unit = {},
@@ -47,6 +48,7 @@ fun HomeRoute(
         greeting = greeting,
         dateLabel = dateLabel,
         onAskAura = onOpenChat,
+        onOpenSearch = onOpenSearch,
         onRetry = viewModel::refresh,
         onDismissProactive = viewModel::dismissProactiveEvent,
         onOpenChatWithBrief = onOpenChatWithBrief,

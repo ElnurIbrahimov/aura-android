@@ -11,11 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -95,20 +91,6 @@ fun NavGraph(
         contentWindowInsets = WindowInsets.safeDrawing.only(
             WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
         ),
-        floatingActionButton = {
-            // Global search entry. Hidden on the Chat route, where a
-            // bottom-end FAB collides with the composer's Send button.
-            val baseRoute = backStackEntry?.destination?.route?.substringBefore("?")
-            if (baseRoute != "chat") {
-                androidx.compose.material3.FloatingActionButton(
-                    onClick = { showSearch = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ) {
-                    Icon(Icons.Filled.Search, contentDescription = "Search")
-                }
-            }
-        },
         bottomBar = {
             AnimatedVisibility(
                 visible = showBottomBar,
@@ -144,6 +126,7 @@ fun NavGraph(
         ) {
             composable(TopLevelRoute.Home.route) {
                 HomeRoute(
+                    onOpenSearch = { showSearch = true },
                     onOpenChat = { prefill ->
                         // Pre-fill the chat draft via a query param.
                         // Empty string means "just open chat" — no prefill.

@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 
 import androidx.compose.material.icons.filled.Psychology
 
+import androidx.compose.material.icons.filled.Search
+
 import androidx.compose.material.icons.filled.TaskAlt
 
 import androidx.compose.material3.Icon
@@ -87,6 +89,8 @@ fun HomeContent(
     dateLabel: String,
 
     onAskAura: (String) -> Unit = {},
+
+    onOpenSearch: () -> Unit = {},
 
     onRetry: () -> Unit = {},
 
@@ -159,6 +163,74 @@ fun HomeContent(
                         color = colors.textSecondary,
 
                     )
+
+                }
+
+            }
+
+            // Cross-type search. Home is the only tab without a search
+            // field of its own, and the only place where "find this,
+            // wherever it lives" is the actual question — Memory,
+            // History, Hands and the rest each search their own data
+            // inline. Previously this was a primary-colored FAB floating
+            // over every screen, which gave a secondary utility the
+            // loudest control in the app and duplicated the per-screen
+            // search fields it hovered over.
+            item(key = "search") {
+
+                Surface(
+
+                    onClick = onOpenSearch,
+
+                    modifier = Modifier
+
+                        .fillMaxWidth()
+
+                        .testTag("home-search"),
+
+                    shape = MaterialTheme.shapes.medium,
+
+                    color = colors.surface2,
+
+                ) {
+
+                    Row(
+
+                        modifier = Modifier.padding(
+
+                            horizontal = AuraSpacing.md,
+
+                            vertical = AuraSpacing.sm,
+
+                        ),
+
+                        verticalAlignment = Alignment.CenterVertically,
+
+                        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+
+                    ) {
+
+                        Icon(
+
+                            imageVector = Icons.Filled.Search,
+
+                            contentDescription = null,
+
+                            tint = colors.textSecondary,
+
+                        )
+
+                        Text(
+
+                            text = "Search chats, memories, tasks…",
+
+                            style = MaterialTheme.typography.bodyMedium,
+
+                            color = colors.textSecondary,
+
+                        )
+
+                    }
 
                 }
 
