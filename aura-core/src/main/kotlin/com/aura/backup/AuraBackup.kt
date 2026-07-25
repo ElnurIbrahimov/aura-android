@@ -491,12 +491,14 @@ data class CreativeRevisionBackup(
     val artifactId: String,
     val branchId: String = "",
     val parentRevisionId: String? = null,
-    val revisionNumber: Int = 0,
     val contentText: String = "",
-    val contentJson: String = "{}",
     val storageUri: String? = null,
     val contentHash: String = "",
-    val summary: String = "",
+    val authorKind: String = "manual",
+    val providerPrefix: String = "",
+    val modelId: String = "",
+    val prompt: String = "",
+    val settingsJson: String = "{}",
     val createdAt: Long,
 )
 

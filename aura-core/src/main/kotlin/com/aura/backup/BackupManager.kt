@@ -993,15 +993,19 @@ private fun CreativeArtifactBackup.toEntity() = com.aura.creative.CreativeArtifa
 // forward-compatible because every new field has a default value).
 private fun com.aura.creative.CreativeRevisionEntity.toBackup() = CreativeRevisionBackup(
     id = id, artifactId = artifactId, branchId = branchId,
-    parentRevisionId = parentRevisionId, revisionNumber = 0,
-    contentText = contentText, contentJson = "{}", storageUri = storageUri,
-    contentHash = contentHash, summary = "", createdAt = createdAt,
+    parentRevisionId = parentRevisionId, contentText = contentText,
+    storageUri = storageUri, contentHash = contentHash,
+    authorKind = authorKind, providerPrefix = providerPrefix,
+    modelId = modelId, prompt = prompt, settingsJson = settingsJson,
+    createdAt = createdAt,
 )
 
 private fun CreativeRevisionBackup.toEntity() = com.aura.creative.CreativeRevisionEntity(
     id = id, artifactId = artifactId, branchId = branchId,
     parentRevisionId = parentRevisionId, contentText = contentText,
     storageUri = storageUri, contentHash = contentHash,
+    authorKind = authorKind, providerPrefix = providerPrefix,
+    modelId = modelId, prompt = prompt, settingsJson = settingsJson,
     createdAt = createdAt,
 )
 

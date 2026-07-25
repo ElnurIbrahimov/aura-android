@@ -90,7 +90,9 @@ class ProactiveEvents(
             val countFlow = MutableStateFlow(0)
             scope.launch {
                 combined.collect { lastSeenAt ->
-                    countFlow.value = runCatching { dao.countSince(lastSeenAt) }.getOrDefault(0)
+                    countFlow.value = runCatching { dao.countSince(lastSeenAt) }
+                        .onFailure { android.util.Log.w("ProactiveEvents", "unreadCount query failed: ${it.message}") }
+                        .getOrDefault(0)
                 }
             }
             countFlow.asStateFlow()

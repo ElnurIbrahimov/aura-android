@@ -25,16 +25,24 @@ class ConversationCompactor @Inject constructor(
 
     suspend fun compactIfNeeded(conversation: Conversation, model: String): Conversation {
         // Use a cheap model for compaction. If the user's model is MoA
-        // (3-model virtual provider), compaction would fire 3 API calls
-        // for a summary. Fall back to first non-MoA provider.
-        val compactModel = if (model.startsWith("moa:")) {
-            runCatching {
-                val providers = providerRegistry.configured()
+        // Use a cheap model for compaction — this is a 1200-token summary,
+        // not a generation task. If the user's model is MoA (3-model virtual
+        // provider), compaction would fire 3 API calls. For any model, prefer
+        // the shortest-named configured model (heuristic for smallest/cheapest).
+        val compactModel = runCatching {
+            val providers = providerRegistry.configured()
+            if (model.startsWith("moa:")) {
                 val firstProvider = providers.firstOrNull()
                 val firstModel = firstProvider?.listModels()?.firstOrNull()
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else model
-            }.getOrDefault(model)
-        } else model
+            } else {
+                // For non-MoA, try to find a cheaper model from any provider.
+                val candidates = providers.flatMap { p ->
+                    p.listModels().map { m -> "${p.prefix}:$m" }
+                }.filter { it != model && !it.startsWith("moa:") }
+                candidates.minByOrNull { it.substringAfter(":").length } ?: model
+            }
+        }.getOrDefault(model)
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
         val unsummarizedTurns = conversation.turns.drop(summarizedThrough)
         // Token estimation: chars / 4 is a rough heuristic for English text.

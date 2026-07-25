@@ -173,9 +173,8 @@ class ProactiveBootstrap @Inject constructor(
                 setPackage(appContext.packageName)
             }
             appContext.sendBroadcast(refresh)
-        } catch (_: Throwable) {
-            // Scheduling is best-effort; the next DataStore emission or
-            // process launch reconciles it again.
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "calendar monitor reconcile failed: ${e.message}")
         }
     }
 
@@ -193,7 +192,8 @@ class ProactiveBootstrap @Inject constructor(
             } else {
                 evolutionScheduler.cancel()
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "evolution reconcile failed: ${e.message}")
         }
     }
 
@@ -204,7 +204,8 @@ class ProactiveBootstrap @Inject constructor(
             } else {
                 DaemonScheduler.cancel(appContext)
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "daemon reconcile failed: ${e.message}")
         }
     }
 
@@ -223,9 +224,8 @@ class ProactiveBootstrap @Inject constructor(
             } else {
                 scheduler.cancelDream()
             }
-        } catch (_: Throwable) {
-            // Scheduling is best-effort; the next DataStore emission or
-            // process launch reconciles it again.
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "dream reconcile failed: ${e.message}")
         }
     }
 

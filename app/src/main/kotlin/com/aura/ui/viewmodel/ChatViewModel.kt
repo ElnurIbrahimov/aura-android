@@ -329,6 +329,7 @@ class ChatViewModel @Inject constructor(
     val skills: StateFlow<List<Skill>> = skillsStore?.skills ?: MutableStateFlow(emptyList())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
     @Volatile private var isolatedSessionRequested = false
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
     /**
      * Send pipeline controller. Owns the streaming runJob, the
@@ -420,6 +421,7 @@ class ChatViewModel @Inject constructor(
                         }
                     }
                     cm.registerDefaultNetworkCallback(callback)
+                    networkCallback = callback
                     _state.update { it.copy(isOnline = cm.activeNetwork != null) }
                 }
             }
@@ -495,6 +497,13 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         textToSpeech.shutdown()
+        networkCallback?.let { cb ->
+            runCatching {
+                val cm = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                    as? android.net.ConnectivityManager
+                cm?.unregisterNetworkCallback(cb)
+            }
+        }
         super.onCleared()
     }
 
@@ -736,6 +745,7 @@ class ChatViewModel @Inject constructor(
      */
     fun newConversation() {
         cancel()
+        isolatedSessionRequested = false
         _state.update {
             it.copy(
                 conversation = com.aura.agent.Conversation(
