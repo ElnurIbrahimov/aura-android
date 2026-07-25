@@ -5,6 +5,7 @@ import com.aura.dream.DreamConsolidationModule
 import com.aura.evolution.EvolutionModule
 import com.aura.hands.HandsModule
 import com.aura.memory.MemoryModule
+import com.aura.profile.UserProfileModule
 import com.aura.proactive.ProactiveEventModule
 import com.aura.tasks.TasksModule
 import org.junit.Test
@@ -64,12 +65,13 @@ class MigrationRegistryAuditTest {
             "ProactiveEventModule" to ProactiveEventModule::class.java,
             "TasksModule" to TasksModule::class.java,
             "HandsModule" to HandsModule::class.java,
+            "UserProfileModule" to UserProfileModule::class.java,
         )
         for ((name, cls) in modules) {
             val maxTo = maxMigrationTo(cls)
             // Every DB except those that ship at v1 must have at
-            // least one migration. v1 DBs (AgentDatabase,
-            // AgentRunDatabase, UserProfileDatabase) don't have
+            // at least one migration. v1 DBs (AgentDatabase,
+            // AgentRunDatabase) don't have
             // module-level migrations because they were created
             // at v1 and have never been bumped.
             assertTrue(maxTo >= 1,

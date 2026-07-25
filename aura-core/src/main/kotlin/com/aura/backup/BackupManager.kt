@@ -929,10 +929,12 @@ private fun UserProfileEntity.toBackup() = UserProfileBackup(
     preferencesJson = preferencesJson,
     factsJson = factsJson,
     lastUpdated = lastUpdated,
+    agentScope = agentScope,
 )
 
 private fun UserProfileBackup.toEntity() = UserProfileEntity(
     id = 1,
+    agentScope = agentScope,
     name = name,
     traitsJson = traitsJson,
     preferencesJson = preferencesJson,
@@ -985,17 +987,20 @@ private fun com.aura.world.BeliefEntity.toBackup() = BeliefBackup(
     id = id, subject = subject, predicate = predicate, valueJson = valueJson,
     confidence = confidence, validFrom = validFrom, validTo = validTo,
     status = status, supersededBy = supersededBy, privacyClass = privacyClass,
+    agentScope = agentScope,
     createdAt = createdAt, updatedAt = updatedAt, lastVerifiedAt = lastVerifiedAt,
 )
 
 private fun com.aura.world.EvidenceEntity.toBackup() = EvidenceBackup(
     id = id, beliefId = beliefId, source = source, summary = summary,
     detailJson = detailJson, timestamp = timestamp, confidence = confidence,
+    agentScope = agentScope,
 )
 
 private fun com.aura.world.WorldEventEntity.toBackup() = WorldEventBackup(
     id = id, eventType = eventType, source = source, summary = summary,
     payloadJson = payloadJson, timestamp = timestamp, consumed = consumed,
+    agentScope = agentScope,
 )
 
 private fun com.aura.world.OpportunityEntity.toBackup() = OpportunityBackup(
@@ -1004,6 +1009,7 @@ private fun com.aura.world.OpportunityEntity.toBackup() = OpportunityBackup(
     costEstimateJson = costEstimateJson, evidenceJson = evidenceJson,
     suggestedActionJson = suggestedActionJson, status = status,
     createdAt = createdAt, resolvedAt = resolvedAt, snoozeUntil = snoozeUntil,
+    agentScope = agentScope,
 )
 
 // ── Schema v10: World model mappers (toEntity)
@@ -1015,17 +1021,20 @@ private fun BeliefBackup.toEntity() = com.aura.world.BeliefEntity(
     id = id, subject = subject, predicate = predicate, valueJson = valueJson,
     confidence = confidence, validFrom = validFrom, validTo = validTo,
     status = status, supersededBy = supersededBy, privacyClass = privacyClass,
+    agentScope = agentScope,
     createdAt = createdAt, updatedAt = updatedAt, lastVerifiedAt = lastVerifiedAt,
 )
 
 private fun EvidenceBackup.toEntity() = com.aura.world.EvidenceEntity(
     id = id, beliefId = beliefId, source = source, summary = summary,
     detailJson = detailJson, timestamp = timestamp, confidence = confidence,
+    agentScope = agentScope,
 )
 
 private fun WorldEventBackup.toEntity() = com.aura.world.WorldEventEntity(
     id = id, eventType = eventType, source = source, summary = summary,
     payloadJson = payloadJson, timestamp = timestamp, consumed = consumed,
+    agentScope = agentScope,
 )
 
 private fun OpportunityBackup.toEntity() = com.aura.world.OpportunityEntity(
@@ -1034,6 +1043,7 @@ private fun OpportunityBackup.toEntity() = com.aura.world.OpportunityEntity(
     costEstimateJson = costEstimateJson, evidenceJson = evidenceJson,
     suggestedActionJson = suggestedActionJson, status = status,
     createdAt = createdAt, resolvedAt = resolvedAt, snoozeUntil = snoozeUntil,
+    agentScope = agentScope,
 )
 
 // ── Schema v10: Creative artifact mappers (toBackup)
@@ -1110,12 +1120,13 @@ private fun CanonFactBackup.toEntity() = com.aura.creative.CanonFactEntity(
 private fun com.aura.taste.PreferenceSignalEntity.toBackup() = PreferenceSignalBackup(
     id = id, projectId = projectId, signalType = signalType, category = category,
     artifactId = artifactId, attributesJson = attributesJson,
-    weight = weight, createdAt = createdAt,
+    weight = weight, createdAt = createdAt, agentScope = agentScope,
 )
 
 private fun com.aura.taste.StyleProfileEntity.toBackup() = StyleProfileBackup(
     id = id, projectId = projectId, attributesJson = attributesJson,
     signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
+    agentScope = agentScope,
 )
 
 // ── Schema v10: Taste mappers (toEntity)
@@ -1123,12 +1134,13 @@ private fun com.aura.taste.StyleProfileEntity.toBackup() = StyleProfileBackup(
 private fun PreferenceSignalBackup.toEntity() = com.aura.taste.PreferenceSignalEntity(
     id = id, projectId = projectId, signalType = signalType, category = category,
     artifactId = artifactId, attributesJson = attributesJson,
-    weight = weight, createdAt = createdAt,
+    weight = weight, createdAt = createdAt, agentScope = agentScope,
 )
 
 private fun StyleProfileBackup.toEntity() = com.aura.taste.StyleProfileEntity(
     id = id, projectId = projectId, attributesJson = attributesJson,
     signalCount = signalCount, createdAt = createdAt, updatedAt = updatedAt,
+    agentScope = agentScope,
 )
 
 // ── Schema v11: Dream database mappers ──

@@ -24,6 +24,9 @@ interface PreferenceSignalDao {
     @Query("SELECT * FROM preference_signals WHERE projectId = '' OR projectId IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun global(limit: Int = 200): List<PreferenceSignalEntity>
 
+    @Query("SELECT * FROM preference_signals WHERE agentScope IN (:scopes) ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun forScopes(scopes: List<String>, limit: Int = 500): List<PreferenceSignalEntity>
+
     @Query("SELECT * FROM preference_signals WHERE category = :category ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byCategory(category: kotlin.String, limit: Int = 100): List<PreferenceSignalEntity>
 
@@ -62,6 +65,9 @@ interface StyleProfileDao {
 
     @Query("SELECT * FROM style_profiles WHERE projectId = '' OR projectId IS NULL LIMIT 1")
     suspend fun global(): StyleProfileEntity?
+
+    @Query("SELECT * FROM style_profiles WHERE agentScope IN (:scopes) ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun forScopes(scopes: List<String>): StyleProfileEntity?
 
     @Query("SELECT * FROM style_profiles ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<StyleProfileEntity>

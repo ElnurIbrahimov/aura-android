@@ -22,6 +22,7 @@ import androidx.room.PrimaryKey
         Index(value = ["status"]),
         Index(value = ["validFrom"]),
         Index(value = ["confidence"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class BeliefEntity(
@@ -43,6 +44,8 @@ data class BeliefEntity(
     val supersededBy: kotlin.String? = null,
     /** Privacy class: "public", "personal", "sensitive". */
     val privacyClass: kotlin.String = "personal",
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
     val createdAt: kotlin.Long = System.currentTimeMillis(),
     val updatedAt: kotlin.Long = createdAt,
     val lastVerifiedAt: kotlin.Long = 0L,
@@ -57,6 +60,7 @@ data class BeliefEntity(
     indices = [
         Index(value = ["beliefId"]),
         Index(value = ["source"]),
+        Index(value = ["agentScope"]),
     ],
     foreignKeys = [
         androidx.room.ForeignKey(
@@ -78,6 +82,8 @@ data class EvidenceEntity(
     val detailJson: kotlin.String = "{}",
     val timestamp: kotlin.Long = System.currentTimeMillis(),
     val confidence: Float = 1.0f,
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )
 
 /**
@@ -90,6 +96,7 @@ data class EvidenceEntity(
         Index(value = ["timestamp"]),
         Index(value = ["source"]),
         Index(value = ["eventType"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class WorldEventEntity(
@@ -102,6 +109,8 @@ data class WorldEventEntity(
     val timestamp: kotlin.Long = System.currentTimeMillis(),
     /** Whether this event has been consumed by the opportunity engine. */
     val consumed: kotlin.Boolean = false,
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )
 
 /**
@@ -114,6 +123,7 @@ data class WorldEventEntity(
         Index(value = ["status"]),
         Index(value = ["benefit"]),
         Index(value = ["urgency"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class OpportunityEntity(
@@ -140,4 +150,6 @@ data class OpportunityEntity(
     val resolvedAt: kotlin.Long? = null,
     /** When to re-surface if snoozed. 0 = no re-surface. */
     val snoozeUntil: kotlin.Long = 0L,
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )

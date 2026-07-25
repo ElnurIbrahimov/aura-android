@@ -184,6 +184,11 @@ class TasteEngine @Inject constructor(
         return profileDao.global()
     }
 
+    /** Get profile filtered by agent scopes (general + agent-private). */
+    suspend fun getProfileForScopes(scopes: List<kotlin.String>): StyleProfileEntity? {
+        return profileDao.forScopes(scopes) ?: getProfile()
+    }
+
     /**
      * Get the best model for a given role, based on routing outcomes.
      * Returns null if no data.
@@ -221,8 +226,8 @@ class TasteEngine @Inject constructor(
      * of the user's learned preferences, or empty string if no
      * signals have been recorded yet.
      */
-    suspend fun getTasteContext(): kotlin.String {
-        val profile = getProfile() ?: return ""
+    suspend fun getTasteContext(scopes: List<kotlin.String> = listOf("general")): kotlin.String {
+        val profile = getProfileForScopes(scopes) ?: return ""
         val attrs = runCatching {
             json.decodeFromString<Map<kotlin.String, Map<kotlin.String, Float>>>(profile.attributesJson)
         }.getOrDefault(emptyMap())

@@ -333,6 +333,7 @@ data class UserProfileBackup(
     val preferencesJson: String,
     val factsJson: String,
     val lastUpdated: Long,
+    val agentScope: String = "general",
 )
 
 @Serializable
@@ -430,6 +431,7 @@ data class BeliefBackup(
     val status: String = "active",
     val supersededBy: String? = null,
     val privacyClass: String = "personal",
+    val agentScope: String = "general",
     val createdAt: Long,
     val updatedAt: Long,
     val lastVerifiedAt: Long = 0L,
@@ -444,6 +446,7 @@ data class EvidenceBackup(
     val detailJson: String = "{}",
     val timestamp: Long,
     val confidence: Float = 1.0f,
+    val agentScope: String = "general",
 )
 
 @Serializable
@@ -455,6 +458,7 @@ data class WorldEventBackup(
     val payloadJson: String = "{}",
     val timestamp: Long,
     val consumed: Boolean = false,
+    val agentScope: String = "general",
 )
 
 @Serializable
@@ -473,6 +477,7 @@ data class OpportunityBackup(
     val createdAt: Long,
     val resolvedAt: Long? = null,
     val snoozeUntil: Long = 0L,
+    val agentScope: String = "general",
 )
 
 // ── Schema v10: Creative artifact backup types ──
@@ -555,6 +560,7 @@ data class PreferenceSignalBackup(
     val attributesJson: String = "{}",
     val weight: Float = 1.0f,
     val createdAt: Long,
+    val agentScope: String = "general",
 )
 
 @Serializable
@@ -565,6 +571,7 @@ data class StyleProfileBackup(
     val signalCount: Int = 0,
     val createdAt: Long,
     val updatedAt: Long,
+    val agentScope: String = "general",
 )
 
 // ── Dream database (schema v11: dream summaries, routines, contradictions, KG proposals) ──

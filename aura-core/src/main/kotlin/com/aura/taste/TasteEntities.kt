@@ -18,6 +18,7 @@ import androidx.room.PrimaryKey
         Index(value = ["projectId"]),
         Index(value = ["signalType"]),
         Index(value = ["createdAt"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class PreferenceSignalEntity(
@@ -35,6 +36,8 @@ data class PreferenceSignalEntity(
     /** Weight: positive for accept/like, negative for reject/dislike. */
     val weight: Float = 1.0f,
     val createdAt: kotlin.Long = System.currentTimeMillis(),
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )
 
 /**
@@ -46,6 +49,7 @@ data class PreferenceSignalEntity(
     tableName = "style_profiles",
     indices = [
         Index(value = ["projectId"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class StyleProfileEntity(
@@ -57,6 +61,8 @@ data class StyleProfileEntity(
     val signalCount: Int = 0,
     val createdAt: kotlin.Long = System.currentTimeMillis(),
     val updatedAt: kotlin.Long = createdAt,
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )
 
 /**
@@ -69,6 +75,7 @@ data class StyleProfileEntity(
         Index(value = ["projectId"]),
         Index(value = ["identityType"]),
         Index(value = ["name"]),
+        Index(value = ["agentScope"]),
     ],
     foreignKeys = [
         androidx.room.ForeignKey(
@@ -93,6 +100,8 @@ data class ReferenceIdentityEntity(
     val locked: kotlin.Boolean = false,
     val createdAt: kotlin.Long = System.currentTimeMillis(),
     val updatedAt: kotlin.Long = createdAt,
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )
 
 /**
@@ -105,6 +114,7 @@ data class ReferenceIdentityEntity(
         Index(value = ["modelRole"]),
         Index(value = ["modelId"]),
         Index(value = ["success"]),
+        Index(value = ["agentScope"]),
     ],
 )
 data class RoutingOutcomeEntity(
@@ -117,4 +127,6 @@ data class RoutingOutcomeEntity(
     /** "user_accepted", "user_rejected", "user_edited", "postcondition_passed", "postcondition_failed" */
     val outcomeType: kotlin.String = "user_accepted",
     val createdAt: kotlin.Long = System.currentTimeMillis(),
+    /** Agent scope: "general" for shared, "agent:agent_<id>" for agent-private. */
+    val agentScope: kotlin.String = "general",
 )

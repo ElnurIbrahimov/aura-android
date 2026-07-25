@@ -1,6 +1,8 @@
 package com.aura.profile
 
 import android.content.Context
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aura.data.RoomConfig
 import dagger.Module
 import dagger.Provides
@@ -12,6 +14,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object UserProfileModule {
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE user_profile ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDb(@ApplicationContext ctx: Context): UserProfileDatabase =
@@ -19,7 +27,7 @@ object UserProfileModule {
             ctx,
             UserProfileDatabase::class.java,
             "aura-profile.db",
-            migrations = emptyArray(),
+            migrations = arrayOf(MIGRATION_1_2),
         ).build()
 
     @Provides

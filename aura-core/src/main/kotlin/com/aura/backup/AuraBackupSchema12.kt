@@ -97,6 +97,7 @@ data class ReferenceIdentityBackup(
     val locked: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val agentScope: String = "general",
 )
 
 internal fun com.aura.taste.ReferenceIdentityEntity.toBackup() = ReferenceIdentityBackup(
@@ -109,6 +110,7 @@ internal fun com.aura.taste.ReferenceIdentityEntity.toBackup() = ReferenceIdenti
     locked = locked,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    agentScope = agentScope,
 )
 
 internal fun ReferenceIdentityBackup.toEntity() = com.aura.taste.ReferenceIdentityEntity(
@@ -121,6 +123,7 @@ internal fun ReferenceIdentityBackup.toEntity() = com.aura.taste.ReferenceIdenti
     locked = locked,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    agentScope = agentScope,
 )
 
 // ── Agent runs (durable user-visible executions) ──

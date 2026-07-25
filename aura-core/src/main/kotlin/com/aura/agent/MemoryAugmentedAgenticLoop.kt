@@ -530,7 +530,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // change mid-turn. Falls back to empty string if no
             // TasteEngine is configured or no signals exist yet.
             val tasteContext = if (step == 1 && tasteEngine != null) {
-                runCatching { tasteEngine.getTasteContext() }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
+                val tasteScopes = if (agentId != null) listOf("general", "agent:$agentId") else listOf("general")
+                runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
             } else cachedTasteContext ?: ""
             if (step == 1) cachedTasteContext = tasteContext
 

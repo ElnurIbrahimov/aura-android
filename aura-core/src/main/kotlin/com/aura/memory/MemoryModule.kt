@@ -555,6 +555,30 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add agentScope column to all 8 world model + taste tables.
+            // Default "general" so existing rows are visible to all agents
+            // (backward compatible — no data is hidden after the upgrade).
+            db.execSQL("ALTER TABLE beliefs ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_beliefs_agentScope ON beliefs(agentScope)")
+            db.execSQL("ALTER TABLE evidence ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_evidence_agentScope ON evidence(agentScope)")
+            db.execSQL("ALTER TABLE world_events ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_world_events_agentScope ON world_events(agentScope)")
+            db.execSQL("ALTER TABLE opportunities ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_opportunities_agentScope ON opportunities(agentScope)")
+            db.execSQL("ALTER TABLE preference_signals ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_preference_signals_agentScope ON preference_signals(agentScope)")
+            db.execSQL("ALTER TABLE style_profiles ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_style_profiles_agentScope ON style_profiles(agentScope)")
+            db.execSQL("ALTER TABLE reference_identities ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_reference_identities_agentScope ON reference_identities(agentScope)")
+            db.execSQL("ALTER TABLE routing_outcomes ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_routing_outcomes_agentScope ON routing_outcomes(agentScope)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -562,7 +586,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14),
         ).build()
 
     @Provides

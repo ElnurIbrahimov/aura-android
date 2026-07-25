@@ -47,6 +47,7 @@ class TasteEngineAggregationTest {
         val profileSlot = kotlinx.coroutines.channels.Channel<StyleProfileEntity>(kotlinx.coroutines.channels.Channel.CONFLATED)
         coEvery { styleProfileDao.upsert(any()) } answers { profileSlot.trySend(firstArg()); }
         coEvery { styleProfileDao.global() } answers { profileSlot.tryReceive().getOrNull() }
+        coEvery { styleProfileDao.forScopes(any()) } returns null
 
         val engine = TasteEngine(signalDao, styleProfileDao, routingDao)
         engine.recomputeProfile()

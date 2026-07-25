@@ -29,6 +29,7 @@ class TasteEngineContextTest {
             ),
         )
         coEvery { profileDao.global() } returns null
+        coEvery { profileDao.forScopes(any()) } returns null
 
         engine.recomputeProfile("")
 
@@ -37,6 +38,7 @@ class TasteEngineContextTest {
         // The profile DAO in this test is relaxed, so the upsert above
         // returns Unit; but the captured entity is what we expect.
         coEvery { profileDao.global() } returns slot.captured
+        coEvery { profileDao.forScopes(any()) } returns slot.captured
 
         val ctx = engine.getTasteContext()
         assertTrue(ctx.contains("tone: concise"))
