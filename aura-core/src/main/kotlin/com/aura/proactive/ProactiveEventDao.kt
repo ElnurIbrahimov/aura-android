@@ -45,6 +45,10 @@ interface ProactiveEventDao {
 
     @Query("DELETE FROM proactive_events WHERE correlationTag = :tag")
     suspend fun deleteByCorrelationTag(tag: kotlin.String): Int
+
+    /** Count events by eventType. Used by Settings to show daemon thought count. */
+    @Query("SELECT COUNT(*) FROM proactive_events WHERE eventType = :type")
+    suspend fun countByType(type: kotlin.String): Int
 }
 
 @Dao

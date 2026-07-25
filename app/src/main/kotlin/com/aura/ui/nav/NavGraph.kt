@@ -340,12 +340,6 @@ fun NavGraph(
                     onDone = { navController.popBackStack() },
                 )
             }
-            composable("evolution") {
-                EvolutionInboxScreen(
-                    onBack = { navController.popBackStack() },
-                    onRollback = { proposalId -> navController.navigate("evolution/rollback/$proposalId") },
-                )
-            }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(
                     onBack = { navController.popBackStack() },

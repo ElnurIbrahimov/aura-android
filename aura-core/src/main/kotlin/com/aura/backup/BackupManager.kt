@@ -102,6 +102,7 @@ class BackupManager @Inject constructor(
     private val routineDao: com.aura.dream.RoutineDao? = null,
     private val contradictionDao: com.aura.dream.ContradictionDao? = null,
     private val kgEdgeProposalDao: com.aura.dream.KgEdgeProposalDao? = null,
+    private val memoryFeedbackDao: com.aura.memory.MemoryFeedbackDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -507,6 +508,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         routineDao?.deleteAll()
         contradictionDao?.deleteAll()
         kgEdgeProposalDao?.deleteAll()
+        // Schema v13: memory feedback (audit trail for memory ratings).
+        memoryFeedbackDao?.deleteAll()
     }
 
     /**

@@ -144,6 +144,8 @@ class SettingsViewModelAppLockTest {
             io.mockk.mockk<com.aura.mcp.McpToolBridge>(relaxed = true),
             io.mockk.mockk<com.aura.security.SecureDataStore>(relaxed = true),
             io.mockk.mockk<com.aura.dream.DreamConsolidationDao>(relaxed = true),
+            io.mockk.mockk<com.aura.emotion.EmotionEngine>(relaxed = true),
+            io.mockk.mockk<com.aura.proactive.ProactiveEventDao>(relaxed = true),
             io.mockk.mockk<android.content.Context>(relaxed = true),
         )
     }

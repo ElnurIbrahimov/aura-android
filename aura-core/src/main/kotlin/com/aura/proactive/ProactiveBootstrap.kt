@@ -48,6 +48,7 @@ class ProactiveBootstrap @Inject constructor(
     private val mcpClientManager: McpClientManager,
     private val mcpToolBridge: McpToolBridge,
     private val secureDataStore: SecureDataStore,
+    private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
     private val agentStore: com.aura.agent.AgentStore,
     private val conversationStore: com.aura.agent.ConversationStore,
 ) {
@@ -65,6 +66,10 @@ class ProactiveBootstrap @Inject constructor(
     private var preferenceJob: kotlinx.coroutines.Job? = null
 
     fun start() {
+        // Load persisted emotion state so it survives cold starts.
+        emotionEngine?.let { engine ->
+            scope.launch { runCatching { engine.load() } }
+        }
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }
         // Soft-delete sweep on app start: hard-purges tombstones older

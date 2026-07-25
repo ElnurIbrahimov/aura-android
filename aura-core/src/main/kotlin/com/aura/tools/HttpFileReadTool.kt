@@ -10,6 +10,8 @@ import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okio.buffer
+import okio.source
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,14 +60,24 @@ class HttpFileReadTool @Inject constructor(
                     if (!resp.isSuccessful) {
                         return@Tool ToolResult.Error("HTTP ${resp.code} for $url", "http_error")
                     }
-                    val body = resp.body?.bytes() ?: return@Tool ToolResult.Ok("")
-                    if (asBase64) {
-                        val encoded = Base64.getEncoder().encodeToString(body)
-                        ToolResult.Ok(encoded.take(maxChars))
+                    val maxBytes = maxChars * 4L // chars-to-bytes upper bound
+                    val source = resp.body?.source() ?: return@Tool ToolResult.Ok("")
+                    // Read at most maxBytes+1 to detect truncation, then cap.
+                    // Using peek() to get a BufferedSource we can request() on
+                    // without consuming the stream.
+                    source.request(maxBytes + 1L)
+                    val bodyBytes = if (source.buffer.size > maxBytes) {
+                        source.readByteArray(maxBytes)
                     } else {
-                        val text = String(body, Charsets.UTF_8)
-                        ToolResult.Ok(text.take(maxChars))
+                        source.readByteArray()
                     }
+                        if (asBase64) {
+                            val encoded = Base64.getEncoder().encodeToString(bodyBytes)
+                            ToolResult.Ok(encoded.take(maxChars))
+                        } else {
+                            val text = String(bodyBytes, Charsets.UTF_8)
+                            ToolResult.Ok(text.take(maxChars))
+                        }
                 }
             } catch (e: Exception) {
                 ToolResult.Error("Read failed: ${e.message}", "exception")

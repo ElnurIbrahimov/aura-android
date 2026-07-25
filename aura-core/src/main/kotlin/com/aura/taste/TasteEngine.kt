@@ -144,8 +144,12 @@ class TasteEngine @Inject constructor(
                 }.getOrDefault(emptyMap())
 
                 for ((key, value) in parsed) {
-                    val current = attrs.getOrDefault(value, 0f)
-                    attrs[value] = current + signal.weight
+                    // Bucket by "<key>:<value>" so "tone:concise" and "style:concise"
+                    // don't collapse into the same bucket. The previous code used
+                    // `value` as the key, losing the attribute dimension entirely.
+                    val bucket = "$key:$value"
+                    val current = attrs.getOrDefault(bucket, 0f)
+                    attrs[bucket] = current + signal.weight
                 }
             }
             if (attrs.isNotEmpty()) {

@@ -876,6 +876,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         } else {
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED)
         }
+        // Persist emotion state after each turn so it survives cold starts.
+        if (memoryEnabled && emotionEngine != null) {
+            runCatching { emotionEngine.save() }
+                .onFailure { android.util.Log.w("AgenticLoop", "emotion save failed: ${it.message}") }
+        }
+
         // Persist the recall summary on the conversation's last
         // turn so the chat UI can render the chip on history
         // replays and so the loop stays the single source of

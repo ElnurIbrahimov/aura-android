@@ -165,4 +165,7 @@ interface MemoryFeedbackDao {
 
     @Query("SELECT COUNT(*) FROM memory_feedback WHERE memoryId = :memoryId AND kind = :kind")
     suspend fun count(memoryId: String, kind: String): Int
+
+    @Query("DELETE FROM memory_feedback")
+    suspend fun deleteAll()
 }

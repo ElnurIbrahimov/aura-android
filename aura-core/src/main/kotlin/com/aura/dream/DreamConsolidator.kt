@@ -529,25 +529,21 @@ class DreamConsolidator @Inject constructor(
     // ---------------------------------------------------------------------
 
     /**
-     * Refresh [com.aura.profile.UserProfileStore] from the most
-     * recent consolidated memories. We don't run a full LLM pass
-     * (the Python implementation calls `update_profile_from_memories`
-     * which uses the brain to extract name/traits/preferences/facts
-     * from a sampled memory batch) because Android's profile store
-     * already has a `recordSignal` API and the system prompt already
-     * injects profile facts.
+     * Phase 6: Update the user profile after a dream cycle.
      *
-     * What we do: trigger a persist by calling `update()` with no
-     * args; [UserProfile.toEntity] auto-bumps `lastUpdated`, so the
-     * UI sees the cycle. The full LLM-driven profile extraction is
-     * a v3 feature.
+     * Currently a stub: persists the profile with a bumped timestamp
+     * so the UI reflects the cycle. Full LLM-driven profile extraction
+     * from consolidated summaries is a future enhancement.
+     *
+     * Returns true if the persist succeeded, false on error or when
+     * no summaries were written.
      */
     internal suspend fun updateProfileFromConsolidated(summariesWritten: Int): Boolean {
         if (summariesWritten == 0) return false
         val store = userProfileStoreProvider.get()
         return runCatching {
             store.awaitLoaded()
-            store.update()  // no-op arg = persist with new timestamp
+            store.update()  // timestamp-only persist; real extraction is future work
             true
         }.getOrDefault(false)
     }

@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Schedules the [DaemonWorker] as a periodic WorkManager job.
  * WorkManager enforces a 15-minute minimum floor for periodic work,
- * so the requested 8-minute interval is effectively ~15 minutes.
+ * so the interval is set to 15 minutes directly.
  */
 object DaemonScheduler {
 

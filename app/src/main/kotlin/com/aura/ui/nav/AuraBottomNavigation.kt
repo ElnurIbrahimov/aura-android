@@ -68,7 +68,7 @@ sealed class TopLevelRoute(
     )
     data object Memory : TopLevelRoute("memory", "Memory", Icons.Filled.Memory, Icons.Outlined.Memory)
     data object Settings : TopLevelRoute("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
-    data object Evolution : TopLevelRoute("evolution", "Evolve", Icons.Filled.AutoFixHigh, Icons.Outlined.AutoFixHigh)
+    data object Evolution : TopLevelRoute("evolution/inbox", "Evolve", Icons.Filled.AutoFixHigh, Icons.Outlined.AutoFixHigh)
 }
 
 internal val topLevelRoutes = listOf(

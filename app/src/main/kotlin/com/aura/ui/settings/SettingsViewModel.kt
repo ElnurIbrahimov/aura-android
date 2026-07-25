@@ -203,6 +203,8 @@ class SettingsViewModel @Inject constructor(
     private val mcpToolBridge: com.aura.mcp.McpToolBridge,
     private val secureDataStore: com.aura.security.SecureDataStore,
     private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao,
+    private val emotionEngine: com.aura.emotion.EmotionEngine,
+    private val proactiveEventDao: com.aura.proactive.ProactiveEventDao,
     @dagger.hilt.android.qualifiers.ApplicationContext
     private val appContext: android.content.Context,
 ) : ViewModel() {
@@ -247,6 +249,18 @@ class SettingsViewModel @Inject constructor(
                 val merged = defaultPolicies().toMutableMap()
                 stored.forEach { (name, policy) -> merged[name] = policy }
                 _state.update { it.copy(toolPolicies = merged) }
+            }
+        }
+        // Populate emotion + daemon stats for the Emotion & Daemon section.
+        viewModelScope.launch {
+            runCatching {
+                emotionEngine.load()
+                _emotionSnapshot.value = emotionEngine.snapshot()
+            }
+        }
+        viewModelScope.launch {
+            runCatching {
+                _daemonThoughtsCount.value = proactiveEventDao.countByType("daemon_thought")
             }
         }
     }
@@ -550,12 +564,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     /** Emotion snapshot for the Emotion & Daemon settings section. */
-    val emotionSnapshot: kotlinx.coroutines.flow.StateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?> =
-        MutableStateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?>(null)
+    private val _emotionSnapshot = MutableStateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?>(null)
+    val emotionSnapshot: kotlinx.coroutines.flow.StateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?> = _emotionSnapshot.asStateFlow()
 
     /** Count of daemon-produced proactive events for the Emotion & Daemon settings section. */
-    val daemonThoughtsCount: kotlinx.coroutines.flow.StateFlow<Int> =
-        MutableStateFlow(0)
+    private val _daemonThoughtsCount = MutableStateFlow(0)
+    val daemonThoughtsCount: kotlinx.coroutines.flow.StateFlow<Int> = _daemonThoughtsCount.asStateFlow()
 
     fun setThemeMode(mode: String) {
         viewModelScope.launch {

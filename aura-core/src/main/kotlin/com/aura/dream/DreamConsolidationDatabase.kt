@@ -26,7 +26,7 @@ import androidx.room.RoomDatabase
         ContradictionEntity::class,
     ],
     version = 2,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class DreamConsolidationDatabase : RoomDatabase() {
     abstract fun dreamConsolidationDao(): DreamConsolidationDao
