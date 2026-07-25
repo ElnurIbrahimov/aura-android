@@ -194,12 +194,14 @@ class DelegateToAgentTool @Inject constructor(
         //   meant a child agent could call MCP tools the
         //   parent couldn't (or vice versa).
         //
-        // Fix: pass through the parent's policy state and use
-        // the per-tool timeout from the agent's tool
-        // definition rather than a hard-coded 10s. Match the
-        // main loop's MCP allowlist logic exactly.
+        // The child context must not inherit the parent's userMessage or
+        // per-run REMOTE_COST approvals. A delegated agent's paid-tool
+        // requests need their own approval dialog keyed to the delegation
+        // task, not the parent's original message.
         val childCtx = ctx.copy(
             conversationId = "delegation:${agent.name}",
+            userMessage = "delegate:$agentName: $task",
+            approvedRemoteCostTools = emptySet(),
             // Pre-fix had hard-coded 10s. Now use 30s
             // (matching the parent loop's default) so
             // 15-30s tools (brave_search, web_search)

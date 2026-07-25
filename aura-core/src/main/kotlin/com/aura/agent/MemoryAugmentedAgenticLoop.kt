@@ -864,11 +864,16 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             runCatching { extractProfileFromText(lastUserMessage) }
                 .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (user) failed: ${it.message}") }
         }
-        val lastAssistant = currentConversation.turns.lastOrNull()?.assistant
-        if (memoryEnabled && !lastAssistant.isNullOrBlank()) {
-            runCatching { extractProfileFromText(lastAssistant) }
-                .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (assistant) failed: ${it.message}") }
-        }
+        // Only the user's own text is a reliable source for profile facts.
+        // The assistant may echo user facts, but it may also hallucinate them
+        // (e.g., "I am Claude"), which would be persisted as a user fact.
+        // The user-message extraction above covers the real signal.
+        //
+        // val lastAssistant = currentConversation.turns.lastOrNull()?.assistant
+        // if (memoryEnabled && !lastAssistant.isNullOrBlank()) {
+        //     runCatching { extractProfileFromText(lastAssistant) }
+        //         .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (assistant) failed: ${it.message}") }
+        // }
 
         if (!finished) {
             emit(AgentEvent.Error("max_steps_exceeded", "Hit max steps ($maxSteps) without finishing.", retryable = false))

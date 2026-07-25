@@ -46,6 +46,9 @@ class McpToolBridge @Inject constructor(
     /** Track which MCP tool names we've registered so we can clean up. */
     private val registeredNames = ConcurrentHashMap.newKeySet<kotlin.String>()
 
+    /** Maps bare-name MCP tool registrations back to their owning server id. */
+    private val registeredNameToServerId = ConcurrentHashMap<kotlin.String, kotlin.String>()
+
     /**
      * Discover tools from all connected MCP servers and register them
      * in the [ToolRegistry]. Call this after servers are connected
@@ -137,10 +140,29 @@ class McpToolBridge @Inject constructor(
      * an existing native tool, or when you intentionally want to override.
      */
     suspend fun syncToolsUnprefixed(servers: List<McpServerConfig>) {
+        // Unregister stale tools: any currently registered bare-name tool that
+        // was registered by this bridge and whose server is now disconnected or
+        // removed must be removed before we re-register the live set. Without
+        // this, disconnecting an MCP server leaves its tools callable in the
+        // registry until process death.
+        val currentServerIds = servers.map { it.id }.toSet()
+        val connectedServerIds = mcpClientManager.connectedServerIds()
+        val staleNames = registeredNames.filter { name ->
+            // Bare-name registrations have no parseable server id, so we use
+            // the ownership map populated below.
+            registeredNameToServerId[name]?.let { serverId ->
+                serverId !in currentServerIds || serverId !in connectedServerIds
+            } ?: false
+        }
+        for (name in staleNames) {
+            toolRegistry.unregister(name)
+            registeredNames.remove(name)
+            registeredNameToServerId.remove(name)
+        }
+
         for (config in servers) {
             if (!config.enabled) continue
-            val connected = mcpClientManager.connectedServerIds()
-            if (config.id !in connected) continue
+            if (config.id !in connectedServerIds) continue
 
             val tools = mcpClientManager.listTools(config.id)
             for (mcpTool in tools) {
@@ -175,6 +197,7 @@ class McpToolBridge @Inject constructor(
                 )
                 toolRegistry.register(tool)
                 registeredNames.add(mcpTool.name)
+                registeredNameToServerId[mcpTool.name] = config.id
             }
         }
     }
@@ -185,6 +208,7 @@ class McpToolBridge @Inject constructor(
             toolRegistry.unregister(name)
         }
         registeredNames.clear()
+        registeredNameToServerId.clear()
     }
 
     /** Names currently registered by this bridge. */

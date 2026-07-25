@@ -18,11 +18,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -116,7 +116,7 @@ fun NavGraph(
                 exit = slideOutVertically { it } + fadeOut(),
             ) {
                 val evolutionBadgeVm: com.aura.ui.evolution.EvolutionBadgeViewModel = hiltViewModel()
-                val pendingProposals by evolutionBadgeVm.pendingCount.collectAsState()
+                val pendingProposals by evolutionBadgeVm.pendingCount.collectAsStateWithLifecycle()
                 AuraBottomNavigation(
                     currentRoute = backStackEntry?.destination?.route,
                     onRouteSelected = { route ->

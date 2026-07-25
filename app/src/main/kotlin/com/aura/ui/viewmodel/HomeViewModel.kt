@@ -323,12 +323,9 @@ class HomeViewModel @Inject constructor(
         val endOfDay = startOfDay + 24L * 60L * 60L * 1000L
         val dayAgo = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
 
-        val decayed = runCatching {
-            memoryStore.recent(50).filter { it.decayScore < DECAY_FADING_THRESHOLD }.take(5)
-        }.getOrDefault(emptyList())
-        val newMems = runCatching {
-            memoryStore.recent(50).filter { it.createdAt >= dayAgo }.take(5)
-        }.getOrDefault(emptyList())
+        val recentMemories = runCatching { memoryStore.recent(50) }.getOrDefault(emptyList())
+        val decayed = recentMemories.filter { it.decayScore < DECAY_FADING_THRESHOLD }.take(5)
+        val newMems = recentMemories.filter { it.createdAt >= dayAgo }.take(5)
         val newKg = runCatching { knowledgeGraphRepository.recentSince(dayAgo, 5) }
             .getOrDefault(emptyList())
         val tasksToday = runCatching { taskDao.dueInRange(startOfDay, endOfDay) }

@@ -13,15 +13,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -174,12 +174,12 @@ fun AuraRoot() {
     // Settings takes effect immediately in the active session —
     // the user doesn't need to restart the app for the gate to engage.
     val appLockEnabled by mainEntry.userPreferences().appLockEnabled
-        .collectAsState(initial = false)
+        .collectAsStateWithLifecycle(initialValue = false)
 
     // Collect themeMode the same way so Settings theme changes
     // apply live without a restart.
     val themeMode by mainEntry.userPreferences().themeMode
-        .collectAsState(initial = "system")
+        .collectAsStateWithLifecycle(initialValue = "system")
     val darkTheme = resolvesDarkTheme(themeMode, isSystemInDarkTheme())
 
     SideEffect {

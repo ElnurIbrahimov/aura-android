@@ -2,6 +2,8 @@ package com.aura.agent
 
 import com.aura.core.error.CrashLogger
 import com.aura.providers.ChatOptions
+import com.aura.providers.ModelInfo
+import com.aura.providers.Provider
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
 import javax.inject.Inject
@@ -10,6 +12,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Rolling conversation compaction. The full immutable [Conversation.turns]
@@ -23,22 +26,43 @@ class ConversationCompactor @Inject constructor(
 ) {
     private val json = Json { encodeDefaults = true }
 
+    /**
+     * Cache of model-list-with-context metadata per provider. This avoids
+     * calling [Provider.listModelsWithContext] (often a network round-trip)
+     * multiple times during a single long conversation that compacts
+     * more than once.
+     */
+    private val contextWindowCache = ConcurrentHashMap<String, Pair<List<ModelInfo>, Long>>()
+    private val contextWindowCacheTtlMs = 5 * 60 * 1000L // 5 minutes
+
+    private suspend fun cachedModelsWithContext(provider: Provider): List<ModelInfo> {
+        val now = System.currentTimeMillis()
+        val cached = contextWindowCache[provider.prefix]
+        if (cached != null && now - cached.second < contextWindowCacheTtlMs) {
+            return cached.first
+        }
+        val models = provider.listModelsWithContext()
+        contextWindowCache[provider.prefix] = models to now
+        return models
+    }
+
+    /**
+     * @deprecated Kept for existing callers; prefer [cachedModelsWithContext].
+     */
+    private suspend fun cachedModels(provider: Provider): List<String> =
+        cachedModelsWithContext(provider).map { it.name }
+
     suspend fun compactIfNeeded(conversation: Conversation, model: String): Conversation {
-        // Use a cheap model for compaction. If the user's model is MoA
-        // Use a cheap model for compaction — this is a 1200-token summary,
-        // not a generation task. If the user's model is MoA (3-model virtual
-        // provider), compaction would fire 3 API calls. For any model, prefer
-        // the shortest-named configured model (heuristic for smallest/cheapest).
         val compactModel = runCatching {
             val providers = providerRegistry.configured()
             if (model.startsWith("moa:")) {
                 val firstProvider = providers.firstOrNull()
-                val firstModel = firstProvider?.listModels()?.firstOrNull()
+                val firstModel = firstProvider?.let { cachedModels(it).firstOrNull() }
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else model
             } else {
                 // For non-MoA, try to find a cheaper model from any provider.
                 val candidates = providers.flatMap { p ->
-                    p.listModels().map { m -> "${p.prefix}:$m" }
+                    cachedModels(p).map { m -> "${p.prefix}:$m" }
                 }.filter { it != model && !it.startsWith("moa:") }
                 candidates.minByOrNull { it.substringAfter(":").length } ?: model
             }
@@ -116,7 +140,7 @@ class ConversationCompactor @Inject constructor(
      * provider doesn't know — caller falls back to
      * [DEFAULT_UNCOMPACTED_TOKENS].
      *
-     * Uses the compactor's [providerRegistry] cache. The lookup
+     * Uses the compactor's provider-model cache. The lookup
      * is best-effort: a failed catalog fetch returns null, not
      * a default — the user might have removed the model or the
      * provider might be unconfigured, and the compactor should
@@ -125,8 +149,7 @@ class ConversationCompactor @Inject constructor(
     private suspend fun lookupContextWindow(model: String): Int? {
         return runCatching {
             val (provider, modelName) = providerRegistry.parse(model)
-            val models = provider.listModelsWithContext()
-            models.firstOrNull { it.name == modelName }?.contextWindow
+            cachedModelsWithContext(provider).firstOrNull { it.name == modelName }?.contextWindow
         }.getOrNull()
     }
 
@@ -145,14 +168,18 @@ class ConversationCompactor @Inject constructor(
         internal const val DEFAULT_UNCOMPACTED_TOKENS = 32_000
 
         /**
-         * Resolve the compaction trigger for [model]. Tries the live
+         * Resolve the compaction trigger for a given model. Tries the live
          * provider catalog first (each provider's `listModels()` should
          * return context window), falls back to [DEFAULT_UNCOMPACTED_TOKENS].
          *
          * Trigger is 80% of the model's actual context window — leaves
          * 20% headroom for the response + system prompt.
+         *
+         * @param model ignored here because this function now takes an already
+         * looked-up [contextWindow]; it is kept in the signature for backward
+         * compatibility with existing callers.
          */
-        fun resolveThreshold(model: kotlin.String, contextWindow: Int? = null): Int {
+        fun resolveThreshold(@Suppress("UNUSED_PARAMETER") model: kotlin.String, contextWindow: Int? = null): Int {
             if (contextWindow != null && contextWindow > 0) {
                 return (contextWindow * 0.8).toInt().coerceAtLeast(4_000)
             }

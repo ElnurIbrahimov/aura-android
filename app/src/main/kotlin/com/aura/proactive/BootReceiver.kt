@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -59,6 +60,21 @@ class BootReceiver : BroadcastReceiver() {
             com.aura.dream.DreamWorker.UNIQUE_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             dreamRequest,
+        )
+        // Re-enqueue evolution worker (default 24h, network + battery-not-low).
+        // The worker itself no-ops if evolution is disabled, so this is safe.
+        val evolutionRequest = PeriodicWorkRequestBuilder<com.aura.evolution.EvolutionWorker>(24, TimeUnit.HOURS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .setRequiresBatteryNotLow(true)
+                    .build()
+            )
+            .build()
+        wm.enqueueUniquePeriodicWork(
+            com.aura.evolution.EvolutionWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            evolutionRequest,
         )
     }
 }

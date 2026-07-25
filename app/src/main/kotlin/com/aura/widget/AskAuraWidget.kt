@@ -56,17 +56,25 @@ class AskAuraWidget : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        // Listen for the broadcast the [ProactiveBootstrap] sends on
-        // cold start so the widget body stays current even if the
-        // system hasn't ticked over 30 minutes yet.
-        if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
-            val mgr = AppWidgetManager.getInstance(context)
-            val component = ComponentName(context, AskAuraWidget::class.java)
-            val ids = mgr.getAppWidgetIds(component)
-            if (ids.isNotEmpty()) {
-                refreshWidgets(context, mgr, ids)
+        val pendingResult = goAsync()
+        try {
+            super.onReceive(context, intent)
+            // Listen for the broadcast the [ProactiveBootstrap] sends on
+            // cold start so the widget body stays current even if the
+            // system hasn't ticked over 30 minutes yet.
+            if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
+                val mgr = AppWidgetManager.getInstance(context)
+                val component = ComponentName(context, AskAuraWidget::class.java)
+                val ids = mgr.getAppWidgetIds(component)
+                if (ids.isNotEmpty()) {
+                    refreshWidgets(context, mgr, ids)
+                }
             }
+        } finally {
+            // finish() is safe here because refreshWidgets starts its own
+            // short-lived coroutine on GlobalScope; the broadcast receiver
+            // itself can be released before the IO work completes.
+            pendingResult.finish()
         }
     }
 
@@ -77,15 +85,16 @@ class AskAuraWidget : AppWidgetProvider() {
     ) {
         // Trigger a refresh of every widget instance. We delegate to
         // a coroutine that reads the most recent memory and updates
-        // the RemoteViews. The widget itself isn't long-lived so we
-        // launch on a process scope.
+        // the RemoteViews. Use a global scope so the receiver can
+        // finish() while the IO work continues; DO NOT create a new
+        // CoroutineScope per refresh (that leaks a SupervisorJob).
         val entry = EntryPointAccessors.fromApplication(
             context.applicationContext,
             WidgetEntryPoint::class.java,
         )
         val memoryStore = entry.memoryStore()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
             val recent = try {
                 memoryStore.recent(1).firstOrNull()
             } catch (e: Exception) {

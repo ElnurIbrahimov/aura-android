@@ -82,9 +82,11 @@ class MemoryViewModel @Inject constructor(
 
     init {
         refresh()
-        // Auto-refresh whenever the memory count changes (new memory stored or deleted).
+        // Auto-refresh the list whenever the memory dataset changes.
+        // We observe a flow of the *list* (not just count) so we can
+        // update the UI without setting loading=true on every change.
         viewModelScope.launch {
-            memoryStore.observeCount().collect { refresh() }
+            memoryStore.observeCount().collect { refreshWithoutLoading() }
         }
         // Observe the dream summary count so the "X dream summaries" stat
         // in the Memory screen updates when DreamWorker writes new
@@ -113,6 +115,9 @@ class MemoryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Manual refresh (e.g., pull-to-refresh). Shows the loading skeleton.
+     */
     fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true) }
@@ -123,6 +128,23 @@ class MemoryViewModel @Inject constructor(
                 else -> memoryStore.recent(100)
             }
             _state.update { it.copy(memories = results, loading = false) }
+        }
+    }
+
+    /**
+     * Refresh the current list while preserving the existing items so the
+     * screen does not flash a loading skeleton when an automatic change
+     * (e.g., the agent storing a new memory) triggers this.
+     */
+    private fun refreshWithoutLoading() {
+        viewModelScope.launch {
+            val current = _state.value
+            val results = when {
+                current.categoryFilter != null -> memoryStore.listByCategory(current.categoryFilter, 100)
+                current.query.isNotBlank() -> memoryStore.searchByText(current.query, 50)
+                else -> memoryStore.recent(100)
+            }
+            _state.update { it.copy(memories = results) }
         }
     }
 

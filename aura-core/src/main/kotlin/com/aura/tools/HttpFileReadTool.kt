@@ -10,9 +10,8 @@ import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okio.buffer
-import okio.source
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,9 +61,11 @@ class HttpFileReadTool @Inject constructor(
                     }
                     val maxBytes = maxChars * 4L // chars-to-bytes upper bound
                     val source = resp.body?.source() ?: return@Tool ToolResult.Ok("")
+                    // Bound the wall-clock time we will wait for bytes.
+                    // Without this, source.request() can block until the OkHttp
+                    // read timeout (120s) on a streaming endpoint that never EOFs.
+                    source.timeout().timeout(10_000L, TimeUnit.MILLISECONDS)
                     // Read at most maxBytes+1 to detect truncation, then cap.
-                    // Using peek() to get a BufferedSource we can request() on
-                    // without consuming the stream.
                     source.request(maxBytes + 1L)
                     val bodyBytes = if (source.buffer.size > maxBytes) {
                         source.readByteArray(maxBytes)
