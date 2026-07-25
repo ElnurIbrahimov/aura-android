@@ -135,7 +135,11 @@ class ChatGptSubscriptionProvider(
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
                 val code = response?.code ?: 0
-                val retryable = code != 401 && code != 400 && code != 403
+                // 401/400/403 are not retryable — bad key, bad request,
+                // or forbidden won't fix themselves. 429 (rate limit) and
+                // 5xx (server error) benefit from failover to another
+                // configured provider.
+                val retryable = code == 429 || code in 500..599
                 channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
                 channel.close()
             }
@@ -167,45 +171,20 @@ class ChatGptSubscriptionProvider(
     }
 
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
-        // Use the same model list as openai (live catalog), so the user
-        // doesn't see a parallel/different set in the picker.
-        val request = Request.Builder()
-            .url("https://api.openai.com/v1/models")
-            .header("Authorization", "Bearer $apiKey")
-            .build()
-        val response = httpClient.newCall(request).execute()
-        val raw = response.use { it.body?.string().orEmpty() }
-        when (response.code) {
-            401 -> throw ProviderCatalogException.AuthenticationException()
-            429 -> throw ProviderCatalogException.RateLimitedException(
-                retryAfterMs = response.header("Retry-After")?.toLongOrNull()?.times(1_000L),
-            )
-            in 200..299 -> Unit
-            else -> throw ProviderCatalogException.NetworkException(
-                message = "ChatGPT subscription catalog failed with HTTP ${response.code}.",
-                statusCode = response.code,
-            )
-        }
-        if (raw.isBlank()) return@withContext emptyList()
-        val parsed = try {
-            Json.parseToJsonElement(raw).jsonObject["data"] as? JsonArray
-        } catch (e: Exception) {
-            throw ProviderCatalogException.MalformedResponseException(
-                "ChatGPT subscription catalog returned malformed JSON.", e,
-            )
-        } ?: return@withContext emptyList()
-        // OpenAI's catalog has dozens of models; for the chatgpt subscription
-        // picker we only surface the ones that ship with ChatGPT Plus/Pro
-        // (gpt-4o, gpt-4.1, gpt-5, gpt-5-mini, o3, o4-mini). Users can pick
-        // any model id from the openai catalog if they want.
-        val preferred = setOf("gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini")
-        parsed.mapNotNull { (it as? JsonObject)?.get("id")?.let { it as? JsonPrimitive }?.content }
-            .filter(String::isNotBlank)
-            .filter { it in preferred }
-            .ifEmpty {
-                // Fallback: at least surface gpt-4o so the picker isn't empty.
-                listOf("gpt-4o")
-            }
+        // The ChatGPT subscription token authenticates against
+        // chatgpt.com/backend-api/codex, NOT api.openai.com. The
+        // /v1/models endpoint will always 401 with a subscription
+        // token because it's a session token, not an API key.
+        // The chatgpt.com backend doesn't expose a models-listing
+        // endpoint, so we return the known ChatGPT Plus/Pro/Go model
+        // set directly. Users who want the full OpenAI catalog should
+        // use the regular `openai` provider with an API key.
+        listOf(
+            "gpt-5", "gpt-5-mini", "gpt-5-nano",
+            "gpt-4.1", "gpt-4.1-mini",
+            "gpt-4o", "gpt-4o-mini",
+            "o3", "o4-mini",
+        )
     }
 
     override suspend fun cancel() {

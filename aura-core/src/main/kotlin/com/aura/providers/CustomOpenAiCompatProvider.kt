@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
@@ -221,6 +222,8 @@ class CustomOpenAiCompatProvider(
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = Channel.BUFFERED)
+        // Same index→id mapping as OpenAiCompatProvider for parallel tool calls.
+        val toolCallIndexToId = mutableMapOf<Int, kotlin.String>()
         val src = okhttp3.sse.EventSources.createFactory(httpClient).newEventSource(request, object : okhttp3.sse.EventSourceListener() {
             override fun onEvent(eventSource: okhttp3.sse.EventSource, id: kotlin.String?, type: kotlin.String?, data: kotlin.String) {
                 if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
@@ -237,7 +240,16 @@ class CustomOpenAiCompatProvider(
                         val tcId = (tco["id"] as? JsonPrimitive)?.content ?: ""
                         val name = (fn["name"] as? JsonPrimitive)?.content ?: ""
                         val args = (fn["arguments"] as? JsonPrimitive)?.content ?: ""
-                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = tcId, name = name, arguments = args)))
+                        val index = (tco["index"] as? JsonPrimitive)?.intOrNull
+                        val resolvedId = if (tcId.isNotEmpty()) {
+                            if (index != null) toolCallIndexToId[index] = tcId
+                            tcId
+                        } else if (index != null) {
+                            toolCallIndexToId[index] ?: ""
+                        } else {
+                            ""
+                        }
+                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = resolvedId, name = name, arguments = args)))
                     }
                 }
                 val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
