@@ -22,3 +22,9 @@
 # Annotation-processing APIs arrive through transitive compile-time tooling;
 # they are not Android runtime dependencies.
 -dontwarn javax.lang.model.**
+# pdfbox-android's JPXFilter references the JPEG-2000 decoder from the optional
+# `jp2-android` artifact, which we do not depend on. Without this, R8 fails the
+# whole release build on the missing class. Documents containing JPX-encoded
+# images will fail to decode that image — text extraction, which is all we use
+# PDFBox for, is unaffected.
+-dontwarn com.gemalto.jp2.**

@@ -65,6 +65,15 @@ jobs:
       - name: Build, test, and lint
         run: ./gradlew :aura-core:assembleDebug :aura-core:testDebugUnitTest :aura-core:lintDebug :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 
+      # The release build is the only one that runs R8 minification and
+      # resource shrinking, so it is the only one that can catch a missing
+      # keep rule. CI previously built debug only, and assembleRelease had
+      # rotted to the point of failing outright on a missing pdfbox class —
+      # meaning no shippable APK could be produced at all, discoverable only
+      # at ship time. Keep this step so that cannot recur.
+      - name: Build release (R8 / minification)
+        run: ./gradlew :app:assembleRelease
+
       - name: Upload debug APK
         if: always()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
