@@ -27,6 +27,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * Max tool bodies running at once. Sized so a burst of parallel tool calls
+ * cannot monopolise the 64-thread IO pool, while staying well above the 1-5
+ * parallel calls a model realistically emits in one step.
+ */
+private const val TOOL_PARALLELISM = 8
+
+/**
  * Dispatches tool calls. Wraps ToolRegistry with permission checks and JSON parsing.
  * Mirrors aura/core/tool_executor.py.
  */
@@ -38,6 +45,29 @@ class ToolExecutor @Inject constructor(
     private val policyEngine: com.aura.agent.policy.PolicyEngine? = null,
 ) {
     private val remoteCostApprovalGate = RemoteCostApprovalGate()
+
+    /**
+     * Bounded view of [Dispatchers.IO] used for tool bodies.
+     *
+     * Every tool execution occupies a thread for its whole duration: the
+     * `runInterruptible { runBlocking { … } }` bridge below parks a real
+     * thread in a nested event loop rather than releasing it at suspension
+     * points. That bridge is deliberate — it is what lets `withTimeout`
+     * interrupt a tool that is blocked in OkHttp or a file read — but it
+     * means N concurrent tools hold N threads.
+     *
+     * The agentic loop fans out tool calls with `async { … }.awaitAll()` and
+     * does not bound the fan-out, so a model emitting many parallel calls
+     * would take that many threads straight out of the shared IO pool — the
+     * same pool Room, OkHttp and the embedder use. The visible failure is not
+     * a crash but everything else in the app stalling behind tool execution.
+     *
+     * `limitedParallelism` carves out a cap without creating new threads:
+     * tools get at most [TOOL_PARALLELISM] of the pool's 64, queueing beyond
+     * that, and the rest of the app keeps the remainder.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val toolDispatcher = Dispatchers.IO.limitedParallelism(TOOL_PARALLELISM)
     suspend fun execute(name: String, argumentsJson: String, ctx: ToolContext): ToolResult {
         val tool = registry.get(name) ?: return ToolResult.Error("Unknown tool: $name", "unknown_tool")
 
@@ -102,7 +132,7 @@ class ToolExecutor @Inject constructor(
                 // withTimeout fires, so blocking calls are cancelled
                 // promptly. runBlocking bridges the suspend call into
                 // the non-suspend lambda runInterruptible requires.
-                runInterruptible(Dispatchers.IO) {
+                runInterruptible(toolDispatcher) {
                     runBlocking { tool.execute(call, ctx) }
                 }
             }
@@ -212,4 +242,5 @@ internal class RemoteCostApprovalGate {
             "go ahead", "do it", "continue", "approve", "approved",
         )
     }
+
 }

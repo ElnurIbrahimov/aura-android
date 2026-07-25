@@ -28,7 +28,7 @@ import kotlin.test.assertIs
  *
  * The fix: the loop now pauses on `NeedsPermission`, stashes a
  * `PendingPermission` snapshot, and emits a new `PermissionRequested`
- * event. The UI grants → calls `resumeAfterPermission()` → the held
+ * event. The UI grants → calls `resumeAfterPermission(convId)` → the held
  * tool re-executes and the agentic loop continues from `step + 1`.
  *
  * These tests pin all four contracts:
@@ -156,7 +156,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         assertEquals("Calendar access is needed to read events.", permissionRequested.rationale)
 
         // 3. The held request is stashed on the loop for resume.
-        val held = loop.peekPendingPermission()
+        val held = loop.peekPendingPermission(conv.id)
         assertNotNull(held)
         assertEquals("permission_test_tool", held!!.toolName)
         assertEquals("android.permission.READ_CALENDAR", held.permission)
@@ -219,13 +219,13 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         val conv = Conversation().addUser("calendar today")
         val runEvents = mutableListOf<AgentEvent>()
         loop.run(conv, model = "test:model", maxSteps = 5).collect { runEvents += it }
-        assertNotNull("expected pause", loop.peekPendingPermission())
+        assertNotNull("expected pause", loop.peekPendingPermission(conv.id))
 
         // 2. Resume. The held tool re-runs (second call → Ok), the
         //    loop continues, and the second brain.stream() call returns
         //    the final assistant text.
         val resumeEvents = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission().collect { resumeEvents += it }
+        loop.resumeAfterPermission(conv.id).collect { resumeEvents += it }
 
         // 3. The resume flow emitted: ToolExecuting → ToolResult → ...
         val toolExec = resumeEvents.filterIsInstance<AgentEvent.ToolExecuting>().firstOrNull()
@@ -248,7 +248,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         assertEquals(2, calls[0])
 
         // 6. pendingPermission is cleared.
-        assertNull("pendingPermission should be cleared after resume", loop.peekPendingPermission())
+        assertNull("pendingPermission should be cleared after resume", loop.peekPendingPermission(conv.id))
     }
 
     @Test
@@ -269,7 +269,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         )
 
         val events = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission().collect { events += it }
+        loop.resumeAfterPermission("no-such-conversation").collect { events += it }
 
         val err = events.filterIsInstance<AgentEvent.Error>().firstOrNull()
         assertNotNull(err)
@@ -311,20 +311,96 @@ class MemoryAugmentedAgenticLoopPermissionTest {
 
         val conv = Conversation().addUser("calendar today")
         loop.run(conv, model = "test:model", maxSteps = 5).collect { /* drain */ }
-        assertNotNull("expected pause", loop.peekPendingPermission())
+        assertNotNull("expected pause", loop.peekPendingPermission(conv.id))
 
         // Deny. The held request is cleared; the tool ran exactly once.
-        loop.denyPendingPermission()
-        assertNull("deny should clear pendingPermission", loop.peekPendingPermission())
+        loop.denyPendingPermission(conv.id)
+        assertNull("deny should clear pendingPermission", loop.peekPendingPermission(conv.id))
         assertEquals(1, calls[0])
 
         // Resuming after deny yields no_pending — the tool does NOT
         // re-execute. The user explicitly chose not to grant.
         val resumeEvents = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission().collect { resumeEvents += it }
+        loop.resumeAfterPermission(conv.id).collect { resumeEvents += it }
         val err = resumeEvents.filterIsInstance<AgentEvent.Error>().firstOrNull()
         assertIs<AgentEvent.Error>(err)
         assertEquals("no_pending", err.code)
         assertEquals(1, calls[0]) // no re-execution
+    }
+
+    /**
+     * The loop is a `@Singleton`, so the held-permission stash is shared by
+     * every conversation in the app. It used to be a single field: a second
+     * conversation hitting a permission gate overwrote the first
+     * conversation's snapshot, and the first run could then never be
+     * resumed — `resumeAfterPermission` would replay the *other*
+     * conversation's tool, or find nothing at all.
+     *
+     * Keying by conversation id fixes that. This test pins it, because
+     * nothing else would notice the regression: with one conversation open
+     * the single-slot version behaves identically.
+     */
+    @Test
+    fun `two conversations hold independent permission requests`() = runBlocking {
+        val toolRegistry = ToolRegistry()
+        // Always-denies tool. permissionThenOkTool() returns Ok on its second
+        // call, which would let the second conversation succeed instead of
+        // pausing — both runs need to pause for this test to mean anything.
+        toolRegistry.register(
+            com.aura.agent.Tool(
+                name = "permission_test_tool",
+                description = "Always needs a runtime permission",
+                risk = ToolRisk.READ_ONLY,
+                execute = { _, _ ->
+                    ToolResult.NeedsPermission(
+                        "android.permission.READ_CALENDAR",
+                        "Calendar access is needed to read events.",
+                    )
+                },
+            ),
+        )
+
+        val brain = mockk<Brain>(relaxed = true)
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            flowOf(
+                BrainChunk.ToolCallStart("tc1", "permission_test_tool"),
+                BrainChunk.ToolCallEnd("tc1", "permission_test_tool", "{}"),
+                BrainChunk.Finished(FinishReason.tool_calls.name),
+            )
+        }
+
+        val memoryStore = mockk<MemoryStore>(relaxed = true)
+        val executor = ToolExecutor(toolRegistry, context = mockk(relaxed = true))
+        val kgExtractor = mockk<com.aura.kg.ConversationKgExtractor>(relaxed = true)
+        val userProfileStore = mockk<com.aura.profile.UserProfileStore>(relaxed = true)
+        val handRepository = mockk<com.aura.hands.HandRepository>(relaxed = true)
+        every { userProfileStore.getSystemPrompt() } returns ""
+        coEvery { handRepository.getEnabled() } returns emptyList()
+
+        val loop = MemoryAugmentedAgenticLoop(
+            brain, toolRegistry, executor, memoryStore, kgExtractor,
+            userProfileStore, handRepository, mockProviderRegistry(), passthroughCompactor(),
+        )
+
+        val convA = Conversation().addUser("calendar today")
+        val convB = Conversation().addUser("calendar today")
+        assertTrue("test needs two distinct conversations", convA.id != convB.id)
+
+        loop.run(convA, model = "test:model", maxSteps = 5).collect { }
+        loop.run(convB, model = "test:model", maxSteps = 5).collect { }
+
+        // Both are held. Under the old single-field stash, B would have
+        // evicted A and this first assertion would fail.
+        val heldA = loop.peekPendingPermission(convA.id)
+        val heldB = loop.peekPendingPermission(convB.id)
+        assertNotNull("conversation A's request was evicted", heldA)
+        assertNotNull("conversation B's request is missing", heldB)
+        assertEquals(convA.id, heldA!!.conversation.id)
+        assertEquals(convB.id, heldB!!.conversation.id)
+
+        // Denying one must not disturb the other.
+        loop.denyPendingPermission(convA.id)
+        assertNull("deny should clear only conversation A", loop.peekPendingPermission(convA.id))
+        assertNotNull("conversation B must survive A's deny", loop.peekPendingPermission(convB.id))
     }
 }

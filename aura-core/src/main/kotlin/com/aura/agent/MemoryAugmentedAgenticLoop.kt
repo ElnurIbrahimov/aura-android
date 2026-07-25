@@ -76,19 +76,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
 ) {
     /**
-     * A tool the loop paused on because it returned [ToolResult.NeedsPermission].
-     * The loop stashes the full run snapshot here so [resumeAfterPermission] can
-     * continue the agentic run after the user grants the permission. Cleared
-     * on resume and on deny.
+     * Tools the loop paused on because they returned
+     * [ToolResult.NeedsPermission], keyed by conversation id. The loop stashes
+     * the full run snapshot so [resumeAfterPermission] can continue the
+     * agentic run after the user grants. Entries are removed on resume and on
+     * deny.
      *
-     * The field lives on the singleton instance (the loop is @Singleton) so a
-     * single in-flight permission request can be resumed by a future call.
-     * `@Volatile` is sufficient — `resumeAfterPermission` reads + clears in a
-     * single suspend call before any other run can mutate it, and `run` only
-     * writes at the pause point (single-writer within a run).
+     * Keyed rather than a single field because the loop is a `@Singleton`: one
+     * slot meant a second conversation hitting a permission gate silently
+     * overwrote the first conversation's snapshot, stranding that run with no
+     * way to resume. It also meant the last snapshot — which holds an entire
+     * [Conversation] — was retained for the process lifetime.
      */
-    @Volatile
-    private var pendingPermission: PendingPermission? = null
+    private val pendingPermissions = java.util.concurrent.ConcurrentHashMap<String, PendingPermission>()
 
     /**
      * Snapshot of the run at the moment the loop paused for a permission grant.
@@ -116,20 +116,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     )
 
     /**
-     * Read-only view of the currently-held permission request, if any. UI
-     * uses this to drive a permission dialog (Allow / Deny). Returns null
-     * when no tool is waiting.
+     * Read-only view of the permission request held for [conversationId], if
+     * any. UI uses this to drive a permission dialog (Allow / Deny). Returns
+     * null when no tool is waiting for that conversation.
      */
-    fun peekPendingPermission(): PendingPermission? = pendingPermission
+    fun peekPendingPermission(conversationId: String): PendingPermission? =
+        pendingPermissions[conversationId]
 
     /**
-     * Drop the held permission request without resuming. Called by the UI
-     * when the user taps Deny. Inserts a marker into the conversation so
-     * the model can see the user explicitly chose not to grant.
+     * Drop the held permission request for [conversationId] without resuming.
+     * Called by the UI when the user taps Deny.
      */
-    fun denyPendingPermission() {
-        val held = pendingPermission ?: return
-        pendingPermission = null
+    fun denyPendingPermission(conversationId: String) {
+        val held = pendingPermissions.remove(conversationId) ?: return
         // Best-effort: the loop is a flow and the conversation lives in the
         // caller. The UI is expected to update its state and continue with
         // a follow-up user turn. We log so a future debug session can see
@@ -150,18 +149,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
      *   `heldStep + 1` with the held conversation (now containing the
      *   tool's actual output)
      *
-     * If no tool is waiting, emits a single `Error("no_pending", ...)` and
-     * `Done` so the UI gets a clear signal.
+     * If no tool is waiting for [conversationId], emits a single
+     * `Error("no_pending", ...)` and `Done` so the UI gets a clear signal.
      *
-     * Concurrency: this is a suspend function. The `@Volatile` field
-     * read+clear is not atomic, but the only writers are `run()` (which
-     * writes at the pause point) and `denyPendingPermission()` (which the
-     * UI calls *instead of* resuming). The contract is: a single user
-     * either grants or denies once per held request. If two concurrent
-     * resumes happen, the second one finds `null` and emits no_pending.
+     * Concurrency: `remove` is atomic, so two concurrent resumes for the same
+     * conversation cannot both replay the tool — the loser sees null and
+     * emits no_pending.
      */
-    fun resumeAfterPermission(): Flow<AgentEvent> = flow {
-        val held = pendingPermission
+    fun resumeAfterPermission(conversationId: String): Flow<AgentEvent> = flow {
+        val held = pendingPermissions.remove(conversationId)
         if (held == null) {
             emit(
                 AgentEvent.Error(
@@ -173,7 +169,6 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             emit(AgentEvent.Done)
             return@flow
         }
-        pendingPermission = null
 
         // Replay the held tool: execute it now that the permission is
         // granted (the user just allowed it). The tool reads the
@@ -753,7 +748,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // exits with PermissionRequested, and `resumeAfterPermission`
                 // picks up at step+1 after the UI grants.
                 if (result is ToolResult.NeedsPermission) {
-                    pendingPermission = PendingPermission(
+                    pendingPermissions[currentConversation.id] = PendingPermission(
                         toolName = name,
                         toolCallId = id,
                         args = args,
