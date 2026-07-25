@@ -20,9 +20,10 @@ This is my personal copy.
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
 - Agentic loop (ReAct-style, 10 steps max, streams text + tool calls, abort-safe, parallel tool execution, 4k char tool-result truncation budget)
+- Optional pre-answer planning pass (off by default — costs an extra model call per message; enable in Settings → AI & Models for tool-heavy work)
 - 17 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Mixture-of-Agents, Mistral, xAI Grok, Together AI, Cerebras, NVIDIA NIM, Meta Llama, Agnes AI, ChatGPT subscription, Custom OpenAI-compatible endpoint)
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
-- 4-tab bottom nav (Home, Chat, Memory, Settings) + 20 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
+- 4-tab bottom nav (Home, Chat, Memory, Settings) + 21 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode)
 - Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service) + daemon thinking worker (every ~15 min, background model)
 - Emotional state engine (4 dimensions: tension, connection, energy, focus — with inertia, decay, and heuristic signal detection)
@@ -43,7 +44,7 @@ This is my personal copy.
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v12)
-- 205 unit test files, 1,238 tests, 0 failures (was 202 / 1,115 at v0.26.0)
+- 217 unit test files, 1,286 tests, 0 failures (was 202 / 1,115 at v0.26.0)
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
 - 4 daily-use UX round-2 fixes (offline indicator, image paste, TTS state mirror + stop pill, response duration footer)
@@ -95,7 +96,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +--------------------------------------------+
 | :app  (Compose UI, 4 tabs + 20 routes)     |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   20 screens + 25 ViewModels               |
+|   22 screens + 27 ViewModels               |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+
@@ -126,7 +127,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Home** — greeting, quick actions, model status, cards for Skills, Creative, Tasks, Hands, Production, Beliefs, Evolution.
 - **Chat** — streaming assistant with text/voice input, model picker, specialist chips, tool-call badges, citation chips, follow-up suggestions, markdown rendering, code blocks, tables.
 - **Memory** — browse, search, edit, merge, bulk-clear, and rebuild embeddings.
-- **Settings** — providers, model defaults, appearance, persona, app lock, proactive toggles, tool policies, MCP servers, evolution, diagnostics, profile, emotional state, daemon config.
+- **Settings** — providers, model defaults, planning toggle, appearance, persona, app lock, proactive toggles, tool policies, MCP servers, evolution, diagnostics, profile, emotional state, daemon config.
 
 ### Secondary routes
 - **History** — long-press to rename/pin; tap to resume; multi-select + swipe-to-delete.
@@ -148,7 +149,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.
 
-## Tool catalog (59)
+## Tool catalog (61)
 
 ### Web & research
 | Tool | What it does | Risk |
@@ -233,9 +234,15 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 ### Evolution
 | Tool | What it does | Risk |
 |---|---|---|
-| `trigger_evolution` | Trigger a self-improvement cycle | READ_ONLY |
-| `approve_proposal` | Approve an evolution proposal | WRITE_LOCAL |
-| `rollback_evolution` | Rollback an applied evolution | WRITE_LOCAL |
+| `trigger_evolution_run` | Trigger a self-improvement cycle | WRITE_LOCAL |
+| `approve_evolution_proposal` | Approve an evolution proposal | WRITE_LOCAL |
+| `rollback_evolution_change` | Rollback an applied evolution | WRITE_LOCAL |
+
+### Agents
+| Tool | What it does | Risk |
+|---|---|---|
+| `delegate_to_agent` | Hand a task to another agent and return its result | REMOTE_COST |
+| `run_council` | Run the multi-role council review over a draft | REMOTE_COST |
 
 ## Providers (17 prefixes)
 
@@ -286,20 +293,30 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 - `ReminderWorker` — fires per `set_reminder` request.
 - `EvolutionWorker` — runs self-improvement cycle when triggered. Respects `evolutionEnabled` preference.
 
-## Room databases (8)
+## Room databases (10)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v11 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
-| ConversationDatabase | v2 | Conversations with embeddings for semantic search |
-| AgentRunDatabase | v1 | Agent runs, goals, steps, events, approvals, checkpoints |
+| MemoryDatabase | v14 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
+| ConversationDatabase | v6 | Conversations with embeddings for semantic search |
+| ProactiveEventDatabase | v5 | Proactive events with structured payload |
+| TaskDatabase | v4 | Tasks + reminders |
 | EvolutionDatabase | v3 | Proposals, skill revisions, metrics |
-| HandDatabase | v1 | User-defined automation macros |
-| TaskDatabase | v2 | Tasks + reminders |
-| ProactiveEventDatabase | v2 | Proactive events with structured payload |
-| UserProfileDatabase | v1 | User profile (name, traits, facts) |
+| DreamConsolidationDatabase | v2 | Dream summaries, routines, contradictions, KG edge proposals |
+| HandDatabase | v2 | User-defined automation macros |
+| UserProfileDatabase | v2 | User profile (name, traits, facts) |
+| AgentDatabase | v1 | Agent definitions and personality profiles |
+| AgentRunDatabase | v1 | Agent runs, goals, steps, events, approvals, checkpoints |
 
-All databases have schema export enabled (`room.schemaLocation`). Migration tests cover all upgrade paths.
+All databases have schema export enabled (`room.schemaLocation`).
+
+Known gap: `MemoryDatabase` schema exports jump from `6.json` to `11.json` — versions 7
+through 10 were never committed, so migration tests cannot verify that range. See
+[ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §3.
+
+Ten separate databases means no cross-database transactions or joins, ten independent
+migration chains, and a backup path that has to coordinate ten schemas. That is the main
+reason `BackupManager.kt` is the largest file in the project.
 
 ## Build
 
@@ -361,7 +378,7 @@ aura-android/
 - Kotlin 1.9.24, AGP 8.2.2, JVM target 17
 - Jetpack Compose (BOM 2024.10.01), Material 3, Navigation Compose
 - Hilt 2.51 (DI) + Hilt Work (for WorkManager injection)
-- Room 2.6.1 (8 databases, 11+ entities, 5+ migrations, schema export)
+- Room 2.6.1 (10 databases, 48 entities, 30 migrations, schema export)
 - WorkManager 2.9.1 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.6.3, kotlinx-coroutines 1.9.0
@@ -373,4 +390,11 @@ aura-android/
 
 ## Changelog
 
-`git log --oneline` is the changelog. 468 commits across the full development history.
+`git log --oneline` is the changelog. 521 commits across the full development history.
+
+## Engineering history
+
+[ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) consolidates the review and audit
+trail: what was found and fixed, what is still open (§3), and what the review cadence
+itself cost (§4). It replaces 29 separate dated report files, all recoverable from git
+history.

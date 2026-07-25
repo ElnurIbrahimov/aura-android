@@ -61,10 +61,13 @@ class ConversationCompactor @Inject constructor(
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else model
             } else {
                 // For non-MoA, try to find a cheaper model from any provider.
+                // Ranked by CheapModelHeuristic — ranking by name length picks
+                // "gpt-4o" over "gpt-4o-mini", i.e. the expensive model, because
+                // the suffix that marks a model as small also lengthens its name.
                 val candidates = providers.flatMap { p ->
                     cachedModels(p).map { m -> "${p.prefix}:$m" }
                 }.filter { it != model && !it.startsWith("moa:") }
-                candidates.minByOrNull { it.substringAfter(":").length } ?: model
+                com.aura.providers.CheapModelHeuristic.pick(candidates) ?: model
             }
         }.getOrDefault(model)
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
