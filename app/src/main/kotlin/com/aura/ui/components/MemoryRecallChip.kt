@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,7 +139,7 @@ private fun MemoryRecallSheet(
             if (memories.isEmpty() && hands.isEmpty()) {
                 item {
                     Text(
-                        text = "Aura looked at its memories for this turn but found nothing relevant.",
+                        text = stringResource(R.string.aura_looked_at_its_memories_for),
                         style = MaterialTheme.typography.bodyMedium,
                         color = AuraThemeTokens.colors.textPrimary,
                     )

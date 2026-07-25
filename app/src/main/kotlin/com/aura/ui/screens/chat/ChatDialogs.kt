@@ -1,5 +1,7 @@
 package com.aura.ui.screens.chat
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -41,13 +43,13 @@ fun StopStreamingDialog(
     if (!visible) return
     AlertDialog(
         onDismissRequest = onKeepStreaming,
-        title = { Text("Stop streaming?") },
-        text = { Text("Aura will keep and save the response generated so far.") },
+        title = { Text(stringResource(R.string.stop_streaming)) },
+        text = { Text(stringResource(R.string.aura_will_keep_and_save_the)) },
         confirmButton = {
-            TextButton(onClick = onStop) { Text("Stop") }
+            TextButton(onClick = onStop) { Text(stringResource(R.string.stop)) }
         },
         dismissButton = {
-            TextButton(onClick = onKeepStreaming) { Text("Keep streaming") }
+            TextButton(onClick = onKeepStreaming) { Text(stringResource(R.string.keep_streaming)) }
         },
     )
 }
@@ -61,15 +63,15 @@ fun DeleteConversationDialog(
     if (!visible) return
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete conversation?") },
-        text = { Text("This conversation will be permanently deleted. This cannot be undone.") },
+        title = { Text(stringResource(R.string.delete_conversation)) },
+        text = { Text(stringResource(R.string.this_conversation_will_be_permanently_deleted)) },
         confirmButton = {
             TextButton(onClick = onDelete) {
-                Text("Delete", color = AuraThemeTokens.colors.error)
+                Text(stringResource(R.string.delete), color = AuraThemeTokens.colors.error)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }
@@ -81,7 +83,7 @@ fun SourcesSheet(citations: List<Citation>, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "Sources",
+                text = stringResource(R.string.sources),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -137,7 +139,7 @@ fun PermissionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Permission needed") },
+        title = { Text(stringResource(R.string.permission_needed)) },
         text = {
             Text(buildString {
                 append(rationale ?: "Aura needs access to continue.")
@@ -152,7 +154,7 @@ fun PermissionDialog(
                 isNotificationAccess -> TextButton(onClick = {
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     onDismiss()
-                }) { Text("Open Notification access") }
+                }) { Text(stringResource(R.string.open_notification_access)) }
                 permanentlyDenied -> TextButton(onClick = {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -161,14 +163,14 @@ fun PermissionDialog(
                         },
                     )
                     onDismiss()
-                }) { Text("Open Settings") }
+                }) { Text(stringResource(R.string.open_settings)) }
                 else -> TextButton(onClick = { permissionLauncher.launch(permission) }) {
-                    Text("Grant")
+                    Text(stringResource(R.string.grant))
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Deny") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.deny)) }
         },
     )
 }
@@ -182,15 +184,15 @@ fun CostApprovalDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Paid action") },
+        title = { Text(stringResource(R.string.paid_action)) },
         text = {
             Text(rationale)
         },
         confirmButton = {
-            TextButton(onClick = onApprove) { Text("Approve") }
+            TextButton(onClick = onApprove) { Text(stringResource(R.string.approve)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

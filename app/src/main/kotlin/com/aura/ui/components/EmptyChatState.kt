@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -107,7 +109,7 @@ fun EmptyChatState(
             AuraLogomark(size = 40.dp)
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "Welcome to Aura",
+                text = stringResource(R.string.welcome_to_aura),
                 fontFamily = Fraunces,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 28.sp,
@@ -115,7 +117,7 @@ fun EmptyChatState(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "What should we explore?",
+                text = stringResource(R.string.what_should_we_explore),
                 fontFamily = InterDisplay,
                 fontWeight = FontWeight.Medium,
                 fontSize = 15.sp,

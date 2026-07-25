@@ -1,5 +1,7 @@
 package com.aura.ui.screens.home
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -133,7 +135,7 @@ fun HomeSecondaryActions(
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         Text(
-            text = "Open",
+            text = stringResource(R.string.open),
             style = MaterialTheme.typography.labelLarge,
             color = AuraThemeTokens.colors.textSecondary,
         )

@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,12 +59,12 @@ fun DreamConsolidationSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Consolidate memories while idle",
+                    text = stringResource(R.string.consolidate_memories_while_idle),
                     style = MaterialTheme.typography.bodyLarge,
                     color = AuraThemeTokens.colors.textPrimary,
                 )
                 Text(
-                    text = "Daily, while charging. Clusters paraphrases into single summaries.",
+                    text = stringResource(R.string.daily_while_charging_clusters_paraphrases_into),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textSecondary,
                 )
@@ -82,7 +84,7 @@ fun DreamConsolidationSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Last ran: ",
+                    text = stringResource(R.string.last_ran),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AuraThemeTokens.colors.textSecondary,
                 )

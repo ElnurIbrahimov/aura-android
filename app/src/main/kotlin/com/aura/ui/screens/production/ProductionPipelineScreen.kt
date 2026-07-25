@@ -1,5 +1,7 @@
 package com.aura.ui.screens.production
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -92,7 +94,7 @@ fun ProductionPipelineScreen(
                 value = selectedProject?.name ?: "Select a project",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Project") },
+                label = { Text(stringResource(R.string.project)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = projectExpanded) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,7 +127,7 @@ fun ProductionPipelineScreen(
                 value = state.selectedPipeline?.displayName ?: "Select pipeline",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Pipeline") },
+                label = { Text(stringResource(R.string.pipeline)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pipelineExpanded) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,7 +152,7 @@ fun ProductionPipelineScreen(
         OutlinedTextField(
             value = state.brief,
             onValueChange = viewModel::setBrief,
-            label = { Text("Brief / prompt") },
+            label = { Text(stringResource(R.string.brief_prompt)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3,
         )
@@ -177,7 +179,7 @@ fun ProductionPipelineScreen(
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedButton(onClick = { viewModel.dismissResult() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Dismiss")
+                Text(stringResource(R.string.dismiss))
             }
         }
 
@@ -189,10 +191,10 @@ fun ProductionPipelineScreen(
             Button(onClick = onOpenAgentRuns, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Movie, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("View in Agent Runs")
+                Text(stringResource(R.string.view_in_agent_runs))
             }
             OutlinedButton(onClick = { viewModel.dismissResult() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Schedule another")
+                Text(stringResource(R.string.schedule_another))
             }
         }
         }

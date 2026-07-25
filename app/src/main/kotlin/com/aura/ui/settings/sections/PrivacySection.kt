@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,7 +53,7 @@ fun PrivacySection(
         initialExpanded = false,
     ) {
         Text(
-            text = "Require biometric authentication to open Aura. Toggle the proactive workers off if you don't want the 7am brief or the calendar monitor.",
+            text = stringResource(R.string.require_biometric_authentication_to_open_aura),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -72,7 +74,7 @@ fun PrivacySection(
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Notification access", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.notification_access), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (notificationAccessEnabled) "Enabled - Aura can read active device notifications"
                     else "Off - enable to summarize device notifications",
@@ -89,7 +91,7 @@ fun PrivacySection(
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "App lock", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.app_lock), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (appLockEnabled) "Enabled - biometric required to open Aura"
                     else "Off - Aura opens straight to chat",
@@ -103,20 +105,20 @@ fun PrivacySection(
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Profile", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.profile), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text = "Name, traits, and facts Aura has learned",
+                    text = stringResource(R.string.name_traits_and_facts_aura_has),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                 )
             }
-            TextButton(onClick = onNavigateProfile) { Text("Edit") }
+            TextButton(onClick = onNavigateProfile) { Text(stringResource(R.string.edit)) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Morning brief", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.morning_brief), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (morningBriefEnabled) "On - %02d:00 daily summary".format(morningBriefHour)
                     else "Off - no morning notification",
@@ -133,25 +135,25 @@ fun PrivacySection(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Brief at:", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.brief_at), style = MaterialTheme.typography.bodySmall)
                 var showBriefTimePicker by remember { mutableStateOf(false) }
                 OutlinedButton(onClick = { showBriefTimePicker = true }) {
-                    Text("%02d:00".format(morningBriefHour))
+                    Text(stringResource(R.string.s_02d_00).format(morningBriefHour))
                 }
                 if (showBriefTimePicker) {
                     val tpState = rememberTimePickerState(initialHour = morningBriefHour, initialMinute = 0)
                     AlertDialog(
                         onDismissRequest = { showBriefTimePicker = false },
-                        title = { Text("Morning brief time") },
+                        title = { Text(stringResource(R.string.morning_brief_time)) },
                         text = { TimePicker(state = tpState) },
                         confirmButton = {
                             TextButton(onClick = {
                                 onSetMorningBriefHour(tpState.hour)
                                 showBriefTimePicker = false
-                            }) { Text("Set") }
+                            }) { Text(stringResource(R.string.set)) }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showBriefTimePicker = false }) { Text("Cancel") }
+                            TextButton(onClick = { showBriefTimePicker = false }) { Text(stringResource(R.string.cancel)) }
                         },
                     )
                 }
@@ -161,7 +163,7 @@ fun PrivacySection(
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Calendar monitor", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.calendar_monitor), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (calendarMonitorEnabled) "On - runs in background, shows notification"
                     else "Off - stops the persistent foreground service",
@@ -174,7 +176,7 @@ fun PrivacySection(
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Memory decay", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.memory_decay), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (decayEnabled) "On - fades memories over 14 days"
                     else "Off - preserves all memories at full importance",

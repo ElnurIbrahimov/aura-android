@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -78,7 +80,7 @@ fun AgentEditorScreen(
         OutlinedTextField(
             value = state.name,
             onValueChange = viewModel::updateName,
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.name)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = !state.isBuiltin,
@@ -89,7 +91,7 @@ fun AgentEditorScreen(
         OutlinedTextField(
             value = state.icon,
             onValueChange = viewModel::updateIcon,
-            label = { Text("Icon (emoji)") },
+            label = { Text(stringResource(R.string.icon_emoji)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -99,7 +101,7 @@ fun AgentEditorScreen(
         OutlinedTextField(
             value = state.description,
             onValueChange = viewModel::updateDescription,
-            label = { Text("Description (one line)") },
+            label = { Text(stringResource(R.string.description_one_line)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -109,7 +111,7 @@ fun AgentEditorScreen(
         OutlinedTextField(
             value = state.identity,
             onValueChange = viewModel::updateIdentity,
-            label = { Text("System prompt / identity") },
+            label = { Text(stringResource(R.string.system_prompt_identity)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
             maxLines = 12,
@@ -120,15 +122,15 @@ fun AgentEditorScreen(
         OutlinedTextField(
             value = state.preferredModel,
             onValueChange = viewModel::updatePreferredModel,
-            label = { Text("Preferred model (empty = default)") },
-            placeholder = { Text("e.g. ollama:deepseek-v4-pro") },
+            label = { Text(stringResource(R.string.preferred_model_empty_default)) },
+            placeholder = { Text(stringResource(R.string.e_g_ollama_deepseek_v4_pro)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
         Spacer(modifier = Modifier.height(16.dp))
 
         // Memory scope
-        Text("Memory", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.memory), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -147,7 +149,7 @@ fun AgentEditorScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Personality sliders
-        Text("Personality", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.personality), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(8.dp))
         PersonalitySlider("Warmth", state.personality.warmth, 0f, 1f) { viewModel.updatePersonality("warmth", it) }
         PersonalitySlider("Formality", state.personality.formality, 0f, 1f) { viewModel.updatePersonality("formality", it) }
@@ -159,10 +161,10 @@ fun AgentEditorScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Tools
-        Text("Tools", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.tools), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Toggle which tools this agent can use. Empty = all tools.",
+            text = stringResource(R.string.toggle_which_tools_this_agent_can),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -198,26 +200,26 @@ fun AgentEditorScreen(
             Button(
                 onClick = { viewModel.save() },
                 modifier = Modifier.weight(1f),
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
             if (agentId != null && !state.isBuiltin) {
                 var showDelete by remember { mutableStateOf(false) }
                 OutlinedButton(
                     onClick = { showDelete = true },
                     modifier = Modifier.weight(1f),
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
                 if (showDelete) {
                     AlertDialog(
                         onDismissRequest = { showDelete = false },
-                        title = { Text("Delete agent?") },
-                        text = { Text("This agent and its private memories will be removed.") },
+                        title = { Text(stringResource(R.string.delete_agent)) },
+                        text = { Text(stringResource(R.string.this_agent_and_its_private_memories)) },
                         confirmButton = {
                             TextButton(onClick = {
                                 viewModel.delete()
                                 showDelete = false
-                            }) { Text("Delete") }
+                            }) { Text(stringResource(R.string.delete)) }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showDelete = false }) { Text("Cancel") }
+                            TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) }
                         },
                     )
                 }

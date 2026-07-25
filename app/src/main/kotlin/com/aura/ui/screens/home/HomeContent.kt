@@ -1,5 +1,7 @@
 package com.aura.ui.screens.home
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 
 import androidx.compose.foundation.layout.Arrangement
@@ -222,7 +224,7 @@ fun HomeContent(
 
                         Text(
 
-                            text = "Search chats, memories, tasks…",
+                            text = stringResource(R.string.search_chats_memories_tasks),
 
                             style = MaterialTheme.typography.bodyMedium,
 
@@ -304,7 +306,7 @@ fun HomeContent(
 
                                 )
 
-                                TextButton(onClick = onRetry) { Text("Retry") }
+                                TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
 
                             }
 
@@ -613,7 +615,7 @@ private fun HomeFreshStart(
 
             Text(
 
-                text = "Build useful context",
+                text = stringResource(R.string.build_useful_context),
 
                 style = MaterialTheme.typography.titleSmall,
 
@@ -775,7 +777,7 @@ private fun HomeAtAGlance(state: HomeUiState) {
 
         Text(
 
-            text = "At a glance",
+            text = stringResource(R.string.at_a_glance),
 
             style = MaterialTheme.typography.labelLarge,
 

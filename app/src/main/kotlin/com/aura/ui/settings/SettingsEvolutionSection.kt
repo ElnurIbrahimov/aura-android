@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,15 +24,15 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
     val interval = state.evolutionIntervalHours
     Card(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Evolution", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.evolution), style = MaterialTheme.typography.titleMedium)
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Enabled", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.enabled), modifier = Modifier.weight(1f))
                 Switch(checked = enabled, onCheckedChange = { viewModel.setEvolutionEnabled(it) })
             }
             TextField(
                 value = interval.toString(),
                 onValueChange = { viewModel.setEvolutionIntervalHours(it.toIntOrNull() ?: 24) },
-                label = { Text("Interval (hours)") },
+                label = { Text(stringResource(R.string.interval_hours)) },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
         }

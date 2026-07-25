@@ -1,5 +1,7 @@
 package com.aura.ui.screens.home
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,13 +69,13 @@ fun HomePrimaryAction(
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             Text(
-                text = "Ask Aura",
+                text = stringResource(R.string.ask_aura),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
             )
             Text(
-                text = "Start with what matters right now.",
+                text = stringResource(R.string.start_with_what_matters_right_now),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -85,7 +87,7 @@ fun HomePrimaryAction(
                     value = draft,
                     onValueChange = { draft = it },
                     modifier = Modifier.weight(1f).testTag("home-ask-input"),
-                    placeholder = { Text("What do you need?") },
+                    placeholder = { Text(stringResource(R.string.what_do_you_need)) },
                     singleLine = true,
                     shape = RoundedCornerShape(AuraDimensions.controlRadius),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),

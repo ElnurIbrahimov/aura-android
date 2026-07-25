@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -125,7 +127,7 @@ fun SettingsClickableRow(
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f))
             }
-            TextButton(onClick = onClick) { Text("Open") }
+            TextButton(onClick = onClick) { Text(stringResource(R.string.open)) }
         }
     }
 }
@@ -149,6 +151,6 @@ fun RoleModelRow(
                 color = AuraThemeTokens.colors.textPrimary,
             )
         }
-        OutlinedButton(onClick = onChoose) { Text("Choose") }
+        OutlinedButton(onClick = onChoose) { Text(stringResource(R.string.choose)) }
     }
 }

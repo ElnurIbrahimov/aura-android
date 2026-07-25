@@ -1,5 +1,7 @@
 package com.aura.widget
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.Bundle
@@ -113,7 +115,7 @@ class WidgetConfigActivity : ComponentActivity() {
                         ) {
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Loading models…", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.loading_models), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 } else {
@@ -179,10 +181,10 @@ private fun WidgetConfigContent(
             modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Configure widget", style = MaterialTheme.typography.headlineSmall)
-            Text("Pick a model and optional prompt prefix.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.configure_widget), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.pick_a_model_and_optional_prompt), style = MaterialTheme.typography.bodySmall)
 
-            Text("Model", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.model), style = MaterialTheme.typography.labelLarge)
             availableModels.forEach { model ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -201,12 +203,12 @@ private fun WidgetConfigContent(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Prompt prefix (optional)", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.prompt_prefix_optional), style = MaterialTheme.typography.labelLarge)
             OutlinedTextField(
                 value = prefix,
                 onValueChange = { prefix = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("e.g. Be concise.") },
+                placeholder = { Text(stringResource(R.string.e_g_be_concise)) },
                 singleLine = true,
             )
 
@@ -216,9 +218,9 @@ private fun WidgetConfigContent(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = onCancel) { Text("Cancel") }
+                Button(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
                 Spacer(modifier = Modifier.height(0.dp).padding(horizontal = 8.dp))
-                Button(onClick = { onSave(selectedModel, prefix) }) { Text("Save") }
+                Button(onClick = { onSave(selectedModel, prefix) }) { Text(stringResource(R.string.save)) }
             }
         }
     }

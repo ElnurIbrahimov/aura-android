@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,7 +41,7 @@ fun ModelRolesSection(
         initialExpanded = false,
     ) {
         Text(
-            text = "Override the default model for specific tasks. Leave a role empty to fall back to the conversation model.",
+            text = stringResource(R.string.override_the_default_model_for_specific),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -75,7 +77,7 @@ fun ModelRolesSection(
                         OutlinedTextField(
                             value = pickerModel,
                             onValueChange = { pickerModel = it },
-                            label = { Text("Model id (e.g. ollama:gemma4:e4b)") },
+                            label = { Text(stringResource(R.string.model_id_e_g_ollama_gemma4)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -91,10 +93,10 @@ fun ModelRolesSection(
                     Button(onClick = {
                         onSetRoleModel(role, pickerModel)
                         editingRole = null
-                    }) { Text("Save") }
+                    }) { Text(stringResource(R.string.save)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { editingRole = null }) { Text("Cancel") }
+                    TextButton(onClick = { editingRole = null }) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

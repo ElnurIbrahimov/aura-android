@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,14 +68,14 @@ fun SettingsScreen(
         // Header
         Column(modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)) {
             Text(
-                text = "Settings",
+                text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = AuraThemeTokens.colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Connect providers, manage memory, customize Aura",
+                text = stringResource(R.string.connect_providers_manage_memory_customize_aura),
                 style = MaterialTheme.typography.bodyLarge,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
             )
@@ -252,7 +254,7 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Aura",
+                text = stringResource(R.string.aura),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),

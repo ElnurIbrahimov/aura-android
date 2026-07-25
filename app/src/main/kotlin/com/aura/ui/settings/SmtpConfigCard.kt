@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,7 +45,7 @@ fun SmtpConfigCard(
             OutlinedTextField(
                 value = host,
                 onValueChange = onHostChange,
-                label = { Text("SMTP host") },
+                label = { Text(stringResource(R.string.smtp_host)) },
                 placeholder = { Text("smtp.gmail.com") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -51,22 +53,22 @@ fun SmtpConfigCard(
             OutlinedTextField(
                 value = port.toString(),
                 onValueChange = onPortChange,
-                label = { Text("Port") },
+                label = { Text(stringResource(R.string.port)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
             OutlinedTextField(
                 value = username,
                 onValueChange = onUsernameChange,
-                label = { Text("Username") },
-                placeholder = { Text("you@gmail.com") },
+                label = { Text(stringResource(R.string.username)) },
+                placeholder = { Text(stringResource(R.string.you_gmail_com)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
             OutlinedTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = { Text("Password / app password") },
+                label = { Text(stringResource(R.string.password_app_password)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -74,8 +76,8 @@ fun SmtpConfigCard(
             OutlinedTextField(
                 value = from,
                 onValueChange = onFromChange,
-                label = { Text("From address") },
-                placeholder = { Text("defaults to username") },
+                label = { Text(stringResource(R.string.from_address)) },
+                placeholder = { Text(stringResource(R.string.defaults_to_username)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )

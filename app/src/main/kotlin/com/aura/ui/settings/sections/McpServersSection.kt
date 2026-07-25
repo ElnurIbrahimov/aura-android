@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,14 +48,14 @@ fun McpServersSection(
         initialExpanded = false,
     ) {
         Text(
-            text = "Connect to local or remote MCP servers. Tools from connected servers are gated by your tool policies.",
+            text = stringResource(R.string.connect_to_local_or_remote_mcp),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (mcpServers.isEmpty()) {
             Text(
-                text = "No MCP servers configured.",
+                text = stringResource(R.string.no_mcp_servers_configured),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -73,24 +75,24 @@ fun McpServersSection(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                     )
                 }
-                TextButton(onClick = { onDisconnect(server.id) }) { Text("Disconnect") }
+                TextButton(onClick = { onDisconnect(server.id) }) { Text(stringResource(R.string.disconnect)) }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(onClick = { showMcpAddDialog = true }, modifier = Modifier.fillMaxWidth()) {
-            Text("Add MCP server")
+            Text(stringResource(R.string.add_mcp_server))
         }
 
         if (showMcpAddDialog) {
             AlertDialog(
                 onDismissRequest = { showMcpAddDialog = false },
-                title = { Text("Add MCP server") },
+                title = { Text(stringResource(R.string.add_mcp_server)) },
                 text = {
                     Column {
                         OutlinedTextField(
                             value = mcpDraft.name,
                             onValueChange = { mcpDraft = mcpDraft.copy(name = it) },
-                            label = { Text("Name") },
+                            label = { Text(stringResource(R.string.name)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -98,7 +100,7 @@ fun McpServersSection(
                         OutlinedTextField(
                             value = mcpDraft.url,
                             onValueChange = { mcpDraft = mcpDraft.copy(url = it) },
-                            label = { Text("URL (HTTPS or trusted local HTTP)") },
+                            label = { Text(stringResource(R.string.url_https_or_trusted_local_http)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -106,7 +108,7 @@ fun McpServersSection(
                         OutlinedTextField(
                             value = mcpDraft.authToken,
                             onValueChange = { mcpDraft = mcpDraft.copy(authToken = it) },
-                            label = { Text("Auth token (optional, sent as Bearer)") },
+                            label = { Text(stringResource(R.string.auth_token_optional_sent_as_bearer)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
@@ -117,7 +119,7 @@ fun McpServersSection(
                                 checked = mcpDraft.trustedLocal,
                                 onCheckedChange = { mcpDraft = mcpDraft.copy(trustedLocal = it) },
                             )
-                            Text("Trusted local (allows HTTP)")
+                            Text(stringResource(R.string.trusted_local_allows_http))
                         }
                     }
                 },
@@ -126,10 +128,10 @@ fun McpServersSection(
                         onTestConnection(mcpDraft)
                         mcpDraft = McpServerDraft()
                         showMcpAddDialog = false
-                    }) { Text("Connect") }
+                    }) { Text(stringResource(R.string.connect)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showMcpAddDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showMcpAddDialog = false }) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

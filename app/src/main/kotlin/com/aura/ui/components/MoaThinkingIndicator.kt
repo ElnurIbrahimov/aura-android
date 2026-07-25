@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -58,7 +60,7 @@ fun MoaThinkingIndicator(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            text = "Consulting 3 models",
+            text = stringResource(R.string.consulting_3_models),
             style = MaterialTheme.typography.labelSmall,
             color = AuraThemeTokens.colors.textPrimary,
         )

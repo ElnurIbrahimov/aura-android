@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -169,7 +171,7 @@ fun ModelPickerContent(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Choose model",
+                        text = stringResource(R.string.choose_model),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
@@ -188,7 +190,7 @@ fun ModelPickerContent(
                             )
                             onMakeDefault?.let { promote ->
                                 TextButton(onClick = promote, contentPadding = PaddingValues(start = 8.dp)) {
-                                    Text("Make default", style = MaterialTheme.typography.labelSmall)
+                                    Text(stringResource(R.string.make_default), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -221,7 +223,7 @@ fun ModelPickerContent(
                     .fillMaxWidth()
                     .testTag("model-search")
                     .padding(bottom = 12.dp),
-                placeholder = { Text("Search models…", style = MaterialTheme.typography.bodyMedium) },
+                placeholder = { Text(stringResource(R.string.search_models), style = MaterialTheme.typography.bodyMedium) },
                 leadingIcon = {
                     Icon(
                         Icons.Filled.Search,
@@ -252,7 +254,7 @@ fun ModelPickerContent(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = "Loading models from your providers…",
+                        text = stringResource(R.string.loading_models_from_your_providers),
                         style = MaterialTheme.typography.bodyMedium,
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                     )
@@ -265,7 +267,7 @@ fun ModelPickerContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = "Couldn't load models",
+                        text = stringResource(R.string.couldn_t_load_models),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -277,14 +279,14 @@ fun ModelPickerContent(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Tap refresh, or check the API key in Settings.",
+                        text = stringResource(R.string.tap_refresh_or_check_the_api),
                         style = MaterialTheme.typography.bodySmall,
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                     )
                 }
             } else if (models.isEmpty()) {
                 Text(
-                    text = "No verified models available. Save & Test a provider in Settings.",
+                    text = stringResource(R.string.no_verified_models_available_save_test),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                     modifier = Modifier.padding(vertical = 24.dp),
@@ -313,7 +315,7 @@ fun ModelPickerContent(
                             ) {
                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                                     Text(
-                                        text = "Last refresh failed",
+                                        text = stringResource(R.string.last_refresh_failed),
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.SemiBold,
                                         color = AuraThemeTokens.colors.textPrimary,

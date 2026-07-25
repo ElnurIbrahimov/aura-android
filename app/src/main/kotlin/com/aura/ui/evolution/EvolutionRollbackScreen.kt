@@ -1,5 +1,7 @@
 package com.aura.ui.evolution
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,31 +45,31 @@ fun EvolutionRollbackScreen(
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
-        Text("Rollback proposal", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.rollback_proposal), style = MaterialTheme.typography.headlineMedium)
         proposal?.let { p ->
             Text("Domain: ${p.domain}", style = MaterialTheme.typography.bodyLarge)
             Text("Target: ${p.targetId}", style = MaterialTheme.typography.bodyLarge)
             Text("Status: ${p.status}", style = MaterialTheme.typography.bodyLarge)
             Button(onClick = { confirm = true }, modifier = Modifier.padding(top = 16.dp)) {
-                Text("Rollback")
+                Text(stringResource(R.string.rollback))
             }
-        } ?: Text("Proposal not found", style = MaterialTheme.typography.bodyLarge)
+        } ?: Text(stringResource(R.string.proposal_not_found), style = MaterialTheme.typography.bodyLarge)
     }
 
     if (confirm && proposal != null) {
         AlertDialog(
             onDismissRequest = { confirm = false },
             title = { Text("Rollback ${proposal.domain} proposal?") },
-            text = { Text("This restores the previous version. Any newer applied changes for the same target will conflict.") },
+            text = { Text(stringResource(R.string.this_restores_the_previous_version_any)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.rollback(proposal.id)
                     confirm = false
                     onBack()
-                }) { Text("Rollback") }
+                }) { Text(stringResource(R.string.rollback)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirm = false }) { Text("Cancel") }
+                TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

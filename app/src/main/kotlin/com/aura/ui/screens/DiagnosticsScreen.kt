@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -166,7 +168,7 @@ fun DiagnosticsScreen(
                     modifier = Modifier.size(17.dp),
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("Clear", color = AuraThemeTokens.colors.error)
+                Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -221,15 +223,15 @@ fun DiagnosticsScreen(
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("Clear diagnostic history?") },
+            title = { Text(stringResource(R.string.clear_diagnostic_history)) },
             text = { Text("This permanently deletes ${state.entries.size} local entries. Export first if you need them.") },
             confirmButton = {
                 TextButton(onClick = {
                     showClearConfirm = false
                     viewModel.clearAll()
-                }) { Text("Clear all", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.clear_all), color = AuraThemeTokens.colors.error) }
             },
-            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -375,7 +377,7 @@ private fun DiagnosticsEmptyState() {
                 )
             }
             Spacer(Modifier.height(12.dp))
-            Text("No diagnostic entries", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.no_diagnostic_entries), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(5.dp))
             Text(
                 "That is the good kind of empty.",

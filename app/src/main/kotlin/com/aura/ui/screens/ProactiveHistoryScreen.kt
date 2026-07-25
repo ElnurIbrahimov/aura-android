@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.provider.CalendarContract
 import androidx.compose.foundation.clickable
@@ -103,7 +105,7 @@ fun ProactiveHistoryScreen(
                             modifier = Modifier.size(22.dp),
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Proactive history")
+                        Text(stringResource(R.string.proactive_history))
                     }
                 },
             )
@@ -167,14 +169,14 @@ private fun EmptyState() {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "No proactive events yet",
+            text = stringResource(R.string.no_proactive_events_yet),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Morning briefs, calendar reminders, and memory insights will appear here.",
+            text = stringResource(R.string.morning_briefs_calendar_reminders_and_memory),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.38f),
             modifier = Modifier.padding(horizontal = 40.dp),
@@ -413,7 +415,7 @@ private fun DebugSection(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Debug · fire now",
+                text = stringResource(R.string.debug_fire_now),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = AuraThemeTokens.colors.actionPrimary,
@@ -421,7 +423,7 @@ private fun DebugSection(
         }
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Run each loop on demand without waiting for its scheduled interval.",
+            text = stringResource(R.string.run_each_loop_on_demand_without),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.55f),
         )
@@ -491,7 +493,7 @@ private fun DebugSection(
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        text = "Dismiss",
+                        text = stringResource(R.string.dismiss),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = AuraThemeTokens.colors.actionPrimary,
@@ -571,7 +573,7 @@ private fun DebugActionRow(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Run",
+                    text = stringResource(R.string.run),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                 )

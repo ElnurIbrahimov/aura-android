@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,20 +95,20 @@ fun RemindersScreen(
                 title = "Reminders",
                 subtitle = if (showHistory) "${state.history.size} completed or cancelled" else "${state.upcoming.size} upcoming",
                 action = if (showHistory && state.history.isNotEmpty()) ({
-                    TextButton(onClick = { confirmClearHistory = true }) { Text("Clear history") }
+                    TextButton(onClick = { confirmClearHistory = true }) { Text(stringResource(R.string.clear_history)) }
                 }) else null,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
                     onClick = { showHistory = false },
-                    label = { Text("Upcoming") },
+                    label = { Text(stringResource(R.string.upcoming)) },
                     colors = if (!showHistory) AssistChipDefaults.assistChipColors(
                         containerColor = AuraThemeTokens.colors.actionPrimary,
                     ) else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
                     onClick = { showHistory = true },
-                    label = { Text("History") },
+                    label = { Text(stringResource(R.string.history)) },
                     colors = if (showHistory) AssistChipDefaults.assistChipColors(
                         containerColor = AuraThemeTokens.colors.actionPrimary,
                     ) else AssistChipDefaults.assistChipColors(),
@@ -118,7 +120,7 @@ fun RemindersScreen(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search reminders by message or recurrence") },
+                placeholder = { Text(stringResource(R.string.search_reminders_by_message_or_recurrence)) },
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
@@ -145,7 +147,7 @@ fun RemindersScreen(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.65f),
                     )
                     if (!showHistory) {
-                        TextButton(onClick = { showAdd = true }) { Text("Add a reminder") }
+                        TextButton(onClick = { showAdd = true }) { Text(stringResource(R.string.add_a_reminder)) }
                     }
                 }
             } else {
@@ -195,29 +197,29 @@ fun RemindersScreen(
     cancelling?.let { reminder ->
         AlertDialog(
             onDismissRequest = { cancelling = null },
-            title = { Text("Cancel reminder?") },
+            title = { Text(stringResource(R.string.cancel_reminder)) },
             text = { Text("${reminder.message}\n\nThe reminder stays in History.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.cancel(reminder.id)
                     cancelling = null
-                }) { Text("Cancel reminder", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.cancel_reminder_2), color = AuraThemeTokens.colors.error) }
             },
-            dismissButton = { TextButton(onClick = { cancelling = null }) { Text("Keep") } },
+            dismissButton = { TextButton(onClick = { cancelling = null }) { Text(stringResource(R.string.keep)) } },
         )
     }
     if (confirmClearHistory) {
         AlertDialog(
             onDismissRequest = { confirmClearHistory = false },
-            title = { Text("Clear reminder history?") },
-            text = { Text("This permanently removes fired and cancelled reminder records.") },
+            title = { Text(stringResource(R.string.clear_reminder_history)) },
+            text = { Text(stringResource(R.string.this_permanently_removes_fired_and_cancelled)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.clearHistory()
                     confirmClearHistory = false
-                }) { Text("Clear", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text("Keep") } },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.keep)) } },
         )
     }
 }

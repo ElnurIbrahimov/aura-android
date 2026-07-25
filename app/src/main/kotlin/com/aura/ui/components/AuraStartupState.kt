@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,7 +74,7 @@ fun AuraStartupState(modifier: Modifier = Modifier) {
                 color = colors.textPrimary,
             )
             Text(
-                text = "Preparing your space…",
+                text = stringResource(R.string.preparing_your_space),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -117,14 +119,14 @@ internal fun AuraAppLockContent(
                 }
             }
             Text(
-                text = "Aura is locked",
+                text = stringResource(R.string.aura_is_locked),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Authenticate to open your conversations.",
+                text = stringResource(R.string.authenticate_to_open_your_conversations),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -146,7 +148,7 @@ internal fun AuraAppLockContent(
             ) {
                 Icon(Icons.Filled.Fingerprint, contentDescription = null)
                 Spacer(Modifier.width(AuraSpacing.xs))
-                Text("Unlock")
+                Text(stringResource(R.string.unlock))
             }
         }
     }

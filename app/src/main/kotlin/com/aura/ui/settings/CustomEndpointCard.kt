@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,7 +71,7 @@ fun CustomEndpointCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Custom Endpoint",
+                    text = stringResource(R.string.custom_endpoint),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -94,7 +96,7 @@ fun CustomEndpointCard(
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Any OpenAI-compatible chat-completions URL. " +
+                text = stringResource(R.string.any_openai_compatible_chat_completions_url) +
                     "Models are pulled from <URL>/models unless you provide a static list.",
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
@@ -103,7 +105,7 @@ fun CustomEndpointCard(
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = onBaseUrlChange,
-                label = { Text("Base URL") },
+                label = { Text(stringResource(R.string.base_url)) },
                 placeholder = { Text("https://api.example.com/v1") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -115,8 +117,8 @@ fun CustomEndpointCard(
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = onApiKeyChange,
-                label = { Text("API key") },
-                placeholder = { Text("sk-…") },
+                label = { Text(stringResource(R.string.api_key)) },
+                placeholder = { Text(stringResource(R.string.sk)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("custom-endpoint-key"),
@@ -145,12 +147,12 @@ fun CustomEndpointCard(
                     if (testing) {
                         CircularProgressIndicator(modifier = Modifier.height(16.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Save & Test")
+                        Text(stringResource(R.string.save_test))
                     }
                 }
                 if (isConfigured) {
                     TextButton(onClick = onClear) {
-                        Text("Clear", color = AuraThemeTokens.colors.error)
+                        Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
                     }
                 }
                 result?.let { msg ->

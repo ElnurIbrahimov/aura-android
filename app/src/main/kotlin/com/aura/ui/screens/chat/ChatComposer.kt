@@ -1,5 +1,7 @@
 package com.aura.ui.screens.chat
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -139,7 +141,7 @@ fun ChatComposer(
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (draft.isEmpty()) {
                             Text(
-                                text = "Message Aura…",
+                                text = stringResource(R.string.message_aura),
                                 color = AuraThemeTokens.colors.textSecondary,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
@@ -252,7 +254,7 @@ fun ChatComposer(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = "Attach",
+                    text = stringResource(R.string.attach),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -275,14 +277,14 @@ fun ChatComposer(
                 }
                 if (skills.isNotEmpty()) {
                     Text(
-                        text = "Use a skill",
+                        text = stringResource(R.string.use_a_skill),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = AuraThemeTokens.colors.textSecondary,
                         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
                     )
                     Text(
-                        text = "Inserts /use_skill <name> into the composer — the agent will load the skill's body on the next turn.",
+                        text = stringResource(R.string.inserts_use_skill_name_into_the),
                         style = MaterialTheme.typography.bodySmall,
                         color = AuraThemeTokens.colors.textSecondary,
                         modifier = Modifier.padding(bottom = 8.dp),

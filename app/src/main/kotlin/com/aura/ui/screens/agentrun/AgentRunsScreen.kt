@@ -1,5 +1,7 @@
 package com.aura.ui.screens.agentrun
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -122,14 +124,14 @@ private fun AgentRunsList(
             Surface(color = AuraThemeTokens.colors.error) {
                 Row(Modifier.padding(AuraSpacing.md)) {
                     Text("Error: $error", modifier = Modifier.weight(1f), color = AuraThemeTokens.colors.textPrimary)
-                    TextButton(onClick = onRefresh) { Text("Retry") }
+                    TextButton(onClick = onRefresh) { Text(stringResource(R.string.retry)) }
                 }
             }
         }
         if (runs.isEmpty() && !loading) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("No agent runs yet.", style = MaterialTheme.typography.titleMedium)
-                Text("Run a hand or production pipeline to create one.", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
+                Text(stringResource(R.string.no_agent_runs_yet), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.run_a_hand_or_production_pipeline), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = AuraSpacing.md)) {
@@ -196,21 +198,21 @@ private fun AgentRunDetail(
             StatusChip(run.status)
         }
         if (approvals.isNotEmpty()) {
-            Text("Approvals", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.approvals), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             approvals.forEach { approval ->
                 ApprovalCard(approval, onApprove = { onApprove(approval.id) }, onDeny = { onDeny(approval.id) })
             }
         }
         if (steps.isNotEmpty()) {
-            Text("Steps", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.steps), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             steps.forEach { step ->
                 StepRow(step)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
             if (run.status == "RUNNING" || run.status == "PAUSED") {
-                OutlinedButton(onClick = { onCancel(run.id) }) { Text("Cancel") }
-                Button(onClick = { onResume(run.id) }) { Text("Resume") }
+                OutlinedButton(onClick = { onCancel(run.id) }) { Text(stringResource(R.string.cancel)) }
+                Button(onClick = { onResume(run.id) }) { Text(stringResource(R.string.resume)) }
             }
         }
     }
@@ -256,7 +258,7 @@ private fun ApprovalCard(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
-                OutlinedButton(onClick = onDeny) { Text("Deny") }
+                OutlinedButton(onClick = onDeny) { Text(stringResource(R.string.deny)) }
                 Button(
                     onClick = {
                         if (permission != null && !alreadyGranted) {
@@ -265,7 +267,7 @@ private fun ApprovalCard(
                             onApprove()
                         }
                     },
-                ) { Text("Approve") }
+                ) { Text(stringResource(R.string.approve)) }
             }
         }
     }

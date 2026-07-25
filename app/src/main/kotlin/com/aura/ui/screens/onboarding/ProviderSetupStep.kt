@@ -1,5 +1,7 @@
 package com.aura.ui.screens.onboarding
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,12 +35,12 @@ fun ProviderSetupStep(
             tint = AuraThemeTokens.colors.actionPrimary,
         )
         Text(
-            text = "Connect a provider",
+            text = stringResource(R.string.connect_a_provider),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Start with one provider. Your key is stored on this device and tested only when you tap Save & Test.",
+            text = stringResource(R.string.start_with_one_provider_your_key),
             style = MaterialTheme.typography.bodyMedium,
             color = AuraThemeTokens.colors.textPrimary,
         )

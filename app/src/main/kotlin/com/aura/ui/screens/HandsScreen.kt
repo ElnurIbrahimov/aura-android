@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -124,7 +126,7 @@ fun HandsScreen(
                 ExtendedFloatingActionButton(
                     onClick = { showNewHand = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("Add hand") },
+                    text = { Text(stringResource(R.string.add_hand)) },
                 )
             }
         },
@@ -139,7 +141,7 @@ fun HandsScreen(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                placeholder = { Text("Search hands by name or trigger phrase") },
+                placeholder = { Text(stringResource(R.string.search_hands_by_name_or_trigger)) },
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
@@ -254,30 +256,30 @@ fun HandsScreen(
         AlertDialog(
             onDismissRequest = { deleteHand = null },
             title = { Text("Delete ${hand.name}?") },
-            text = { Text("The hand is removed. Its run-history snapshots remain available until you clear history.") },
+            text = { Text(stringResource(R.string.the_hand_is_removed_its_run)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.delete(hand); deleteHand = null }) { Text("Delete") }
+                TextButton(onClick = { viewModel.delete(hand); deleteHand = null }) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleteHand = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleteHand = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (confirmClearHistory) {
         AlertDialog(
             onDismissRequest = { confirmClearHistory = false },
-            title = { Text("Clear run history?") },
-            text = { Text("This removes local automation outputs and statuses. Saved hands are not changed.") },
+            title = { Text(stringResource(R.string.clear_run_history)) },
+            text = { Text(stringResource(R.string.this_removes_local_automation_outputs_and)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.clearHistory(); confirmClearHistory = false }) { Text("Clear") }
+                TextButton(onClick = { viewModel.clearHistory(); confirmClearHistory = false }) { Text(stringResource(R.string.clear)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     state.lastResult?.let { output ->
         AlertDialog(
             onDismissRequest = viewModel::clearResult,
-            title = { Text("Hand finished") },
+            title = { Text(stringResource(R.string.hand_finished)) },
             text = { Text(output) },
-            confirmButton = { TextButton(onClick = viewModel::clearResult) { Text("Done") } },
+            confirmButton = { TextButton(onClick = viewModel::clearResult) { Text(stringResource(R.string.done)) } },
         )
     }
 }
@@ -375,8 +377,8 @@ private fun RunHistory(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.size(36.dp), tint = AuraThemeTokens.colors.actionPrimary)
                 Spacer(Modifier.height(10.dp))
-                Text("No runs yet", style = MaterialTheme.typography.titleMedium)
-                Text("Manual, agent, phrase, and scheduled runs appear here", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
+                Text(stringResource(R.string.no_runs_yet), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.manual_agent_phrase_and_scheduled_runs), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
             }
         }
         return
@@ -403,7 +405,7 @@ private fun RunHistory(
                 )
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onClear) { Text("Clear") }
+            TextButton(onClick = onClear) { Text(stringResource(R.string.clear)) }
         }
         if (filteredRuns.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -461,13 +463,13 @@ private fun RunHistoryCard(
                             onClick = onApprove,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Approve & resume")
+                            Text(stringResource(R.string.approve_resume))
                         }
                         HandRunStatus.NEEDS_PERMISSION.value -> Button(
                             onClick = onGrantPermission,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Grant permission & resume")
+                            Text(stringResource(R.string.grant_permission_resume))
                         }
                     }
                 }
@@ -486,9 +488,9 @@ private fun RunHandDialog(hand: Hand, onDismiss: () -> Unit, onRun: (Map<String,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (defaults.isEmpty()) {
-                    Text("This hand has no runtime variables. Its conditions and steps will run with saved defaults.")
+                    Text(stringResource(R.string.this_hand_has_no_runtime_variables))
                 } else {
-                    Text("Override inputs for this run only", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
+                    Text(stringResource(R.string.override_inputs_for_this_run_only), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
                     defaults.keys.forEach { key ->
                         OutlinedTextField(
                             value = values[key].orEmpty(),
@@ -501,8 +503,8 @@ private fun RunHandDialog(hand: Hand, onDismiss: () -> Unit, onRun: (Map<String,
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onRun(values) }) { Text("Run") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = { onRun(values) }) { Text(stringResource(R.string.run)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -525,7 +527,7 @@ private fun HandsEmptyState() {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = AuraThemeTokens.colors.actionPrimary, modifier = Modifier.padding(18.dp).size(32.dp))
             }
             Spacer(Modifier.height(14.dp))
-            Text("Build your first hand", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.build_your_first_hand), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(5.dp))
             Text(
                 "Chain tools, name the inputs, decide when it may run, and keep every result inspectable.",

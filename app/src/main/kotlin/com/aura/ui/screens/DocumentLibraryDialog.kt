@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,7 +53,7 @@ internal fun DocumentLibraryDialog(
     AlertDialog(
         onDismissRequest = { if (!state.importing) onDismiss() },
         icon = { Icon(Icons.Filled.Description, contentDescription = null) },
-        title = { Text("Document memory") },
+        title = { Text(stringResource(R.string.document_memory)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -72,7 +74,7 @@ internal fun DocumentLibraryDialog(
                         Text("  ${state.stage ?: "Importing…"}")
                     } else {
                         Icon(Icons.Filled.UploadFile, contentDescription = null)
-                        Text("  Import PDF, DOCX, or text")
+                        Text(stringResource(R.string.import_pdf_docx_or_text))
                     }
                 }
                 if (state.documents.isEmpty()) {
@@ -138,7 +140,7 @@ internal fun DocumentLibraryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, enabled = !state.importing) { Text("Done") }
+            TextButton(onClick = onDismiss, enabled = !state.importing) { Text(stringResource(R.string.done)) }
         },
     )
 
@@ -151,10 +153,10 @@ internal fun DocumentLibraryDialog(
                 TextButton(onClick = {
                     onDelete(document.id)
                     pendingDelete = null
-                }) { Text("Forget", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.forget), color = AuraThemeTokens.colors.error) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

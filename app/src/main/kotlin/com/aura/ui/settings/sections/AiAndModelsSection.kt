@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -136,12 +138,12 @@ fun AiAndModelsSection(
         )
 
         Text(
-            text = "API Keys",
+            text = stringResource(R.string.api_keys),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Stored locally. Model providers use Save & Test; tool services use Save.",
+            text = stringResource(R.string.stored_locally_model_providers_use_save),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -166,12 +168,12 @@ fun AiAndModelsSection(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Model roles",
+            text = stringResource(R.string.model_roles),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Every role is selected from verified provider catalogs. Unset roles never invent a fallback model.",
+            text = stringResource(R.string.every_role_is_selected_from_verified),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
         )
@@ -185,12 +187,12 @@ fun AiAndModelsSection(
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Mixture of Agents",
+            text = stringResource(R.string.mixture_of_agents),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Choose at least two reference models and one aggregator. Aura then exposes the virtual MoA custom model.",
+            text = stringResource(R.string.choose_at_least_two_reference_models),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
         )
@@ -231,7 +233,7 @@ fun AiAndModelsSection(
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Plan before answering", style = MaterialTheme.typography.bodyLarge)
+                Text(text = stringResource(R.string.plan_before_answering), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = if (state.planningEnabled) {
                         "On - extra model call per message; better tool picks, slower replies"

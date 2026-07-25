@@ -1,5 +1,7 @@
 package com.aura.ui.screens.onboarding
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -149,7 +151,7 @@ private fun OnboardingHeader(
         }
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Set up Aura",
+                text = stringResource(R.string.set_up_aura),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -160,7 +162,7 @@ private fun OnboardingHeader(
             )
         }
         if (step != OnboardingStep.Complete) {
-            TextButton(onClick = onSkip) { Text("Skip") }
+            TextButton(onClick = onSkip) { Text(stringResource(R.string.skip)) }
         } else {
             Spacer(Modifier.size(48.dp))
         }
@@ -214,13 +216,13 @@ private fun IntroStep(modifier: Modifier = Modifier) {
             modifier = Modifier.size(56.dp),
         )
         Text(
-            text = "Your assistant, set up your way",
+            text = stringResource(R.string.your_assistant_set_up_your_way),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Connect one provider, verify it, and choose the model Aura should use for new chats.",
+            text = stringResource(R.string.connect_one_provider_verify_it_and),
             style = MaterialTheme.typography.bodyLarge,
             color = AuraThemeTokens.colors.textPrimary,
             textAlign = TextAlign.Center,
@@ -261,12 +263,12 @@ private fun CompleteStep(state: OnboardingUiState, modifier: Modifier = Modifier
             modifier = Modifier.size(56.dp),
         )
         Text(
-            text = "Aura is ready",
+            text = stringResource(R.string.aura_is_ready),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Default chat model",
+            text = stringResource(R.string.default_chat_model),
             style = MaterialTheme.typography.labelMedium,
             color = AuraThemeTokens.colors.textPrimary,
         )

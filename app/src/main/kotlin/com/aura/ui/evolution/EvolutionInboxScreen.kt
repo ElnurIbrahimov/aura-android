@@ -1,5 +1,7 @@
 package com.aura.ui.evolution
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,7 +63,7 @@ fun EvolutionInboxScreen(
             Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
         Text(
-            text = "Evolution Inbox",
+            text = stringResource(R.string.evolution_inbox),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(16.dp),
         )
@@ -107,11 +109,11 @@ fun EvolutionInboxScreen(
             onDismissRequest = { viewModel.dismissOnboarding() },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissOnboarding() }) {
-                    Text("Start evolving")
+                    Text(stringResource(R.string.start_evolving))
                 }
             },
-            title = { Text("Evolution") },
-            text = { Text("Aura can learn from your conversations and propose skill, memory, and proactive improvements. Approved changes run through a safety gate, and you can roll back anything later.") },
+            title = { Text(stringResource(R.string.evolution)) },
+            text = { Text(stringResource(R.string.aura_can_learn_from_your_conversations)) },
         )
     }
 
@@ -127,7 +129,7 @@ fun EvolutionInboxScreen(
                     Text("Confidence: ${"%.0f".format(proposal.confidence * 100)}%")
                     if (proposal.patchJson.isNotBlank() && proposal.patchJson != "{}") {
                         Text(
-                            text = "Patch: " + proposal.patchJson,
+                            text = stringResource(R.string.patch) + proposal.patchJson,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp),
                         )
@@ -135,7 +137,7 @@ fun EvolutionInboxScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedProposal = null }) { Text("Close") }
+                TextButton(onClick = { selectedProposal = null }) { Text(stringResource(R.string.close)) }
             },
         )
     }
@@ -188,7 +190,7 @@ private fun RejectReasonDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Reject proposal?") },
+        title = { Text(stringResource(R.string.reject_proposal)) },
         text = {
             Column {
                 Text(
@@ -197,7 +199,7 @@ private fun RejectReasonDialog(
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
                 Text(
-                    text = "Why? This helps the system learn what to avoid proposing.",
+                    text = stringResource(R.string.why_this_helps_the_system_learn),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
@@ -223,7 +225,7 @@ private fun RejectReasonDialog(
                         customText = it
                         if (it.isNotBlank()) selectedPreset = null
                     },
-                    label = { Text("Or write your own") },
+                    label = { Text(stringResource(R.string.or_write_your_own)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
@@ -235,10 +237,10 @@ private fun RejectReasonDialog(
             TextButton(
                 onClick = { onConfirm(finalReason) },
                 enabled = finalReason.isNotBlank(),
-            ) { Text("Reject") }
+            ) { Text(stringResource(R.string.reject)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Keep") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.keep)) }
         },
     )
 }
@@ -267,13 +269,13 @@ private fun ProposalCard(
             )
             if (proposal.status == ProposalStatus.PENDING_REVIEW.name) {
                 Row(modifier = Modifier.padding(top = 8.dp)) {
-                    TextButton(onClick = onApprove) { Text("Approve") }
-                    TextButton(onClick = onReject) { Text("Reject") }
+                    TextButton(onClick = onApprove) { Text(stringResource(R.string.approve)) }
+                    TextButton(onClick = onReject) { Text(stringResource(R.string.reject)) }
                 }
             }
             if (proposal.status == ProposalStatus.APPLIED.name) {
                 Row(modifier = Modifier.padding(top = 8.dp)) {
-                    TextButton(onClick = onRollback) { Text("Rollback") }
+                    TextButton(onClick = onRollback) { Text(stringResource(R.string.rollback)) }
                 }
             }
         }

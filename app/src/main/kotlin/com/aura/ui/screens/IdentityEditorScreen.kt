@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ fun IdentityEditorScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Identity",
+                            text = stringResource(R.string.identity),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -117,7 +119,7 @@ fun IdentityEditorScreen(
         ) {
             // Helper text
             Text(
-                text = "This is Aura's system prompt. Edit it to change how Aura " +
+                text = stringResource(R.string.this_is_aura_s_system_prompt) +
                     "speaks, what it knows about itself, and the rules it follows. " +
                     "It is included in settings backups. Leave blank for the bundled default.",
                 style = MaterialTheme.typography.bodySmall,
@@ -158,11 +160,11 @@ fun IdentityEditorScreen(
                     )
                     Row {
                         TextButton(onClick = { showResetConfirm = true }) {
-                            Text("Reset")
+                            Text(stringResource(R.string.reset))
                         }
                         Spacer(Modifier.width(8.dp))
                         Button(onClick = { showSaveConfirm = true }) {
-                            Text("Save")
+                            Text(stringResource(R.string.save))
                         }
                     }
                 }
@@ -174,7 +176,7 @@ fun IdentityEditorScreen(
     if (showSaveConfirm) {
         AlertDialog(
             onDismissRequest = { showSaveConfirm = false },
-            title = { Text("Save identity?") },
+            title = { Text(stringResource(R.string.save_identity)) },
             text = {
                 Text(
                     "This replaces Aura's system prompt on next chat send. " +
@@ -186,10 +188,10 @@ fun IdentityEditorScreen(
                     showSaveConfirm = false
                     viewModel.saveIdentity(text)
                     onBack()
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showSaveConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -198,7 +200,7 @@ fun IdentityEditorScreen(
     if (showResetConfirm) {
         AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset to default?") },
+            title = { Text(stringResource(R.string.reset_to_default)) },
             text = {
                 Text(
                     "Your custom identity will be cleared. The bundled " +
@@ -210,10 +212,10 @@ fun IdentityEditorScreen(
                     showResetConfirm = false
                     viewModel.resetIdentity()
                     onBack()
-                }) { Text("Reset") }
+                }) { Text(stringResource(R.string.reset)) }
             },
             dismissButton = {
-                TextButton(onClick = { showResetConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showResetConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

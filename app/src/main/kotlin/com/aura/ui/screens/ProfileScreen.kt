@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,7 +56,7 @@ fun ProfileScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Profile") },
+                title = { Text(stringResource(R.string.profile)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -62,7 +64,7 @@ fun ProfileScreen(
                 },
                 actions = {
                     TextButton(onClick = { showClearDialog = true }) {
-                        Text("Clear", color = AuraThemeTokens.colors.error)
+                        Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
                     }
                 }
             )
@@ -78,14 +80,14 @@ fun ProfileScreen(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Name",
+                    text = stringResource(R.string.name),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("What Aura should call you") },
+                    label = { Text(stringResource(R.string.what_aura_should_call_you)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -94,18 +96,18 @@ fun ProfileScreen(
                     enabled = name != state.name,
                     modifier = Modifier.padding(top = 4.dp),
                 ) {
-                    Text("Save name")
+                    Text(stringResource(R.string.save_name))
                 }
             }
 
             item {
                 Text(
-                    text = "Traits",
+                    text = stringResource(R.string.traits),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Short labels that shape Aura's tone (e.g. concise, technical, playful).",
+                    text = stringResource(R.string.short_labels_that_shape_aura_s),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                 )
@@ -134,7 +136,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = traitInput,
                         onValueChange = { traitInput = it },
-                        label = { Text("New trait") },
+                        label = { Text(stringResource(R.string.new_trait)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                     )
@@ -153,12 +155,12 @@ fun ProfileScreen(
 
             item {
                 Text(
-                    text = "Facts",
+                    text = stringResource(R.string.facts),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Things Aura has learned about you. Edit or remove anything inaccurate.",
+                    text = stringResource(R.string.things_aura_has_learned_about_you),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                 )
@@ -192,7 +194,7 @@ fun ProfileScreen(
                     OutlinedTextField(
                         value = factInput,
                         onValueChange = { factInput = it },
-                        label = { Text("New fact") },
+                        label = { Text(stringResource(R.string.new_fact)) },
                         modifier = Modifier.weight(1f),
                         minLines = 2,
                         maxLines = 4,
@@ -217,8 +219,8 @@ fun ProfileScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear profile?") },
-            text = { Text("This removes your learned name, traits, and facts. It cannot be undone.") },
+            title = { Text(stringResource(R.string.clear_profile)) },
+            text = { Text(stringResource(R.string.this_removes_your_learned_name_traits)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -227,12 +229,12 @@ fun ProfileScreen(
                         showClearDialog = false
                     }
                 ) {
-                    Text("Clear", color = AuraThemeTokens.colors.error)
+                    Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -119,7 +121,7 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("tasks-search"),
-                placeholder = { Text("Search tasks by title, description, or tag") },
+                placeholder = { Text(stringResource(R.string.search_tasks_by_title_description_or)) },
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Filled.Search, contentDescription = null)
@@ -138,21 +140,21 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("all") },
-                    label = { Text("All") },
+                    label = { Text(stringResource(R.string.all)) },
                     colors = if (state.statusFilter == "all")
                         AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
                     else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("pending") },
-                    label = { Text("Pending") },
+                    label = { Text(stringResource(R.string.pending)) },
                     colors = if (state.statusFilter == "pending")
                         AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
                     else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("done") },
-                    label = { Text("Done") },
+                    label = { Text(stringResource(R.string.done)) },
                     colors = if (state.statusFilter == "done")
                         AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
                     else AssistChipDefaults.assistChipColors(),
@@ -184,11 +186,11 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("Upcoming reminders", style = MaterialTheme.typography.titleSmall)
+                                Text(stringResource(R.string.upcoming_reminders), style = MaterialTheme.typography.titleSmall)
                                 TextButton(onClick = { showAddReminder = true }) {
                                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Add")
+                                    Text(stringResource(R.string.add))
                                 }
                             }
                         }
@@ -251,16 +253,16 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("Clear completed tasks?") },
-            text = { Text("This will permanently delete all completed tasks. This cannot be undone.") },
+            title = { Text(stringResource(R.string.clear_completed_tasks)) },
+            text = { Text(stringResource(R.string.this_will_permanently_delete_all_completed)) },
             confirmButton = {
                 TextButton(onClick = {
                     showClearConfirm = false
                     viewModel.clearCompleted()
-                }) { Text("Delete", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.delete), color = AuraThemeTokens.colors.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -409,7 +411,7 @@ private fun RemindersHeader(onAddReminder: () -> Unit = {}) {
         TextButton(onClick = onAddReminder) {
             Icon(Icons.Filled.Add, contentDescription = "Add reminder", modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Add")
+            Text(stringResource(R.string.add))
         }
     }
 }
@@ -521,9 +523,9 @@ private fun TaskRow(
                 }
             }
             if (task.status == "done") {
-                TextButton(onClick = onReopen) { Text("Reopen") }
+                TextButton(onClick = onReopen) { Text(stringResource(R.string.reopen)) }
             } else {
-                TextButton(onClick = onDone) { Text("Done") }
+                TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
             }
             IconButton(onClick = onEdit) {
                 Icon(
@@ -644,7 +646,7 @@ private fun TaskEditFields(
                 OutlinedTextField(
                     value = titleState,
                     onValueChange = { titleState = it },
-                    label = { Text("Title") },
+                    label = { Text(stringResource(R.string.title)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -652,7 +654,7 @@ private fun TaskEditFields(
                 OutlinedTextField(
                     value = descriptionState,
                     onValueChange = { descriptionState = it },
-                    label = { Text("Description") },
+                    label = { Text(stringResource(R.string.description)) },
                     minLines = 2,
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth(),
@@ -665,7 +667,7 @@ private fun TaskEditFields(
                     Text(dateText)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("Priority", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.priority), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PriorityOption(label = "None", selected = priorityState == 0) { priorityState = 0 }
                     PriorityOption(label = "Low", selected = priorityState == 1) { priorityState = 1 }
@@ -676,7 +678,7 @@ private fun TaskEditFields(
                 OutlinedTextField(
                     value = tagsState,
                     onValueChange = { tagsState = it },
-                    label = { Text("Tags (comma separated)") },
+                    label = { Text(stringResource(R.string.tags_comma_separated_2)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -691,7 +693,7 @@ private fun TaskEditFields(
             ) { Text(confirmLabel) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 
@@ -707,7 +709,7 @@ private fun TaskEditFields(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
             },
         ) {
             DatePicker(state = dateState)
@@ -718,7 +720,7 @@ private fun TaskEditFields(
         val timeState = rememberTimePickerState()
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("Due time") },
+            title = { Text(stringResource(R.string.due_time)) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
@@ -728,7 +730,7 @@ private fun TaskEditFields(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -763,13 +765,13 @@ private fun AddReminderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add reminder") },
+        title = { Text(stringResource(R.string.add_reminder)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it },
-                    label = { Text("Reminder message") },
+                    label = { Text(stringResource(R.string.reminder_message)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -813,10 +815,10 @@ private fun AddReminderDialog(
                     onAdd(message.trim(), cal.timeInMillis)
                 },
                 enabled = message.isNotBlank() && selectedHour >= 0 && selectedDateMillis > 0L,
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 
@@ -831,7 +833,7 @@ private fun AddReminderDialog(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
             },
         ) { DatePicker(state = dpState) }
     }
@@ -840,7 +842,7 @@ private fun AddReminderDialog(
         val tpState = rememberTimePickerState()
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("Select time") },
+            title = { Text(stringResource(R.string.select_time)) },
             text = { TimePicker(state = tpState) },
             confirmButton = {
                 TextButton(onClick = {
@@ -850,7 +852,7 @@ private fun AddReminderDialog(
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

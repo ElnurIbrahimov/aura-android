@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -92,7 +94,7 @@ fun ProviderKeyField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth().testTag("provider-key-$testId"),
-            placeholder = { Text("Paste API key") },
+            placeholder = { Text(stringResource(R.string.paste_api_key)) },
             singleLine = true,
             enabled = enabled,
             visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -109,7 +111,7 @@ fun ProviderKeyField(
         if (!enabled) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Coming soon — this key isn't consumed by any tool yet.",
+                text = stringResource(R.string.coming_soon_this_key_isn_t),
                 style = MaterialTheme.typography.labelSmall,
                 color = AuraThemeTokens.colors.assistantAccent,
             )

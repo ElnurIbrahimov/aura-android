@@ -1,5 +1,7 @@
 package com.aura.ui.screens.chat
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -118,7 +120,7 @@ fun ChatContent(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "You're offline",
+                        text = stringResource(R.string.you_re_offline),
                         style = MaterialTheme.typography.labelSmall,
                         color = AuraThemeTokens.colors.warning,
                     )
@@ -237,7 +239,7 @@ private fun JumpToLatest(onClick: () -> Unit) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "Jump to latest",
+                    text = stringResource(R.string.jump_to_latest),
                     fontFamily = InterDisplay,
                     fontSize = 12.sp,
                     color = AuraThemeTokens.colors.textSecondary,
@@ -276,7 +278,7 @@ private fun TtsStopPill(onStop: () -> Unit) {
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    text = "Tap to stop reading",
+                    text = stringResource(R.string.tap_to_stop_reading),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -293,7 +295,7 @@ private fun IncognitoBanner() {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         Text(
-            text = "Incognito · This chat is not saved and cannot write memory or profile facts.",
+            text = stringResource(R.string.incognito_this_chat_is_not_saved),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -327,10 +329,10 @@ private fun ErrorBanner(
                 style = MaterialTheme.typography.bodySmall,
             )
             if (retryable || typedError?.retryable == true) {
-                TextButton(onClick = onRetry) { Text("Retry") }
-                TextButton(onClick = onSwitchModel) { Text("Switch model") }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                TextButton(onClick = onSwitchModel) { Text(stringResource(R.string.switch_model)) }
             }
-            TextButton(onClick = onDismiss) { Text("Dismiss") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
         }
     }
 }
@@ -352,7 +354,7 @@ private fun SaveWarningBanner(warning: String, onDismiss: () -> Unit) {
                 color = AuraThemeTokens.colors.textPrimary,
                 style = MaterialTheme.typography.bodySmall,
             )
-            TextButton(onClick = onDismiss) { Text("Dismiss") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
         }
     }
 }
@@ -374,7 +376,7 @@ private fun ModelSelectionBanner(message: String, onChooseModel: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary,
             )
-            TextButton(onClick = onChooseModel) { Text("Choose model") }
+            TextButton(onClick = onChooseModel) { Text(stringResource(R.string.choose_model)) }
         }
     }
 }

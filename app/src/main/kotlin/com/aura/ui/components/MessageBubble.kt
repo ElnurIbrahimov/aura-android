@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -448,7 +450,7 @@ private fun AssistantMessage(
                     shape = RoundedCornerShape(999.dp),
                 ) {
                     Text(
-                        text = "Proactive",
+                        text = stringResource(R.string.proactive),
                         fontFamily = InterDisplay,
                         fontWeight = FontWeight.Medium,
                         fontSize = 10.sp,
@@ -590,13 +592,13 @@ private fun CitationChipRow(citations: List<Citation>, onShowSources: () -> Unit
                                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(c.url))
                                 context.startActivity(intent)
                                 showDialog = false
-                            }) { Text("Open") }
+                            }) { Text(stringResource(R.string.open)) }
                         } else {
-                            androidx.compose.material3.TextButton(onClick = { showDialog = false }) { Text("Close") }
+                            androidx.compose.material3.TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.close)) }
                         }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showDialog = false }) { Text("Close") }
+                        androidx.compose.material3.TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.close)) }
                     },
                 )
             }

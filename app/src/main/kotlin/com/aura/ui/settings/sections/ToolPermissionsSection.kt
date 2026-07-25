@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,7 +43,7 @@ fun ToolPermissionsSection(
         initialExpanded = false,
     ) {
         Text(
-            text = "Turn off any tool Aura should never call, or raise the confirmation level for risky tools.",
+            text = stringResource(R.string.turn_off_any_tool_aura_should),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -67,7 +69,7 @@ fun ToolPermissionsSection(
                     checked = policy.enabled,
                     onCheckedChange = { onSetToolEnabled(toolName, it) },
                 )
-                TextButton(onClick = { editingToolPolicy = toolName }) { Text("Policy") }
+                TextButton(onClick = { editingToolPolicy = toolName }) { Text(stringResource(R.string.policy)) }
             }
         }
         if (toolPolicies.size > 8) {
@@ -87,7 +89,7 @@ fun ToolPermissionsSection(
                 title = { Text(editingName.replace("_", " ").replaceFirstChar { it.uppercase() }) },
                 text = {
                     Column {
-                        Text("Choose the confirmation level:", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.choose_the_confirmation_level), style = MaterialTheme.typography.bodySmall)
                         Spacer(modifier = Modifier.height(8.dp))
                         for (level in ConfirmationLevel.entries) {
                             Row(
@@ -107,10 +109,10 @@ fun ToolPermissionsSection(
                     Button(onClick = {
                         onSetToolConfirmation(editingName, selectedLevel)
                         editingToolPolicy = null
-                    }) { Text("Save") }
+                    }) { Text(stringResource(R.string.save)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { editingToolPolicy = null }) { Text("Cancel") }
+                    TextButton(onClick = { editingToolPolicy = null }) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

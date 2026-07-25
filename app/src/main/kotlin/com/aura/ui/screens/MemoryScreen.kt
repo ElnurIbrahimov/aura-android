@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -197,7 +199,7 @@ fun MemoryScreen(
         OutlinedTextField(
             value = state.query,
             onValueChange = { viewModel.setQuery(it) },
-            placeholder = { Text("Search memories") },
+            placeholder = { Text(stringResource(R.string.search_memories)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -213,7 +215,7 @@ fun MemoryScreen(
         ) {
             AssistChip(
                 onClick = { viewModel.setCategory(null) },
-                label = { Text("All") },
+                label = { Text(stringResource(R.string.all)) },
                 colors = if (state.categoryFilter == null)
                     AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
                 else AssistChipDefaults.assistChipColors(),
@@ -240,7 +242,7 @@ fun MemoryScreen(
         ) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Add note")
+            Text(stringResource(R.string.add_note))
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
@@ -263,7 +265,7 @@ fun MemoryScreen(
         ) {
             Icon(Icons.Filled.AccountTree, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Knowledge graph")
+            Text(stringResource(R.string.knowledge_graph))
         }
 
         if (state.memories.isNotEmpty()) {
@@ -344,7 +346,7 @@ fun MemoryScreen(
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Rebuilding…")
+                    Text(stringResource(R.string.rebuilding))
                 } else {
                     Icon(
                         imageVector = Icons.Filled.Build,
@@ -352,7 +354,7 @@ fun MemoryScreen(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Rebuild embeddings")
+                    Text(stringResource(R.string.rebuild_embeddings))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -386,7 +388,7 @@ fun MemoryScreen(
                     tint = AuraThemeTokens.colors.error,
                 )
                 Spacer(modifier = Modifier.size(8.dp))
-                Text("Clear all memories", color = AuraThemeTokens.colors.error)
+                Text(stringResource(R.string.clear_all_memories), color = AuraThemeTokens.colors.error)
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -517,7 +519,7 @@ fun MemoryScreen(
     if (showRebuildConfirm) {
         AlertDialog(
             onDismissRequest = { showRebuildConfirm = false },
-            title = { Text("Rebuild embeddings?") },
+            title = { Text(stringResource(R.string.rebuild_embeddings_2)) },
             text = {
                 Text(
                     "Re-embed every memory that currently has a null embedding. " +
@@ -530,10 +532,10 @@ fun MemoryScreen(
                 TextButton(onClick = {
                     showRebuildConfirm = false
                     viewModel.rebuildEmbeddings()
-                }) { Text("Rebuild") }
+                }) { Text(stringResource(R.string.rebuild)) }
             },
             dismissButton = {
-                TextButton(onClick = { showRebuildConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showRebuildConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -553,9 +555,9 @@ fun MemoryScreen(
             title = { Text("Dream summaries (${state.dreamSummaryCount})") },
             text = {
                 if (state.dreamSummariesLoading) {
-                    Text("Loading…")
+                    Text(stringResource(R.string.loading))
                 } else if (state.dreamSummaries.isEmpty()) {
-                    Text("No dream summaries yet.")
+                    Text(stringResource(R.string.no_dream_summaries_yet))
                 } else {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         state.dreamSummaries.forEach { summary ->
@@ -584,7 +586,7 @@ fun MemoryScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showDreamSummaries = false }) { Text("Close") }
+                TextButton(onClick = { showDreamSummaries = false }) { Text(stringResource(R.string.close)) }
             },
         )
     }
@@ -593,7 +595,7 @@ fun MemoryScreen(
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text("Clear all memories?") },
+            title = { Text(stringResource(R.string.clear_all_memories_2)) },
             text = {
                 Text(
                     "This will permanently delete all ${state.memories.size} memories. " +
@@ -604,10 +606,10 @@ fun MemoryScreen(
                 TextButton(onClick = {
                     showClearAllConfirm = false
                     viewModel.forgetAll()
-                }) { Text("Delete all", color = AuraThemeTokens.colors.error) }
+                }) { Text(stringResource(R.string.delete_all), color = AuraThemeTokens.colors.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearAllConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -632,7 +634,7 @@ fun MemoryScreen(
                 }) { Text("Delete $count", color = AuraThemeTokens.colors.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCategoryConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearCategoryConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -732,7 +734,7 @@ private fun MemoryRow(
             }
             if (mem.sourceConversationId.isNotBlank()) {
                 TextButton(onClick = onOpenSource) {
-                    Text("Source")
+                    Text(stringResource(R.string.source))
                 }
             }
             IconButton(onClick = onShowHistory) {
@@ -788,13 +790,13 @@ private fun EditMemoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit memory") },
+        title = { Text(stringResource(R.string.edit_memory)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Content") },
+                    label = { Text(stringResource(R.string.content)) },
                     minLines = 2,
                     maxLines = 6,
                     modifier = Modifier.fillMaxWidth(),
@@ -804,7 +806,7 @@ private fun EditMemoryDialog(
                     OutlinedTextField(
                         value = category,
                         onValueChange = {},
-                        label = { Text("Category") },
+                        label = { Text(stringResource(R.string.category)) },
                         readOnly = true,
                         trailingIcon = {
                             TextButton(onClick = { categoryMenuOpen = true }) {
@@ -832,7 +834,7 @@ private fun EditMemoryDialog(
                 OutlinedTextField(
                     value = tags,
                     onValueChange = { tags = it },
-                    label = { Text("Tags (comma-separated)") },
+                    label = { Text(stringResource(R.string.tags_comma_separated)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -850,7 +852,7 @@ private fun EditMemoryDialog(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Higher importance = ranks higher in recall. Embedding is re-computed on next recall.",
+                    text = stringResource(R.string.higher_importance_ranks_higher_in_recall),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                 )
@@ -866,11 +868,11 @@ private fun EditMemoryDialog(
                     tags.trim() != memory.tags
                 ),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }
@@ -1045,13 +1047,13 @@ private fun AddNoteDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add note") },
+        title = { Text(stringResource(R.string.add_note)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Note content") },
+                    label = { Text(stringResource(R.string.note_content)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                 )
@@ -1084,10 +1086,10 @@ private fun AddNoteDialog(
             TextButton(
                 onClick = { onAdd(content, category, importance) },
                 enabled = content.isNotBlank(),
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

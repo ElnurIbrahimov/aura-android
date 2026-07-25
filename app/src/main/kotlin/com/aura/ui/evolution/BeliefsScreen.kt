@@ -1,5 +1,7 @@
 package com.aura.ui.evolution
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,7 +81,7 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
         AlertDialog(
             onDismissRequest = { viewModel.clearSelection() },
             confirmButton = {
-                TextButton(onClick = { viewModel.clearSelection() }) { Text("Close") }
+                TextButton(onClick = { viewModel.clearSelection() }) { Text(stringResource(R.string.close)) }
             },
             title = { Text("${belief.subject} — ${belief.predicate}") },
             text = {

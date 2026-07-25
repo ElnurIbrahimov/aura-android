@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,25 +74,25 @@ fun UsageSection(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "~ marks estimated tokens. Cost is not guessed: provider APIs do not return reliable live pricing.",
+            text = stringResource(R.string.marks_estimated_tokens_cost_is_not),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.55f),
         )
         var confirmUsageReset by remember { mutableStateOf(false) }
-        TextButton(onClick = { confirmUsageReset = true }) { Text("Reset usage") }
+        TextButton(onClick = { confirmUsageReset = true }) { Text(stringResource(R.string.reset_usage)) }
         if (confirmUsageReset) {
             AlertDialog(
                 onDismissRequest = { confirmUsageReset = false },
-                title = { Text("Reset usage history?") },
-                text = { Text("This clears token, call, and tool-result counters on this device.") },
+                title = { Text(stringResource(R.string.reset_usage_history)) },
+                text = { Text(stringResource(R.string.this_clears_token_call_and_tool)) },
                 confirmButton = {
                     TextButton(onClick = {
                         onReset()
                         confirmUsageReset = false
-                    }) { Text("Reset") }
+                    }) { Text(stringResource(R.string.reset)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { confirmUsageReset = false }) { Text("Cancel") }
+                    TextButton(onClick = { confirmUsageReset = false }) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

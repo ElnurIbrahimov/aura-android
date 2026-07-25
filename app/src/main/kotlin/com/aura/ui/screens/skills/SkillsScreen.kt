@@ -1,5 +1,7 @@
 package com.aura.ui.screens.skills
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,7 +63,7 @@ fun SkillsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Skills") },
+                title = { Text(stringResource(R.string.skills)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -108,16 +110,16 @@ fun SkillsScreen(
     if (pendingDelete != null) {
         AlertDialog(
             onDismissRequest = { confirmDeleteId = null },
-            title = { Text("Delete skill?") },
-            text = { Text("This removes the skill and its body permanently.") },
+            title = { Text(stringResource(R.string.delete_skill)) },
+            text = { Text(stringResource(R.string.this_removes_the_skill_and_its)) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.remove(pendingDelete)
                     confirmDeleteId = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteId = null }) { Text("Cancel") }
+                TextButton(onClick = { confirmDeleteId = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -133,7 +135,7 @@ private fun EmptyState(padding: PaddingValues) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("No skills yet", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.no_skills_yet), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(
                 "Skills are reusable instruction modules. The agent can invoke them by name via the use_skill tool.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -185,7 +187,7 @@ private fun SkillList(
                         modifier = Modifier
                             .padding(top = 8.dp)
                             .align(Alignment.End),
-                    ) { Text("Edit") }
+                    ) { Text(stringResource(R.string.edit)) }
                 }
             }
         }
@@ -216,19 +218,19 @@ private fun SkillDetail(
         OutlinedTextField(
             value = name,
             onValueChange = { name = it.take(80) },
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.name)) },
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = description,
             onValueChange = { description = it.take(240) },
-            label = { Text("Description (optional)") },
+            label = { Text(stringResource(R.string.description_optional)) },
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             value = body,
             onValueChange = { body = it },
-            label = { Text("Body (markdown)") },
+            label = { Text(stringResource(R.string.body_markdown)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 8,
         )
@@ -244,11 +246,11 @@ private fun SkillDetail(
                     onBack()
                 },
                 modifier = Modifier.weight(1f),
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
             TextButton(
                 onClick = { onDelete(skill) },
                 modifier = Modifier.weight(1f),
-            ) { Text("Delete") }
+            ) { Text(stringResource(R.string.delete)) }
         }
     }
 }
@@ -263,22 +265,22 @@ private fun NewSkillDialog(
     var body by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New skill") },
+        title = { Text(stringResource(R.string.new_skill)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, label = { Text("Name") }, singleLine = true)
-                OutlinedTextField(value = description, onValueChange = { description = it.take(240) }, label = { Text("Description (optional)") }, singleLine = true)
-                OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text("Body (markdown)") }, minLines = 6, maxLines = 12)
+                OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, label = { Text(stringResource(R.string.name)) }, singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it.take(240) }, label = { Text(stringResource(R.string.description_optional)) }, singleLine = true)
+                OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text(stringResource(R.string.body_markdown)) }, minLines = 6, maxLines = 12)
             }
         },
         confirmButton = {
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = { onCreate(name, description, body) },
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

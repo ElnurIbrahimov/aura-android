@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -139,7 +141,7 @@ fun KnowledgeGraphScreen(
                     }
                 }
             } else null,
-            placeholder = { Text("Search labels, types, or properties") },
+            placeholder = { Text(stringResource(R.string.search_labels_types_or_properties)) },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -243,7 +245,7 @@ fun KnowledgeGraphScreen(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Open source conversation")
+                        Text(stringResource(R.string.open_source_conversation))
                     }
                 }
                 RelationSection("Incoming", selected.incoming)
@@ -259,7 +261,7 @@ fun KnowledgeGraphScreen(
                     ) {
                         Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(17.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("Edit")
+                        Text(stringResource(R.string.edit))
                     }
                     OutlinedButton(
                         onClick = { merging = selected.node },
@@ -268,7 +270,7 @@ fun KnowledgeGraphScreen(
                     ) {
                         Icon(Icons.Filled.Merge, contentDescription = null, modifier = Modifier.size(17.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("Merge")
+                        Text(stringResource(R.string.merge))
                     }
                     OutlinedButton(
                         onClick = { deleting = selected.node },
@@ -315,7 +317,7 @@ fun KnowledgeGraphScreen(
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete ${node.label}?") },
-            text = { Text("The entity and every relation connected to it will be permanently removed.") },
+            text = { Text(stringResource(R.string.the_entity_and_every_relation_connected)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -323,9 +325,9 @@ fun KnowledgeGraphScreen(
                         deleting = null
                     },
                     enabled = !state.mutating,
-                ) { Text("Delete", color = AuraThemeTokens.colors.error) }
+                ) { Text(stringResource(R.string.delete), color = AuraThemeTokens.colors.error) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -479,13 +481,13 @@ private fun EditGraphNodeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit entity") },
+        title = { Text(stringResource(R.string.edit_entity)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Label") },
+                    label = { Text(stringResource(R.string.label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -508,7 +510,7 @@ private fun EditGraphNodeDialog(
                 OutlinedTextField(
                     value = propertiesText,
                     onValueChange = { propertiesText = it; validationError = null },
-                    label = { Text("Properties JSON") },
+                    label = { Text(stringResource(R.string.properties_json)) },
                     minLines = 4,
                     maxLines = 8,
                     isError = validationError != null,
@@ -530,9 +532,9 @@ private fun EditGraphNodeDialog(
                     }.onFailure { validationError = it.message ?: "Invalid JSON" }
                 },
                 enabled = !busy,
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -563,7 +565,7 @@ private fun MergeGraphNodeDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Find target") },
+                    placeholder = { Text(stringResource(R.string.find_target)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -593,7 +595,7 @@ private fun MergeGraphNodeDialog(
                 Text("Merge into ${target?.label ?: "target"}")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 

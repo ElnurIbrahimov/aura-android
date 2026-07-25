@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +38,7 @@ fun EmotionDaemonSection(
         initialExpanded = false,
     ) {
         Text(
-            text = "Aura tracks the emotional tone of your conversation across four dimensions and adapts its response style. The daemon periodically reviews recent context and surfaces thoughts in proactive history.",
+            text = stringResource(R.string.aura_tracks_the_emotional_tone_of),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -44,7 +46,7 @@ fun EmotionDaemonSection(
 
         // Emotional state display
         Text(
-            text = "Current emotional state",
+            text = stringResource(R.string.current_emotional_state),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -67,7 +69,7 @@ fun EmotionDaemonSection(
             )
         } else {
             Text(
-                text = "No emotional data yet. Start a conversation to begin tracking.",
+                text = stringResource(R.string.no_emotional_data_yet_start_a),
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -88,7 +90,7 @@ fun EmotionDaemonSection(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Background thinking (daemon)",
+                        text = stringResource(R.string.background_thinking_daemon),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Text(
@@ -133,7 +135,7 @@ private fun EmotionBar(
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "%.0f%%".format(value * 100),
+                text = stringResource(R.string.s_0f).format(value * 100),
                 style = MaterialTheme.typography.labelMedium,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
             )

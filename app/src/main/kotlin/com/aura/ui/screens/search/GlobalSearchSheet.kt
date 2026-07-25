@@ -1,5 +1,7 @@
 package com.aura.ui.screens.search
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -66,7 +68,7 @@ fun GlobalSearchSheet(
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
-                placeholder = { Text("Search chats, memories, tasks…") },
+                placeholder = { Text(stringResource(R.string.search_chats_memories_tasks)) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -84,7 +86,7 @@ fun GlobalSearchSheet(
                     FilterChip(
                         selected = state.categoryFilter == null,
                         onClick = { viewModel.onCategoryFilterChange(null) },
-                        label = { Text("All") },
+                        label = { Text(stringResource(R.string.all)) },
                         colors = FilterChipDefaults.filterChipColors(),
                     )
                     state.availableCategories.forEach { category ->
@@ -161,7 +163,7 @@ fun GlobalSearchSheet(
                     // Initial state. The sheet used to open completely blank,
                     // which read as broken rather than as waiting for input.
                     Text(
-                        text = "Search across your chats, memories, tasks, hands, skills, and knowledge graph.",
+                        text = stringResource(R.string.search_across_your_chats_memories_tasks),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary,
                         modifier = Modifier.padding(top = 24.dp),

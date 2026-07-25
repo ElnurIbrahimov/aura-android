@@ -1,5 +1,7 @@
 package com.aura.ui.screens.creative
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,23 +64,23 @@ fun WorldBibleEditor(
             border = BorderStroke(1.dp, colors.borderSubtle),
         ) {
             Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
-                Text("World foundation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.world_foundation), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = world.overview,
                     onValueChange = { world = world.copy(overview = it) },
-                    label = { Text("What makes this world distinct?") },
+                    label = { Text(stringResource(R.string.what_makes_this_world_distinct)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                 )
                 OutlinedTextField(
                     value = world.notes,
                     onValueChange = { world = world.copy(notes = it) },
-                    label = { Text("Loose lore and private notes") },
+                    label = { Text(stringResource(R.string.loose_lore_and_private_notes)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                 )
                 Button(onClick = { onSave(world) }, modifier = Modifier.align(Alignment.End)) {
-                    Text("Save foundation")
+                    Text(stringResource(R.string.save_foundation))
                 }
             }
         }
@@ -178,7 +180,7 @@ private fun WorldSection(
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 OutlinedButton(onClick = onAdd) {
                     Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("Add")
+                    Text(stringResource(R.string.add))
                 }
             }
             if (items.isEmpty()) {
@@ -212,8 +214,8 @@ private fun AddWorldItemDialog(
         title = { Text("Add ${type.label.lowercase()}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name / title") }, singleLine = true)
-                OutlinedTextField(description, { description = it }, label = { Text("Description") }, minLines = 3)
+                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.name_title)) }, singleLine = true)
+                OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.description)) }, minLines = 3)
                 OutlinedTextField(details, { details = it }, label = { Text(type.detailLabel) }, singleLine = true)
                 if (type != WorldItemType.BEAT) {
                     OutlinedTextField(extra, { extra = it }, label = { Text(type.extraLabel) }, minLines = 2)
@@ -222,9 +224,9 @@ private fun AddWorldItemDialog(
         },
         confirmButton = {
             Button(enabled = name.isNotBlank() && description.isNotBlank(), onClick = { onAdd(name, description, details, extra) }) {
-                Text("Add to canon")
+                Text(stringResource(R.string.add_to_canon))
             }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

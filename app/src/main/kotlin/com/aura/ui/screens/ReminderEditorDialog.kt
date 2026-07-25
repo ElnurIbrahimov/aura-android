@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -82,7 +84,7 @@ internal fun ReminderEditorDialog(
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it },
-                    label = { Text("Reminder message") },
+                    label = { Text(stringResource(R.string.reminder_message)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 1,
                     maxLines = 3,
@@ -115,7 +117,7 @@ internal fun ReminderEditorDialog(
                         )
                     }
                 }
-                Text("Repeat")
+                Text(stringResource(R.string.repeat))
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("none", "daily", "weekly", "monthly")
                         .chunked(2)
@@ -154,7 +156,7 @@ internal fun ReminderEditorDialog(
                 enabled = message.isNotBlank() && resolvedTrigger() != null,
             ) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 
     if (showDatePicker) {
@@ -169,7 +171,7 @@ internal fun ReminderEditorDialog(
                     showDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) } },
         ) { DatePicker(state = picker) }
     }
 
@@ -180,7 +182,7 @@ internal fun ReminderEditorDialog(
         )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("Reminder time") },
+            title = { Text(stringResource(R.string.reminder_time)) },
             text = { TimePicker(state = picker) },
             confirmButton = {
                 TextButton(onClick = {
@@ -189,7 +191,7 @@ internal fun ReminderEditorDialog(
                     showTimePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

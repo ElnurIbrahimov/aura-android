@@ -1,5 +1,7 @@
 package com.aura.ui.screens.creative
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -120,14 +122,14 @@ fun CreativeStudioScreen(
         AlertDialog(
             onDismissRequest = { deleteProject = null },
             title = { Text("Delete ${project.name}?") },
-            text = { Text("The project world bible, outline, and simulations will be removed. This cannot be undone.") },
+            text = { Text(stringResource(R.string.the_project_world_bible_outline_and)) },
             confirmButton = {
                 Button(onClick = {
                     viewModel.deleteProject(project.id)
                     deleteProject = null
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleteProject = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleteProject = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -174,7 +176,7 @@ private fun CreativeHero(projectCount: Int, onCreate: () -> Unit) {
                 Button(onClick = onCreate) {
                     Icon(Icons.Filled.Add, contentDescription = null)
                     Spacer(Modifier.size(6.dp))
-                    Text("New project")
+                    Text(stringResource(R.string.new_project))
                 }
             }
         }
@@ -247,16 +249,16 @@ private fun NewCreativeProjectDialog(
     var templateId by remember { mutableStateOf(WritingTemplates.all.first().id) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New creative project") },
+        title = { Text(stringResource(R.string.new_creative_project)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true)
-                OutlinedTextField(description, { description = it }, label = { Text("Premise") }, minLines = 2)
+                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.project_name)) }, singleLine = true)
+                OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(genre, { genre = it }, label = { Text("Genre") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(tone, { tone = it }, label = { Text("Tone") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(genre, { genre = it }, label = { Text(stringResource(R.string.genre)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(tone, { tone = it }, label = { Text(stringResource(R.string.tone)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text("Form", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.form), style = MaterialTheme.typography.labelLarge)
                 WritingTemplates.all.forEach { template ->
                     FilterChip(
                         selected = template.id == templateId,
@@ -270,8 +272,8 @@ private fun NewCreativeProjectDialog(
             Button(
                 enabled = name.isNotBlank(),
                 onClick = { onCreate(name, description, genre, tone, templateId) },
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

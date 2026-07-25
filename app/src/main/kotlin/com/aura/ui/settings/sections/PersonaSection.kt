@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,7 +60,7 @@ fun PersonaSection(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Aura identity",
+                        text = stringResource(R.string.aura_identity),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -77,12 +79,12 @@ fun PersonaSection(
         // ── Specialist prompt overrides ──
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Specialist prompts",
+            text = stringResource(R.string.specialist_prompts),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Override the built-in system prompt for each specialist, or create a custom agent with its own personality and memory.",
+            text = stringResource(R.string.override_the_built_in_system_prompt),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
@@ -125,7 +127,7 @@ fun PersonaSection(
                     OutlinedTextField(
                         value = promptText,
                         onValueChange = { promptText = it },
-                        label = { Text("System prompt") },
+                        label = { Text(stringResource(R.string.system_prompt)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4,
                         maxLines = 12,
@@ -138,7 +140,7 @@ fun PersonaSection(
                             Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), updated)
                         )
                         editingSpecialist = null
-                    }) { Text("Save") }
+                    }) { Text(stringResource(R.string.save)) }
                 },
                 dismissButton = {
                     Row {
@@ -148,9 +150,9 @@ fun PersonaSection(
                                 Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), updated)
                             )
                             editingSpecialist = null
-                        }) { Text("Reset to default") }
+                        }) { Text(stringResource(R.string.reset_to_default_2)) }
                         Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(onClick = { editingSpecialist = null }) { Text("Cancel") }
+                        TextButton(onClick = { editingSpecialist = null }) { Text(stringResource(R.string.cancel)) }
                     }
                 },
             )

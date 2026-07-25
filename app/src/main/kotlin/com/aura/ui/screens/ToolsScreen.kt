@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,7 +65,7 @@ fun ToolsScreen(
     ) {
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Tools",
+            text = stringResource(R.string.tools),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = AuraThemeTokens.colors.textPrimary,
@@ -80,7 +82,7 @@ fun ToolsScreen(
         OutlinedTextField(
             value = state.query,
             onValueChange = viewModel::setQuery,
-            placeholder = { Text("Search tools") },
+            placeholder = { Text(stringResource(R.string.search_tools)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),

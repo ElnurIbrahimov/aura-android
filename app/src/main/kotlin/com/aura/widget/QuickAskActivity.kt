@@ -1,5 +1,6 @@
 package com.aura.widget
 
+import androidx.compose.ui.res.stringResource
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
@@ -182,20 +183,20 @@ private fun QuickAskContent(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Ask Aura", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.ask_aura), style = MaterialTheme.typography.titleMedium)
                     Text(
                         "Full memory + tools",
                         style = MaterialTheme.typography.labelSmall,
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
                 }
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
             }
 
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Ask anything…") },
+                placeholder = { Text(stringResource(R.string.ask_anything)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -218,7 +219,7 @@ private fun QuickAskContent(
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        TextButton(onClick = viewModel::dismissProviderWarning) { Text("Dismiss") }
+                        TextButton(onClick = viewModel::dismissProviderWarning) { Text(stringResource(R.string.dismiss)) }
                     }
                 }
             }
@@ -229,7 +230,7 @@ private fun QuickAskContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text("Aura is thinking…", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.aura_is_thinking), style = MaterialTheme.typography.bodySmall)
                 }
                 state.error != null -> Surface(
                     color = AuraThemeTokens.colors.error,
@@ -266,7 +267,7 @@ private fun QuickAskContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
                 if (response.isNotBlank()) {
-                    OutlinedButton(onClick = onOpenFullChat) { Text("Open chat") }
+                    OutlinedButton(onClick = onOpenFullChat) { Text(stringResource(R.string.open_chat)) }
                 }
                 Button(onClick = submit, enabled = sendEnabled) {
                     Text(if (state.streaming) "Thinking" else "Send")

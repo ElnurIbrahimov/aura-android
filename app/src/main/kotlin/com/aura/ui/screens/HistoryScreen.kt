@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.core.animateFloat
@@ -119,7 +121,7 @@ fun HistoryScreen(
             state.selectMode -> ({
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { viewModel.selectAll() }) {
-                        Text("All", color = AuraThemeTokens.colors.actionPrimary)
+                        Text(stringResource(R.string.all), color = AuraThemeTokens.colors.actionPrimary)
                     }
                     TextButton(
                         onClick = {
@@ -138,7 +140,7 @@ fun HistoryScreen(
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Share")
+                        Text(stringResource(R.string.share))
                     }
                     TextButton(
                         onClick = { viewModel.deleteSelected() },
@@ -151,10 +153,10 @@ fun HistoryScreen(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("Delete", color = AuraThemeTokens.colors.error)
+                        Text(stringResource(R.string.delete), color = AuraThemeTokens.colors.error)
                     }
                     TextButton(onClick = { viewModel.toggleSelectMode() }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.cancel))
                     }
                 }
             })
@@ -163,7 +165,7 @@ fun HistoryScreen(
             state.conversations.isNotEmpty() && state.query.isBlank() -> ({
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { viewModel.toggleSelectMode() }) {
-                        Text("Select")
+                        Text(stringResource(R.string.select))
                     }
                     TextButton(onClick = {
                         coroutineScope.launch {
@@ -172,7 +174,7 @@ fun HistoryScreen(
                     }) {
                         Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Export all")
+                        Text(stringResource(R.string.export_all))
                     }
                 }
             })
@@ -188,7 +190,7 @@ fun HistoryScreen(
         OutlinedTextField(
             value = state.query,
             onValueChange = viewModel::onQueryChanged,
-            placeholder = { Text("Search by meaning, title, or message") },
+            placeholder = { Text(stringResource(R.string.search_by_meaning_title_or_message)) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
                 if (state.query.isNotEmpty()) {

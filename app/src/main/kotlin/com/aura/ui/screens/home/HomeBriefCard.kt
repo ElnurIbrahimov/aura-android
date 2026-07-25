@@ -1,5 +1,7 @@
 package com.aura.ui.screens.home
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -88,7 +90,7 @@ fun HomeBriefCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Current priority",
+                    text = stringResource(R.string.current_priority),
                     style = MaterialTheme.typography.labelLarge,
                     color = colors.textSecondary,
                 )

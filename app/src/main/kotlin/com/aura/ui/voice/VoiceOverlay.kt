@@ -1,5 +1,7 @@
 package com.aura.ui.voice
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -159,7 +161,7 @@ fun VoiceOverlay(
             if (holdToTalk) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Tap to send what you said",
+                    text = stringResource(R.string.tap_to_send_what_you_said),
                     style = MaterialTheme.typography.labelSmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 )

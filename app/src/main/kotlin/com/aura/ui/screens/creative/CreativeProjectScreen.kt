@@ -1,5 +1,7 @@
 package com.aura.ui.screens.creative
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -75,7 +77,7 @@ fun CreativeProjectScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (state.loading) CircularProgressIndicator() else Text(state.error ?: "Project not found")
-            TextButton(onClick = onBack) { Text("Back to Studio") }
+            TextButton(onClick = onBack) { Text(stringResource(R.string.back_to_studio)) }
         }
         return
     }
@@ -113,7 +115,7 @@ fun CreativeProjectScreen(
                 ) {
                     Row(Modifier.padding(AuraSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                         Text(state.error ?: state.message.orEmpty(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = viewModel::clearNotice) { Text("Dismiss") }
+                        TextButton(onClick = viewModel::clearNotice) { Text(stringResource(R.string.dismiss)) }
                     }
                 }
             }
@@ -159,7 +161,7 @@ private fun CouncilRoom(
     var brief by remember { mutableStateOf("") }
     var selectedRoles by remember { mutableStateOf(CouncilRole.full) }
     Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
-        Text("Creative Council", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.creative_council), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "Run a multi-role review: producers draft, critics refine, the director synthesizes.",
             style = MaterialTheme.typography.bodySmall,
@@ -170,8 +172,8 @@ private fun CouncilRoom(
             onValueChange = { brief = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
-            label = { Text("Brief") },
-            placeholder = { Text("Ask the council to design the opening scene, review a chapter, or resolve a plot hole.") },
+            label = { Text(stringResource(R.string.brief)) },
+            placeholder = { Text(stringResource(R.string.ask_the_council_to_design_the)) },
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(CouncilRole.entries) { role ->
@@ -189,11 +191,11 @@ private fun CouncilRoom(
             if (generating) {
                 OutlinedButton(onClick = onCancel) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
-                    Text("Stop")
+                    Text(stringResource(R.string.stop))
                 }
             }
             Button(enabled = brief.isNotBlank() && !generating, onClick = { onRunCouncil(brief, selectedRoles) }) {
-                Text("Run council")
+                Text(stringResource(R.string.run_council))
             }
         }
         GenerationOutput(output = output, generating = generating)
@@ -210,7 +212,7 @@ private fun WritingRoom(
     var mode by remember { mutableStateOf(CreativeMode.DRAFT) }
     var prompt by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
-        Text("Writing room", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.writing_room), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "The selected model receives this project's current canon every time. Your draft stays exploratory until you add facts to the World tab.",
             style = MaterialTheme.typography.bodySmall,
@@ -233,7 +235,7 @@ private fun WritingRoom(
             if (generating) {
                 OutlinedButton(onClick = onCancel) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
-                    Text("Stop")
+                    Text(stringResource(R.string.stop))
                 }
             }
             Button(enabled = prompt.isNotBlank() && !generating, onClick = { onGenerate(mode, prompt, "") }) {
@@ -256,7 +258,7 @@ private fun SimulationRoom(
     var premise by remember { mutableStateOf("") }
     var perspective by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
-        Text("Scenario simulator", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.scenario_simulator), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "Explore alternate decisions without contaminating canon. Aura traces first- and second-order consequences against the world bible.",
             style = MaterialTheme.typography.bodySmall,
@@ -267,25 +269,25 @@ private fun SimulationRoom(
             onValueChange = { premise = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
-            label = { Text("What if…") },
-            placeholder = { Text("What if the protagonist accepts the antagonist's offer?") },
+            label = { Text(stringResource(R.string.what_if)) },
+            placeholder = { Text(stringResource(R.string.what_if_the_protagonist_accepts_the)) },
         )
         OutlinedTextField(
             value = perspective,
             onValueChange = { perspective = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Perspective character (optional)") },
+            label = { Text(stringResource(R.string.perspective_character_optional)) },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
-            if (generating) OutlinedButton(onClick = onCancel) { Text("Stop") }
+            if (generating) OutlinedButton(onClick = onCancel) { Text(stringResource(R.string.stop)) }
             Button(enabled = premise.isNotBlank() && !generating, onClick = { onGenerate(CreativeMode.SIMULATE, premise, perspective) }) {
-                Text("Run scenario")
+                Text(stringResource(R.string.run_scenario))
             }
         }
         GenerationOutput(output = output, generating = generating)
         if (project.world.simulations.isNotEmpty()) {
-            Text("Simulation history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.simulation_history), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             project.world.simulations.forEach { simulation ->
                 val colors = AuraThemeTokens.colors
                 Surface(
@@ -301,7 +303,7 @@ private fun SimulationRoom(
                         } else {
                             TextButton(onClick = { onCanonize(simulation.id) }, modifier = Modifier.align(Alignment.End)) {
                                 Icon(Icons.Filled.CheckCircleOutline, contentDescription = null)
-                                Text("Add outcome to canon timeline")
+                                Text(stringResource(R.string.add_outcome_to_canon_timeline))
                             }
                         }
                     }
@@ -350,21 +352,21 @@ private fun ProjectMetadataDialog(
     var template by remember { mutableStateOf(project.templateId) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Project details") },
+        title = { Text(stringResource(R.string.project_details)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
-                OutlinedTextField(description, { description = it }, label = { Text("Premise") }, minLines = 2)
+                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.name)) }, singleLine = true)
+                OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(genre, { genre = it }, label = { Text("Genre") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(tone, { tone = it }, label = { Text("Tone") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(genre, { genre = it }, label = { Text(stringResource(R.string.genre)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(tone, { tone = it }, label = { Text(stringResource(R.string.tone)) }, modifier = Modifier.weight(1f))
                 }
                 WritingTemplates.all.forEach { form ->
                     FilterChip(selected = template == form.id, onClick = { template = form.id }, label = { Text("${form.icon} ${form.name}") })
                 }
             }
         },
-        confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onSave(name, description, genre, tone, template) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onSave(name, description, genre, tone, template) }) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

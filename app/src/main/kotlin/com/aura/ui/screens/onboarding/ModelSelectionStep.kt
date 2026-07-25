@@ -1,5 +1,7 @@
 package com.aura.ui.screens.onboarding
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -60,12 +62,12 @@ fun ModelSelectionStep(
     ) {
         item {
             Text(
-                text = "Choose your default model",
+                text = stringResource(R.string.choose_your_default_model),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "This model will be selected when a new chat starts. You can change it anytime.",
+                text = stringResource(R.string.this_model_will_be_selected_when),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AuraThemeTokens.colors.textPrimary,
                 modifier = Modifier.padding(top = AuraSpacing.xs, bottom = AuraSpacing.sm),
@@ -156,7 +158,7 @@ private fun ModelChoiceRow(
             }
             if (selected) {
                 Text(
-                    text = "Default",
+                    text = stringResource(R.string.s_default),
                     style = MaterialTheme.typography.labelMedium,
                     color = AuraThemeTokens.colors.actionPrimary,
                 )

@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,14 +47,14 @@ fun DataAndBackupSection(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Diagnostics", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     "Local crash and error history",
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                 )
             }
-            TextButton(onClick = onNavigateDiagnostics) { Text("Open") }
+            TextButton(onClick = onNavigateDiagnostics) { Text(stringResource(R.string.open)) }
         }
         Spacer(Modifier.height(8.dp))
 
@@ -82,7 +84,7 @@ fun DataAndBackupSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(text = result, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onClearResult) { Text("Dismiss") }
+                    TextButton(onClick = onClearResult) { Text(stringResource(R.string.dismiss)) }
                 }
             }
         }
@@ -90,7 +92,7 @@ fun DataAndBackupSection(
         if (backupState.showImportConfirm) {
             AlertDialog(
                 onDismissRequest = onCancelImport,
-                title = { Text("Restore from backup?") },
+                title = { Text(stringResource(R.string.restore_from_backup)) },
                 text = {
                     Text(
                         "This will add the rows from the backup file to your existing data. " +
@@ -100,10 +102,10 @@ fun DataAndBackupSection(
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = onConfirmImport) { Text("Add to existing") }
+                    TextButton(onClick = onConfirmImport) { Text(stringResource(R.string.add_to_existing)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = onCancelImport) { Text("Cancel") }
+                    TextButton(onClick = onCancelImport) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

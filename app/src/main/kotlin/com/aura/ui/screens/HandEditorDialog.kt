@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -108,15 +110,15 @@ internal fun HandEditorDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = trigger,
                     onValueChange = { trigger = it },
-                    label = { Text("Trigger phrase (optional)") },
-                    supportingText = { Text("Saying this in chat asks Aura to run the hand") },
+                    label = { Text(stringResource(R.string.trigger_phrase_optional)) },
+                    supportingText = { Text(stringResource(R.string.saying_this_in_chat_asks_aura)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -135,7 +137,7 @@ internal fun HandEditorDialog(
 
                 EditorSection("Variables", "Defaults can be overridden each time you run") {
                     if (variables.isEmpty()) {
-                        Text("No variables", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
+                        Text(stringResource(R.string.no_variables), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
                     }
                     variables.forEach { (key, value) ->
                         Surface(
@@ -156,14 +158,14 @@ internal fun HandEditorDialog(
                         OutlinedTextField(
                             value = newVariableName,
                             onValueChange = { newVariableName = it.filter { char -> char.isLetterOrDigit() || char == '_' } },
-                            label = { Text("Variable") },
+                            label = { Text(stringResource(R.string.variable)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
                         OutlinedTextField(
                             value = newVariableValue,
                             onValueChange = { newVariableValue = it },
-                            label = { Text("Default") },
+                            label = { Text(stringResource(R.string.s_default)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
@@ -180,7 +182,7 @@ internal fun HandEditorDialog(
                         enabled = newVariableName.isNotBlank(),
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = null)
-                        Text("Add variable")
+                        Text(stringResource(R.string.add_variable))
                     }
                 }
 
@@ -202,7 +204,7 @@ internal fun HandEditorDialog(
                     OutlinedTextField(
                         value = newConditionVariable,
                         onValueChange = { newConditionVariable = it },
-                        label = { Text("Variable name") },
+                        label = { Text(stringResource(R.string.variable_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -211,7 +213,7 @@ internal fun HandEditorDialog(
                         OutlinedTextField(
                             value = newConditionValue,
                             onValueChange = { newConditionValue = it },
-                            label = { Text("Expected value") },
+                            label = { Text(stringResource(R.string.expected_value)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -227,7 +229,7 @@ internal fun HandEditorDialog(
                             newConditionValue = ""
                         },
                         enabled = newConditionVariable.isNotBlank(),
-                    ) { Text("Add condition") }
+                    ) { Text(stringResource(R.string.add_condition)) }
                 }
 
                 EditorSection("Schedule", "WorkManager runs the next local-time occurrence") {
@@ -245,7 +247,7 @@ internal fun HandEditorDialog(
                             OutlinedTextField(
                                 value = scheduleHour,
                                 onValueChange = { scheduleHour = it.filter(Char::isDigit).take(2) },
-                                label = { Text("Hour") },
+                                label = { Text(stringResource(R.string.hour)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
@@ -253,7 +255,7 @@ internal fun HandEditorDialog(
                             OutlinedTextField(
                                 value = scheduleMinute,
                                 onValueChange = { scheduleMinute = it.filter(Char::isDigit).take(2) },
-                                label = { Text("Minute") },
+                                label = { Text(stringResource(R.string.minute)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
@@ -284,9 +286,9 @@ internal fun HandEditorDialog(
                         ),
                     )
                 },
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -312,7 +314,7 @@ private fun StepEditor(
     onSteps: (List<HandStep>) -> Unit,
 ) {
     if (steps.isEmpty()) {
-        Text("Pick a tool to add the first step", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
+        Text(stringResource(R.string.pick_a_tool_to_add_the), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
     }
     steps.forEachIndexed { index, step ->
         Surface(
@@ -344,7 +346,7 @@ private fun StepEditor(
             value = selectedTool?.name.orEmpty(),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Add tool step") },
+            label = { Text(stringResource(R.string.add_tool_step)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
         )
@@ -374,7 +376,7 @@ private fun StepEditor(
                 onSelectedTool(null)
                 onArgValues(emptyMap())
             },
-        ) { Text("Add step") }
+        ) { Text(stringResource(R.string.add_step)) }
     }
 }
 
@@ -391,7 +393,7 @@ private fun OperatorPicker(value: String, onValue: (String) -> Unit) {
             value = value.replace('_', ' '),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Operator") },
+            label = { Text(stringResource(R.string.operator)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
         )
