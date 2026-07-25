@@ -112,6 +112,14 @@ class BackupManager @Inject constructor(
     private val agentEventDao: com.aura.agentrun.AgentEventDao? = null,
     private val approvalRequestDao: com.aura.agentrun.ApprovalRequestDao? = null,
     private val runCheckpointDao: com.aura.agentrun.RunCheckpointDao? = null,
+    // Schema v13 DAOs.
+    private val artifactDependencyDao: com.aura.creative.ArtifactDependencyDao? = null,
+    private val continuityIssueDao: com.aura.creative.ContinuityIssueDao? = null,
+    private val creativeSimulationDao: com.aura.creative.CreativeSimulationDao? = null,
+    private val evolutionEvidenceDao: com.aura.evolution.EvolutionEvidenceDao? = null,
+    private val evolutionCandidateDao: com.aura.evolution.EvolutionCandidateDao? = null,
+    private val proactiveInteractionDao: com.aura.proactive.ProactiveInteractionDao? = null,
+    private val routingOutcomeDao: com.aura.taste.RoutingOutcomeDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -254,6 +262,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             agentEvents = agentEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             agentApprovals = approvalRequestDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             runCheckpoints = runCheckpointDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            artifactDependencies = artifactDependencyDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            continuityIssues = continuityIssueDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            creativeSimulations = creativeSimulationDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            evolutionEvidence = evolutionEvidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            evolutionCandidates = evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
         )
     }
 
@@ -334,6 +349,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val agentEventRows = backup.agentEvents.map { it.toEntity() }
         val agentApprovalRows = backup.agentApprovals.map { it.toEntity() }
         val runCheckpointRows = backup.runCheckpoints.map { it.toEntity() }
+        val artifactDependencyRows = backup.artifactDependencies.map { it.toEntity() }
+        val continuityIssueRows = backup.continuityIssues.map { it.toEntity() }
+        val creativeSimulationRows = backup.creativeSimulations.map { it.toEntity() }
+        val evolutionEvidenceRows = backup.evolutionEvidence.map { it.toEntity() }
+        val evolutionCandidateRows = backup.evolutionCandidates.map { it.toEntity() }
+        val proactiveInteractionRows = backup.proactiveInteractions.map { it.toEntity() }
+        val routingOutcomeRows = backup.routingOutcomes.map { it.toEntity() }
 
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -373,7 +395,17 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (agentEventRows.isNotEmpty()) agentEventDao?.insertAll(agentEventRows)
         if (agentApprovalRows.isNotEmpty()) approvalRequestDao?.insertAll(agentApprovalRows)
         if (runCheckpointRows.isNotEmpty()) runCheckpointDao?.upsertAll(runCheckpointRows)
+        // Schema v13. Creative rows depend on artifacts/projects, which are
+        // inserted above. Proactive interactions reference proactive events,
+        // so they must follow the proactiveEventDao insert below.
+        if (artifactDependencyRows.isNotEmpty()) artifactDependencyDao?.insertAll(artifactDependencyRows)
+        if (continuityIssueRows.isNotEmpty()) continuityIssueDao?.insertAll(continuityIssueRows)
+        if (creativeSimulationRows.isNotEmpty()) creativeSimulationDao?.insertAll(creativeSimulationRows)
+        if (evolutionEvidenceRows.isNotEmpty()) evolutionEvidenceDao?.insertAll(evolutionEvidenceRows)
+        if (evolutionCandidateRows.isNotEmpty()) evolutionCandidateDao?.insertAll(evolutionCandidateRows)
+        if (routingOutcomeRows.isNotEmpty()) routingOutcomeDao?.insertAll(routingOutcomeRows)
         if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
+        if (proactiveInteractionRows.isNotEmpty()) proactiveInteractionDao?.insertAll(proactiveInteractionRows)
         restoreReminders(reminderRows)
         // If the backup has a profile, replace the current one.
         // If it doesn't, clear the existing profile so stale identity
@@ -473,6 +505,14 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             agentEvents = agentEventRows.size,
             agentApprovals = agentApprovalRows.size,
             runCheckpoints = runCheckpointRows.size,
+            // Schema v13.
+            artifactDependencies = artifactDependencyRows.size,
+            continuityIssues = continuityIssueRows.size,
+            creativeSimulations = creativeSimulationRows.size,
+            evolutionEvidence = evolutionEvidenceRows.size,
+            evolutionCandidates = evolutionCandidateRows.size,
+            proactiveInteractions = proactiveInteractionRows.size,
+            routingOutcomes = routingOutcomeRows.size,
         )
     }
 
@@ -573,6 +613,14 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         agentEventDao?.deleteAll()
         approvalRequestDao?.deleteAll()
         runCheckpointDao?.deleteAll()
+        // Schema v13.
+        artifactDependencyDao?.deleteAll()
+        continuityIssueDao?.deleteAll()
+        creativeSimulationDao?.deleteAll()
+        evolutionEvidenceDao?.deleteAll()
+        evolutionCandidateDao?.deleteAll()
+        proactiveInteractionDao?.deleteAll()
+        routingOutcomeDao?.deleteAll()
     }
 
     /**
@@ -633,6 +681,14 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val agentEvents: Int = 0,
             val agentApprovals: Int = 0,
             val runCheckpoints: Int = 0,
+            // Schema v13: the last entities that had no backup class.
+            val artifactDependencies: Int = 0,
+            val continuityIssues: Int = 0,
+            val creativeSimulations: Int = 0,
+            val evolutionEvidence: Int = 0,
+            val evolutionCandidates: Int = 0,
+            val proactiveInteractions: Int = 0,
+            val routingOutcomes: Int = 0,
         ) {
             // Auto-derived: every non-self Int field summed. Until v0.30.x
             // this was a 17-term hand-sum that fell out of sync with the
@@ -651,7 +707,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 dreamSummaries + routines + contradictions + kgEdgeProposals +
                 memoryFeedback + documentChunks + referenceIdentities +
                 agentRuns + agentGoals + agentSteps + agentEvents +
-                agentApprovals + runCheckpoints
+                agentApprovals + runCheckpoints +
+                artifactDependencies + continuityIssues + creativeSimulations +
+                evolutionEvidence + evolutionCandidates + proactiveInteractions +
+                routingOutcomes
             )
     }
 }

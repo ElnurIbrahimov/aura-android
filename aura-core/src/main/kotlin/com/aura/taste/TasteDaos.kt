@@ -116,6 +116,12 @@ interface RoutingOutcomeDao {
 
     @Query("SELECT * FROM routing_outcomes ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<RoutingOutcomeEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(outcomes: List<RoutingOutcomeEntity>)
+
+    @Query("DELETE FROM routing_outcomes")
+    suspend fun deleteAll()
 }
 
 data class RoutingStats(

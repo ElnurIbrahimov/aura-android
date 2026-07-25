@@ -233,4 +233,106 @@ class MemoryDatabaseMigrationTest {
 
         migrated.close()
     }
+
+    /**
+     * Full chain from the oldest schema we can still instantiate (v6) to
+     * head (v14).
+     *
+     * MemoryDatabase's Room schema exports skip 7.json through 10.json —
+     * those versions shipped without their schema files being committed, and
+     * they were never in git, so they cannot be recovered. The direct
+     * consequence is that no test can call `createDatabase(name, 7..10)`:
+     * MigrationTestHelper needs the JSON to build the starting schema. That
+     * left MIGRATION_6_7 through MIGRATION_13_14 — eight migrations, four of
+     * them 70+ lines of DDL — with no coverage at all.
+     *
+     * This closes the gap from the other end. Starting at v6 (whose schema
+     * does exist) and validating against v14 (which also exists) forces
+     * every migration in between to execute, and Room verifies the final
+     * schema matches 14.json exactly. A migration that creates a column with
+     * the wrong type, forgets an index, or throws mid-way fails here.
+     *
+     * What this does NOT give us is a per-step assertion about data
+     * preserved across an individual hop in 6..10. If a specific migration
+     * needs that, the fix is to commit the missing schema files by checking
+     * out the revision where the database was at that version and building —
+     * not to weaken this test.
+     */
+    @Test
+    fun migrate6To14_fullChain_validatesAgainstHeadSchema() {
+        val name = "test-aura-memory-6-to-14.db"
+        val db = helper.createDatabase(name, 6)
+        // Seed a row so the chain runs against a non-empty table. Column set
+        // is the v6 shape; later migrations must carry it forward.
+        // tags, metadata, sourceConversationId and sourceTurnTimestamp are
+        // NOT NULL with no default in 6.json, so they must be supplied.
+        db.execSQL(
+            "INSERT INTO memories (id, content, source, category, importance, embedding, createdAt, accessedAt, " +
+                "accessCount, decayScore, tags, metadata, sourceConversationId, sourceTurnTimestamp) " +
+                "VALUES ('m1', 'chain test memory', 'user', 'fact', 0.8, NULL, 1000, 1000, 1, 1.0, '[]', '{}', '', 0)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            name,
+            14,
+            true,
+            MemoryModule.MIGRATION_6_7,
+            MemoryModule.MIGRATION_7_8,
+            MemoryModule.MIGRATION_8_9,
+            MemoryModule.MIGRATION_9_10,
+            MemoryModule.MIGRATION_10_11,
+            MemoryModule.MIGRATION_11_12,
+            MemoryModule.MIGRATION_12_13,
+            MemoryModule.MIGRATION_13_14,
+        )
+
+        val cursor = migrated.query("SELECT id, content FROM memories WHERE id = 'm1'")
+        cursor.use {
+            assertTrue("seeded memory did not survive the v6 to v14 chain", it.moveToFirst())
+            assertTrue(it.getString(1) == "chain test memory")
+        }
+    }
+
+    /**
+     * The scope column added in MIGRATION_11_12 is the one that carries
+     * per-agent isolation. A v6 database predates it entirely, so the chain
+     * has to introduce it with the documented default rather than leaving
+     * rows with NULL — a NULL scope reads as "no agent" everywhere that
+     * filters on it, which would silently expose old memories to every agent.
+     */
+    @Test
+    fun migrate6To14_backfillsScopeOnPreexistingRows() {
+        val name = "test-aura-memory-scope-backfill.db"
+        val db = helper.createDatabase(name, 6)
+        db.execSQL(
+            "INSERT INTO memories (id, content, source, category, importance, embedding, createdAt, accessedAt, " +
+                "accessCount, decayScore, tags, metadata, sourceConversationId, sourceTurnTimestamp) " +
+                "VALUES ('m2', 'pre-scope memory', 'user', 'fact', 0.5, NULL, 1000, 1000, 1, 1.0, '[]', '{}', '', 0)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            name,
+            14,
+            true,
+            MemoryModule.MIGRATION_6_7,
+            MemoryModule.MIGRATION_7_8,
+            MemoryModule.MIGRATION_8_9,
+            MemoryModule.MIGRATION_9_10,
+            MemoryModule.MIGRATION_10_11,
+            MemoryModule.MIGRATION_11_12,
+            MemoryModule.MIGRATION_12_13,
+            MemoryModule.MIGRATION_13_14,
+        )
+
+        val cursor = migrated.query("SELECT scope FROM memories WHERE id = 'm2'")
+        cursor.use {
+            assertTrue("pre-scope row missing after migration", it.moveToFirst())
+            assertTrue(
+                "scope must be backfilled, not NULL",
+                !it.isNull(0) && it.getString(0) == "general",
+            )
+        }
+    }
 }

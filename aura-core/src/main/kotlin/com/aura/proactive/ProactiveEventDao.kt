@@ -61,6 +61,15 @@ interface ProactiveInteractionDao {
 
     @Query("SELECT action, COUNT(*) as count FROM proactive_interactions GROUP BY action")
     suspend fun summary(): List<ActionCount>
+
+    @Query("SELECT * FROM proactive_interactions ORDER BY timestamp ASC")
+    suspend fun allForBackup(): List<ProactiveInteractionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(interactions: List<ProactiveInteractionEntity>)
+
+    @Query("DELETE FROM proactive_interactions")
+    suspend fun deleteAll()
 }
 
 /** Row returned by [ProactiveInteractionDao.summary]. */

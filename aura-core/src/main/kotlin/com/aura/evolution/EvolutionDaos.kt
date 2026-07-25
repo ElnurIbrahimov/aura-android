@@ -26,6 +26,15 @@ interface EvolutionEvidenceDao {
 
     @Query("SELECT COUNT(*) FROM evolution_evidence WHERE domain = :domain AND createdAt >= :since")
     suspend fun countSince(domain: kotlin.String, since: kotlin.Long): Int
+
+    @Query("SELECT * FROM evolution_evidence ORDER BY createdAt ASC")
+    suspend fun allForBackup(): List<EvolutionEvidenceEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(evidence: List<EvolutionEvidenceEntity>)
+
+    @Query("DELETE FROM evolution_evidence")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -44,6 +53,15 @@ interface EvolutionCandidateDao {
 
     @Query("DELETE FROM evolution_candidates WHERE createdAt <= :cutoff AND status IN ('rejected', 'promoted')")
     suspend fun deleteStale(cutoff: kotlin.Long): Int
+
+    @Query("SELECT * FROM evolution_candidates ORDER BY createdAt ASC")
+    suspend fun allForBackup(): List<EvolutionCandidateEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(candidates: List<EvolutionCandidateEntity>)
+
+    @Query("DELETE FROM evolution_candidates")
+    suspend fun deleteAll()
 }
 
 @Dao

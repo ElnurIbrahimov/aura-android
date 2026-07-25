@@ -72,9 +72,19 @@ data class AuraBackup(
     val agentEvents: List<AgentEventBackup> = emptyList(),
     val agentApprovals: List<ApprovalRequestBackup> = emptyList(),
     val runCheckpoints: List<RunCheckpointBackup> = emptyList(),
+    // Schema v13: the last 8 Room entities with no backup class. Seven are
+    // covered here; CreativeGenerationJobEntity is deliberately transient —
+    // see AuraBackupSchema13.kt for why.
+    val artifactDependencies: List<ArtifactDependencyBackup> = emptyList(),
+    val continuityIssues: List<ContinuityIssueBackup> = emptyList(),
+    val creativeSimulations: List<CreativeSimulationBackup> = emptyList(),
+    val evolutionEvidence: List<EvolutionEvidenceBackup> = emptyList(),
+    val evolutionCandidates: List<EvolutionCandidateBackup> = emptyList(),
+    val proactiveInteractions: List<ProactiveInteractionBackup> = emptyList(),
+    val routingOutcomes: List<RoutingOutcomeBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 12
+        const val SCHEMA_VERSION = 13
     }
 }
 

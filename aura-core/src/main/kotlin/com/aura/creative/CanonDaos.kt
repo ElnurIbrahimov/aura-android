@@ -56,6 +56,12 @@ interface CreativeSimulationDao {
 
     @Query("SELECT * FROM creative_simulations ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<CreativeSimulationEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(sims: List<CreativeSimulationEntity>)
+
+    @Query("DELETE FROM creative_simulations")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -77,6 +83,12 @@ interface ContinuityIssueDao {
 
     @Query("SELECT * FROM continuity_issues ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<ContinuityIssueEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(issues: List<ContinuityIssueEntity>)
+
+    @Query("DELETE FROM continuity_issues")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -95,4 +107,10 @@ interface ArtifactDependencyDao {
 
     @Query("SELECT * FROM artifact_dependencies ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<ArtifactDependencyEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(deps: List<ArtifactDependencyEntity>)
+
+    @Query("DELETE FROM artifact_dependencies")
+    suspend fun deleteAll()
 }
