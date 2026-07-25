@@ -1,5 +1,6 @@
 package com.aura.hands
 
+import android.util.Log
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolResult
@@ -59,7 +60,7 @@ class HandRepository @Inject constructor(
             startedAt = startedAt,
             variablesJson = redactedVariablesJson(variables),
         )
-        runCatching { dao.insertRun(runRecord) }
+        runCatching { dao.insertRun(runRecord) }.onFailure { Log.w(TAG, "insertRun failed", it) }
 
         suspend fun finish(
             result: ToolResult,
@@ -76,7 +77,7 @@ class HandRepository @Inject constructor(
                         failedStep = failedStep,
                     ),
                 )
-            }
+            }.onFailure { Log.w(TAG, "finish updateRun failed", it) }
             return result
         }
 
@@ -113,7 +114,7 @@ class HandRepository @Inject constructor(
         }
         val resolvedVariables = defaultVariables + variables
         runRecord = runRecord.copy(variablesJson = redactedVariablesJson(resolvedVariables))
-        runCatching { dao.updateRun(runRecord) }
+        runCatching { dao.updateRun(runRecord) }.onFailure { Log.w(TAG, "updateRun (variables) failed", it) }
 
         val conditions = try {
             decodeConditions(hand.conditions)
@@ -297,6 +298,7 @@ class HandRepository @Inject constructor(
     }.toString()
 
     companion object {
+        private const val TAG = "HandRepository"
         private val TEMPLATE_PATTERN = Regex("""\{\{\s*([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}""")
         // Redact values for variable names that look like credentials.
         // Pattern is anchored with word boundaries and avoids matching

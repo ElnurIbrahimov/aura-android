@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import com.aura.core.url.SsrfGuard
 import com.aura.security.SecureDataStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -189,6 +190,14 @@ class CustomOpenAiCompatProvider(
         if (baseUrl.isBlank() || apiKey.isBlank()) {
             emit(ProviderChunk(error = ProviderError("not_configured", "Custom endpoint not configured.", retryable = false)))
             return@flow
+        }
+        // SSRF validation: user-supplied baseUrl must not resolve to internal/private IPs.
+        when (val ssrf = SsrfGuard.inspect(baseUrl)) {
+            is com.aura.core.url.SsrfValidation.Blocked -> {
+                emit(ProviderChunk(error = ProviderError("ssrf_blocked", "Custom endpoint URL blocked: ${ssrf.reason}", retryable = false)))
+                return@flow
+            }
+            is com.aura.core.url.SsrfValidation.Safe -> { /* proceed */ }
         }
         val body = kotlinx.serialization.json.buildJsonObject {
             put("model", model)

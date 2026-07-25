@@ -39,6 +39,7 @@ class ChatMediaController(
     private val documentTextExtractor: DocumentTextExtractor? = null,
     private val onSaveConversation: () -> Unit,
     private val onError: (String) -> Unit,
+    private val onTriggerSend: () -> Unit = {},
 ) {
     /**
      * Capture/pick an image and stage it for vision. The user is
@@ -105,6 +106,7 @@ class ChatMediaController(
                 )
             }
             onSaveConversation()
+            onTriggerSend()
         }
     }
 
@@ -194,6 +196,11 @@ class ChatMediaController(
             state.update { it.copy(error = "Document extraction is not available.") }
             return
         }
+        // Stays on the caller's dispatcher (viewModelScope → Main): the
+        // blocking work is already inside DocumentTextExtractor.extract,
+        // which wraps its whole body in withContext(Dispatchers.IO). Adding
+        // a second hop here would only move the state.update() calls off
+        // Main for no benefit.
         scope.launch {
             state.update { it.copy(streaming = true) }
             val result = runCatching { extractor.extract(uri) }

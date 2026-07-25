@@ -42,7 +42,7 @@ This is my personal copy.
 - Agent trace + observability (20 event types via TraceSink)
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v10)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v12)
 - 205 unit test files, 1,238 tests, 0 failures (was 202 / 1,115 at v0.26.0)
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
@@ -101,7 +101,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +------------v-------------------------------+
 | :aura-core  (logic library, no Compose)    |
 |   MemoryAugmentedAgenticLoop -> Brain      |
-|   ToolRegistry (59) -> ToolExecutor        |
+|   ToolRegistry (61) -> ToolExecutor        |
 |     -> PolicyEngine (layered precedence)   |
 |   ProviderRegistry (17 providers)          |
 |   Memory (Room + RRF + FadeMem + WriteGate)|
@@ -143,7 +143,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Evolution Inbox** — review self-improvement proposals, approve/reject.
 - **Evolution Rollback** — revert applied evolution changes.
 - **Knowledge Graph** — browse extracted entities and edges.
-- **Tools** — browse all 59 registered tools with risk levels.
+- **Tools** — browse all 61 registered tools with risk levels.
 - **Diagnostics** — provider health, model catalog, usage tracking.
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.

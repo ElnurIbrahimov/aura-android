@@ -242,10 +242,8 @@ fun ChatRoute(
     // Intercept back press during streaming — the user gets a chance to
     // stop and save the partial response instead of navigating away
     // while the stream continues in the background.
-    if (state.streaming) {
-        androidx.activity.compose.BackHandler(enabled = true) {
-            showStopStreamConfirm = true
-        }
+    androidx.activity.compose.BackHandler(enabled = state.streaming) {
+        showStopStreamConfirm = true
     }
     StopStreamingDialog(
         visible = showStopStreamConfirm,

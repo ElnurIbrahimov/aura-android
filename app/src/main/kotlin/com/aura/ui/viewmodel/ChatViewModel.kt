@@ -372,6 +372,7 @@ class ChatViewModel @Inject constructor(
             documentTextExtractor = documentTextExtractor,
             onSaveConversation = { saveConversation() },
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
+            onTriggerSend = { send() },
         )
     }
 

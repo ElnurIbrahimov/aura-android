@@ -77,6 +77,7 @@ class ChatViewModelDocumentTest {
         documentTextExtractor = mockk(relaxed = true)
 
         every { userPreferences.defaultModel } returns MutableStateFlow("ollama:deepseek-v4-pro:cloud")
+        every { userPreferences.planningEnabled } returns MutableStateFlow(false)
         every { providerKeys.loaded } returns MutableStateFlow(true)
         every { providerRegistry.all() } returns emptyList()
         every { providerRegistry.configured() } returns emptyList()

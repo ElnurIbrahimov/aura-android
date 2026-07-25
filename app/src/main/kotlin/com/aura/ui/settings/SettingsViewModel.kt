@@ -157,6 +157,8 @@ data class SettingsUiState(
     val dreamEnabled: Boolean = true,
     /** Whether the memory decay worker is enabled (default true). */
     val decayEnabled: Boolean = true,
+    /** Whether the agentic loop makes a pre-answer planning call (default false). */
+    val planningEnabled: Boolean = false,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -299,6 +301,7 @@ class SettingsViewModel @Inject constructor(
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
+            val planningEnabled = userPreferences.planningEnabled.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
             val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.getOrDefault(0)
@@ -345,6 +348,7 @@ class SettingsViewModel @Inject constructor(
                 daemonEnabled = daemonEnabled,
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
+                planningEnabled = planningEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -527,6 +531,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDecayEnabled(enabled)
             _state.update { it.copy(decayEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Toggle the pre-answer planning call. Takes effect on the next
+     * message — [com.aura.ui.viewmodel.ChatSendController] reads the
+     * preference per send rather than caching it.
+     */
+    fun setPlanningEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setPlanningEnabled(enabled)
+            _state.update { it.copy(planningEnabled = enabled) }
         }
     }
 

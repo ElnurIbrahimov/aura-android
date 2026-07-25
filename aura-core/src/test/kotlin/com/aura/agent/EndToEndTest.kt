@@ -121,11 +121,10 @@ class EndToEndTest {
 
         val brain = mockk<Brain>(relaxed = true)
         coEvery { brain.stream(any(), any(), any(), any()) } returnsMany listOf(
-            // Planning step (added by agentic loop before tools)
-            flowOf(
-                BrainChunk.Text("Check memory for preferences."),
-                BrainChunk.Finished(FinishReason.stop.name),
-            ),
+            // No planning flow queued: planning is opt-in (planningEnabled
+            // defaults to false), so the loop's first brain.stream() call
+            // IS step 1. See MemoryAugmentedAgenticLoopPlanningTest for the
+            // planningEnabled = true ordering.
             // Step 1: tool call
             flowOf(
                 BrainChunk.ToolCallStart("tc1", "recall"),

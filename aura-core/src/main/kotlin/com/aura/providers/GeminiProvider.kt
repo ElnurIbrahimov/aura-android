@@ -240,9 +240,13 @@ class GeminiProvider(
      */
     override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url("$baseUrl/v1beta/models?key=$apiKey&pageSize=100")
-                .build()
+            val key = apiKey
+            val requestBuilder = Request.Builder()
+                .url("$baseUrl/v1beta/models?pageSize=100")
+            if (key.isNotBlank()) {
+                requestBuilder.addHeader("X-Goog-Api-Key", key)
+            }
+            val request = requestBuilder.build()
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use emptyList<ModelInfo>()
                 val body = response.body?.string() ?: return@use emptyList<ModelInfo>()

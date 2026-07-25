@@ -82,6 +82,10 @@ class ChatViewModelTest {
         crashLogger = mockk(relaxed = true)
 
         every { userPreferences.defaultModel } returns MutableStateFlow("ollama:deepseek-v4-pro:cloud")
+        // ChatSendController reads this per send. A relaxed mock returns an
+        // empty flow, and first() on an empty flow throws — so it must be
+        // stubbed explicitly like every other preference the VM reads.
+        every { userPreferences.planningEnabled } returns MutableStateFlow(false)
         every { providerKeys.loaded } returns MutableStateFlow(true)
         every { providerRegistry.all() } returns emptyList()
         every { providerRegistry.configured() } returns emptyList()

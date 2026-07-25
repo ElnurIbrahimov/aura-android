@@ -1,156 +1,179 @@
 package com.aura.providers
 
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 /**
- * PROVIDERS_AUDIT B1 P0 finding: "401 auth errors trigger
- * wasteful failover."
+ * PROVIDERS_AUDIT B1: auth errors must not trigger failover.
  *
- * Manual audit: every HTTP provider (AnthropicProvider,
- * GeminiProvider, ChatGptSubscriptionProvider,
- * CustomOpenAiCompatProvider, OpenAiCompatProvider) already
- * marks 401, 400, 403 as non-retryable. The agentic loop's
- * failover check at MemoryAugmentedAgenticLoop.kt:646 is
- * `if (chunk.retryable && triedModels.size < 2)` — so a
- * non-retryable 401 will NOT trigger failover.
+ * The agentic loop fails over to the next configured provider when a chunk
+ * arrives with `retryable = true` (MemoryAugmentedAgenticLoop, the
+ * `chunk.retryable && triedModels.size < 2` branch). If a provider marked a
+ * 401 as retryable, a single mistyped API key would burn a request against
+ * every configured provider before surfacing the error.
  *
- * But the BUG CLASS is real: a future contributor might
- * naively add a new provider or change an existing one
- * to mark 401 as retryable. That would cause the agentic
- * loop to silently burn through the user's configured
- * provider list trying to recover from a bad key.
+ * ## Why this test looks the way it does
  *
- * Fix: this test scans the source for `retryable` literals
- * in the provider files and asserts the well-known
- * non-retryable codes (401, 400, 403) appear in the
- * non-retryable condition. This catches drift if someone
- * removes the explicit exclusion.
+ * The previous version of this file scanned the provider `.kt` sources as
+ * text, asserting that literals like `"429"` and `"!= 401"` appeared. That
+ * had three problems:
  *
- * The test also pins the per-provider contract directly
- * via the source-text scan — no need to spin up mock
- * servers to verify the classification.
+ * 1. **It verified syntax, not behavior.** A provider could contain the
+ *    string `429` in an unrelated comment and pass.
+ * 2. **It inverted control.** The 2026-07-26 review records changing
+ *    production code from a negative to a positive retryable check purely
+ *    to satisfy the string scan — the test dictated implementation style
+ *    while checking nothing real.
+ * 3. **It could pass vacuously.** Path resolution used hardcoded absolute
+ *    paths with a `mapNotNull` fallback; when no path matched, the file
+ *    list was empty and every `for` loop over it succeeded trivially.
+ *
+ * This version drives each provider against a MockWebServer returning the
+ * real status code and asserts on the emitted [ProviderError.retryable].
+ * It is indifferent to how the classification is written.
  */
 class NonRetryableStatusCodesTest {
 
-    @Test
-    fun `every HTTP provider marks 401 as non-retryable`() {
-        // 401 = Unauthorized (bad API key). Retrying with
-        // the same key won't help. The agentic loop's
-        // failover check `if (chunk.retryable && triedModels.size < 2)`
-        // would otherwise burn through every configured
-        // provider trying to recover from a key the user
-        // entered wrong.
-        //
-        // Two valid patterns:
-        // 1. Positive retryable check: `retryable = code == 429 || code in 500..599`
-        //    (Anthropic, Gemini) — 401 falls through to false.
-        // 2. Negative retryable check: `retryable = code != 401 && code != 400 && code != 403`
-        //    (ChatGpt, OpenAiCompat, CustomOpenAi) — 401 explicitly excluded.
-        // Either style is fine; the test accepts both.
-        for (providerFile in PROVIDER_FILES) {
-            val text = readFile(providerFile)
-            val hasPositiveCheck = text.contains("retryable = ") && (
-                text.contains("429") && (text.contains("500") || text.contains("in 500"))
-            )
-            val hasNegativeCheck = text.contains("!= 401")
-            assertTrue(hasPositiveCheck || hasNegativeCheck,
-                "$providerFile must mark 401 as non-retryable. " +
-                "Either use a positive check `retryable = code == 429 || code in 500..599` " +
-                "or a negative check `retryable = code != 401`.")
-        }
+    private lateinit var server: MockWebServer
+
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
     }
 
-    @Test
-    fun `every HTTP provider marks 400 and 403 as non-retryable`() {
-        // 400 = Bad Request (malformed request — won't fix itself)
-        // 403 = Forbidden (key doesn't have permission — won't fix itself)
-        // Same reasoning as 401: retrying doesn't help.
-        //
-        // Accept either pattern: positive check
-        // (only 429/5xx retryable → 400/403 fall through) or
-        // negative check (400/403 explicitly excluded).
-        for (providerFile in PROVIDER_FILES) {
-            val text = readFile(providerFile)
-            val hasPositiveCheck = text.contains("429") && (text.contains("500") || text.contains("in 500"))
-            val has400Negative = text.contains("!= 400")
-            val has403Negative = text.contains("!= 403")
-            // If positive check is in use, 400/403 are non-retryable by default.
-            // If negative check is in use, 400/403 must be explicitly listed.
-            assertTrue(hasPositiveCheck || has400Negative,
-                "$providerFile must mark 400 as non-retryable. " +
-                "Use `retryable = code != 400` (negative) or a positive check (only 429/5xx retryable).")
-            assertTrue(hasPositiveCheck || has403Negative,
-                "$providerFile must mark 403 as non-retryable. " +
-                "Use `retryable = code != 403` (negative) or a positive check (only 429/5xx retryable).")
-        }
+    @After
+    fun tearDown() {
+        server.shutdown()
     }
 
-    @Test
-    fun `429 and 5xx are retryable for failover`() {
-        // The opposite side of the coin: 429 (rate limit)
-        // and 5xx (server error) ARE retryable. The agentic
-        // loop will try the next configured provider.
-        // This test pins the positive case.
-        for (providerFile in PROVIDER_FILES) {
-            val text = readFile(providerFile)
-            val has429 = text.contains("429")
-            val has5xx = text.contains("500") && (text.contains("599") || text.contains("in 500"))
-            assertTrue(has429 || has5xx,
-                "$providerFile should mark 429 (rate limit) and 5xx (server error) as retryable. " +
-                "These benefit from failover to a different provider.")
-        }
+    private fun keys(prefix: String) = mockk<ProviderKeys> {
+        every { keyFor(prefix) } returns "test-key"
+        every { isConfigured(prefix) } returns true
     }
 
-    private fun readFile(path: String): String {
-        // Try the absolute path first (works in local dev on
-        // Windows where the repo is at D:/aura-android-clean/).
-        // Fall back to relative-from-cwd for CI runners (Linux
-        // checks out the repo at the runner's working directory).
-        val candidates = listOf(
-            path,
-            // Linux CI: /home/runner/work/<repo>/<repo>/...
-            path.replace("D:/aura-android-clean/", "src/../"),
-            path.replace("D:/aura-android-clean/", ""),
-            // Generic relative path
-            "aura-core/src/main/kotlin/com/aura/providers/" + path.substringAfterLast("/"),
-        )
-        for (c in candidates) {
-            val file = java.io.File(c)
-            if (file.exists()) return file.readText()
-        }
-        return ""
-    }
+    private fun baseUrl(): String = server.url("/").toString().removeSuffix("/")
 
-    companion object {
-        // The provider files that need the 401/400/403
-        // non-retryable check. New providers should be
-        // added here as they're created.
-        //
-        // We use file basenames only — the test resolves
-        // the actual path at runtime via readFile()'s
-        // cross-platform fallback. This way the same test
-        // works on Windows (D:/...) and Linux CI
-        // (home/runner/...) without env-var gymnastics.
-        private val PROVIDER_BASENAMES = listOf(
-            "AnthropicProvider.kt",
-            "GeminiProvider.kt",
-            "ChatGptSubscriptionProvider.kt",
-            "CustomOpenAiCompatProvider.kt",
-            "OpenAiCompatProvider.kt",
-        )
-
-        // Resolved at test time to the actual file paths.
-        private val PROVIDER_FILES: List<String> by lazy {
-            PROVIDER_BASENAMES.mapNotNull { basename ->
-                val candidates = listOf(
-                    "D:/aura-android-clean/aura-core/src/main/kotlin/com/aura/providers/$basename",
-                    "aura-core/src/main/kotlin/com/aura/providers/$basename",
-                    "/home/runner/work/aura-android/aura-android/aura-core/src/main/kotlin/com/aura/providers/$basename",
-                )
-                candidates.firstOrNull { java.io.File(it).exists() }
+    /** Collect the first error emitted by a provider's chat stream. */
+    private fun errorFor(provider: Provider): ProviderError {
+        val chunks = runBlocking {
+            withTimeout(10_000) {
+                provider.chat(
+                    model = "test-model",
+                    messages = listOf(ProviderMessage(role = ProviderMessage.Role.user, content = "hi")),
+                ).toList()
             }
         }
+        return assertNotNull(
+            chunks.firstNotNullOfOrNull { it.error },
+            "provider emitted no error chunk for the mocked HTTP failure",
+        )
+    }
+
+    private fun openAiCompat() = OpenAiCompatProvider(
+        prefix = "test",
+        displayName = "Test",
+        baseUrl = baseUrl(),
+        providerKeys = keys("test"),
+        httpClient = OkHttpClient(),
+    )
+
+    private fun anthropic() = AnthropicProvider(
+        providerKeys = keys("anthropic"),
+        httpClient = OkHttpClient(),
+        baseUrl = baseUrl(),
+    )
+
+    private fun gemini() = GeminiProvider(
+        providerKeys = keys("gemini"),
+        httpClient = OkHttpClient(),
+        baseUrl = baseUrl(),
+    )
+
+    // ── Non-retryable: client errors that won't fix themselves ──────────
+
+    @Test
+    fun `401 is not retryable for OpenAI-compatible providers`() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        assertEquals(false, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `401 is not retryable for Anthropic`() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        assertEquals(false, errorFor(anthropic()).retryable)
+    }
+
+    @Test
+    fun `401 is not retryable for Gemini`() {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        assertEquals(false, errorFor(gemini()).retryable)
+    }
+
+    @Test
+    fun `400 is not retryable for OpenAI-compatible providers`() {
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"bad request"}"""))
+        assertEquals(false, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `403 is not retryable for OpenAI-compatible providers`() {
+        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"forbidden"}"""))
+        assertEquals(false, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `400 and 403 are not retryable for Anthropic`() {
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"bad request"}"""))
+        assertEquals(false, errorFor(anthropic()).retryable)
+
+        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"forbidden"}"""))
+        assertEquals(false, errorFor(anthropic()).retryable)
+    }
+
+    // ── Retryable: transient failures that failover can recover from ────
+
+    @Test
+    fun `429 is retryable for OpenAI-compatible providers`() {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"rate limited"}"""))
+        assertEquals(true, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `429 is retryable for Anthropic`() {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"rate limited"}"""))
+        assertEquals(true, errorFor(anthropic()).retryable)
+    }
+
+    @Test
+    fun `500 is retryable for OpenAI-compatible providers`() {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":"server error"}"""))
+        assertEquals(true, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `503 is retryable for Anthropic`() {
+        server.enqueue(MockResponse().setResponseCode(503).setBody("""{"error":"unavailable"}"""))
+        assertEquals(true, errorFor(anthropic()).retryable)
+    }
+
+    @Test
+    fun `429 and 5xx are retryable for Gemini`() {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"rate limited"}"""))
+        assertEquals(true, errorFor(gemini()).retryable)
+
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":"server error"}"""))
+        assertEquals(true, errorFor(gemini()).retryable)
     }
 }

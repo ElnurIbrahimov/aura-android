@@ -15,6 +15,7 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ fun AiAndModelsSection(
     onSetDeepModeModel: (String) -> Unit,
     onSetMoaReferenceModels: (List<String>) -> Unit,
     onSetMoaAggregatorModel: (String) -> Unit,
+    onSetPlanningEnabled: (Boolean) -> Unit,
     onRefreshModels: () -> Unit,
 ) {
     var activeModelRole by remember { mutableStateOf<String?>(null) }
@@ -224,6 +226,23 @@ fun AiAndModelsSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = if (state.modelsError == null) AuraThemeTokens.colors.textPrimary else AuraThemeTokens.colors.error,
             )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Plan before answering", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (state.planningEnabled) {
+                        "On - extra model call per message; better tool picks, slower replies"
+                    } else {
+                        "Off - replies start immediately"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = state.planningEnabled, onCheckedChange = onSetPlanningEnabled)
         }
 
         activeModelRole?.let { role ->

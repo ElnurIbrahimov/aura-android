@@ -71,6 +71,7 @@ internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
+internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
@@ -255,6 +256,23 @@ class UserPreferences @Inject constructor(
      * indefinitely — useful for users who want to preserve everything.
      */
     val decayEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DECAY_ENABLED] ?: true }
+
+    /**
+     * Whether the agentic loop makes a separate "planning" LLM call before
+     * answering. Default **false** — this is opt-in.
+     *
+     * When on, every user message longer than ~20 chars costs an extra
+     * round-trip (capped at 15s) before the first token of the real answer
+     * appears. The plan is injected as a system prefix to improve tool
+     * selection. That trade — up to 15s of added latency plus a second
+     * billed call on every turn — is only worth it for tool-heavy work, so
+     * the user opts in rather than paying it by default.
+     */
+    val planningEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_PLANNING_ENABLED] ?: false }
+
+    suspend fun setPlanningEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_PLANNING_ENABLED] = enabled }
+    }
 
     /**
      * Wall-clock millis of the last successful dream cycle. 0 = never.

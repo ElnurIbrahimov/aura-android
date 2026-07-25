@@ -283,6 +283,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          * When null, defaults to "general" only (current behavior).
          */
         agentId: String? = null,
+        /**
+         * Whether to make a separate planning call before step 1. Costs an
+         * extra LLM round-trip (up to 15s) on every qualifying user message
+         * in exchange for better tool selection. Opt-in — see
+         * [com.aura.data.UserPreferences.planningEnabled].
+         */
+        planningEnabled: Boolean = false,
     ): Flow<AgentEvent> = flow {
         val runId = "run_${System.currentTimeMillis()}"
         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
@@ -408,36 +415,31 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         } else {
                             setOf("general")
                         }
-                        // Resolve a small model for reranking. Uses the
-                        // first configured provider's first model —
-                        // reranking is a yes/no judgment, not a
-                        // generation task, so a small fast model is
-                        // ideal. Cached across steps to avoid repeated
-                        // live /models API calls.
-                        val rerankModel = if (cachedCheapModel != null) {
-                            cachedCheapModel!!
+                        // Resolve a small model for reranking and query
+                        // rewriting. Both are short auxiliary calls (a
+                        // yes/no judgment and a one-line rewrite), not
+                        // generation, so the cheap tier of the first
+                        // configured provider is ideal.
+                        //
+                        // Ranked by CheapModelHeuristic rather than by
+                        // name length — length picks "gpt-4o" over
+                        // "gpt-4o-mini", i.e. exactly the wrong model.
+                        // Cached across steps to avoid repeated live
+                        // /models API calls.
+                        val cheapModel = if (cachedCheapModel != null) {
+                            cachedCheapModel
                         } else {
                             runCatching {
-                                val providers = providerRegistry.configured()
-                                val firstProvider = providers.firstOrNull()
-                                val firstModel = firstProvider?.listModels()?.firstOrNull()
-                                if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-                            }.onFailure { android.util.Log.w("AgenticLoop", "rerank model resolution failed: ${it.message}") }.getOrNull()
-                        }
-                        // Query rewriting is a generation task — prefer a
-                        // smaller model when available to reduce latency.
-                        // Falls back to the same model as reranking.
-                        val rewriteModel = if (cachedCheapModel != null) {
-                            cachedCheapModel!!
-                        } else {
-                            runCatching {
-                                val providers = providerRegistry.configured()
-                                val firstProvider = providers.firstOrNull()
+                                val firstProvider = providerRegistry.configured().firstOrNull()
                                 val models = firstProvider?.listModels().orEmpty()
-                                val smallModel = models.minByOrNull { it.length }
-                                if (firstProvider != null && smallModel != null) "${firstProvider.prefix}:$smallModel" else null
-                            }.onFailure { android.util.Log.w("AgenticLoop", "rewrite model resolution failed: ${it.message}") }.getOrNull() ?: rerankModel
+                                val cheapest = com.aura.providers.CheapModelHeuristic.pick(models)
+                                if (firstProvider != null && cheapest != null) "${firstProvider.prefix}:$cheapest" else null
+                            }.onFailure {
+                                android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}")
+                            }.getOrNull()
                         }
+                        val rerankModel = cheapModel
+                        val rewriteModel = cheapModel
                         // Cache the resolved model for subsequent steps.
                         if (cachedCheapModel == null && rerankModel != null) {
                             cachedCheapModel = rerankModel
@@ -560,7 +562,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // selection accuracy across all tasks. Falls back silently on error.
                 // Skip for short messages — "hi", "thanks", "what time is it" don't
                 // need a planning round-trip. Threshold: < 20 chars or < 4 words.
-                val needsPlan = lastUserMessage.length > 20 &&
+                //
+                // Gated on [planningEnabled] (default off). The call adds up to
+                // 15s before the user sees a token and bills a second request on
+                // every turn, which is a bad default for conversational use; users
+                // doing tool-heavy work turn it on in Settings.
+                val needsPlan = planningEnabled &&
+                    lastUserMessage.length > 20 &&
                     lastUserMessage.split(Regex("\\s+")).filter { it.isNotBlank() }.size > 3
                 val plan = if (step == 1 && needsPlan) {
                     runCatching {
@@ -926,8 +934,7 @@ private suspend fun extractProfileFromText(text: String) {
         // For non-MoA models, we still want a cheap model for auxiliary
         // tasks (planning, compaction, write gate). The user's main model
         // might be an expensive Opus/GPT-4 — using it for a 150-token plan
-        // wastes money and adds latency. Pick the cheapest configured
-        // model by name-length heuristic (shorter names tend to be smaller).
+        // wastes money and adds latency.
         return runCatching {
             val providers = providerRegistry.configured()
             // If the user's model is MoA, skip it — MoA is 3 API calls.
@@ -936,8 +943,7 @@ private suspend fun extractProfileFromText(text: String) {
             val candidates = providers.flatMap { p ->
                 p.listModels().map { m -> "${p.prefix}:$m" }
             }.filter { it != userModel && !it.startsWith("moa:") }
-            // Pick the shortest-named model (heuristic for smallest/cheapest)
-            candidates.minByOrNull { it.substringAfter(":").length } ?: userModel
+            com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
         }.getOrDefault(userModel)
     }
 

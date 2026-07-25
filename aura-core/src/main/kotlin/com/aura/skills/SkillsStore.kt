@@ -1,5 +1,6 @@
 package com.aura.skills
 
+import android.util.Log
 import com.aura.security.SecureDataStore
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,8 +48,8 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value + skill
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
-        runCatching { skillRevisionStore?.snapshot(skill, summary = "created") }
-        runCatching { evolutionHooks?.onSkillAdded(skill.id) }
+        runCatching { skillRevisionStore?.snapshot(skill, summary = "created") }.onFailure { Log.w("SkillsStore", "snapshot (created) failed", it) }
+        runCatching { evolutionHooks?.onSkillAdded(skill.id) }.onFailure { Log.w("SkillsStore", "onSkillAdded hook failed", it) }
     }
 
     suspend fun update(skill: Skill) {
@@ -57,9 +58,9 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value.map { if (it.id == skill.id) skill else it }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
-        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before edit") } }
-        runCatching { skillRevisionStore?.snapshot(skill, summary = "user edit") }
-        runCatching { evolutionHooks?.onSkillEdited(skill.id) }
+        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before edit") } }.onFailure { Log.w("SkillsStore", "snapshot (before edit) failed", it) }
+        runCatching { skillRevisionStore?.snapshot(skill, summary = "user edit") }.onFailure { Log.w("SkillsStore", "snapshot (user edit) failed", it) }
+        runCatching { evolutionHooks?.onSkillEdited(skill.id) }.onFailure { Log.w("SkillsStore", "onSkillEdited hook failed", it) }
     }
 
     suspend fun remove(id: String) {
@@ -68,8 +69,8 @@ class SkillsStore @Inject constructor(
         val updated = _skills.value.filterNot { it.id == id }
         _skills.value = updated
         secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
-        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before removal") } }
-        runCatching { evolutionHooks?.onSkillRemoved(id) }
+        runCatching { previous?.let { skillRevisionStore?.snapshot(it, proposalId = null, summary = "before removal") } }.onFailure { Log.w("SkillsStore", "snapshot (before removal) failed", it) }
+        runCatching { evolutionHooks?.onSkillRemoved(id) }.onFailure { Log.w("SkillsStore", "onSkillRemoved hook failed", it) }
     }
 
     fun findById(id: String): Skill? = _skills.value.firstOrNull { it.id == id }

@@ -81,7 +81,7 @@ class GlobalSearchRepository @Inject constructor(
                     title = c.title.ifBlank { "Untitled chat" },
                     subtitle = "Conversation",
                     category = SearchCategory.CONVERSATION,
-                    route = "chat?conversationId=${c.id}",
+                    route = "chat?convId=${c.id}",
                 ))
             }
 
@@ -136,7 +136,7 @@ class GlobalSearchRepository @Inject constructor(
                     title = n.label,
                     subtitle = n.type,
                     category = SearchCategory.KNOWLEDGE,
-                    route = "graph",
+                    route = "knowledge_graph",
                 ))
             }
 

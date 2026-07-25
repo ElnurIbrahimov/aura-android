@@ -15,11 +15,11 @@ import kotlin.test.assertTrue
  * template variables are matched against parameterized
  * composable registrations.
  *
- * Known unfixed bugs (ratchet — these will pass; once
- * fixed, remove from the list and the test verifies the
- * real audit):
- *   - chat?convId=... (HistoryScreen) — no composable
- *   - chat?brief=...  (Proactive events) — no composable
+ * The `knownBugs` ratchet below is currently empty and should stay that
+ * way. It previously listed `chat?convId=...` and `chat?brief=...` as
+ * unregistered; both are in fact covered by the parameterized
+ * `composable("chat?convId={convId}&draft={draft}&brief={brief}&...")`
+ * registration in NavGraph, since query parameters are optional.
  *
  * The bug class this catches: a screen navigates to a
  * route that was never registered. The user clicks a UI
@@ -31,23 +31,24 @@ class NavigationReachabilityTest {
 
     @Test
     fun `every navigate() target has a matching composable() route`() {
-        // Find the app/src/main directory across platforms.
-        // Local dev on Windows: D:/aura-android-clean/app/src/main
-        // CI on Linux: <cwd>/app/src/main (where <cwd> is
-        // /home/runner/work/aura-android/aura-android or similar)
-        val candidates = listOf(
-            "D:/aura-android-clean/app/src/main",
-            "app/src/main",
-            "/home/runner/work/aura-android/aura-android/app/src/main",
-        )
-        val appMain = candidates
+        // Find the app/src/main directory. Gradle sets the test working
+        // directory to the module dir, so "src/main" resolves when run as
+        // :app:test; "app/src/main" covers a repo-root working directory.
+        //
+        // Both are relative — no absolute machine-specific paths. An
+        // earlier version listed "D:/aura-android-clean/app/src/main" and
+        // a hardcoded CI runner path, then silently `return`ed when none
+        // matched. That made the test pass without asserting anything on
+        // any machine whose checkout lived elsewhere. Resolution failure
+        // is now a hard failure: a test that cannot find its inputs has
+        // not passed.
+        val appMain = listOf("src/main", "app/src/main")
             .map { File(it) }
-            .firstOrNull { it.exists() }
-        if (appMain == null) {
-            // Skip if the app module isn't on disk (shouldn't
-            // happen for normal test runs).
-            return
-        }
+            .firstOrNull { it.isDirectory }
+            ?: error(
+                "Could not locate app/src/main from ${File(".").absolutePath}. " +
+                    "This test scans production sources and cannot run without them.",
+            )
 
         val navigateRoutes = mutableSetOf<String>()
         val composableRoutes = mutableSetOf<String>()

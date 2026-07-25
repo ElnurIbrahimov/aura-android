@@ -103,6 +103,7 @@ fun SettingsScreen(
             onSetDeepModeModel = viewModel::setDeepModeModel,
             onSetMoaReferenceModels = viewModel::setMoaReferenceModels,
             onSetMoaAggregatorModel = viewModel::setMoaAggregatorModel,
+            onSetPlanningEnabled = viewModel::setPlanningEnabled,
             onRefreshModels = viewModel::refreshModels,
         )
 
