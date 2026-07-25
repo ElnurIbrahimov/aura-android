@@ -153,8 +153,9 @@ class TasteEngine @Inject constructor(
                 }
             }
             if (attrs.isNotEmpty()) {
-                // Normalize: divide by total signal count for this category
-                val totalWeight = categorySignals.sumOf { it.weight.toDouble() }.toFloat().coerceAtLeast(1f)
+                // Normalize by absolute total weight so negative-only categories
+                // don't flip sign. Use a floor of 1f to avoid divide-by-zero.
+                val totalWeight = categorySignals.sumOf { kotlin.math.abs(it.weight).toDouble() }.toFloat().coerceAtLeast(1f)
                 attrs.forEach { (k, v) -> attrs[k] = v / totalWeight }
                 attributes[category] = attrs
             }
@@ -232,7 +233,12 @@ class TasteEngine @Inject constructor(
             val top = categoryAttrs.entries
                 .sortedByDescending { it.value }
                 .take(3)
-                .joinToString(", ") { (k, _) -> k }
+                .joinToString(", ") { (bucket, _) ->
+                    // Buckets are stored as "key:value"; render them as
+                    // "key: value" so the model sees the attribute dimension.
+                    val parts = bucket.split(":", limit = 2)
+                    if (parts.size == 2) "${parts[0]}: ${parts[1]}" else bucket
+                }
             lines.add("- $category: prefers $top")
         }
         if (lines.isEmpty()) return ""

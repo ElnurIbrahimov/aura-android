@@ -298,7 +298,14 @@ class HandRepository @Inject constructor(
 
     companion object {
         private val TEMPLATE_PATTERN = Regex("""\{\{\s*([A-Za-z][A-Za-z0-9_.-]*)\s*\}\}""")
-        private val SECRET_NAME_PATTERN = Regex("token|secret|password|api.?key|credential|bearer|auth|\\bkey\\b|client.?secret|private.?key|access.?key", RegexOption.IGNORE_CASE)
+        // Redact values for variable names that look like credentials.
+        // Pattern is anchored with word boundaries and avoids matching
+        // common English words such as author, authority, authentic, or
+        // coauthor that contain the substring "auth".
+        private val SECRET_NAME_PATTERN = Regex(
+            """\b(token|secret|password|credential|bearer|api_?key|client_?secret|private_?key|access_?key|auth_?(token|code|key|secret|password)|[A-Z][A-Z0-9_]*_KEY)\b""",
+            RegexOption.IGNORE_CASE,
+        )
         private const val MAX_HISTORY_OUTPUT_CHARS = 8_000
     }
 }

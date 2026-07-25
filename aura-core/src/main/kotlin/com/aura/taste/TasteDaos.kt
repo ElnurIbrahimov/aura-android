@@ -72,6 +72,9 @@ interface ReferenceIdentityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(identity: ReferenceIdentityEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(identities: List<ReferenceIdentityEntity>)
+
     @Update
     suspend fun update(identity: ReferenceIdentityEntity)
 
@@ -89,6 +92,9 @@ interface ReferenceIdentityDao {
 
     @Query("DELETE FROM reference_identities WHERE id = :id")
     suspend fun delete(id: kotlin.String)
+
+    @Query("DELETE FROM reference_identities")
+    suspend fun deleteAll()
 }
 
 @Dao

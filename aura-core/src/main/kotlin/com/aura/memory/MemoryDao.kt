@@ -160,6 +160,12 @@ interface MemoryFeedbackDao {
     @Insert
     suspend fun insert(row: MemoryFeedbackEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(rows: List<MemoryFeedbackEntity>)
+
+    @Query("SELECT * FROM memory_feedback ORDER BY createdAt ASC")
+    suspend fun all(): List<MemoryFeedbackEntity>
+
     @Query("SELECT * FROM memory_feedback WHERE memoryId = :memoryId ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byMemoryId(memoryId: String, limit: Int = 20): List<MemoryFeedbackEntity>
 

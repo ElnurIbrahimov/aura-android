@@ -3,6 +3,7 @@ package com.aura.proactive
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -34,6 +35,30 @@ class BootReceiver : BroadcastReceiver() {
             DaemonScheduler.WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             daemonRequest,
+        )
+        // Re-enqueue morning brief and dream workers. Their exact timing
+        // preferences are read inside the workers, so using defaults here
+        // is safe until the next ProactiveBootstrap run. This keeps the
+        // headline proactive features alive across reboots on OEMs that
+        // clear WorkManager state.
+        val morningRequest = PeriodicWorkRequestBuilder<MorningBriefWorker>(1, TimeUnit.DAYS).build()
+        wm.enqueueUniquePeriodicWork(
+            MorningBriefWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            morningRequest,
+        )
+        val dreamRequest = PeriodicWorkRequestBuilder<com.aura.dream.DreamWorker>(1, TimeUnit.DAYS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiresBatteryNotLow(true)
+                    .setRequiresCharging(true)
+                    .build()
+            )
+            .build()
+        wm.enqueueUniquePeriodicWork(
+            com.aura.dream.DreamWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            dreamRequest,
         )
     }
 }

@@ -75,6 +75,11 @@ fun ChatComposer(
     onGalleryClick: () -> Unit = {},
     onAudioClick: () -> Unit = {},
     onDocumentClick: () -> Unit = {},
+    /**
+     * Callback invoked when the user explicitly pastes an image into the
+     * composer. The composer no longer auto-reads the system clipboard on
+     * every composition to avoid silently capturing private content.
+     */
     onImagePasted: (android.graphics.Bitmap) -> Unit = {},
     skills: List<Skill> = emptyList(),
     onUseSkill: (Skill) -> Unit = {},
@@ -87,37 +92,6 @@ fun ChatComposer(
     val canSend = sendEnabled && draft.isNotBlank()
     val context = androidx.compose.ui.platform.LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
-
-    // Detect pasted images from clipboard (e.g. screenshots copied in Gboard)
-    LaunchedEffect(Unit) {
-        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-            as? android.content.ClipboardManager
-        if (clipboard != null) {
-            val clip = clipboard.primaryClip
-            if (clip != null && clip.itemCount > 0) {
-                val item = clip.getItemAt(0)
-                val uri = item.uri
-                if (uri != null && uri.toString().startsWith("content://")) {
-                    runCatching {
-                        val resolver = context.contentResolver
-                        // ImageDecoder is API 28+; on API 26-27 fall back
-                        // to BitmapFactory.decodeStream which supports the
-                        // same content:// URI via ContentResolver.
-                        val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            android.graphics.ImageDecoder.decodeBitmap(
-                                android.graphics.ImageDecoder.createSource(resolver, uri)
-                            )
-                        } else {
-                            resolver.openInputStream(uri)?.use { stream ->
-                                android.graphics.BitmapFactory.decodeStream(stream)
-                            } ?: return@runCatching
-                        }
-                        onImagePasted(bitmap)
-                    }
-                }
-            }
-        }
-    }
 
     Surface(
         modifier = modifier

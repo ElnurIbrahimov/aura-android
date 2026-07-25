@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import javax.inject.Inject
@@ -38,7 +39,7 @@ class EmotionEngine @Inject constructor(
         val updatedAt: Long = System.currentTimeMillis(),
     )
 
-    private var state = EmotionSnapshot()
+    private val stateRef = AtomicReference(EmotionSnapshot())
 
     // Heuristic signal patterns
     private val frustrationPatterns = listOf(
@@ -64,7 +65,7 @@ class EmotionEngine @Inject constructor(
         val msg = userMessage.trim()
         if (msg.isBlank()) return
 
-        val s = state.copy()
+        val s = stateRef.get()
 
         // Length-based signals
         val len = msg.length
@@ -111,12 +112,14 @@ class EmotionEngine @Inject constructor(
             else -> energy
         }
 
-        state = EmotionSnapshot(
-            tension = finalTension,
-            connection = connection,
-            energy = finalEnergy,
-            focus = focus,
-            updatedAt = System.currentTimeMillis(),
+        stateRef.set(
+            EmotionSnapshot(
+                tension = finalTension,
+                connection = connection,
+                energy = finalEnergy,
+                focus = focus,
+                updatedAt = System.currentTimeMillis(),
+            )
         )
     }
 
@@ -126,25 +129,28 @@ class EmotionEngine @Inject constructor(
     fun decay() {
         val baseline = EmotionSnapshot()
         val decayRate = 0.05f
-        state = EmotionSnapshot(
-            tension = lerp(state.tension, baseline.tension, decayRate),
-            connection = lerp(state.connection, baseline.connection, decayRate),
-            energy = lerp(state.energy, baseline.energy, decayRate),
-            focus = lerp(state.focus, baseline.focus, decayRate),
-            updatedAt = System.currentTimeMillis(),
+        val current = stateRef.get()
+        stateRef.set(
+            EmotionSnapshot(
+                tension = lerp(current.tension, baseline.tension, decayRate),
+                connection = lerp(current.connection, baseline.connection, decayRate),
+                energy = lerp(current.energy, baseline.energy, decayRate),
+                focus = lerp(current.focus, baseline.focus, decayRate),
+                updatedAt = System.currentTimeMillis(),
+            )
         )
     }
 
     /**
      * Get the current emotion snapshot.
      */
-    fun snapshot(): EmotionSnapshot = state
+    fun snapshot(): EmotionSnapshot = stateRef.get()
 
     /**
      * Get a human-readable mood string for the system prompt.
      */
     fun moodString(): String {
-        val s = state
+        val s = stateRef.get()
         return "tension=${"%.1f".format(s.tension)}, connection=${"%.1f".format(s.connection)}, " +
             "energy=${"%.1f".format(s.energy)}, focus=${"%.1f".format(s.focus)}"
     }
@@ -152,32 +158,42 @@ class EmotionEngine @Inject constructor(
     /**
      * Resolve the active [ResponseProfile] from the current state.
      */
-    fun profile(): ResponseProfile = ResponseProfile.from(state)
+    fun profile(): ResponseProfile = ResponseProfile.from(stateRef.get())
 
     /**
      * Persist the current state to DataStore (called periodically).
      */
     suspend fun save() {
+        val s = stateRef.get()
         context.emotionPrefs.edit { prefs ->
-            prefs[KEY_TENSION] = state.tension
-            prefs[KEY_CONNECTION] = state.connection
-            prefs[KEY_ENERGY] = state.energy
-            prefs[KEY_FOCUS] = state.focus
-            prefs[KEY_UPDATED] = state.updatedAt
+            prefs[KEY_TENSION] = s.tension
+            prefs[KEY_CONNECTION] = s.connection
+            prefs[KEY_ENERGY] = s.energy
+            prefs[KEY_FOCUS] = s.focus
+            prefs[KEY_UPDATED] = s.updatedAt
         }
     }
 
     /**
-     * Load persisted state from DataStore.
+     * Load persisted state from DataStore. Only overwrites the in-memory
+     * state if any persisted keys exist, so an in-flight update from the
+     * agentic loop is not accidentally clobbered by a parallel load.
      */
     suspend fun load() {
         val prefs = context.emotionPrefs.data.first()
-        state = EmotionSnapshot(
-            tension = prefs[KEY_TENSION] ?: 0.3f,
-            connection = prefs[KEY_CONNECTION] ?: 0.5f,
-            energy = prefs[KEY_ENERGY] ?: 0.4f,
-            focus = prefs[KEY_FOCUS] ?: 0.3f,
-            updatedAt = prefs[KEY_UPDATED] ?: System.currentTimeMillis(),
+        if (prefs[KEY_TENSION] == null && prefs[KEY_CONNECTION] == null &&
+            prefs[KEY_ENERGY] == null && prefs[KEY_FOCUS] == null
+        ) {
+            return
+        }
+        stateRef.set(
+            EmotionSnapshot(
+                tension = prefs[KEY_TENSION] ?: 0.3f,
+                connection = prefs[KEY_CONNECTION] ?: 0.5f,
+                energy = prefs[KEY_ENERGY] ?: 0.4f,
+                focus = prefs[KEY_FOCUS] ?: 0.3f,
+                updatedAt = prefs[KEY_UPDATED] ?: System.currentTimeMillis(),
+            )
         )
     }
 

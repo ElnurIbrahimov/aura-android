@@ -135,22 +135,19 @@ class MemoryViewModel @Inject constructor(
     fun setQuery(q: String) {
         _state.update { it.copy(query = q) }
         searchJob?.cancel()
-        val trimmed = q.trim()
-        if (trimmed.isEmpty()) {
-            viewModelScope.launch {
-                val results = if (_state.value.categoryFilter != null) {
-                    memoryStore.listByCategory(_state.value.categoryFilter!!, 100)
-                } else {
-                    memoryStore.recent(100)
-                }
-                _state.update { it.copy(memories = results, loading = false) }
-            }
-            return
-        }
         searchJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
-            kotlinx.coroutines.delay(250)
-            val results = memoryStore.searchByText(trimmed, 50)
+            // Small delay for non-empty queries to avoid thrashing Room on
+            // every keystroke. Empty queries return immediately.
+            val trimmed = q.trim()
+            if (trimmed.isNotEmpty()) {
+                _state.update { it.copy(loading = true) }
+                kotlinx.coroutines.delay(250)
+            }
+            val results = when {
+                _state.value.categoryFilter != null -> memoryStore.listByCategory(_state.value.categoryFilter!!, 100)
+                trimmed.isNotBlank() -> memoryStore.searchByText(trimmed, 50)
+                else -> memoryStore.recent(100)
+            }
             _state.update { it.copy(memories = results, loading = false) }
         }
     }

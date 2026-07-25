@@ -969,7 +969,9 @@ class ChatViewModel @Inject constructor(
         if (!retryable) {
             viewModelScope.launch {
                 kotlinx.coroutines.delay(5_000L)
-                if (_state.value.error == error) {
+                // Compare against the friendly message actually stored,
+                // not the raw technical string passed to this function.
+                if (_state.value.error == friendly) {
                     _state.update { it.copy(error = null, errorRetryable = false, errorTyped = null) }
                 }
             }

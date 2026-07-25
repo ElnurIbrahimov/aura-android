@@ -53,12 +53,12 @@ class TasteEngineAggregationTest {
 
         val profile = engine.getTasteContext()
         assertTrue(
-            "Profile should contain response_length:concise, got: $profile",
-            profile.contains("response_length:concise"),
+            "Profile should contain response_length: concise, got: $profile",
+            profile.contains("response_length: concise"),
         )
         assertTrue(
-            "Profile should contain verbosity:concise, got: $profile",
-            profile.contains("verbosity:concise"),
+            "Profile should contain verbosity: concise, got: $profile",
+            profile.contains("verbosity: concise"),
         )
     }
 }

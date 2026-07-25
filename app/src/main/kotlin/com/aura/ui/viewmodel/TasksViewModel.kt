@@ -44,6 +44,8 @@ class TasksViewModel @Inject constructor(
     private val _state = MutableStateFlow(TasksUiState())
     val state: StateFlow<TasksUiState> = _state.asStateFlow()
 
+    private var remindersJob: kotlinx.coroutines.Job? = null
+
     init { load() }
 
     fun load() {
@@ -52,7 +54,8 @@ class TasksViewModel @Inject constructor(
             val tasks = taskDao.all()
             _state.update { it.copy(tasks = tasks, loading = false) }
         }
-        viewModelScope.launch {
+        remindersJob?.cancel()
+        remindersJob = viewModelScope.launch {
             reminderStore.observeUpcoming().collectLatest { reminders ->
                 _state.update { it.copy(reminders = reminders) }
             }

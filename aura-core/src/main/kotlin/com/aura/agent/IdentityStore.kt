@@ -1,6 +1,7 @@
 package com.aura.agent
 
 import android.content.Context
+import android.util.Log
 import com.aura.data.UserPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -9,6 +10,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+
+private const val TAG = "IdentityStore"
 
 /**
  * Canonical identity repository.
@@ -38,7 +41,11 @@ class IdentityStore @Inject constructor(
         }
         if (legacy.isNotEmpty()) {
             userPreferences.setCustomIdentity(legacy)
-            withContext(Dispatchers.IO) { runCatching { overrideFile.delete() } }
+            withContext(Dispatchers.IO) {
+                runCatching { overrideFile.delete() }.onFailure {
+                    Log.w(TAG, "Failed to delete legacy identity override file", it)
+                }
+            }
             return legacy
         }
 
@@ -52,6 +59,8 @@ class IdentityStore @Inject constructor(
             .bufferedReader()
             .use { it.readText() }
             .trim()
+    }.onFailure {
+        Log.w(TAG, "Failed to read bundled identity asset; using fallback", it)
     }.getOrElse { Brain.IDENTITY_FALLBACK.trim() }
 
     suspend fun save(text: String): Boolean {
@@ -59,13 +68,21 @@ class IdentityStore @Inject constructor(
         if (normalized.isEmpty()) return resetToDefault()
         return runCatching {
             userPreferences.setCustomIdentity(normalized)
-            withContext(Dispatchers.IO) { runCatching { overrideFile.delete() } }
+            withContext(Dispatchers.IO) {
+                runCatching { overrideFile.delete() }.onFailure {
+                    Log.w(TAG, "Failed to delete legacy identity override file after save", it)
+                }
+            }
         }.isSuccess
     }
 
     suspend fun resetToDefault(): Boolean = runCatching {
         userPreferences.setCustomIdentity("")
-        withContext(Dispatchers.IO) { runCatching { overrideFile.delete() } }
+        withContext(Dispatchers.IO) {
+            runCatching { overrideFile.delete() }.onFailure {
+                Log.w(TAG, "Failed to delete legacy identity override file on reset", it)
+            }
+        }
     }.isSuccess
 
     suspend fun hasOverride(): Boolean =

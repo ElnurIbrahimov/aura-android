@@ -62,9 +62,19 @@ data class AuraBackup(
     val routines: List<RoutineBackup> = emptyList(),
     val contradictions: List<ContradictionBackup> = emptyList(),
     val kgEdgeProposals: List<KgEdgeProposalBackup> = emptyList(),
+    // Schema v12: durable state that was persisted in Room but dropped on backup/restore.
+    val memoryFeedback: List<MemoryFeedbackBackup> = emptyList(),
+    val documentChunks: List<DocumentChunkBackup> = emptyList(),
+    val referenceIdentities: List<ReferenceIdentityBackup> = emptyList(),
+    val agentRuns: List<AgentRunBackup> = emptyList(),
+    val agentGoals: List<GoalBackup> = emptyList(),
+    val agentSteps: List<StepBackup> = emptyList(),
+    val agentEvents: List<AgentEventBackup> = emptyList(),
+    val agentApprovals: List<ApprovalRequestBackup> = emptyList(),
+    val runCheckpoints: List<RunCheckpointBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 11
+        const val SCHEMA_VERSION = 12
     }
 }
 

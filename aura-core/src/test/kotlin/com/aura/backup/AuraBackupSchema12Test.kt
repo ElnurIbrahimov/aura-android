@@ -8,10 +8,10 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class AuraBackupSchema11Test {
+class AuraBackupSchema12Test {
     @Test
-    fun `schema version is 11`() {
-        assertEquals(11, AuraBackup.SCHEMA_VERSION)
+    fun `schema version is 12`() {
+        assertEquals(12, AuraBackup.SCHEMA_VERSION)
     }
 
     @Test

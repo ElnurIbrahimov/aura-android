@@ -90,6 +90,7 @@ class ProactiveScheduler @Inject constructor(
     fun scheduleDream() {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
+            .setRequiresCharging(true)
             .build()
         val request = PeriodicWorkRequestBuilder<com.aura.dream.DreamWorker>(1, TimeUnit.DAYS)
             .setConstraints(constraints)

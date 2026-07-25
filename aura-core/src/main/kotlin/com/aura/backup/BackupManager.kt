@@ -103,6 +103,15 @@ class BackupManager @Inject constructor(
     private val contradictionDao: com.aura.dream.ContradictionDao? = null,
     private val kgEdgeProposalDao: com.aura.dream.KgEdgeProposalDao? = null,
     private val memoryFeedbackDao: com.aura.memory.MemoryFeedbackDao? = null,
+    // Schema v12 DAOs.
+    private val documentChunkDao: com.aura.documents.DocumentChunkDao? = null,
+    private val referenceIdentityDao: com.aura.taste.ReferenceIdentityDao? = null,
+    private val agentRunDao: com.aura.agentrun.AgentRunDao? = null,
+    private val goalDao: com.aura.agentrun.GoalDao? = null,
+    private val stepDao: com.aura.agentrun.StepDao? = null,
+    private val agentEventDao: com.aura.agentrun.AgentEventDao? = null,
+    private val approvalRequestDao: com.aura.agentrun.ApprovalRequestDao? = null,
+    private val runCheckpointDao: com.aura.agentrun.RunCheckpointDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -235,6 +244,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             routines = routineDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             contradictions = contradictionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             kgEdgeProposals = kgEdgeProposalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v12: durable state previously dropped on backup/restore.
+            memoryFeedback = memoryFeedbackDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            documentChunks = documentChunkDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            referenceIdentities = referenceIdentityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            agentRuns = agentRunDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            agentGoals = goalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            agentSteps = stepDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            agentEvents = agentEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            agentApprovals = approvalRequestDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            runCheckpoints = runCheckpointDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
         )
     }
 
@@ -305,6 +324,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val routineRows = backup.routines.map { it.toEntity() }
         val contradictionRows = backup.contradictions.map { it.toEntity() }
         val kgEdgeProposalRows = backup.kgEdgeProposals.map { it.toEntity() }
+        // Schema v12 rows.
+        val memoryFeedbackRows = backup.memoryFeedback.map { it.toEntity() }
+        val documentChunkRows = backup.documentChunks.map { it.toEntity() }
+        val referenceIdentityRows = backup.referenceIdentities.map { it.toEntity() }
+        val agentRunRows = backup.agentRuns.map { it.toEntity() }
+        val goalRows = backup.agentGoals.map { it.toEntity() }
+        val stepRows = backup.agentSteps.map { it.toEntity() }
+        val agentEventRows = backup.agentEvents.map { it.toEntity() }
+        val agentApprovalRows = backup.agentApprovals.map { it.toEntity() }
+        val runCheckpointRows = backup.runCheckpoints.map { it.toEntity() }
 
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -334,6 +363,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (routineRows.isNotEmpty()) routineDao?.insertAll(routineRows)
         if (contradictionRows.isNotEmpty()) contradictionDao?.insertAll(contradictionRows)
         if (kgEdgeProposalRows.isNotEmpty()) kgEdgeProposalDao?.insertAll(kgEdgeProposalRows)
+        // Schema v12: restore durable state previously dropped on roundtrip.
+        if (memoryFeedbackRows.isNotEmpty()) memoryFeedbackDao?.insertAll(memoryFeedbackRows)
+        if (documentChunkRows.isNotEmpty()) documentChunkDao?.insertAll(documentChunkRows)
+        if (referenceIdentityRows.isNotEmpty()) referenceIdentityDao?.insertAll(referenceIdentityRows)
+        if (goalRows.isNotEmpty()) goalDao?.insertAll(goalRows)
+        if (agentRunRows.isNotEmpty()) agentRunDao?.insertAll(agentRunRows)
+        if (stepRows.isNotEmpty()) stepDao?.upsertAll(stepRows)
+        if (agentEventRows.isNotEmpty()) agentEventDao?.insertAll(agentEventRows)
+        if (agentApprovalRows.isNotEmpty()) approvalRequestDao?.insertAll(agentApprovalRows)
+        if (runCheckpointRows.isNotEmpty()) runCheckpointDao?.upsertAll(runCheckpointRows)
         if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
         restoreReminders(reminderRows)
         // If the backup has a profile, replace the current one.
@@ -392,15 +431,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
 
         RestoreCounts(
             memories = memRows.size,
+            memoryEdits = editRows.size,
+            documents = documentRows.size,
+            creativeProjects = creativeRows.size,
             conversations = convRows.size,
             nodes = nodeRows.size,
             edges = edgeRows.size,
             hands = handRows.size,
             handRuns = handRunRows.size,
             tasks = taskRows.size,
-            memoryEdits = editRows.size,
-            documents = documentRows.size,
-            creativeProjects = creativeRows.size,
             reminders = reminderRows.size,
             proactiveEvents = proactiveRows.size,
             profile = if (profileRow != null) 1 else 0,
@@ -419,6 +458,21 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             canonFacts = canonFactRows.size,
             preferenceSignals = preferenceSignalRows.size,
             styleProfiles = styleProfileRows.size,
+            // Schema v11: dream database.
+            dreamSummaries = dreamSummaryRows.size,
+            routines = routineRows.size,
+            contradictions = contradictionRows.size,
+            kgEdgeProposals = kgEdgeProposalRows.size,
+            // Schema v12: durable state previously dropped on backup/restore.
+            memoryFeedback = memoryFeedbackRows.size,
+            documentChunks = documentChunkRows.size,
+            referenceIdentities = referenceIdentityRows.size,
+            agentRuns = agentRunRows.size,
+            agentGoals = goalRows.size,
+            agentSteps = stepRows.size,
+            agentEvents = agentEventRows.size,
+            agentApprovals = agentApprovalRows.size,
+            runCheckpoints = runCheckpointRows.size,
         )
     }
 
@@ -510,6 +564,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         kgEdgeProposalDao?.deleteAll()
         // Schema v13: memory feedback (audit trail for memory ratings).
         memoryFeedbackDao?.deleteAll()
+        // Schema v12: purge durable state previously dropped on roundtrip.
+        documentChunkDao?.deleteAll()
+        referenceIdentityDao?.deleteAll()
+        agentRunDao?.deleteAll()
+        goalDao?.deleteAll()
+        stepDao?.deleteAll()
+        agentEventDao?.deleteAll()
+        approvalRequestDao?.deleteAll()
+        runCheckpointDao?.deleteAll()
     }
 
     /**
@@ -560,6 +623,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val routines: Int = 0,
             val contradictions: Int = 0,
             val kgEdgeProposals: Int = 0,
+            // Schema v12: durable state previously dropped on backup/restore.
+            val memoryFeedback: Int = 0,
+            val documentChunks: Int = 0,
+            val referenceIdentities: Int = 0,
+            val agentRuns: Int = 0,
+            val agentGoals: Int = 0,
+            val agentSteps: Int = 0,
+            val agentEvents: Int = 0,
+            val agentApprovals: Int = 0,
+            val runCheckpoints: Int = 0,
         ) {
             // Auto-derived: every non-self Int field summed. Until v0.30.x
             // this was a 17-term hand-sum that fell out of sync with the
@@ -575,7 +648,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 agents + beliefs + evidence + worldEvents + opportunities +
                 creativeArtifacts + creativeRevisions + creativeBranches +
                 canonFacts + preferenceSignals + styleProfiles +
-                dreamSummaries + routines + contradictions + kgEdgeProposals
+                dreamSummaries + routines + contradictions + kgEdgeProposals +
+                memoryFeedback + documentChunks + referenceIdentities +
+                agentRuns + agentGoals + agentSteps + agentEvents +
+                agentApprovals + runCheckpoints
             )
     }
 }
