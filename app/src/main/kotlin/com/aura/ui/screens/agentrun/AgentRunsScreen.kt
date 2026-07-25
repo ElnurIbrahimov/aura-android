@@ -1,5 +1,11 @@
 package com.aura.ui.screens.agentrun
 
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import com.aura.agentrun.ApprovalKind
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -217,13 +223,49 @@ private fun ApprovalCard(
     onDeny: () -> Unit,
 ) {
     val colors = AuraThemeTokens.colors
+    val context = LocalContext.current
+
+    // A permission approval cannot be satisfied by the approve record alone:
+    // marking it APPROVED does not change what checkSelfPermission returns, so
+    // the retried step hits NeedsPermission and blocks again — forever. For
+    // those we ask Android first and only record the approval once granted.
+    val permission = ApprovalKind.permissionOf(approval.rationale)
+    val alreadyGranted = permission != null && ContextCompat.checkSelfPermission(
+        context,
+        permission,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        // On denial, leave the approval pending. Recording it as approved
+        // would re-run the step into the same block with no user-visible
+        // reason for the loop.
+        if (granted) onApprove()
+    }
+
     Surface(color = colors.surface1, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
             Text(approval.rationale, fontWeight = FontWeight.SemiBold)
             Text("requested by ${approval.toolName}", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            if (permission != null && !alreadyGranted) {
+                Text(
+                    "Approving asks Android for this permission.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
                 OutlinedButton(onClick = onDeny) { Text("Deny") }
-                Button(onClick = onApprove) { Text("Approve") }
+                Button(
+                    onClick = {
+                        if (permission != null && !alreadyGranted) {
+                            permissionLauncher.launch(permission)
+                        } else {
+                            onApprove()
+                        }
+                    },
+                ) { Text("Approve") }
             }
         }
     }

@@ -109,7 +109,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                         runId = runId,
                         stepId = step.id,
                         toolName = step.toolName,
-                        rationale = "Permission needed: ${result.permission}",
+                        rationale = ApprovalKind.permissionRationale(result.permission),
                     )
                     agentRunStore.blockStep(step.id, "Permission required: ${result.permission}")
                 }
