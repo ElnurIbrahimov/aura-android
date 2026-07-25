@@ -128,8 +128,24 @@ sealed class BrainChunk {
                     }
                     return ToolCallDelta(tc.id, "")
                 }
-                // delta-style chunk (Anthropic input_json_delta): no id, no name.
-                // Look up the most-recent id we saw and append to its args.
+                // Delta-only chunk from a provider that already resolved
+                // the tool id (e.g. Anthropic's input_json_delta carries
+                // the id through the `index`-keyed lookup in
+                // AnthropicProvider). Honor the resolved id directly so
+                // parallel tool_use blocks route their deltas to the
+                // correct tool. Previously the code threw away the
+                // resolved id and re-derived from `nameById.keys.lastOrNull()`,
+                // which mis-routed interleaved deltas across parallel
+                // tool calls (the second tool's delta would overwrite
+                // the first tool's argument buffer).
+                if (tc.id.isNotEmpty()) {
+                    return ToolCallDelta(tc.id, tc.arguments)
+                }
+                // Last-resort fallback for providers that emit a delta
+                // with no id and no name. Route to the most recent id
+                // we saw in this stream. Only used by legacy
+                // /v1/chat/completions providers that haven't been
+                // migrated to id-tagged deltas.
                 val id = nameById.keys.lastOrNull() ?: return Text("")
                 return ToolCallDelta(id, tc.arguments)
             }
