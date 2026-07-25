@@ -222,40 +222,13 @@ class CustomOpenAiCompatProvider(
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = Channel.BUFFERED)
-        // Same index→id mapping as OpenAiCompatProvider for parallel tool calls.
-        val toolCallIndexToId = mutableMapOf<Int, kotlin.String>()
+        val sseParser = OpenAiSseParser()
         val src = okhttp3.sse.EventSources.createFactory(httpClient).newEventSource(request, object : okhttp3.sse.EventSourceListener() {
             override fun onEvent(eventSource: okhttp3.sse.EventSource, id: kotlin.String?, type: kotlin.String?, data: kotlin.String) {
-                if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
-                val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
-                val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return
-                val delta = (choice["delta"] as? JsonObject) ?: return
-                val text = (delta["content"] as? JsonPrimitive)?.content
-                if (text != null) channel.trySend(ProviderChunk(text = text))
-                val toolCalls = (delta["tool_calls"] as? JsonArray)
-                toolCalls?.forEach { tc ->
-                    val tco = tc.jsonObject
-                    val fn = tco["function"]?.jsonObject
-                    if (fn != null) {
-                        val tcId = (tco["id"] as? JsonPrimitive)?.content ?: ""
-                        val name = (fn["name"] as? JsonPrimitive)?.content ?: ""
-                        val args = (fn["arguments"] as? JsonPrimitive)?.content ?: ""
-                        val index = (tco["index"] as? JsonPrimitive)?.intOrNull
-                        val resolvedId = if (tcId.isNotEmpty()) {
-                            if (index != null) toolCallIndexToId[index] = tcId
-                            tcId
-                        } else if (index != null) {
-                            toolCallIndexToId[index] ?: ""
-                        } else {
-                            ""
-                        }
-                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = resolvedId, name = name, arguments = args)))
-                    }
-                }
-                val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
-                if (finish == "stop" || finish == "length" || finish == "tool_calls") {
-                    val reason = when (finish) { "stop" -> FinishReason.stop; "length" -> FinishReason.length; "tool_calls" -> FinishReason.tool_calls; else -> FinishReason.stop }
-                    channel.trySend(ProviderChunk(finishReason = reason))
+                val chunk = sseParser.parseEvent(data)
+                if (chunk != null) {
+                    channel.trySend(chunk)
+                    if (chunk.finishReason != null) channel.close()
                 }
             }
             override fun onFailure(eventSource: okhttp3.sse.EventSource, t: Throwable?, response: okhttp3.Response?) {

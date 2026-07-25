@@ -464,7 +464,8 @@ class DreamConsolidator @Inject constructor(
         val conversationStore = conversationStoreProvider.get()
         val conversations = runCatching {
             conversationStore.recent(conversationLimit)
-        }.getOrNull() ?: return 0 to 0
+        }.onFailure { android.util.Log.w("DreamConsolidator", "extractRoutines: conversationStore.recent failed: ${it.message}") }
+        .getOrNull() ?: return 0 to 0
         if (conversations.isEmpty()) return 0 to 0
 
         // 1. Per turn, list tool names in call order
@@ -545,7 +546,8 @@ class DreamConsolidator @Inject constructor(
             store.awaitLoaded()
             store.update()  // timestamp-only persist; real extraction is future work
             true
-        }.getOrDefault(false)
+        }.onFailure { android.util.Log.w("DreamConsolidator", "updateProfile: store.update failed: ${it.message}") }
+        .getOrDefault(false)
     }
 
     // ---------------------------------------------------------------------
@@ -684,9 +686,13 @@ class DreamConsolidator @Inject constructor(
      */
     internal suspend fun densifyGraph(): Int {
         val kg = knowledgeGraphRepositoryProvider.get()
-        val nodes = runCatching { kg.recent(50) }.getOrNull() ?: return 0
+        val nodes = runCatching { kg.recent(50) }
+            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.recent failed: ${it.message}") }
+            .getOrNull() ?: return 0
         if (nodes.size < 2) return 0
-        val existingEdges = runCatching { kg.allEdges() }.getOrNull().orEmpty()
+        val existingEdges = runCatching { kg.allEdges() }
+            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.allEdges failed: ${it.message}") }
+            .getOrNull().orEmpty()
         val connectedPairs = existingEdges.map { it.sourceId to it.targetId }.toHashSet()
         val proposals = mutableListOf<KgEdgeProposalEntity>()
         outer@ for (i in nodes.indices) {

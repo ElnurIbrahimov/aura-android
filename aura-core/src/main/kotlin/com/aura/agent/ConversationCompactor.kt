@@ -150,7 +150,8 @@ class ConversationCompactor @Inject constructor(
         return runCatching {
             val (provider, modelName) = providerRegistry.parse(model)
             cachedModelsWithContext(provider).firstOrNull { it.name == modelName }?.contextWindow
-        }.getOrNull()
+        }.onFailure { android.util.Log.w("ConversationCompactor", "lookupContextWindow failed for $model: ${it.message}") }
+        .getOrNull()
     }
 
     companion object {

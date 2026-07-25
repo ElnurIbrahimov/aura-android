@@ -105,7 +105,9 @@ class CreativeEngine @Inject constructor(
     internal suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
-            val model = runCatching { provider.listModels().firstOrNull() }.getOrNull()
+            val model = runCatching { provider.listModels().firstOrNull() }
+                .onFailure { android.util.Log.w("CreativeEngine", "listModels failed for ${provider.prefix}: ${it.message}") }
+                .getOrNull()
             if (!model.isNullOrBlank()) return "${provider.prefix}:$model"
         }
         throw IllegalStateException("Configure an LLM provider and choose a default model before using Creative Studio.")

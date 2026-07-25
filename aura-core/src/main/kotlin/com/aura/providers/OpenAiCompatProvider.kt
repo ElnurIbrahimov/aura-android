@@ -61,52 +61,14 @@ open class OpenAiCompatProvider(
         tools: List<ToolDefinition>,
     ): Flow<ProviderChunk> = flow {
         val request = buildRequest(model, messages, options, tools, stream = true)
-        // We'll consume the SSE via callback to keep simple; switch to channel-based emission
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
-        // Track the OpenAI tool-call index → id mapping so argument
-        // deltas (which carry index but not id or name) route to the
-        // correct tool. Without this, parallel tool calls have their
-        // argument deltas mis-routed by Brain.fromProvider's
-        // nameById.keys.lastOrNull() fallback — the same bug class
-        // as the Anthropic parallel-tool-call fix (commit 5c09d6d7).
-        val toolCallIndexToId = mutableMapOf<Int, String>()
+        val sseParser = OpenAiSseParser()
         val src = EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
-                val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
-                val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return
-                val delta = (choice["delta"] as? JsonObject) ?: return
-                val text = (delta["content"] as? JsonPrimitive)?.content
-                if (text != null) channel.trySend(ProviderChunk(text = text))
-                val toolCalls = (delta["tool_calls"] as? JsonArray)
-                toolCalls?.forEach { tc ->
-                    val tco = tc.jsonObject
-                    val fn = tco["function"]?.jsonObject
-                    if (fn != null) {
-                        val tcId = (tco["id"] as? JsonPrimitive)?.content ?: ""
-                        val name = (fn["name"] as? JsonPrimitive)?.content ?: ""
-                        val args = (fn["arguments"] as? JsonPrimitive)?.content ?: ""
-                        val index = (tco["index"] as? JsonPrimitive)?.intOrNull
-                        // On the first delta for a tool call, OpenAI sends
-                        // id + name. Subsequent deltas carry index but not
-                        // id or name. Resolve the id from the index map so
-                        // Brain.fromProvider sees a non-empty id and routes
-                        // the delta to the correct tool.
-                        val resolvedId = if (tcId.isNotEmpty()) {
-                            if (index != null) toolCallIndexToId[index] = tcId
-                            tcId
-                        } else if (index != null) {
-                            toolCallIndexToId[index] ?: ""
-                        } else {
-                            ""
-                        }
-                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = resolvedId, name = name, arguments = args)))
-                    }
-                }
-                val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
-                if (finish == "stop" || finish == "length" || finish == "tool_calls") {
-                    val reason = when (finish) { "stop" -> FinishReason.stop; "length" -> FinishReason.length; "tool_calls" -> FinishReason.tool_calls; else -> FinishReason.stop }
-                    channel.trySend(ProviderChunk(finishReason = reason))
+                val chunk = sseParser.parseEvent(data)
+                if (chunk != null) {
+                    channel.trySend(chunk)
+                    if (chunk.finishReason != null) channel.close()
                 }
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {

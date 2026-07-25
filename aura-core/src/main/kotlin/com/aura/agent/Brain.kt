@@ -57,7 +57,17 @@ class Brain @Inject constructor(
         // providers that send argument deltas without re-sending the name
         // (e.g. Anthropic input_json_delta) can still be routed to the
         // correct tool. Reset per stream call.
-        val nameById = mutableMapOf<String, String>()
+        //
+        // Bounded to prevent unbounded growth in pathological streams
+        // (e.g. 100+ tool calls in a single response). When the map
+        // exceeds MAX_NAME_BY_ID, the oldest entry is evicted. In
+        // practice the map rarely exceeds 2-3 entries; the cap is
+        // a defensive backstop, not a hot-path concern.
+        val nameById = object : LinkedHashMap<String, String>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+                return size > MAX_NAME_BY_ID
+            }
+        }
         providerRegistry.chat(model, messages, options, tools).collect { providerChunk ->
             emit(BrainChunk.fromProvider(providerChunk, nameById))
         }
@@ -69,6 +79,14 @@ class Brain @Inject constructor(
 
         /** Path of the bundled identity asset (shipped with the APK). */
         const val IDENTITY_ASSET_FILENAME = "SOUL.md"
+
+        /**
+         * Maximum number of tool-call id→name entries retained in a
+         * single stream. The map is an access-ordered LRU; entries
+         * beyond this cap are evicted. In practice the map rarely
+         * exceeds 2-3 entries (one per parallel tool call).
+         */
+        const val MAX_NAME_BY_ID = 32
 
         /**
          * Hardcoded fallback identity. The compiled artifact of the
