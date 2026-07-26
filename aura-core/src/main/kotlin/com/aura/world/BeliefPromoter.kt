@@ -45,14 +45,24 @@ class BeliefPromoter @Inject constructor(
         var count = 0
         for (edge in edges) {
             val predicate = edge.type
-            val valueJson = JsonPrimitive(edge.targetId).toString()
+            // The KG stores target NODE IDS (sha256 hashes), not the
+            // human-readable text. A belief has to hold what the user can
+            // read back — "Kotlin", not "9f86d081...c65" — so resolve the
+            // node before it ever reaches valueJson.
+            val label = resolveLabel(edge.targetId)
+            val valueJson = JsonPrimitive(label).toString()
             val existing = beliefDao.active("user", predicate)
             if (existing != null) {
-                // Same subject+predicate already believed. Conflicting values
-                // are NOT resolved here — that is a later task's job.
-                // Promotion only ever reinforces.
+                // A differing value here is a genuine conflict — the same
+                // subject+predicate now points somewhere else. That is the
+                // conflict probe/adjudicator's job to resolve, not
+                // promotion's: reinforcing it would let the promoter refresh
+                // recency and grow corroboration on a belief that the user
+                // has since contradicted, making it harder to overturn the
+                // more it gets reinforced by a *different* fact.
+                if (existing.valueJson != valueJson) continue
                 beliefDao.verify(existing.id, edge.confidence, now)
-                evidenceDao.upsert(edge.toEvidence(existing.id))
+                evidenceDao.upsert(edge.toEvidence(existing.id, label))
                 count++
                 continue
             }
@@ -71,7 +81,7 @@ class BeliefPromoter @Inject constructor(
                     lastVerifiedAt = now,
                 ),
             )
-            evidenceDao.upsert(edge.toEvidence(beliefId))
+            evidenceDao.upsert(edge.toEvidence(beliefId, label))
             count++
         }
         return count
@@ -79,6 +89,15 @@ class BeliefPromoter @Inject constructor(
 
     private fun EdgeEntity.qualifies(): Boolean =
         confidence >= MIN_EDGE_CONFIDENCE && lastReinforced > createdAt
+
+    /**
+     * Resolve a KG node id (a sha256 hash — see [KgId.node]) to its
+     * human-readable label. Falls back to the id itself when the node is
+     * missing, so a dangling reference degrades to the old (hash) behavior
+     * instead of throwing.
+     */
+    private suspend fun resolveLabel(nodeId: String): String =
+        kgDao.getNode(nodeId)?.label ?: nodeId
 
     /**
      * Snapshot the edge's provenance as evidence.
@@ -89,13 +108,16 @@ class BeliefPromoter @Inject constructor(
      * and they are what `BeliefArbiter.corroboration()` counts distinct
      * turns from.
      */
-    private fun EdgeEntity.toEvidence(beliefId: String) = EvidenceEntity(
+    private fun EdgeEntity.toEvidence(beliefId: String, label: String) = EvidenceEntity(
         id = evidenceId(beliefId, sourceTurnId),
         beliefId = beliefId,
         source = "kg_edge",
-        summary = "$type → $targetId",
+        summary = "$type → $label",
         detailJson = buildJsonObject {
             put("edgeId", id)
+            // Raw node id, not the label — this is the durable link back to
+            // the graph even if the node is later renamed or merged.
+            put("targetNodeId", targetId)
             put("sourceTurnId", sourceTurnId)
             put("conversationId", sourceConversationId)
         }.toString(),

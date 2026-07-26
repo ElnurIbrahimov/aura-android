@@ -3,6 +3,7 @@ package com.aura.world
 import com.aura.kg.EdgeEntity
 import com.aura.kg.KgId
 import com.aura.kg.KnowledgeGraphDao
+import com.aura.kg.NodeEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -10,6 +11,7 @@ import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BeliefPromoterTest {
 
@@ -75,6 +77,7 @@ class BeliefPromoterTest {
 
     @Test
     fun `re-promoting an unchanged edge verifies instead of duplicating`() = runBlocking {
+        coEvery { kgDao.getNode(any()) } returns null
         coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("kotlin"))
         coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
             id = "b1",
@@ -99,7 +102,7 @@ class BeliefPromoterTest {
         coVerify { evidenceDao.upsert(capture(captured)) }
         assertEquals("kg_edge", captured.captured.source)
         // "because Z" has to resolve back to a turn — this is that link.
-        assert(captured.captured.detailJson.contains("turn_kotlin"))
+        assertTrue(captured.captured.detailJson.contains("turn_kotlin"))
     }
 
     @Test
@@ -108,6 +111,7 @@ class BeliefPromoterTest {
         // after `verify()` without ever writing evidence, so no belief in
         // production could hold more than one evidence row and
         // BeliefArbiter.corroboration() was permanently stuck at 1/4.
+        coEvery { kgDao.getNode(any()) } returns null
         coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("kotlin"))
         coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
             id = "b1",
@@ -123,6 +127,7 @@ class BeliefPromoterTest {
 
     @Test
     fun `re-promoting the same edge twice produces the same evidence id`() = runBlocking {
+        coEvery { kgDao.getNode(any()) } returns null
         coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
             id = "b1",
             subject = "user",
@@ -145,6 +150,7 @@ class BeliefPromoterTest {
 
     @Test
     fun `an edge with a different sourceTurnId produces a different evidence id`() = runBlocking {
+        coEvery { kgDao.getNode(any()) } returns null
         coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
             id = "b1",
             subject = "user",
@@ -165,7 +171,7 @@ class BeliefPromoterTest {
         // A genuinely new supporting turn must add a new evidence row, not
         // replace the old one -- this is what makes corroboration count
         // distinct turns for real.
-        assert(capturedEvidence[0].id != capturedEvidence[1].id)
+        assertTrue(capturedEvidence[0].id != capturedEvidence[1].id)
     }
 
     @Test
@@ -193,6 +199,7 @@ class BeliefPromoterTest {
         // Regression guard for the round-3 fix: two promote() calls with
         // very different `now` values must not move the evidence timestamp,
         // because the edge itself was not seen again between them.
+        coEvery { kgDao.getNode(any()) } returns null
         coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
             id = "b1",
             subject = "user",
@@ -210,5 +217,53 @@ class BeliefPromoterTest {
         assertEquals(2, capturedEvidence.size)
         assertEquals(capturedEvidence[0].timestamp, capturedEvidence[1].timestamp)
         assertEquals(2_000L, capturedEvidence[0].timestamp)
+    }
+
+    @Test
+    fun `promoted belief stores the node's label, not its hashed id`() = runBlocking {
+        // Finding A: sourceId/targetId on an edge are sha256 hashes (see
+        // KgId.node), not human-readable text. Every test fixture elsewhere
+        // in this suite uses a readable string ("kotlin") as the targetId,
+        // which is exactly why this bug survived nine per-task reviews. Use
+        // a real hash here so the assertion can't pass by coincidence.
+        val nodeId = com.aura.kg.KgId.node(com.aura.kg.NodeType.SKILL, "Kotlin")
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge(nodeId))
+        coEvery { beliefDao.active(any(), any()) } returns null
+        coEvery { kgDao.getNode(nodeId) } returns NodeEntity(
+            id = nodeId,
+            label = "Kotlin",
+            type = "skill",
+        )
+
+        promoter().promote(now = 5_000L)
+
+        val captured = slot<BeliefEntity>()
+        coVerify { beliefDao.upsert(capture(captured)) }
+        assertEquals("\"Kotlin\"", captured.captured.valueJson)
+        assertTrue(nodeId.length == 64, "test fixture must actually be sha256-shaped")
+        assertTrue(!captured.captured.valueJson.contains(nodeId))
+    }
+
+    @Test
+    fun `does not reinforce a belief whose value the new evidence contradicts`() = runBlocking {
+        // Finding B: an existing belief must never be verified/reinforced by
+        // an edge carrying a DIFFERENT value for the same subject+predicate.
+        // That is a conflict for BeliefConflictProbe/the adjudicator to
+        // resolve, not something promotion may paper over by refreshing
+        // recency and corroboration on the outdated belief.
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("rust"))
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1",
+            subject = "user",
+            predicate = "USES",
+            valueJson = "\"kotlin\"",
+        )
+
+        val promoted = promoter().promote(now = 5_000L)
+
+        assertEquals(0, promoted)
+        coVerify(exactly = 0) { beliefDao.verify(any(), any(), any()) }
+        coVerify(exactly = 0) { evidenceDao.upsert(any()) }
+        coVerify(exactly = 0) { beliefDao.upsert(any()) }
     }
 }
