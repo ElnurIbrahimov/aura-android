@@ -86,6 +86,9 @@ fun ChatTimeline(
                     turn.assistant?.let { assistant ->
                         val isLast = turn === state.conversation.turns.lastOrNull()
                         val isStreaming = state.streaming && isLast
+                        val agentName = turn.agentId?.let { id ->
+                            state.availableAgents.find { it.id == id }?.name
+                        }
                         MessageBubble(
                             text = assistant,
                             isUser = false,
@@ -93,6 +96,7 @@ fun ChatTimeline(
                             isStreaming = isStreaming,
                             timestamp = turn.timestamp,
                             modelLabel = state.conversation.model,
+                            agentName = agentName,
                             // Only show the duration on the most recent turn —
                             // older turns have no recorded value.
                             durationMs = if (isLast) state.lastResponseDurationMs else 0L,

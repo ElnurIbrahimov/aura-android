@@ -118,6 +118,7 @@ class ChatViewModelTest {
         modelCatalogRepository = modelCatalogRepository,
         tasteEngine = io.mockk.mockk<TasteEngine>(relaxed = true),
         agentStore = io.mockk.mockk<com.aura.agent.AgentStore>(relaxed = true),
+            delegateToAgentTool = io.mockk.mockk<com.aura.tools.DelegateToAgentTool>(relaxed = true),
     )
 
     @Test

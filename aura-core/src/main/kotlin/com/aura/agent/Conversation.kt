@@ -94,11 +94,11 @@ data class Conversation(
     )
 
     /** Append or fill in an assistant turn. */
-    fun addAssistant(text: String): Conversation {
+    fun addAssistant(text: String, agentId: String? = null): Conversation {
         if (turns.isEmpty() || turns.last().assistant != null || turns.last().user == null) {
-            return copy(turns = turns + Turn(assistant = text), updatedAt = System.currentTimeMillis())
+            return copy(turns = turns + Turn(assistant = text, agentId = agentId), updatedAt = System.currentTimeMillis())
         }
-        return replaceLastTurn(turns.last().copy(assistant = text))
+        return replaceLastTurn(turns.last().copy(assistant = text, agentId = agentId))
     }
 
     /**
@@ -168,6 +168,8 @@ data class Conversation(
 data class Turn(
     val user: String? = null,
     val assistant: String? = null,
+    /** Non-null when this assistant turn was authored by a delegated agent. */
+    val agentId: String? = null,
     val toolTurns: List<ToolTurn> = emptyList(),
     val citations: List<Citation> = emptyList(),
     val imageUri: String? = null,

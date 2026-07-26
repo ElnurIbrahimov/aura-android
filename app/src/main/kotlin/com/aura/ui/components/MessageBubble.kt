@@ -274,6 +274,7 @@ fun MessageBubble(
     isStreaming: Boolean = false,
     timestamp: Long = 0L,
     modelLabel: String? = null,
+    agentName: String? = null,
     isProactive: Boolean = false,
     reaction: Reaction? = null,
     animationIndex: Int = 0,
@@ -302,6 +303,7 @@ fun MessageBubble(
             isProactive = isProactive,
             timestamp = timestamp,
             modelLabel = modelLabel,
+            agentName = agentName,
             durationMs = durationMs,
             reaction = reaction,
             animationIndex = animationIndex,
@@ -388,6 +390,7 @@ private fun AssistantMessage(
     isProactive: Boolean,
     timestamp: Long,
     modelLabel: String?,
+    agentName: String?,
     durationMs: Long,
     reaction: Reaction?,
     animationIndex: Int,
@@ -436,7 +439,7 @@ private fun AssistantMessage(
         Column(modifier = Modifier.weight(1f)) {
             // Role label
             Text(
-                text = "AURA",
+                text = agentName ?: "AURA",
                 fontFamily = InterDisplay,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp,

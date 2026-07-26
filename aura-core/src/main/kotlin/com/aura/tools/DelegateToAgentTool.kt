@@ -79,7 +79,7 @@ class DelegateToAgentTool @Inject constructor(
         category = "agents",
     )
 
-    private suspend fun delegate(
+    suspend fun delegate(
         agentName: String,
         task: String,
         context: String,

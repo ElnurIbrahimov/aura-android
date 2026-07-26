@@ -9,7 +9,10 @@ import com.aura.core.error.AuraError
 import com.aura.data.UserPreferences
 import com.aura.kg.KnowledgeGraphRepository
 import com.aura.tools.Citation
+import com.aura.tools.DelegateToAgentTool
 import com.aura.voice.TextToSpeech
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,6 +36,30 @@ internal fun applyProviderWarning(
             current.modelSelection
         },
     )
+}
+
+/** Extract @agent mentions that match an available agent name.
+ *
+ * Returns canonical agent id to task text pairs. A mention must be
+ * preceded by start-of-string or whitespace to avoid matching email
+ * addresses like `foo@researcher.com`. Case is ignored when matching
+ * but the canonical agent id from [availableAgents] is returned.
+ */
+internal fun String.extractAgentMentions(availableAgents: List<com.aura.agent.AgentEntity>): List<Pair<String, String>> {
+    if (availableAgents.isEmpty()) return emptyList()
+    val names = availableAgents.map { it.name }.sortedByDescending { it.length }
+    val pattern = "(?:^|\\s)@(" + names.joinToString("|") { Regex.escape(it) } + ")\\b"
+    val regex = Regex(pattern, RegexOption.IGNORE_CASE)
+    val matches = regex.findAll(this).toList()
+    if (matches.isEmpty()) return emptyList()
+    val idByName = availableAgents.associateBy({ it.name.lowercase() }, { it.id })
+    return matches.mapIndexed { idx, m ->
+        val rawName = m.groupValues[1]
+        val agentId = idByName[rawName.lowercase()] ?: rawName
+        val end = matches.getOrNull(idx + 1)?.range?.first ?: this.length
+        val task = this.substring(m.range.last + 1, end).trim()
+        agentId to task
+    }.filterIndexed { idx, pair -> pair.second.isNotBlank() || idx == matches.size - 1 }
 }
 
 /**
@@ -60,6 +87,8 @@ class ChatSendController(
     private val userPreferences: UserPreferences,
     private val textToSpeech: TextToSpeech,
     private val knowledgeGraphRepository: KnowledgeGraphRepository,
+    private val toolExecutor: com.aura.agent.ToolExecutor,
+    private val delegateToAgentTool: com.aura.tools.DelegateToAgentTool,
     private val onSaveConversation: () -> Unit,
     private val onKgNodeCountChanged: () -> Unit,
     private val onFirstConversationComplete: suspend () -> Unit,
@@ -174,6 +203,58 @@ class ChatSendController(
 
         onSaveConversation()  // Save user message immediately
 
+        // Phase 2: @agent mention delegation.
+        // If the user explicitly mentions one or more agents, route each
+        // sentence/paragraph to the named agent and insert the responses
+        // as agent-authored turns. Skip the main loop for this message.
+        val mentions = text.extractAgentMentions(current.availableAgents)
+        if (mentions.isNotEmpty()) {
+            state.update { it.copy(streaming = true, inFlightToolCalls = emptyList()) }
+            runJob = scope.launch {
+                try {
+                    val conversationId = state.value.conversation.id
+                    for ((agentId, task) in mentions) {
+                        val agentName = current.availableAgents.find { it.id == agentId }?.name ?: agentId
+                        val toolArgs = buildJsonObject {
+                            put("agent_name", agentName)
+                            put("task", task)
+                            put("context", text)
+                        }.toString()
+                        val ctx = com.aura.agent.ToolContext(
+                            conversationId = conversationId,
+                            memoryEnabled = !state.value.incognitoMode,
+                            approvedRemoteCostTools = state.value.approvedRemoteCostTools,
+                            userMessage = "@$agentName: $task",
+                        )
+                        val result = when (val r = toolExecutor.execute("delegate_to_agent", toolArgs, ctx)) {
+                            is com.aura.agent.ToolResult.Ok -> r.output
+                            is com.aura.agent.ToolResult.Error -> throw IllegalStateException(r.message)
+                            is com.aura.agent.ToolResult.NeedsApproval -> throw IllegalStateException(r.rationale)
+                            is com.aura.agent.ToolResult.NeedsPermission -> throw IllegalStateException("Needs permission: ${r.permission}")
+                        }
+                        state.update { old ->
+                            old.copy(conversation = old.conversation.addAssistant(result, agentId))
+                        }
+                    }
+                    consecutiveFailures = 0
+                    if (runStartTimeMs > 0) {
+                        lastRunDurationMs = System.currentTimeMillis() - runStartTimeMs
+                        onRunComplete(lastRunDurationMs)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    consecutiveFailures++
+                    setErrorWithAutoDismiss("Delegation failed: ${e.message}", false, null)
+                } finally {
+                    state.update { it.copy(streaming = false) }
+                    onSaveConversation()
+                }
+            }
+            return
+        }
+
+        // Clear any stale in-flight tool calls from a previous turn.
         // Clear any stale in-flight tool calls from a previous turn.
         // The new turn starts fresh; we'll repopulate as the loop
         // emits ToolCallStart events.

@@ -16,6 +16,7 @@ import com.aura.agent.SpecialistRouter
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolRegistry
+import com.aura.tools.DelegateToAgentTool
 import com.aura.agent.ToolResult
 import com.aura.agent.toAuraError
 import com.aura.core.error.AuraError
@@ -315,6 +316,7 @@ class ChatViewModel @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val toolRegistry: ToolRegistry,
     private val toolExecutor: ToolExecutor,
+    private val delegateToAgentTool: com.aura.tools.DelegateToAgentTool,
     private val textToSpeech: TextToSpeech,
     private val userPreferences: UserPreferences,
     private val memoryStore: com.aura.memory.MemoryStore,
@@ -351,6 +353,8 @@ class ChatViewModel @Inject constructor(
             userPreferences = userPreferences,
             textToSpeech = textToSpeech,
             knowledgeGraphRepository = knowledgeGraphRepository,
+            toolExecutor = toolExecutor,
+            delegateToAgentTool = delegateToAgentTool,
             onSaveConversation = { saveConversation() },
             onKgNodeCountChanged = { refreshKgNodeCount() },
             onFirstConversationComplete = { onFirstConversationComplete() },

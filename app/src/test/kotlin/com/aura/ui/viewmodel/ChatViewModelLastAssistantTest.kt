@@ -68,6 +68,7 @@ class ChatViewModelLastAssistantTest {
         crashLogger = crashLogger,
         tasteEngine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true),
         agentStore = io.mockk.mockk<com.aura.agent.AgentStore>(relaxed = true),
+            delegateToAgentTool = io.mockk.mockk<com.aura.tools.DelegateToAgentTool>(relaxed = true),
         )
         // Replace the private _state with a Conversation containing
         // our test data. Done via reflection so we don't have to
