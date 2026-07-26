@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,8 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.People
+import com.aura.agent.AgentEntity
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -57,6 +60,8 @@ import com.aura.ui.util.modelDisplayName
 fun ChatHeader(
     activeModel: String,
     conversationModel: String? = null,
+    activeAgent: AgentEntity? = null,
+    availableAgents: List<AgentEntity> = emptyList(),
     streaming: Boolean = false,
     ttsEnabled: Boolean = false,
     deepModeEnabled: Boolean = false,
@@ -72,13 +77,17 @@ fun ChatHeader(
     onExport: () -> Unit = {},
     onClear: () -> Unit = {},
     onShowModelPicker: () -> Unit = {},
+    onShowAgentPicker: () -> Unit = {},
+    onSelectAgent: (AgentEntity?) -> Unit = {},
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
+    var agentMenuExpanded by remember { mutableStateOf(false) }
     val selectedModel = conversationModel ?: activeModel
     val missingModel = selectedModel.isBlank()
     val displayModel = if (missingModel) "Choose model" else modelDisplayName(selectedModel)
     val sessionOverride = !conversationModel.isNullOrBlank() && conversationModel != activeModel
     val modesActive = deepModeEnabled || incognitoMode
+    val activeAgentName = activeAgent?.name
 
     BoxWithConstraints(
         modifier = Modifier
@@ -130,23 +139,75 @@ fun ChatHeader(
                             ),
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = displayModel,
-                        modifier = Modifier.widthIn(max = maxLabelWidth),
-                        color = if (sessionOverride) AuraThemeTokens.colors.info
-                        else AuraThemeTokens.colors.textPrimary,
-                        fontFamily = InterDisplay,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Column {
+                        Text(
+                            text = activeAgentName ?: displayModel,
+                            modifier = Modifier.widthIn(max = maxLabelWidth),
+                            color = if (sessionOverride) AuraThemeTokens.colors.info
+                            else AuraThemeTokens.colors.textPrimary,
+                            fontFamily = InterDisplay,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (activeAgentName != null) {
+                            Text(
+                                text = displayModel,
+                                modifier = Modifier.widthIn(max = maxLabelWidth),
+                                color = AuraThemeTokens.colors.textTertiary,
+                                fontFamily = InterDisplay,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     Icon(
                         imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = "Change model",
+                        contentDescription = if (activeAgentName != null) "Change agent" else "Change model",
                         tint = AuraThemeTokens.colors.textTertiary,
                         modifier = Modifier.size(18.dp),
                     )
+                }
+            }
+
+            if (availableAgents.isNotEmpty()) {
+                Box {
+                    AuraIconButton(
+                        onClick = { agentMenuExpanded = true },
+                        containerColor = AuraThemeTokens.colors.surface1,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.People,
+                            contentDescription = "Agents",
+                            tint = if (activeAgent != null) AuraThemeTokens.colors.actionPrimary
+                            else AuraThemeTokens.colors.textPrimary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = agentMenuExpanded,
+                        onDismissRequest = { agentMenuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("No agent") },
+                            onClick = {
+                                agentMenuExpanded = false
+                                onSelectAgent(null)
+                            },
+                        )
+                        for (agent in availableAgents) {
+                            DropdownMenuItem(
+                                text = { Text(agent.name) },
+                                onClick = {
+                                    agentMenuExpanded = false
+                                    onSelectAgent(agent)
+                                },
+                            )
+                        }
+                    }
                 }
             }
 

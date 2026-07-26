@@ -222,9 +222,13 @@ data class ChatUiState(
     val modelsError: String? = null,
     val modelSelection: ModelSelectionState = ModelSelectionState.Missing,
     val ttsEnabled: Boolean = true,
+    /** Active agent selected for this chat, if any. Replaces legacy [selectedSpecialist]. */
+    val activeAgent: com.aura.agent.AgentEntity? = null,
+    /** Available agents from [AgentStore]. Populated on init. */
+    val availableAgents: List<com.aura.agent.AgentEntity> = emptyList(),
     val selectedSpecialist: Specialist? = null,
     val suggestedSpecialist: Specialist? = null,
-    /** Agent ID for per-agent memory scoping. Derived from selectedSpecialist. */
+    /** Agent ID for per-agent memory scoping. Derived from [activeAgent]. */
     val activeAgentId: String? = null,
     val pendingPermission: String? = null,
     val permissionRationale: String? = null,
@@ -321,6 +325,7 @@ class ChatViewModel @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val skillsStore: SkillsStore? = null,
     private val tasteEngine: TasteEngine,
+    private val agentStore: com.aura.agent.AgentStore,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -430,6 +435,11 @@ class ChatViewModel @Inject constructor(
         // Pre-load skills so the composer attachment sheet renders
         // the list on first launch instead of flashing empty.
         viewModelScope.launch { skillsStore?.awaitLoaded() }
+        viewModelScope.launch {
+            agentStore.all().collect { agents ->
+                _state.update { it.copy(availableAgents = agents) }
+            }
+        }
         viewModelScope.launch {
             val recent = conversationStore.mostRecent()
             if (isolatedSessionRequested) return@launch
@@ -607,14 +617,33 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun setActiveAgent(agent: com.aura.agent.AgentEntity?) {
+        _state.update { old ->
+            val newModel = agent?.preferredModel?.takeIf { it.isNotBlank() }
+                ?: old.activeModel
+            val agentId = agent?.let { "agent_${it.name}" }
+            old.copy(
+                activeAgent = agent,
+                selectedSpecialist = null,
+                activeAgentId = agentId,
+                activeModel = newModel,
+            )
+        }
+    }
+
+    /**
+     * Legacy specialist setter. Prefer [setActiveAgent]; this only exists
+     * for callers that still hold a [Specialist] reference.
+     */
     fun setSpecialist(specialist: Specialist?) {
         _state.update { old ->
             val newModel = specialist?.suggestedModel ?: old.activeModel
             val agentId = specialist?.let { "agent_${it.name}" }
             old.copy(
                 selectedSpecialist = specialist,
-                activeModel = newModel,
+                activeAgent = null,
                 activeAgentId = agentId,
+                activeModel = newModel,
             )
         }
     }
@@ -732,6 +761,7 @@ class ChatViewModel @Inject constructor(
                 ttsEnabled = false,
                 selectedSpecialist = null,
                 suggestedSpecialist = null,
+                activeAgent = null,
                 activeAgentId = null,
                 inFlightToolCalls = emptyList(),
             )
@@ -758,9 +788,9 @@ class ChatViewModel @Inject constructor(
                 errorRetryable = false,
                 errorTyped = null,
                 deepModeEnabled = false,
-                deepModeActive = false,
                 selectedSpecialist = null,
                 suggestedSpecialist = null,
+                activeAgent = null,
                 activeAgentId = null,
                 inFlightToolCalls = emptyList(),
             )
@@ -853,6 +883,8 @@ class ChatViewModel @Inject constructor(
                     deepModeActive = false,
                     selectedSpecialist = null,
                     suggestedSpecialist = null,
+                    activeAgent = null,
+                    activeAgentId = null,
                     inFlightToolCalls = emptyList(),
                 )
             }
@@ -917,7 +949,7 @@ class ChatViewModel @Inject constructor(
                 turn = turn,
                 reaction = reaction,
                 modelId = modelId,
-                specialistName = _state.value.selectedSpecialist?.name,
+                specialistName = _state.value.activeAgent?.name ?: _state.value.selectedSpecialist?.name,
             )
         }
     }

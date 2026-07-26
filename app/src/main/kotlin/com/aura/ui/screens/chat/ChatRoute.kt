@@ -84,6 +84,7 @@ import com.aura.agent.Specialist
 import com.aura.ui.components.MarkdownText
 import com.aura.ui.components.MoaThinkingIndicator
 import com.aura.ui.components.ModelPickerSheet
+import com.aura.ui.components.AgentPickerSheet
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SpecialistChips
 import com.aura.ui.viewmodel.ChatViewModel
@@ -232,6 +233,7 @@ fun ChatRoute(
     }
 
     var showModelPicker by remember { mutableStateOf(false) }
+    var showAgentPicker by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
     var showVoiceOverlay by remember { mutableStateOf(false) }
     var showHoldToTalk by remember { mutableStateOf(false) }
@@ -390,7 +392,8 @@ fun ChatRoute(
         onDismissError = viewModel::dismissError,
         onDismissProviderWarning = viewModel::dismissProviderWarning,
         onDismissSaveWarning = viewModel::dismissSaveWarning,
-        onSelectSpecialist = viewModel::setSpecialist,
+        onSelectAgent = viewModel::setActiveAgent,
+        onShowAgentPicker = { showAgentPicker = true },
         onRunVisionPrompt = viewModel::runVisionPrompt,
         onDismissVision = viewModel::dismissPendingVision,
         onShowSources = { showSources = true },
@@ -468,6 +471,18 @@ fun ChatRoute(
             onPick = viewModel::setModel,
             onRefresh = { viewModel.refreshModels() },
             onDismiss = { showModelPicker = false },
+        )
+    }
+
+    if (showAgentPicker) {
+        AgentPickerSheet(
+            currentAgent = state.activeAgent,
+            agents = state.availableAgents,
+            onPick = { agent ->
+                viewModel.setActiveAgent(agent)
+                showAgentPicker = false
+            },
+            onDismiss = { showAgentPicker = false },
         )
     }
 

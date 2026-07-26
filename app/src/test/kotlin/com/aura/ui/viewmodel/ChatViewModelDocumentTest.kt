@@ -106,6 +106,7 @@ class ChatViewModelDocumentTest {
         knowledgeGraphRepository = knowledgeGraphRepository,
         crashLogger = crashLogger,
         tasteEngine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true),
+        agentStore = io.mockk.mockk<com.aura.agent.AgentStore>(relaxed = true),
         documentTextExtractor = documentTextExtractor,
     )
 

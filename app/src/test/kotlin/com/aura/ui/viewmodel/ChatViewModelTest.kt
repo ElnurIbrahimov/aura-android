@@ -117,6 +117,7 @@ class ChatViewModelTest {
         crashLogger = crashLogger,
         modelCatalogRepository = modelCatalogRepository,
         tasteEngine = io.mockk.mockk<TasteEngine>(relaxed = true),
+        agentStore = io.mockk.mockk<com.aura.agent.AgentStore>(relaxed = true),
     )
 
     @Test

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.agent.Specialist
+import com.aura.ui.components.AgentChip
 import com.aura.ui.components.EmptyChatState
 import com.aura.ui.components.FollowUpSuggestionChips
 import com.aura.ui.components.MoaThinkingIndicator
@@ -68,7 +69,8 @@ fun ChatContent(
     onDismissError: () -> Unit,
     onDismissProviderWarning: () -> Unit,
     onDismissSaveWarning: () -> Unit,
-    onSelectSpecialist: (Specialist?) -> Unit,
+    onSelectAgent: (com.aura.agent.AgentEntity?) -> Unit,
+    onShowAgentPicker: () -> Unit = {},
     onRunVisionPrompt: (android.graphics.Bitmap, String) -> Unit,
     onDismissVision: () -> Unit,
     onShowSources: () -> Unit,
@@ -86,6 +88,8 @@ fun ChatContent(
             ChatHeader(
                 activeModel = state.activeModel,
                 conversationModel = state.conversation.model,
+                activeAgent = state.activeAgent,
+                availableAgents = state.availableAgents,
                 streaming = state.streaming,
                 ttsEnabled = state.ttsEnabled,
                 deepModeEnabled = state.deepModeEnabled,
@@ -101,6 +105,8 @@ fun ChatContent(
                 onExport = onExport,
                 onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
+                onShowAgentPicker = onShowAgentPicker,
+                onSelectAgent = onSelectAgent,
             )
 
             if (!state.isOnline) {
@@ -173,11 +179,22 @@ fun ChatContent(
                 SaveWarningBanner(warning, onDismissSaveWarning)
             }
 
-            if (state.draft.isNotBlank() || state.selectedSpecialist != null) {
+            if (state.draft.isNotBlank() || state.activeAgent != null || state.selectedSpecialist != null) {
+                if (state.activeAgent != null) {
+                    AgentChip(
+                        agent = state.activeAgent,
+                        onClick = onShowAgentPicker,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                }
                 SpecialistChips(
                     selected = state.selectedSpecialist,
                     suggested = state.suggestedSpecialist,
-                    onSelect = onSelectSpecialist,
+                    onSelect = { specialist ->
+                        // Map legacy specialists to their agent counterpart when possible.
+                        val matching = state.availableAgents.find { it.name.equals(specialist?.name, ignoreCase = true) }
+                        onSelectAgent(matching)
+                    },
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
