@@ -69,6 +69,8 @@ class ConversationCompactor @Inject constructor(
                 }.filter { it != model && !it.startsWith("moa:") }
                 com.aura.providers.CheapModelHeuristic.pick(candidates) ?: model
             }
+        }.onFailure {
+            android.util.Log.w("ConversationCompactor", "cheap-model resolution failed: ${it.message}")
         }.getOrDefault(model)
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
         val unsummarizedTurns = conversation.turns.drop(summarizedThrough)

@@ -391,6 +391,8 @@ class DreamConsolidator @Inject constructor(
             } else {
                 ""
             }
+        }.onFailure {
+            android.util.Log.w("DreamConsolidator", "resolveCheapModel failed: ${it.message}")
         }.getOrDefault("")
     }
 
@@ -601,11 +603,9 @@ class DreamConsolidator @Inject constructor(
                     importance = entity.importance,
                     tags = entity.tags + (if (entity.tags.isNotEmpty()) "," else "") + "pruned:dream",
                 )
-                // Setting decayScore to 0 via the update path is not
-                // exposed by MemoryStore.update; instead we mark via
-                // tag. The FadeMem pass will handle the rest on the
-                // next decay cycle.
                 archived++
+            }.onFailure {
+                android.util.Log.w("DreamConsolidator", "prune update failed for ${entity.id}: ${it.message}")
             }
         }
         return archived

@@ -113,6 +113,8 @@ class CreativeProjectStore @Inject constructor(
 
     fun decodeWorld(value: String): WorldBible = runCatching {
         json.decodeFromString<WorldBible>(value)
+    }.onFailure {
+        android.util.Log.w("CreativeProjectStore", "failed to decode world bible: ${it.message}")
     }.getOrDefault(WorldBible())
 
     private fun toDomain(row: CreativeProjectEntity) = CreativeProject(

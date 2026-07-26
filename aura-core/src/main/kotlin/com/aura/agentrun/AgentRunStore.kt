@@ -136,7 +136,11 @@ class AgentRunStore @Inject constructor(
 
     suspend fun resumeFromCheckpoint(runId: kotlin.String): List<StepEntity> {
         val checkpoint = checkpointDao.latestForRun(runId) ?: return emptyList()
-        val state = runCatching { json.decodeFromString<CheckpointState>(checkpoint.stateJson) }.getOrNull()
+        val state = runCatching { json.decodeFromString<CheckpointState>(checkpoint.stateJson) }
+            .onFailure {
+                android.util.Log.w("AgentRunStore", "failed to decode checkpoint for $runId: ${it.message}")
+            }
+            .getOrNull()
             ?: return emptyList()
         val steps = stepDao.forRun(runId)
         return steps.filter { it.id in state.activeStepIds && it.status == "PENDING" }
@@ -183,9 +187,12 @@ class AgentRunStore @Inject constructor(
     /**
      * Reset a step from AWAITING_APPROVAL/FAILED back to PENDING so the
      * executor worker can pick it up again after an approval or manual retry.
+     * Emits a STEP_RESET event for observability.
      */
     suspend fun resetStep(stepId: kotlin.String) {
+        val step = stepDao.getById(stepId) ?: return
         stepDao.markStarted(stepId, "PENDING", System.currentTimeMillis())
+        emitEvent(step.agentRunId, "STEP_RESET", stepId = stepId)
     }
 
     private suspend fun emitEvent(

@@ -332,6 +332,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // Hide search tools that need an API key the user hasn't configured.
         // The LLM should only see search tools that will actually work.
         val tools = filterSearchTools(allTools)
+        // The step counter tracks model attempts. It is incremented at the
+        // top of the outer step loop; the inner failover loop retries the
+        // SAME step with a different provider without consuming another slot.
         var step = 0
         var finished = false
         var lastUserMessage = ""
@@ -402,8 +405,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     // tool round-trip), all with the same lastUserMessage.
                     // Caching saves RRF ranking + embedding + DB query on
                     // steps 2-N.
-                    if (cachedRecall?.first == lastUserMessage && cachedRecall?.second == agentId) {
-                        cachedRecall!!.third
+                    if (cachedRecall != null && cachedRecall.first == lastUserMessage && cachedRecall.second == agentId) {
+                        cachedRecall.third
                     } else {
                         val scopes = if (agentId != null) {
                             setOf("general", "agent:$agentId")
@@ -613,6 +616,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // error (5xx, 429, network timeout), try the next configured
             // provider before giving up. Don't failover on 401 (bad key)
             // or 400 (bad request) — retrying won't help.
+            //
+            // The outer step loop already counted this as a step; the inner
+            // failover loop retries the SAME step with a different provider
+            // without consuming another maxSteps slot.
             var currentModel = effectiveModel
             val triedModels = mutableSetOf<String>()
 
@@ -939,6 +946,8 @@ private suspend fun extractProfileFromText(text: String) {
                 p.listModels().map { m -> "${p.prefix}:$m" }
             }.filter { it != userModel && !it.startsWith("moa:") }
             com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
+        }.onFailure {
+            android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}")
         }.getOrDefault(userModel)
     }
 

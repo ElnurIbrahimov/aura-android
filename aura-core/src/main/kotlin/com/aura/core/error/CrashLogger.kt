@@ -151,9 +151,13 @@ class CrashLogger @Inject constructor(
 
         content.lineSequence().forEach { rawLine ->
             val line = rawLine.removeSuffix("\r")
+
             if (line.trimStart().startsWith("{")) {
                 flushLegacy()
                 runCatching { json.decodeFromString<CrashLogEntry>(line) }
+                    .onFailure {
+                        android.util.Log.w("CrashLogger", "failed to parse crash log line: ${it.message}")
+                    }
                     .getOrNull()
                     ?.let(parsed::add)
                 return@forEach
