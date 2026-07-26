@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
 data class CouncilUiState(
@@ -36,11 +37,15 @@ class CouncilViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             agentStore.all().collect { agents ->
-                _state.value = _state.value.copy(
-                    availableAgents = agents,
-                    selectedAgentIds = agents.filter { !it.isDefault }.map { it.id }
-                        .ifEmpty { agents.map { it.id } },
-                )
+                _state.update { old ->
+                    val seed = old.selectedAgentIds.isEmpty()
+                    val defaultSelection = agents.filter { !it.isDefault }.map { it.id }
+                        .ifEmpty { agents.map { it.id } }
+                    old.copy(
+                        availableAgents = agents,
+                        selectedAgentIds = if (seed) defaultSelection else old.selectedAgentIds,
+                    )
+                }
             }
         }
     }
@@ -73,7 +78,13 @@ class CouncilViewModel @Inject constructor(
                         _state.update { it.copy(progress = it.progress + progress) }
                     },
                 )
-                _state.update { it.copy(result = result, running = false) }
+                _state.update {
+                    it.copy(
+                        result = result,
+                        running = false,
+                        error = if (!result.success) result.error else null,
+                    )
+                }
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

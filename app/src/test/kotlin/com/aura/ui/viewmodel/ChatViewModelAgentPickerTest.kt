@@ -107,7 +107,6 @@ class ChatViewModelAgentPickerTest {
         viewModel.setSpecialist(researcher)
 
         val state = viewModel.state.value
-        println(">>> activeAgentId=${state.activeAgentId} type=${state.activeAgentId?.let { it::class.simpleName }}")
         assertEquals("available=${state.availableAgents.map { it.id }}", "agent_researcher", state.activeAgentId)
         assertNotNull(state.activeAgent)
         assertEquals("agent_researcher", state.activeAgent?.id)

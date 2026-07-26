@@ -146,6 +146,8 @@ class AgentCouncil @Inject constructor(
             directorOutput = "Council timed out after ${budgetMs / 1000}s.",
             proposals = emptyList(),
         )
+    } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        throw e
     } catch (e: Exception) {
         emitProgress(Progress.Error(e.message ?: "Council failed"))
         CouncilResult(

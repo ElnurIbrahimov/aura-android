@@ -232,7 +232,7 @@ class ChatSendController(
                         val ctx = com.aura.agent.ToolContext(
                             conversationId = conversationId,
                             memoryEnabled = !state.value.incognitoMode,
-                            approvedRemoteCostTools = state.value.approvedRemoteCostTools,
+                            approvedRemoteCostTools = state.value.approvedRemoteCostTools + "delegate_to_agent",
                             userMessage = "@$agentName: $task",
                         )
                         val result = when (val r = toolExecutor.execute("delegate_to_agent", toolArgs, ctx)) {
