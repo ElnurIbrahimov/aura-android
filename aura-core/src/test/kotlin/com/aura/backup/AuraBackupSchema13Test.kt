@@ -199,6 +199,73 @@ class AuraBackupSchema13Test {
     }
 
     @Test
+    fun `ContradictionBackup olderBeliefId and newerBeliefId roundtrip through json`() {
+        // Belief-linked contradictions (schema v14) are the mapper's only
+        // consumer of these two fields (see BeliefReviser.applyVerdict /
+        // AuraBackup.toBackup / toEntity). Their symmetry has so far been
+        // reviewer-verified only, and this codebase has shipped
+        // silently-dropped backup fields before -- pin it with an actual
+        // roundtrip.
+        val original = AuraBackup(
+            exportedAt = 1L,
+            appVersionName = "test",
+            contradictions = listOf(
+                ContradictionBackup(
+                    id = "contra_1",
+                    olderSummaryId = "belief:b_old",
+                    newerSummaryId = "belief:b_new",
+                    olderText = "\"kotlin\"",
+                    newerText = "\"rust\"",
+                    triggerPhrase = "belief_conflict",
+                    status = "RESOLVED",
+                    createdAt = 100L,
+                    resolvedAt = 100L,
+                    olderBeliefId = "b_old",
+                    newerBeliefId = "b_new",
+                ),
+            ),
+        )
+
+        val restored = json.decodeFromString<AuraBackup>(json.encodeToString(original))
+
+        val contradiction = restored.contradictions.single()
+        assertEquals("b_old", contradiction.olderBeliefId)
+        assertEquals("b_new", contradiction.newerBeliefId)
+    }
+
+    @Test
+    fun `a pre-v14 contradiction with no belief link still restores`() {
+        // Forward compatibility: a backup taken before belief-linked
+        // contradictions existed has no olderBeliefId/newerBeliefId keys at
+        // all. Decoding must succeed and default both to null rather than
+        // failing the whole restore.
+        val json14MissingBeliefFields = """
+            {
+              "schemaVersion": 14,
+              "exportedAt": 1,
+              "appVersionName": "old",
+              "contradictions": [
+                {
+                  "id": "contra_1",
+                  "olderSummaryId": "sum_old",
+                  "newerSummaryId": "sum_new",
+                  "olderText": "dark mode",
+                  "newerText": "light mode",
+                  "triggerPhrase": "switched from",
+                  "createdAt": 100
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val restored = json.decodeFromString<AuraBackup>(json14MissingBeliefFields)
+
+        val contradiction = restored.contradictions.single()
+        assertEquals(null, contradiction.olderBeliefId)
+        assertEquals(null, contradiction.newerBeliefId)
+    }
+
+    @Test
     fun `restore stats count the v13 tables`() {
         // The `total` getter is a hand-written sum that has fallen out of
         // sync with the field list before. Pin that v13 rows are included.

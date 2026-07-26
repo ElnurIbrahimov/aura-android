@@ -51,7 +51,12 @@ class DreamsViewModel @Inject constructor(
     val routines: StateFlow<List<RoutineEntity>> = routineDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    val contradictions: StateFlow<List<ContradictionEntity>> = contradictionDao.observeAll()
+    // UNRESOLVED only: belief-linked contradictions are written by
+    // BeliefReviser already RESOLVED (the revision happened automatically at
+    // write time), so without this filter every belief revision would show
+    // up here as a "Contradiction" to review even though nothing is pending.
+    // This screen is for things that still need the user's attention.
+    val contradictions: StateFlow<List<ContradictionEntity>> = contradictionDao.observeByStatus("UNRESOLVED")
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 }
 

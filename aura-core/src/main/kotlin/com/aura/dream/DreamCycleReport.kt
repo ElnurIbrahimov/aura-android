@@ -52,6 +52,9 @@ data class DreamCycleReport(
         if (graphEdgesProposed > 0) append(", $graphEdgesProposed graph edges proposed")
         if (memoriesArchived > 0) append(", $memoriesArchived archived")
         if (totalCharsSaved > 0) append(", $totalCharsSaved chars saved")
+        // Currently the only production signal that phase 10 (belief
+        // promotion) ever ran at all.
+        if (beliefsPromoted > 0) append(", $beliefsPromoted beliefs promoted")
     }
 
     companion object {

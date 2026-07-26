@@ -67,7 +67,9 @@ class QueryWorldModelTool @Inject constructor(
                             .sortedByDescending { it.createdAt }
                         if (superseded.isNotEmpty()) {
                             append(" (previously: ")
-                            append(superseded.joinToString(", ") { it.valueJson })
+                            // Capped so an oft-revised belief cannot bloat the
+                            // agent's context with its entire revision history.
+                            append(superseded.take(5).joinToString(", ") { it.valueJson })
                             append(")")
                         }
                         appendLine()
