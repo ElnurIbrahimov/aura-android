@@ -144,6 +144,14 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
+        // Trigger engine reconciliation — separate flow.
+        scope.launch {
+            userPreferences.triggersEnabled.distinctUntilChanged().collect { triggersOn ->
+                if (triggersOn) com.aura.triggers.TriggerWorker.schedule(appContext)
+                else androidx.work.WorkManager.getInstance(appContext).cancelUniqueWork("trigger-engine")
+            }
+        }
+
         // Reconnect MCP servers and register their tools into the ToolRegistry
         // so the agentic loop can see and call them.
         scope.launch {

@@ -6,7 +6,7 @@ import com.aura.agent.ToolRisk
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
-import com.aura.tasks.ReminderScheduler
+import com.aura.tasks.TaskScheduler
 import com.aura.tasks.TaskDao
 import com.aura.tasks.TaskEntity
 import java.time.Instant
@@ -19,7 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class ScheduleTaskTool @Inject constructor(
     private val taskDao: TaskDao,
-    private val reminderScheduler: ReminderScheduler,
+    private val taskScheduler: TaskScheduler,
 ) {
     fun definition() = ToolDefinition(
         name = "schedule_task",
@@ -66,12 +66,7 @@ class ScheduleTaskTool @Inject constructor(
                 status = "pending",
             )
             taskDao.insert(task)
-            reminderScheduler.create(
-                message = "$action: $title — $prompt",
-                triggerAt = dueAt,
-                recurrence = recurrence,
-                taskId = id,
-            )
+            taskScheduler.schedule(task)
             ToolResult.Ok("Scheduled '$title' for ${TimeParser.format(dueAt)} ($action, $recurrence)")
         },
         category = "productivity",

@@ -71,6 +71,8 @@ internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
+internal val KEY_TRIGGERS_ENABLED = booleanPreferencesKey("triggers_enabled")
+internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
@@ -256,6 +258,26 @@ class UserPreferences @Inject constructor(
      * indefinitely — useful for users who want to preserve everything.
      */
     val decayEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DECAY_ENABLED] ?: true }
+    /** Whether the trigger worker runs every 15m. Default true (opt-out). */
+    val triggersEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_TRIGGERS_ENABLED] ?: true }
+
+    /** JSON list of user-defined [com.aura.triggers.Trigger]. */
+    val triggers: Flow<List<com.aura.triggers.Trigger>> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_TRIGGERS_JSON]?.let { json ->
+            runCatching { kotlinx.serialization.json.Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()), json) }.getOrDefault(emptyList())
+        } ?: emptyList()
+    }
+
+    suspend fun setTriggersEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_TRIGGERS_ENABLED] = enabled }
+    }
+
+    suspend fun setTriggers(triggers: List<com.aura.triggers.Trigger>) {
+        context.auraPrefs.edit { prefs ->
+            val json = kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()), triggers)
+            prefs[KEY_TRIGGERS_JSON] = json
+        }
+    }
 
     /**
      * Whether the agentic loop makes a separate "planning" LLM call before

@@ -21,6 +21,7 @@ data class TaskEntity(
     val dueAt: Long? = null,
     val completedAt: Long? = null,
     val status: String = "pending", // pending | done | cancelled
+    val recurrence: String? = null,
     val priority: Int = 0, // 0..3
     val tags: String = "",
 )

@@ -1,6 +1,6 @@
 package com.aura.tools
 
-import com.aura.tasks.ReminderScheduler
+import com.aura.tasks.TaskScheduler
 import com.aura.tasks.TaskDao
 import com.aura.tasks.TaskEntity
 import io.mockk.coEvery
@@ -18,8 +18,8 @@ class ScheduleTaskToolTest {
     @Test
     fun `scheduleTaskTool creates task and reminder`() = runTest {
         val taskDao: TaskDao = mockk(relaxed = true)
-        val reminderScheduler: ReminderScheduler = mockk(relaxed = true)
-        val tool = ScheduleTaskTool(taskDao, reminderScheduler).tool
+        val taskScheduler: TaskScheduler = mockk(relaxed = true)
+        val tool = ScheduleTaskTool(taskDao, taskScheduler).tool
 
         val result = tool.execute(
             com.aura.agent.ToolCall(
@@ -41,14 +41,13 @@ class ScheduleTaskToolTest {
         val taskSlot = slot<TaskEntity>()
         coVerify { taskDao.insert(capture(taskSlot)) }
         assertEquals("Follow-up", taskSlot.captured.title)
-        val reminderIdSlot = slot<String>()
-        coVerify { reminderScheduler.create("notify: Follow-up — Ask user how it went", any(), "daily", eq(taskSlot.captured.id), capture(reminderIdSlot)) }
+        coVerify { taskScheduler.schedule(taskSlot.captured) }
 
     }
 
     @Test
     fun `scheduleTaskTool invalid action returns error`() = runTest {
-        val tool = ScheduleTaskTool(mockk(relaxed=true), mockk(relaxed=true)).tool
+        val tool = ScheduleTaskTool(mockk<TaskDao>(relaxed=true), mockk<TaskScheduler>(relaxed=true)).tool
         val result = tool.execute(
             com.aura.agent.ToolCall(id = "tc2", name = "schedule_task", arguments = mapOf("title" to "X", "due_at" to "2026-08-02T09:00:00Z", "action" to "bad", "prompt" to "p")),
             com.aura.agent.ToolContext(conversationId = "conv-1"),
@@ -58,7 +57,7 @@ class ScheduleTaskToolTest {
 
     @Test
     fun `scheduleTaskTool invalid date returns error`() = runTest {
-        val tool = ScheduleTaskTool(mockk(relaxed=true), mockk(relaxed=true)).tool
+        val tool = ScheduleTaskTool(mockk<TaskDao>(relaxed=true), mockk<TaskScheduler>(relaxed=true)).tool
         val result = tool.execute(
             com.aura.agent.ToolCall(id = "tc3", name = "schedule_task", arguments = mapOf("title" to "X", "due_at" to "not-a-date", "action" to "notify", "prompt" to "p")),
             com.aura.agent.ToolContext(conversationId = "conv-1"),
