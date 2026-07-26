@@ -1,11 +1,14 @@
 package com.aura.world
 
 import com.aura.dream.ContradictionDao
+import com.aura.dream.ContradictionEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -33,6 +36,7 @@ class BeliefReviserTest {
     fun `too close writes nothing`() = runBlocking {
         assertFalse(reviser().applyVerdict(Verdict.TooClose, now = 5_000L))
         coVerify(exactly = 0) { beliefDao.supersede(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { contradictionDao.insert(any()) }
     }
 
     @Test
@@ -58,6 +62,39 @@ class BeliefReviserTest {
             contradictionDao.insert(
                 match { it.olderBeliefId == "old" && it.newerBeliefId == "new" && it.status == "RESOLVED" },
             )
+        }
+    }
+
+    @Test
+    fun `synthetic summary ids are namespaced by belief id, not empty`() = runBlocking {
+        val verdict = Verdict.Winner(belief("new"), belief("old"), margin = 0.4f)
+        val captured = slot<ContradictionEntity>()
+        coEvery { contradictionDao.insert(capture(captured)) } returns 1L
+
+        reviser().applyVerdict(verdict, now = 5_000L)
+
+        // Regression guard for the OnConflictStrategy.IGNORE collision: a
+        // future refactor that reverts to "" for both columns must fail here
+        // loudly rather than silently dropping every revision after the first.
+        assertEquals("belief:old", captured.captured.olderSummaryId)
+        assertEquals("belief:new", captured.captured.newerSummaryId)
+    }
+
+    @Test
+    fun `two different revisions produce different synthetic summary id keys`() = runBlocking {
+        val r = reviser()
+        r.applyVerdict(Verdict.Winner(belief("new1"), belief("old1"), margin = 0.4f), now = 1_000L)
+        r.applyVerdict(Verdict.Winner(belief("new2"), belief("old2"), margin = 0.4f), now = 2_000L)
+
+        // If both rows shared the same (olderSummaryId, newerSummaryId) key,
+        // the unique index would have made the second insert a silent no-op
+        // in production (mockk has no such constraint, which is exactly why
+        // this bug survived the original test suite).
+        coVerify {
+            contradictionDao.insert(match { it.olderSummaryId == "belief:old1" && it.newerSummaryId == "belief:new1" })
+        }
+        coVerify {
+            contradictionDao.insert(match { it.olderSummaryId == "belief:old2" && it.newerSummaryId == "belief:new2" })
         }
     }
 }

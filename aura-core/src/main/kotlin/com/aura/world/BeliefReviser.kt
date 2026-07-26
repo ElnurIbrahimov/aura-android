@@ -36,8 +36,15 @@ class BeliefReviser @Inject constructor(
         contradictionDao.insert(
             ContradictionEntity(
                 id = "contra_${UUID.randomUUID()}",
-                olderSummaryId = "",
-                newerSummaryId = "",
+                // These columns carry a UNIQUE index. The dream-summary
+                // producer fills them with real summary ids; a belief-linked
+                // row has no summary, and writing "" for both meant every
+                // revision after the first collided on the key ("", "") and
+                // was silently dropped by OnConflictStrategy.IGNORE. Namespacing
+                // by belief id keeps belief rows unique among themselves and
+                // can never collide with a real summary id.
+                olderSummaryId = "belief:${verdict.losing.id}",
+                newerSummaryId = "belief:${verdict.winning.id}",
                 olderText = verdict.losing.valueJson,
                 newerText = verdict.winning.valueJson,
                 triggerPhrase = "belief_conflict",
