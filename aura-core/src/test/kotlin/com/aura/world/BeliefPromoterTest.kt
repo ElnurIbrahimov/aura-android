@@ -167,4 +167,48 @@ class BeliefPromoterTest {
         // distinct turns for real.
         assert(capturedEvidence[0].id != capturedEvidence[1].id)
     }
+
+    @Test
+    fun `evidence timestamp records when the edge was seen, not when promote ran`() = runBlocking {
+        // Round-3 fix: toEvidence used to stamp `timestamp = now` (the time
+        // promote() ran). promote() runs every dream cycle and qualifies()
+        // stays true forever once an edge is reinforced, so that would pin
+        // BeliefArbiter.recency() -- weight 0.40, the heaviest signal -- at
+        // ~1.0 forever. The timestamp must come from the edge's own
+        // lastReinforced instead, which is deliberately far from `now` here
+        // so the assertion can't pass by coincidence.
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns
+            listOf(edge("kotlin", lastReinforced = 2_000L))
+        coEvery { beliefDao.active(any(), any()) } returns null
+
+        promoter().promote(now = 9_999_999L)
+
+        val captured = slot<EvidenceEntity>()
+        coVerify { evidenceDao.upsert(capture(captured)) }
+        assertEquals(2_000L, captured.captured.timestamp)
+    }
+
+    @Test
+    fun `re-promoting the same unchanged edge with different now values keeps the same evidence timestamp`() = runBlocking {
+        // Regression guard for the round-3 fix: two promote() calls with
+        // very different `now` values must not move the evidence timestamp,
+        // because the edge itself was not seen again between them.
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1",
+            subject = "user",
+            predicate = "USES",
+            valueJson = "\"kotlin\"",
+        )
+        val capturedEvidence = mutableListOf<EvidenceEntity>()
+        coEvery { evidenceDao.upsert(capture(capturedEvidence)) } returns Unit
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns
+            listOf(edge("kotlin", lastReinforced = 2_000L))
+
+        promoter().promote(now = 5_000L)
+        promoter().promote(now = 9_999_999L)
+
+        assertEquals(2, capturedEvidence.size)
+        assertEquals(capturedEvidence[0].timestamp, capturedEvidence[1].timestamp)
+        assertEquals(2_000L, capturedEvidence[0].timestamp)
+    }
 }

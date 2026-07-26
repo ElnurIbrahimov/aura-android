@@ -52,7 +52,7 @@ class BeliefPromoter @Inject constructor(
                 // are NOT resolved here — that is a later task's job.
                 // Promotion only ever reinforces.
                 beliefDao.verify(existing.id, edge.confidence, now)
-                evidenceDao.upsert(edge.toEvidence(existing.id, now))
+                evidenceDao.upsert(edge.toEvidence(existing.id))
                 count++
                 continue
             }
@@ -71,7 +71,7 @@ class BeliefPromoter @Inject constructor(
                     lastVerifiedAt = now,
                 ),
             )
-            evidenceDao.upsert(edge.toEvidence(beliefId, now))
+            evidenceDao.upsert(edge.toEvidence(beliefId))
             count++
         }
         return count
@@ -89,7 +89,7 @@ class BeliefPromoter @Inject constructor(
      * and they are what `BeliefArbiter.corroboration()` counts distinct
      * turns from.
      */
-    private fun EdgeEntity.toEvidence(beliefId: String, now: Long) = EvidenceEntity(
+    private fun EdgeEntity.toEvidence(beliefId: String) = EvidenceEntity(
         id = evidenceId(beliefId, sourceTurnId),
         beliefId = beliefId,
         source = "kg_edge",
@@ -99,7 +99,13 @@ class BeliefPromoter @Inject constructor(
             put("sourceTurnId", sourceTurnId)
             put("conversationId", sourceConversationId)
         }.toString(),
-        timestamp = now,
+        // The time the supporting TURN happened, not the time promote() ran.
+        // promote() runs every dream cycle and qualifies() stays true once an
+        // edge has been reinforced, so using `now` here would rewrite this row
+        // every cycle and pin BeliefArbiter.recency() — the heaviest-weighted
+        // signal — at ~1.0 forever, making a year-old belief score as fresh as
+        // this morning's.
+        timestamp = lastReinforced,
         confidence = confidence,
     )
 
