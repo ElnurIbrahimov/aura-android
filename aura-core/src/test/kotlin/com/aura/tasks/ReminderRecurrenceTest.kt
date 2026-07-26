@@ -31,4 +31,22 @@ class ReminderRecurrenceTest {
 
         assertEquals(expected, ReminderRecurrence.nextTrigger(original, "monthly", now, utc))
     }
+
+    @Test
+    fun `weekdays advances Monday to Tuesday`() {
+        val original = LocalDateTime.of(2026, 7, 27, 9, 0).atZone(utc).toInstant().toEpochMilli()
+        val now = LocalDateTime.of(2026, 7, 27, 10, 0).atZone(utc).toInstant().toEpochMilli()
+        val expected = LocalDateTime.of(2026, 7, 28, 9, 0).atZone(utc).toInstant().toEpochMilli()
+
+        assertEquals(expected, ReminderRecurrence.nextTrigger(original, "weekdays", now, utc))
+    }
+
+    @Test
+    fun `weekdays jumps Friday to Monday`() {
+        val original = LocalDateTime.of(2026, 7, 24, 9, 0).atZone(utc).toInstant().toEpochMilli()
+        val now = LocalDateTime.of(2026, 7, 24, 10, 0).atZone(utc).toInstant().toEpochMilli()
+        val expected = LocalDateTime.of(2026, 7, 27, 9, 0).atZone(utc).toInstant().toEpochMilli()
+
+        assertEquals(expected, ReminderRecurrence.nextTrigger(original, "weekdays", now, utc))
+    }
 }

@@ -5,7 +5,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 object ReminderRecurrence {
-    val supported = setOf("none", "daily", "weekly", "monthly")
+    val supported = setOf("none", "daily", "weekdays", "weekly", "monthly")
 
     fun normalize(value: String?): String =
         value?.lowercase()?.takeIf { it in supported } ?: "none"
@@ -27,6 +27,7 @@ object ReminderRecurrence {
 
     private fun advance(value: ZonedDateTime, recurrence: String): ZonedDateTime = when (recurrence) {
         "daily" -> value.plusDays(1)
+        "weekdays" -> value.plusDays(if (value.dayOfWeek.value >= 5) (8 - value.dayOfWeek.value).toLong() else 1)
         "weekly" -> value.plusWeeks(1)
         "monthly" -> value.plusMonths(1)
         else -> value

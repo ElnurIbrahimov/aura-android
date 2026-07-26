@@ -27,6 +27,7 @@ object ToolsModule {
         calendarWrite: CalendarWriteTool,
         contactsSearch: ContactsSearchTool,
         setReminder: SetReminderTool,
+        scheduleTask: ScheduleTaskTool,
         getCurrentTime: GetCurrentTimeTool,
         remember: RememberTool,
         recall: RecallTool,
@@ -89,6 +90,7 @@ object ToolsModule {
         registry.register(calendarWrite.tool)
         registry.register(contactsSearch.tool)
         registry.register(setReminder.tool)
+        registry.register(scheduleTask.tool)
         registry.register(getCurrentTime.tool)
         registry.register(remember.tool)
         registry.register(recall.tool)

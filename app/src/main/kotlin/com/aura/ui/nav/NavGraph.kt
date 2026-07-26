@@ -53,6 +53,9 @@ import com.aura.ui.screens.ProfileScreen
 import com.aura.ui.screens.SettingsScreen
 import com.aura.ui.screens.AgentEditorScreen
 import com.aura.ui.screens.council.CouncilScreen
+import com.aura.ui.screens.schedule.ScheduleScreen
+import com.aura.ui.viewmodel.ScheduleViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.ui.screens.TasksScreen
 
 @Composable
@@ -261,7 +264,7 @@ fun NavGraph(
                 })
             }
             composable("hands") { HandsScreen() }
-            composable("tasks") { TasksScreen() }
+            composable("tasks") { TasksScreen(onOpenSchedule = { navController.navigate("schedule") }) }
             composable("tools") { ToolsScreen() }
             composable("proactive") { ProactiveHistoryScreen() }
             composable("dreams") {
@@ -326,6 +329,10 @@ fun NavGraph(
             }
             composable("council") {
                 CouncilScreen(onBack = { navController.popBackStack() })
+            }
+            composable("schedule") {
+                val viewModel: ScheduleViewModel = hiltViewModel()
+                ScheduleScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(

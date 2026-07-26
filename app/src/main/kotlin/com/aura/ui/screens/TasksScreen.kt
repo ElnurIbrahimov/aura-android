@@ -80,7 +80,10 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
-fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
+fun TasksScreen(
+    viewModel: TasksViewModel = hiltViewModel(),
+    onOpenSchedule: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
@@ -106,11 +109,16 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
             AuraScreenHeader(
                 title = "Tasks",
                 subtitle = "${state.tasks.size} task${if (state.tasks.size == 1) "" else "s"}",
-                action = if (doneCount > 0 && state.statusFilter != "pending") ({
-                    TextButton(onClick = { showClearConfirm = true }) {
-                        Text("Clear $doneCount done", color = AuraThemeTokens.colors.error)
+                action = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = onOpenSchedule) { Text("Schedule") }
+                        if (doneCount > 0 && state.statusFilter != "pending") {
+                            TextButton(onClick = { showClearConfirm = true }) {
+                                Text("Clear $doneCount done", color = AuraThemeTokens.colors.error)
+                            }
+                        }
                     }
-                }) else null,
+                },
             )
 
             // Search bar

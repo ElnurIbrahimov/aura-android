@@ -119,7 +119,7 @@ internal fun ReminderEditorDialog(
                 }
                 Text(stringResource(R.string.repeat))
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("none", "daily", "weekly", "monthly")
+                    listOf("none", "daily", "weekdays", "weekly", "monthly")
                         .chunked(2)
                         .forEach { rowOptions ->
                             Row(
