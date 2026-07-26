@@ -81,7 +81,7 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                                     )
                                 }
                             }
-                            val chain = state.history[belief.id].orEmpty().filter { it.status == "superseded" }
+                            val chain = state.history[belief.id].orEmpty()
                             if (chain.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 val previouslyLabel = stringResource(R.string.previously)

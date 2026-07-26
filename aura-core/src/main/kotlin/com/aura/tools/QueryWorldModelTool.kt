@@ -59,9 +59,12 @@ class QueryWorldModelTool @Inject constructor(
                     appendLine("## Beliefs (${beliefs.size})")
                     beliefs.forEach { b ->
                         append("- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)")
+                        // Newest-discarded-first: the most recent prior belief is the
+                        // one most relevant to "what did the user used to think".
                         val superseded = runCatching { beliefDao.history(b.subject, b.predicate) }
                             .getOrDefault(emptyList())
                             .filter { it.status == "superseded" }
+                            .sortedByDescending { it.createdAt }
                         if (superseded.isNotEmpty()) {
                             append(" (previously: ")
                             append(superseded.joinToString(", ") { it.valueJson })

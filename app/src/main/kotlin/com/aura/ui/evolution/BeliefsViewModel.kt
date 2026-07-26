@@ -21,9 +21,12 @@ data class BeliefsUiState(
     /** Evidence supporting each belief, keyed by belief id. */
     val evidence: Map<String, List<EvidenceEntity>> = emptyMap(),
     /**
-     * Full supersession chain per active belief, keyed by belief id.
-     * `BeliefDao.history` orders by createdAt ASC (oldest first) and includes
-     * the currently active belief alongside any superseded predecessors.
+     * Superseded predecessors of each active belief, keyed by belief id,
+     * newest-discarded-first. `BeliefDao.history` itself is ORDER BY
+     * createdAt ASC and includes the active belief, but "I used to think X"
+     * means the value held most recently before now — so this map is built by
+     * filtering to `status == "superseded"` and reversing to newest-first,
+     * making `take(n)` at the render site return the most relevant entries.
      */
     val history: Map<String, List<BeliefEntity>> = emptyMap(),
 )
@@ -48,9 +51,15 @@ class BeliefsViewModel @Inject constructor(
         val evidenceByBelief = loaded.associate { belief ->
             belief.id to runCatching { evidenceDao.forBelief(belief.id) }.getOrDefault(emptyList())
         }
+        // BeliefDao.history is ORDER BY createdAt ASC. "I used to think X"
+        // means the value held most recently before now, so the chain is
+        // presented newest-discarded-first; take(n) at the render site then
+        // shows the most relevant entries rather than the oldest ones.
         val historyByBelief = loaded.associate { belief ->
             belief.id to runCatching {
                 beliefDao.history(belief.subject, belief.predicate)
+                    .filter { it.status == "superseded" }
+                    .sortedByDescending { it.createdAt }
             }.getOrDefault(emptyList())
         }
         _state.value = BeliefsUiState(
