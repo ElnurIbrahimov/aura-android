@@ -41,13 +41,24 @@ class AgentCouncil @Inject constructor(
      * If [agentIds] is empty, auto-selects all non-default builtin agents
      * + the default agent as director.
      */
+    sealed class Progress(val kind: String) {
+        data class ProposalsStarted(val agentNames: List<String>) : Progress("proposals_started")
+        data class ProducerDone(val agentName: String, val output: String) : Progress("producer_done")
+        data class DirectorStarted(val agentName: String) : Progress("director_started")
+        data class DirectorDone(val output: String) : Progress("director_done")
+        data class Error(val message: String) : Progress("error")
+    }
+
     suspend fun run(
         agentIds: List<String> = emptyList(),
         task: String,
         context: String = "",
         budgetMs: Long = 120_000L,
         directorAgentId: String? = null,
-    ): CouncilResult = try {
+        onProgress: (suspend (Progress) -> Unit)? = null,
+    ): CouncilResult {
+        val emitProgress: suspend (Progress) -> Unit = { onProgress?.invoke(it) }
+        return try {
         withTimeout(budgetMs) {
         // Resolve agents
         val allAgents = agentStore.allOnce()
@@ -71,6 +82,8 @@ class AgentCouncil @Inject constructor(
         val director = agents.firstOrNull { it.isDefault || it.id == directorAgentId }
             ?: agents.first()
         val producers = agents.filter { it.id != director.id }
+
+        emitProgress(Progress.ProposalsStarted(producers.map { it.name }))
 
         if (producers.isEmpty()) {
             // Only one agent — just run it directly
@@ -107,8 +120,12 @@ class AgentCouncil @Inject constructor(
         }
 
         val proposals = results
+        producers.zip(proposals).forEach { (agent, result) ->
+            emitProgress(Progress.ProducerDone(agent.name, result.output.take(500)))
+        }
 
         // Phase 2: director synthesizes
+        emitProgress(Progress.DirectorStarted(director.name))
         val proposalText = proposals.mapIndexed { idx, result ->
             val agentName = producers.getOrNull(idx)?.name ?: "agent-$idx"
             "Agent: $agentName\n${result.output.ifBlank { "(no output)" }}"
@@ -117,17 +134,28 @@ class AgentCouncil @Inject constructor(
         val directorTask = "Synthesize the best elements from all agent proposals into a final answer. Task: $task\n\nProposals:\n$proposalText"
         val directorResult = runAgent(director, directorTask, "", directorBudget)
 
+        emitProgress(Progress.DirectorDone(directorResult.output.take(1000)))
         CouncilResult(
             directorOutput = directorResult.output.ifBlank { "Council produced no output." },
             proposals = proposals,
         )
         }
     } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+        emitProgress(Progress.Error("Council timed out after ${budgetMs / 1000}s."))
         CouncilResult(
             directorOutput = "Council timed out after ${budgetMs / 1000}s.",
             proposals = emptyList(),
         )
+    } catch (e: Exception) {
+        emitProgress(Progress.Error(e.message ?: "Council failed"))
+        CouncilResult(
+            directorOutput = e.message ?: "Council failed",
+            proposals = emptyList(),
+            success = false,
+            error = e.message ?: "Council failed",
+        )
     }
+}
 
     /**
      * Run a single agent. Uses the same simplified single-pass approach

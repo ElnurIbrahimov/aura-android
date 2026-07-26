@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
@@ -78,6 +79,7 @@ fun ChatHeader(
     onClear: () -> Unit = {},
     onShowModelPicker: () -> Unit = {},
     onShowAgentPicker: () -> Unit = {},
+    onOpenCouncil: () -> Unit = {},
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
     val selectedModel = conversationModel ?: activeModel
@@ -245,6 +247,14 @@ fun ChatHeader(
                         onClick = {
                             overflowExpanded = false
                             onToggleIncognito()
+                        },
+                    )
+                    ChatMenuItem(
+                        label = "Agent council",
+                        icon = Icons.Filled.Groups,
+                        onClick = {
+                            overflowExpanded = false
+                            onOpenCouncil()
                         },
                     )
                     ChatMenuItem(

@@ -52,6 +52,7 @@ import com.aura.ui.screens.DreamsScreen
 import com.aura.ui.screens.ProfileScreen
 import com.aura.ui.screens.SettingsScreen
 import com.aura.ui.screens.AgentEditorScreen
+import com.aura.ui.screens.council.CouncilScreen
 import com.aura.ui.screens.TasksScreen
 
 @Composable
@@ -322,6 +323,9 @@ fun NavGraph(
                     agentId = agentId,
                     onDone = { navController.popBackStack() },
                 )
+            }
+            composable("council") {
+                CouncilScreen(onBack = { navController.popBackStack() })
             }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(

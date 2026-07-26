@@ -70,6 +70,7 @@ fun ChatContent(
     onDismissProviderWarning: () -> Unit,
     onDismissSaveWarning: () -> Unit,
     onShowAgentPicker: () -> Unit = {},
+    onOpenCouncil: () -> Unit = {},
     onRunVisionPrompt: (android.graphics.Bitmap, String) -> Unit,
     onDismissVision: () -> Unit,
     onShowSources: () -> Unit,
@@ -105,6 +106,7 @@ fun ChatContent(
                 onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
                 onShowAgentPicker = onShowAgentPicker,
+                onOpenCouncil = onOpenCouncil,
             )
 
             if (!state.isOnline) {
