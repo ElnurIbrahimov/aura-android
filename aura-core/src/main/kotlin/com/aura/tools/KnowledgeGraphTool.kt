@@ -163,7 +163,16 @@ class KnowledgeGraphTool @Inject constructor(
         val properties: JsonObject?,
     )
 
-    private fun parseResponse(response: String): Pair<List<KgNode>, List<KgEdge>>? {
+    /**
+     * `internal` rather than `private`: this is the seam that pins the
+     * extractor-output -> [KgId.USER_NODE_ID] contract. The `Rules:` line in
+     * [callLlm] that tells the model to label the speaker "user"/"person" is
+     * only meaningful if parsing that exact label really produces
+     * `KgId.USER_NODE_ID` — a test in this module drives this function
+     * directly to verify that, rather than asserting against `KgId.node(...)`
+     * (which would just restate the implementation).
+     */
+    internal fun parseResponse(response: String): Pair<List<KgNode>, List<KgEdge>>? {
         val root = try {
             json.parseToJsonElement(response).jsonObject
         } catch (_: Exception) {
