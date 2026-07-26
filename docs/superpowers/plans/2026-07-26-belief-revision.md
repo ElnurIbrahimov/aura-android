@@ -400,35 +400,54 @@ In `DreamCycleReport.kt`, after `val profileUpdated: Boolean = false,`:
 ```kotlin
 package com.aura.dream
 
-import com.aura.world.BeliefPromoter
-import io.mockk.coEvery
-import io.mockk.mockk
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import kotlin.test.assertEquals
 
 /**
- * Phase 10 must be best-effort like every other dream phase: a failure in
- * promotion cannot abort the cycle and lose the summaries phases 1-4 just
- * wrote.
+ * Phase 10 reporting contract.
+ *
+ * `DreamCycleReport` is a value type, so what is worth pinning is that adding
+ * the new counter did not disturb the counters the earlier phases write —
+ * `copy(beliefsPromoted = n)` must leave every other field alone, because
+ * runCycle threads a single report through nine prior phases via successive
+ * `copy` calls and a clobbered field silently loses a phase's result.
+ *
+ * The best-effort behaviour of the phase itself (a thrown promoter must not
+ * abort the cycle) is not unit-testable without constructing the whole
+ * DreamConsolidator with nine collaborators; it is enforced by the
+ * try/catch/log block added in Step 5 and matches every other phase in
+ * runCycle. Asserting that `runCatching` catches would test the standard
+ * library, not this code.
  */
 class DreamPromotePhaseTest {
 
     @Test
-    fun `promotion failure does not abort the cycle`() = runBlocking {
-        val promoter = mockk<BeliefPromoter>()
-        coEvery { promoter.promote(any()) } throws IllegalStateException("boom")
-
-        val report = DreamCycleReport()
-        val safe = runCatching { promoter.promote(1L) }.getOrDefault(0)
-
-        assertEquals(0, safe)
-        assertEquals(0, report.beliefsPromoted)
+    fun `report defaults the new counter to zero`() {
+        assertEquals(0, DreamCycleReport().beliefsPromoted)
     }
 
     @Test
-    fun `report carries the promoted count`() {
-        assertEquals(3, DreamCycleReport(beliefsPromoted = 3).beliefsPromoted)
+    fun `setting the promoted count preserves earlier phase counters`() {
+        val afterEarlierPhases = DreamCycleReport(
+            memoriesProcessed = 12,
+            summariesWritten = 3,
+            routinesExtracted = 2,
+            contradictionsFound = 1,
+            graphEdgesProposed = 5,
+            memoriesArchived = 4,
+            profileUpdated = true,
+        )
+
+        val withPromotion = afterEarlierPhases.copy(beliefsPromoted = 7)
+
+        assertEquals(7, withPromotion.beliefsPromoted)
+        assertEquals(12, withPromotion.memoriesProcessed)
+        assertEquals(3, withPromotion.summariesWritten)
+        assertEquals(2, withPromotion.routinesExtracted)
+        assertEquals(1, withPromotion.contradictionsFound)
+        assertEquals(5, withPromotion.graphEdgesProposed)
+        assertEquals(4, withPromotion.memoriesArchived)
+        assertEquals(true, withPromotion.profileUpdated)
     }
 }
 ```
@@ -436,7 +455,7 @@ class DreamPromotePhaseTest {
 - [ ] **Step 3: Run test to verify it fails**
 
 Run: `./gradlew :aura-core:testDebugUnitTest --offline --tests "com.aura.dream.DreamPromotePhaseTest"`
-Expected: FAIL — `No value passed for parameter 'beliefsPromoted'` or unresolved reference, until Step 1 is compiled in.
+Expected: FAIL — `Unresolved reference: beliefsPromoted` until Step 1's field is added.
 
 - [ ] **Step 4: Add the constructor dependency**
 
@@ -1171,6 +1190,32 @@ class BeliefConflictProbeTest {
     }
 
     @Test
+    fun `the incoming belief losing writes nothing at all`() = runBlocking {
+        // The existing belief is well supported and recent; the incoming edge
+        // is a single weak signal. Nothing should be written — in particular
+        // the candidate must not be superseded, because it was never stored.
+        val now = 10_000_000L
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1", subject = "user", predicate = "USES", valueJson = "\"kotlin\"",
+        )
+        coEvery { evidenceDao.forBelief("b1") } returns (1..4).map {
+            EvidenceEntity(
+                id = "ev$it",
+                beliefId = "b1",
+                source = "user_statement",
+                summary = "s$it",
+                detailJson = """{"turn":"t$it"}""",
+                timestamp = now - it,
+            )
+        }
+
+        assertEquals(0, probe().check(listOf(edge("rust")), now = now))
+
+        coVerify(exactly = 0) { reviser.applyVerdict(any(), any()) }
+        coVerify(exactly = 0) { beliefDao.upsert(any()) }
+    }
+
+    @Test
     fun `no existing belief means nothing to revise`() = runBlocking {
         coEvery { beliefDao.active(any(), any()) } returns null
 
@@ -1247,11 +1292,15 @@ class BeliefConflictProbe @Inject constructor(
                 BeliefSide(existing, evidenceDao.forBelief(existing.id)),
                 now,
             )
+            // Only act when the INCOMING belief wins. If the existing belief
+            // wins, or the sides are too close, the candidate was never
+            // persisted — superseding it would mark a row that does not exist
+            // and file a contradiction pointing at a phantom belief.
             if (verdict is Verdict.Winner && verdict.winning.id == candidate.id) {
                 beliefDao.upsert(candidate)
                 evidenceDao.upsert(incomingEvidence.first())
+                if (reviser.applyVerdict(verdict, now)) revisions++
             }
-            if (reviser.applyVerdict(verdict, now)) revisions++
         }
         return revisions
     }
