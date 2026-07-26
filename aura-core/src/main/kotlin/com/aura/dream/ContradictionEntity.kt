@@ -39,6 +39,14 @@ data class ContradictionEntity(
     /** Confidence in 0.0..1.0. Heuristic-detected values are <= 0.7. */
     val confidence: Float = 0.6f,
     val status: String = "UNRESOLVED",          // UNRESOLVED | RESOLVED | DISMISSED
+    /**
+     * Beliefs this contradiction is between, when it came from belief
+     * revision rather than summary-text comparison. Null for the existing
+     * summary-level rows, which is why both are nullable — the two
+     * detectors share this table but link different things.
+     */
+    val olderBeliefId: String? = null,
+    val newerBeliefId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val resolvedAt: Long? = null,
 )

@@ -1,0 +1,403 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "ed10ec4fba865cb4466f0e8f7cf3178f",
+    "entities": [
+      {
+        "tableName": "dream_summaries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `clusterId` TEXT NOT NULL, `compressedText` TEXT NOT NULL, `sourceMemoryIds` TEXT NOT NULL, `dominantTags` TEXT NOT NULL, `sourceCount` INTEGER NOT NULL, `modelUsed` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clusterId",
+            "columnName": "clusterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "compressedText",
+            "columnName": "compressedText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceMemoryIds",
+            "columnName": "sourceMemoryIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dominantTags",
+            "columnName": "dominantTags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceCount",
+            "columnName": "sourceCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelUsed",
+            "columnName": "modelUsed",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_dream_summaries_createdAt",
+            "unique": false,
+            "columnNames": [
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dream_summaries_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          },
+          {
+            "name": "index_dream_summaries_clusterId",
+            "unique": true,
+            "columnNames": [
+              "clusterId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_dream_summaries_clusterId` ON `${TABLE_NAME}` (`clusterId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "routines",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `signature` TEXT NOT NULL, `displayLabel` TEXT NOT NULL, `occurrenceCount` INTEGER NOT NULL, `distinctConversations` INTEGER NOT NULL, `sourceConversationIds` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastSeenAt` INTEGER NOT NULL, `description` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signature",
+            "columnName": "signature",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayLabel",
+            "columnName": "displayLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurrenceCount",
+            "columnName": "occurrenceCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distinctConversations",
+            "columnName": "distinctConversations",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceConversationIds",
+            "columnName": "sourceConversationIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "firstSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenAt",
+            "columnName": "lastSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_routines_occurrenceCount",
+            "unique": false,
+            "columnNames": [
+              "occurrenceCount"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_routines_occurrenceCount` ON `${TABLE_NAME}` (`occurrenceCount`)"
+          },
+          {
+            "name": "index_routines_signature",
+            "unique": true,
+            "columnNames": [
+              "signature"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_routines_signature` ON `${TABLE_NAME}` (`signature`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "kg_edge_proposals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `fromNodeId` TEXT NOT NULL, `toNodeId` TEXT NOT NULL, `fromLabel` TEXT NOT NULL, `toLabel` TEXT NOT NULL, `similarity` REAL NOT NULL, `proposedEdge` TEXT NOT NULL, `status` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `decidedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fromNodeId",
+            "columnName": "fromNodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toNodeId",
+            "columnName": "toNodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fromLabel",
+            "columnName": "fromLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toLabel",
+            "columnName": "toLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "similarity",
+            "columnName": "similarity",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proposedEdge",
+            "columnName": "proposedEdge",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decidedAt",
+            "columnName": "decidedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_kg_edge_proposals_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_kg_edge_proposals_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_kg_edge_proposals_similarity",
+            "unique": false,
+            "columnNames": [
+              "similarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_kg_edge_proposals_similarity` ON `${TABLE_NAME}` (`similarity`)"
+          },
+          {
+            "name": "index_kg_edge_proposals_fromNodeId_toNodeId",
+            "unique": true,
+            "columnNames": [
+              "fromNodeId",
+              "toNodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_kg_edge_proposals_fromNodeId_toNodeId` ON `${TABLE_NAME}` (`fromNodeId`, `toNodeId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "contradictions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `olderSummaryId` TEXT NOT NULL, `newerSummaryId` TEXT NOT NULL, `olderText` TEXT NOT NULL, `newerText` TEXT NOT NULL, `triggerPhrase` TEXT NOT NULL, `confidence` REAL NOT NULL, `status` TEXT NOT NULL, `olderBeliefId` TEXT, `newerBeliefId` TEXT, `createdAt` INTEGER NOT NULL, `resolvedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "olderSummaryId",
+            "columnName": "olderSummaryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "newerSummaryId",
+            "columnName": "newerSummaryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "olderText",
+            "columnName": "olderText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "newerText",
+            "columnName": "newerText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggerPhrase",
+            "columnName": "triggerPhrase",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "olderBeliefId",
+            "columnName": "olderBeliefId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newerBeliefId",
+            "columnName": "newerBeliefId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resolvedAt",
+            "columnName": "resolvedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_contradictions_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_contradictions_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_contradictions_olderSummaryId_newerSummaryId",
+            "unique": true,
+            "columnNames": [
+              "olderSummaryId",
+              "newerSummaryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_contradictions_olderSummaryId_newerSummaryId` ON `${TABLE_NAME}` (`olderSummaryId`, `newerSummaryId`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ed10ec4fba865cb4466f0e8f7cf3178f')"
+    ]
+  }
+}

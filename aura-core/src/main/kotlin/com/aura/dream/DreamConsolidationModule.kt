@@ -85,6 +85,20 @@ object DreamConsolidationModule {
         }
     }
 
+    /**
+     * v2 -> v3: link contradictions to the beliefs they were detected
+     * between, so belief revision can record what it resolved. Both
+     * columns are nullable — the existing summary-linked detector keeps
+     * writing rows with these null, while the belief-linked detector
+     * populates them.
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE contradictions ADD COLUMN olderBeliefId TEXT")
+            db.execSQL("ALTER TABLE contradictions ADD COLUMN newerBeliefId TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(
@@ -93,7 +107,7 @@ object DreamConsolidationModule {
         context,
         DreamConsolidationDatabase::class.java,
         "aura-dream.db",
-        migrations = arrayOf(MIGRATION_1_2),
+        migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3),
     ).build()
 
     @Provides

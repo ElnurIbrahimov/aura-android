@@ -25,7 +25,7 @@ import androidx.room.RoomDatabase
         KgEdgeProposalEntity::class,
         ContradictionEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class DreamConsolidationDatabase : RoomDatabase() {

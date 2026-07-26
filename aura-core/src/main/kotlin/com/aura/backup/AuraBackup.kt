@@ -84,7 +84,7 @@ data class AuraBackup(
     val routingOutcomes: List<RoutingOutcomeBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
     }
 }
 
@@ -625,6 +625,11 @@ data class ContradictionBackup(
     val status: String = "UNRESOLVED",
     val createdAt: Long,
     val resolvedAt: Long? = null,
+    // Schema v14: belief-linked contradictions (db v3). Null default keeps
+    // pre-v14 backups, which only ever had summary-linked rows, decoding
+    // fine.
+    val olderBeliefId: String? = null,
+    val newerBeliefId: String? = null,
 )
 
 @Serializable

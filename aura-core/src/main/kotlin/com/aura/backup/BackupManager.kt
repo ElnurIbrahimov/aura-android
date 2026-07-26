@@ -1236,12 +1236,14 @@ private fun com.aura.dream.ContradictionEntity.toBackup() = ContradictionBackup(
     id = id, olderSummaryId = olderSummaryId, newerSummaryId = newerSummaryId,
     olderText = olderText, newerText = newerText, triggerPhrase = triggerPhrase,
     confidence = confidence, status = status, createdAt = createdAt, resolvedAt = resolvedAt,
+    olderBeliefId = olderBeliefId, newerBeliefId = newerBeliefId,
 )
 
 private fun ContradictionBackup.toEntity() = com.aura.dream.ContradictionEntity(
     id = id, olderSummaryId = olderSummaryId, newerSummaryId = newerSummaryId,
     olderText = olderText, newerText = newerText, triggerPhrase = triggerPhrase,
     confidence = confidence, status = status, createdAt = createdAt, resolvedAt = resolvedAt,
+    olderBeliefId = olderBeliefId, newerBeliefId = newerBeliefId,
 )
 
 private fun com.aura.dream.KgEdgeProposalEntity.toBackup() = KgEdgeProposalBackup(
