@@ -1,7 +1,13 @@
 # Belief Revision — Design
 
 **Date:** 2026-07-26
-**Status:** Approved, not yet implemented
+**Status:** Slices 1-2 implemented (tasks 1-9). Slice 3 (tasks 10-11) deferred.
+See `docs/superpowers/plans/2026-07-26-belief-revision.md` §Execution record for the
+nine plan defects and three review findings that changed this design during
+implementation — including that beliefs store node **labels** (not the sha256 node
+ids this design implied), that promotion must skip conflicting values rather than
+reinforce them, and that revision is currently restricted to single-valued
+predicates (`located_at` only) until the semantic adjudicator lands.
 **Scope:** Close the loop between the knowledge graph, the world model, and the
 dream cycle so Aura's model of the user demonstrably self-corrects and can show
 its work.
@@ -165,6 +171,12 @@ well-established belief. `BeliefArbiter` scores each side:
 | Corroboration — distinct turns supporting | strong | Repetition separates a real change from a one-off |
 | Source rank: `user_statement` > `tool_result` > `derived` | moderate | A direct statement outranks an inference |
 | Existing belief confidence | tiebreak only | Incumbency should not by itself win |
+
+Implemented weights are **recency 0.40, corroboration 0.25, source 0.25, confidence
+0.10**, rebalanced during Task 5 because a pure source-rank gap scored 0.105 and fell
+below the margin, so "a direct statement outranks an inference" could never fire.
+Note that in production both sides are `kg_edge` with confidence 0.8, so source and
+confidence tie and real revisions turn on recency and corroboration alone.
 
 **Refusing to decide is a valid, expected outcome.** If the margin between the
 two sides is below `ARBITER_MIN_MARGIN` (starting value 0.15 on a 0..1 normalised

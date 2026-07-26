@@ -2,6 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Status — 2026-07-26
+
+**Tasks 1-9 are IMPLEMENTED and merged to `feat/tier-1-friction`** (23 commits,
+`ff11559e..17c2ceb3`). 1,354 tests pass, `:app:assembleDebug` green.
+
+**Tasks 10-11 are NOT started** — deferred by the user after slice 2. They remain
+accurate to implement, but read §Execution record first: three defects found during
+execution changed assumptions those tasks depend on.
+
+The step checkboxes in tasks 1-9 were never ticked during execution (progress was
+tracked in `.superpowers/sdd/2026-07-26-belief-revision/progress.md` instead). Treat
+the ledger and `git log`, not the checkboxes, as the record of what ran.
+
+**Do not re-run tasks 1-9.** Their code is in the tree and has been revised past what
+the task text says — see §Execution record for every divergence.
+
 **Goal:** Close the loop between the knowledge graph, the world model and the dream cycle so Aura's beliefs about the user are created, revised on contradiction, and always traceable to the turns that support them.
 
 **Architecture:** Beliefs are promoted from reinforced KG edges during the dream cycle. A pure-DB probe on the write path catches structural conflicts (same subject+predicate, different value) and supersedes immediately. Semantic conflicts are adjudicated by an LLM in the dream cycle. Superseding never deletes — the old belief keeps its evidence and gains `supersededBy`, forming a walkable chain.
@@ -1494,7 +1510,85 @@ git commit -m "feat(ui): show belief supersession history"
 
 ---
 
+## Execution record — what changed from this plan
+
+Tasks 1-9 did not land as written. Every divergence below is in the tree; the task
+text above is the *original intent* and is now historical. Where they conflict, the
+code wins.
+
+### Defects in this plan, found during execution
+
+| # | Where | What was wrong | Fix (commit) |
+|---|---|---|---|
+| 1 | Task 1 | The prescribed test asserted `USER_NODE_ID == node(PERSON, "user")` — a restatement of the definition. It could not catch the extractor prompt and the constant drifting apart. | Tests now drive the real `KnowledgeGraphTool.parseResponse` path, including a negative case. `parseResponse` widened to `internal`. (`16873489`) |
+| 2 | Task 2 | The promotion bar `lastReinforced > createdAt` was **always true**. `KgEdge.createdAt` defaults at parse time, `saveGraph` captures `now` seconds later after the LLM round-trip, and `insertEdge` is `REPLACE` — so it held on the first sighting, and a re-save destroyed first-seen time. The bar reduced to `confidence >= 0.7`. | `KnowledgeGraphDao.getEdge(id)` added; `saveGraph` carries the existing row's `createdAt` forward. (`42ab3d51`) |
+| 3 | Task 2 | Reinforcement wrote no evidence row, so no belief could hold more than one and `BeliefArbiter.corroboration()` was pinned at 0.25 forever. | Evidence written on the reinforcement branch, with a deterministic `ev_<beliefId>_<sourceTurnId>` id so re-promotion replaces rather than accumulates. (`9016989a`) |
+| 4 | Task 2 | The fix for #3 stamped `timestamp = now`. `promote()` runs every dream cycle and `qualifies()` stays true, so evidence was rewritten every cycle and `recency()` (weight 0.40, the heaviest signal) was pinned at ~1.0. **The fix was worse than the bug.** | Evidence stamped with `edge.lastReinforced` — the supporting turn's time. (`564eb32d`) |
+| 5 | Task 5 | The test fixture never set `detailJson`, but `corroboration()` counts `distinct()` on exactly that field, so four distinct turns collapsed to one. Fixing it exposed that a pure source-rank gap (0.105) fell below `ARBITER_MIN_MARGIN` (0.15). | Fixture varies `detailJson`; weights rebalanced to **0.40 / 0.25 / 0.25 / 0.10**, verified arithmetically against all 5 arbiter cases and all 4 Task 11 convergence cases. |
+| 6 | Task 7 | `BeliefDao.supersede` never stamped `validTo`, though §4 of the spec requires it. | Query extended. Both other callers (evolution retire / rollback) verified unharmed. (`53d48e7a`) |
+| 7 | Task 7 | `ContradictionEntity` has a **UNIQUE index** on `(olderSummaryId, newerSummaryId)` and `insert` uses `OnConflictStrategy.IGNORE`. `BeliefReviser` wrote `("", "")` every time, so **only the first belief revision in the app's lifetime would ever be recorded** — all later ones silently discarded while `applyVerdict` returned `true`. Invisible to a mocked DAO. | Namespaced to `"belief:<id>"`, which cannot collide with the dream producer's `"dream_<clusterId>"`. (`a8de2142`) |
+| 8 | Task 8 | `KnowledgeGraphModule` **manually provides** `KnowledgeGraphRepository(dao)`, so the nullable constructor default won and the probe was `null` in production. Belief revision on the write path was dead code. (`DreamConsolidator` was safe because it is `@Inject constructor`; this one is not.) | Provider passes a real probe, pinned by `KnowledgeGraphModuleTest`; no Dagger cycle, proved by clean `:app:assembleDebug`. (`b935c181`) |
+| 9 | Task 9 | `BeliefDao.history` is `ORDER BY createdAt ASC`, so `take(3)` showed the three **oldest** prior beliefs. "I used to think X" means the most recent one. | Newest-discarded-first, sorted once in the ViewModel and in the tool. (`fd7ac621`) |
+
+### Defects the final whole-branch review found
+
+All nine per-task reviews missed these, because **every fixture in this plan used
+`targetId = "kotlin"`**. In production it is a sha256 hash.
+
+| # | What was wrong | Fix (commit) |
+|---|---|---|
+| A | `parseEdge` sets `targetId = targetNode.id` — a sha256 node id. `BeliefPromoter` and `BeliefConflictProbe` stored it as the belief value and evidence summary, so every belief read `user uses "9f86d081884c7d65…"` and that hash was what the Beliefs screen rendered and what the agent was told. **The feature's entire deliverable was unreadable.** | Both resolve `kgDao.getNode(id)?.label ?: id`, byte-identically (they must agree or the probe's string equality breaks). Raw node id kept in evidence `detailJson` as `targetNodeId`. (`5ef07ae9`) |
+| B | The promoter's reinforcement branch never compared values, so evidence for a **contradicting** value was attached to the incumbent belief — refreshing its recency and growing its corroboration. Repeating a new fact made the old belief *more* unbeatable. Anti-convergent, and it fired on ordinary multi-valued facts with no conflict at all. | `if (existing.valueJson != valueJson) continue` before `verify()` and the evidence write. (`5ef07ae9`) |
+| C | `predicate` comes from an 18-member `EdgeType` enum whose documented default is `relates_to`, so `active("user", "relates_to")` is one bucket holding every loosely-typed fact and any two targets read as a contradiction. | Probe restricted to a single-valued allow-list — currently `setOf("located_at")`. (`5ef07ae9`) |
+
+### Consequence you must know before continuing
+
+**B and C together mean the world model can currently revise only `located_at`.**
+Every other predicate is write-once: the promoter refuses to reinforce on a value
+change, and the probe never looks at it. This is correct — the alternative was
+superseding correct beliefs with unrelated correct ones — but it means the headline
+"I used to think X" capability is **near-inert in production until Task 10/11 land**.
+Widening the allow-list is not the fix; the semantic adjudicator is.
+
+### Parked — real, unfixed, user's call
+
+- **Probe writes are not atomic.** `BeliefConflictProbe` does upsert → evidence →
+  `applyVerdict`. If the last throws (the caller swallows it), the candidate is
+  persisted *active* alongside the un-superseded incumbent, and `active()` is
+  `LIMIT 1 ORDER BY confidence DESC` — which one wins is then arbitrary. Needs a
+  `@Transaction` DAO method.
+- **Probe vs promoter race.** The probe runs under `saveGraph`'s mutex; `promote()`
+  runs on the dream worker with no shared lock. Both read-modify-write the same
+  `(subject, predicate)`. No deadlock (traced), but a double-write leaves a
+  permanently duplicated active belief with no repair path.
+- **`MIN_EDGE_CONFIDENCE = 0.7f` filters nothing.** `parseEdge` parses `weight`,
+  never `confidence`, so every edge is the 0.8 default. `CONFIDENCE_WEIGHT` in the
+  arbiter is therefore always identical on both sides — a second inert signal.
+  Either map `weight` → `confidence` or delete the constant and say so in the spec.
+- **Node rename desyncs a belief permanently.** `updateNode` changes a label without
+  touching beliefs; after a rename the B guard fires and the belief is stuck holding
+  the old label.
+- **`ContradictionBackup` mapper legs untested.** The JSON round-trip is covered;
+  `toBackup()`/`toEntity()` are correct by inspection only.
+- **Room migration tests have never executed.** `DreamDatabaseMigrationTest` and the
+  new `3.json` are unverified — no device attached, and CI runs unit tests only. This
+  branch bumps two schema versions (dream DB v2→v3, backup 13→14).
+
+---
+
 ## Slice 3 — Adjudication and measurement
+
+> **Not started.** Corrections from the execution record that these tasks depend on:
+>
+> - Beliefs now store **labels**, not node ids. Any fixture must use realistic values.
+> - The arbiter weights are **0.40 / 0.25 / 0.25 / 0.10**, not the values originally
+>   written here. Task 11's convergence numbers were verified against these.
+> - In production both sides of an arbitration are `kg_edge` with confidence 0.8, so
+>   `sourceRank` and `confidence` tie and revisions are decided by recency and
+>   corroboration alone. Task 11 should include at least one case in that shape —
+>   the current fixtures all use `user_statement` vs `derived`, which never occurs.
+> - Task 10's adjudicator is what lets the allow-list in finding C widen. Treat
+>   "revision works for predicates other than `located_at`" as its acceptance test.
 
 ### Task 10: LLM adjudication phase
 
