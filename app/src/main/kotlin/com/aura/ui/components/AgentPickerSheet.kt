@@ -74,9 +74,8 @@ fun AgentPickerSheet(
                 items(agents) { agent ->
                     AgentRow(
                         name = agent.name,
-                        description = agent.personality().toPromptDirective().takeIf { it.isNotBlank() }
-                            ?: agent.description,
-                        selected = agent == currentAgent,
+                        description = agent.description,
+                        selected = agent.id == currentAgent?.id,
                         onClick = { onPick(agent) },
                     )
                 }

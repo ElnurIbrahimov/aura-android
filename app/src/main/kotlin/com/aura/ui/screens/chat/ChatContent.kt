@@ -69,7 +69,6 @@ fun ChatContent(
     onDismissError: () -> Unit,
     onDismissProviderWarning: () -> Unit,
     onDismissSaveWarning: () -> Unit,
-    onSelectAgent: (com.aura.agent.AgentEntity?) -> Unit,
     onShowAgentPicker: () -> Unit = {},
     onRunVisionPrompt: (android.graphics.Bitmap, String) -> Unit,
     onDismissVision: () -> Unit,
@@ -106,7 +105,6 @@ fun ChatContent(
                 onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
                 onShowAgentPicker = onShowAgentPicker,
-                onSelectAgent = onSelectAgent,
             )
 
             if (!state.isOnline) {
@@ -188,12 +186,14 @@ fun ChatContent(
                     )
                 }
                 SpecialistChips(
-                    selected = state.selectedSpecialist,
+                    selected = state.selectedSpecialist
+                        ?: state.availableAgents.find { it.id == state.activeAgentId }?.let { agent ->
+                            com.aura.agent.Specialist.ALL.find { it.name.equals(agent.name, ignoreCase = true) }
+                        },
                     suggested = state.suggestedSpecialist,
-                    onSelect = { specialist ->
-                        // Map legacy specialists to their agent counterpart when possible.
-                        val matching = state.availableAgents.find { it.name.equals(specialist?.name, ignoreCase = true) }
-                        onSelectAgent(matching)
+                    onSelect = { _ ->
+                        // Specialist chips are now visualized as agent mappings.
+                        // The agent picker sheet is the canonical selection surface.
                     },
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )

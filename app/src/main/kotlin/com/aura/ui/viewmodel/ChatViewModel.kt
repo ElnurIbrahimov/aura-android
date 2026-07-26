@@ -625,12 +625,16 @@ class ChatViewModel @Inject constructor(
         _state.update { old ->
             val newModel = agent?.preferredModel?.takeIf { it.isNotBlank() }
                 ?: old.activeModel
-            val agentId = agent?.let { "agent_${it.name}" }
+            val agentId = agent?.id
+            val systemPrompt = if (agent != null && agent.identity.isNotBlank()) {
+                "You are ${agent.name}. ${agent.identity.trim()}"
+            } else (old.conversation.systemPrompt ?: "")
             old.copy(
                 activeAgent = agent,
                 selectedSpecialist = null,
                 activeAgentId = agentId,
                 activeModel = newModel,
+                conversation = old.conversation.copy(systemPrompt = systemPrompt),
             )
         }
     }
@@ -641,13 +645,22 @@ class ChatViewModel @Inject constructor(
      */
     fun setSpecialist(specialist: Specialist?) {
         _state.update { old ->
-            val newModel = specialist?.suggestedModel ?: old.activeModel
-            val agentId = specialist?.let { "agent_${it.name}" }
+            val agent = old.availableAgents.find { it.name.equals(specialist?.name, ignoreCase = true) }
+            val newModel = agent?.preferredModel?.takeIf { it.isNotBlank() }
+                ?: specialist?.suggestedModel
+                ?: old.activeModel
+            val agentId = agent?.id ?: specialist?.let { "agent_${it.name}" }
+            val systemPrompt = if (agent != null && !agent.identity.isNullOrBlank()) {
+                "You are ${agent.name}. ${agent.identity.trim()}"
+            } else if (specialist != null && specialist.systemPrompt.isNotBlank()) {
+                "You are ${specialist.name}. ${specialist.systemPrompt.trim()}"
+            } else old.conversation.systemPrompt
             old.copy(
                 selectedSpecialist = specialist,
-                activeAgent = null,
+                activeAgent = agent,
                 activeAgentId = agentId,
                 activeModel = newModel,
+                conversation = old.conversation.copy(systemPrompt = systemPrompt),
             )
         }
     }
@@ -796,6 +809,7 @@ class ChatViewModel @Inject constructor(
                 suggestedSpecialist = null,
                 activeAgent = null,
                 activeAgentId = null,
+                deepModeActive = false,
                 inFlightToolCalls = emptyList(),
             )
         }

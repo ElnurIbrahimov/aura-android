@@ -78,10 +78,8 @@ fun ChatHeader(
     onClear: () -> Unit = {},
     onShowModelPicker: () -> Unit = {},
     onShowAgentPicker: () -> Unit = {},
-    onSelectAgent: (AgentEntity?) -> Unit = {},
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
-    var agentMenuExpanded by remember { mutableStateOf(false) }
     val selectedModel = conversationModel ?: activeModel
     val missingModel = selectedModel.isBlank()
     val displayModel = if (missingModel) "Choose model" else modelDisplayName(selectedModel)
@@ -174,40 +172,17 @@ fun ChatHeader(
             }
 
             if (availableAgents.isNotEmpty()) {
-                Box {
-                    AuraIconButton(
-                        onClick = { agentMenuExpanded = true },
-                        containerColor = AuraThemeTokens.colors.surface1,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.People,
-                            contentDescription = "Agents",
-                            tint = if (activeAgent != null) AuraThemeTokens.colors.actionPrimary
-                            else AuraThemeTokens.colors.textPrimary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = agentMenuExpanded,
-                        onDismissRequest = { agentMenuExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("No agent") },
-                            onClick = {
-                                agentMenuExpanded = false
-                                onSelectAgent(null)
-                            },
-                        )
-                        for (agent in availableAgents) {
-                            DropdownMenuItem(
-                                text = { Text(agent.name) },
-                                onClick = {
-                                    agentMenuExpanded = false
-                                    onSelectAgent(agent)
-                                },
-                            )
-                        }
-                    }
+                AuraIconButton(
+                    onClick = onShowAgentPicker,
+                    containerColor = AuraThemeTokens.colors.surface1,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.People,
+                        contentDescription = "Select agent",
+                        tint = if (activeAgent != null) AuraThemeTokens.colors.actionPrimary
+                        else AuraThemeTokens.colors.textPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             }
 

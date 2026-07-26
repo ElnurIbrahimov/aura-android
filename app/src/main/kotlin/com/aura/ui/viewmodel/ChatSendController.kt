@@ -199,6 +199,15 @@ class ChatSendController(
         }
 
         val specialist = current.selectedSpecialist
+            ?: current.activeAgent?.let { agent ->
+                com.aura.agent.Specialist(
+                    name = agent.name,
+                    icon = agent.icon,
+                    systemPrompt = agent.identity,
+                    toolsAllowed = agent.toolSet(),
+                    suggestedModel = agent.preferredModel,
+                )
+            }
         responseBuffer = StringBuilder()
 
         onSaveConversation()  // Save user message immediately

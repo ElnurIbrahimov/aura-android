@@ -392,7 +392,6 @@ fun ChatRoute(
         onDismissError = viewModel::dismissError,
         onDismissProviderWarning = viewModel::dismissProviderWarning,
         onDismissSaveWarning = viewModel::dismissSaveWarning,
-        onSelectAgent = viewModel::setActiveAgent,
         onShowAgentPicker = { showAgentPicker = true },
         onRunVisionPrompt = viewModel::runVisionPrompt,
         onDismissVision = viewModel::dismissPendingVision,
