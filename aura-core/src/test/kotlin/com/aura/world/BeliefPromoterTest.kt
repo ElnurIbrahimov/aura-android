@@ -101,4 +101,70 @@ class BeliefPromoterTest {
         // "because Z" has to resolve back to a turn — this is that link.
         assert(captured.captured.detailJson.contains("turn_kotlin"))
     }
+
+    @Test
+    fun `reinforcing an existing belief writes an evidence row`() = runBlocking {
+        // Round-1 fix: the reinforcement branch used to `continue` right
+        // after `verify()` without ever writing evidence, so no belief in
+        // production could hold more than one evidence row and
+        // BeliefArbiter.corroboration() was permanently stuck at 1/4.
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("kotlin"))
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1",
+            subject = "user",
+            predicate = "USES",
+            valueJson = "\"kotlin\"",
+        )
+
+        promoter().promote(now = 5_000L)
+
+        coVerify(exactly = 1) { evidenceDao.upsert(any()) }
+    }
+
+    @Test
+    fun `re-promoting the same edge twice produces the same evidence id`() = runBlocking {
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1",
+            subject = "user",
+            predicate = "USES",
+            valueJson = "\"kotlin\"",
+        )
+        val capturedEvidence = mutableListOf<EvidenceEntity>()
+        coEvery { evidenceDao.upsert(capture(capturedEvidence)) } returns Unit
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("kotlin"))
+
+        promoter().promote(now = 5_000L)
+        promoter().promote(now = 6_000L)
+
+        assertEquals(2, capturedEvidence.size)
+        // Same belief, same sourceTurnId both times -> deterministic id
+        // means the second upsert REPLACEs the first row rather than
+        // accumulating a duplicate for a turn that was never re-seen.
+        assertEquals(capturedEvidence[0].id, capturedEvidence[1].id)
+    }
+
+    @Test
+    fun `an edge with a different sourceTurnId produces a different evidence id`() = runBlocking {
+        coEvery { beliefDao.active("user", "USES") } returns BeliefEntity(
+            id = "b1",
+            subject = "user",
+            predicate = "USES",
+            valueJson = "\"kotlin\"",
+        )
+        val capturedEvidence = mutableListOf<EvidenceEntity>()
+        coEvery { evidenceDao.upsert(capture(capturedEvidence)) } returns Unit
+
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns listOf(edge("kotlin"))
+        promoter().promote(now = 5_000L)
+
+        coEvery { kgDao.edgesFrom(KgId.USER_NODE_ID) } returns
+            listOf(edge("kotlin").copy(sourceTurnId = "turn_kotlin_2"))
+        promoter().promote(now = 6_000L)
+
+        assertEquals(2, capturedEvidence.size)
+        // A genuinely new supporting turn must add a new evidence row, not
+        // replace the old one -- this is what makes corroboration count
+        // distinct turns for real.
+        assert(capturedEvidence[0].id != capturedEvidence[1].id)
+    }
 }

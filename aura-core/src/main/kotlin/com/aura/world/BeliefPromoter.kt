@@ -52,6 +52,7 @@ class BeliefPromoter @Inject constructor(
                 // are NOT resolved here — that is a later task's job.
                 // Promotion only ever reinforces.
                 beliefDao.verify(existing.id, edge.confidence, now)
+                evidenceDao.upsert(edge.toEvidence(existing.id, now))
                 count++
                 continue
             }
@@ -84,10 +85,12 @@ class BeliefPromoter @Inject constructor(
      *
      * This is load-bearing rather than decorative: the edge itself gets
      * overwritten on reinforcement, so it cannot say when support first
-     * arrived. Accumulated evidence rows are the only durable record of that.
+     * arrived. Accumulated evidence rows are the only durable record of that,
+     * and they are what `BeliefArbiter.corroboration()` counts distinct
+     * turns from.
      */
     private fun EdgeEntity.toEvidence(beliefId: String, now: Long) = EvidenceEntity(
-        id = UUID.randomUUID().toString(),
+        id = evidenceId(beliefId, sourceTurnId),
         beliefId = beliefId,
         source = "kg_edge",
         summary = "$type → $targetId",
@@ -99,4 +102,15 @@ class BeliefPromoter @Inject constructor(
         timestamp = now,
         confidence = confidence,
     )
+
+    /**
+     * Deterministic: one evidence row per (belief, supporting turn).
+     * `promote()` runs every dream cycle, so a random id would add a row per
+     * cycle for an edge that was never re-seen — inflating corroboration
+     * with repeats of the same turn. Keying on `sourceTurnId` means
+     * re-promoting an unchanged edge rewrites the same row, while a
+     * genuinely new turn adds one.
+     */
+    private fun evidenceId(beliefId: String, sourceTurnId: String): String =
+        "ev_${beliefId}_${sourceTurnId.ifBlank { "unknown" }}"
 }
