@@ -685,6 +685,10 @@ class BeliefArbiterTest {
     private fun belief(id: String, confidence: Float = 0.8f) =
         BeliefEntity(id = id, subject = "user", predicate = "USES", valueJson = "\"$id\"", confidence = confidence)
 
+    // detailJson MUST differ per row: corroboration counts distinct turns via
+    // distinct() on detailJson, so identical values collapse to a count of 1
+    // and the corroboration test cannot discriminate. In production
+    // BeliefPromoter writes a distinct sourceTurnId per turn.
     private fun evidence(beliefId: String, ageDays: Long, source: String = "user_statement", n: Int = 1) =
         (1..n).map {
             EvidenceEntity(
@@ -692,6 +696,7 @@ class BeliefArbiterTest {
                 beliefId = beliefId,
                 source = source,
                 summary = "s",
+                detailJson = """{"turn":"$beliefId-$it"}""",
                 timestamp = now - ageDays * day - it,
             )
         }
@@ -801,9 +806,14 @@ object BeliefArbiter {
     /** Minimum score gap before a revision is allowed. See design spec §6. */
     const val ARBITER_MIN_MARGIN = 0.15f
 
-    private const val RECENCY_WEIGHT = 0.45f
-    private const val CORROBORATION_WEIGHT = 0.30f
-    private const val SOURCE_WEIGHT = 0.15f
+    // Sum to 1.0. SOURCE_WEIGHT is 0.25 rather than a smaller "moderate"
+    // value because a pure source-rank difference must be able to clear
+    // ARBITER_MIN_MARGIN on its own: a direct user statement should beat a
+    // derived inference when nothing else separates them. At 0.15 the gap was
+    // 0.105 and every such pair returned TooClose.
+    private const val RECENCY_WEIGHT = 0.40f
+    private const val CORROBORATION_WEIGHT = 0.25f
+    private const val SOURCE_WEIGHT = 0.25f
     private const val CONFIDENCE_WEIGHT = 0.10f
 
     /** Evidence half-life for recency scoring. */
