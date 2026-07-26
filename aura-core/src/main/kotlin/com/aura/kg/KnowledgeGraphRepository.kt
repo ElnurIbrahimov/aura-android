@@ -41,12 +41,20 @@ class KnowledgeGraphRepository @Inject constructor(
         }
         for (edge in edges) {
             val id = edge.id.ifBlank { KgId.edge(edge.type, edge.sourceId, edge.targetId) }
+            // REPLACE overwrites the whole row, so without this the original
+            // creation time is lost on every re-save and `lastReinforced >
+            // createdAt` — the "seen in more than one turn" test used by
+            // BeliefPromoter — would be true even on first sighting, because
+            // KgEdge.createdAt defaults at parse time and `now` is captured
+            // later in this function.
+            val firstSeen = dao.getEdge(id)?.createdAt ?: now
             dao.insertEdge(
                 edge.copy(
                     id = id,
                     sourceTurnId = stableTurnId,
                     sourceConversationId = provenance.conversationId,
                     sourceTurnTimestamp = provenance.turnTimestamp,
+                    createdAt = firstSeen,
                     lastReinforced = now,
                 ).toEntity()
             )

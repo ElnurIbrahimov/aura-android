@@ -58,6 +58,9 @@ interface KnowledgeGraphDao {
     @Query("SELECT * FROM kg_edges WHERE sourceId = :sourceId")
     suspend fun edgesFrom(sourceId: String): List<EdgeEntity>
 
+    @Query("SELECT * FROM kg_edges WHERE id = :id")
+    suspend fun getEdge(id: String): EdgeEntity?
+
     @Query("SELECT * FROM kg_edges WHERE targetId = :targetId")
     suspend fun edgesTo(targetId: String): List<EdgeEntity>
 
