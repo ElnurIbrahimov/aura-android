@@ -255,7 +255,19 @@ class DelegateToAgentTool @Inject constructor(
             }
         }
 
-        response.toString().ifBlank { "Agent '$agentName' produced no response." }
+        val finalResponse = response.toString().ifBlank { "Agent '$agentName' produced no response." }
+
+        // Store the delegation exchange in the agent's memory scope so future
+        // delegations to this agent have conversational continuity.
+        runCatching {
+            memoryStore.maybeStore(
+                content = "Delegation to ${agent.name}: task=$task\n\nResponse: ${finalResponse.take(2000)}",
+                source = "delegate_to_agent",
+                scope = agent.memoryScope,
+            )
+        }.onFailure { android.util.Log.w("DelegateToAgentTool", "failed to store delegation memory: ${it.message}") }
+
+        finalResponse
     }
 
     companion object {

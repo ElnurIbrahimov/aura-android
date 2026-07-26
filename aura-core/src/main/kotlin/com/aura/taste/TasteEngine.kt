@@ -39,6 +39,7 @@ class TasteEngine @Inject constructor(
         artifactId: kotlin.String? = null,
         attributes: Map<kotlin.String, kotlin.String> = emptyMap(),
         weight: Float = 1.0f,
+        agentScope: kotlin.String = "general",
     ) = mutex.withLock {
         signalDao.upsert(
             PreferenceSignalEntity(
@@ -49,6 +50,7 @@ class TasteEngine @Inject constructor(
                 artifactId = artifactId,
                 attributesJson = json.encodeToString(attributes),
                 weight = weight,
+                agentScope = agentScope,
             ),
         )
     }
@@ -104,6 +106,7 @@ class TasteEngine @Inject constructor(
         latencyMs: kotlin.Long = 0L,
         costClass: kotlin.String = "unknown",
         outcomeType: kotlin.String = "user_accepted",
+        agentScope: kotlin.String = "general",
     ) {
         routingDao.upsert(
             RoutingOutcomeEntity(
@@ -114,6 +117,7 @@ class TasteEngine @Inject constructor(
                 latencyMs = latencyMs,
                 costClass = costClass,
                 outcomeType = outcomeType,
+                agentScope = agentScope,
             ),
         )
     }

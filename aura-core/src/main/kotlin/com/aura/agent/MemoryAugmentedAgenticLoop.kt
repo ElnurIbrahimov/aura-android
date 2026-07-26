@@ -547,6 +547,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val personalityDirective = cachedPersonality ?: ""
             val messages = buildList {
                 val sys = listOfNotNull(
+                    if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}") }.getOrNull() else null,
                     specialist?.systemPrompt,
                     personalityDirective.ifBlank { null },
                     currentConversation.systemPrompt,
@@ -906,6 +907,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         val finalConv = if (lastRecall != null) {
             modeledConversation.attachRecallToLastTurn(lastRecall)
         } else modeledConversation
+        runCatching {
+            tasteEngine?.recordRoutingOutcome(
+                modelRole = agentId?.let { "agent:$it" } ?: "general",
+                modelId = effectiveModel,
+                success = true,
+                latencyMs = 0L,
+                costClass = "chat",
+                outcomeType = "loop_completed",
+                agentScope = agentId?.let { "agent:$it" } ?: "general",
+            )
+        }.onFailure { android.util.Log.w("AgenticLoop", "routing outcome failed: ${it.message}") }
         emit(AgentEvent.Result(finalConv, lastRecall))
         emit(AgentEvent.Done)
     }

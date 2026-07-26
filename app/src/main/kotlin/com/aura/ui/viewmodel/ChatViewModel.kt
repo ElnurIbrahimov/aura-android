@@ -139,6 +139,7 @@ internal suspend fun recordTasteSignalFromReaction(
     reaction: Reaction?,
     modelId: String,
     specialistName: String?,
+    agentId: String? = null,
 ) {
     tasteEngine.recordSignal(
         signalType = "chat_reaction",
@@ -151,8 +152,9 @@ internal suspend fun recordTasteSignalFromReaction(
             "length" to turn.assistant.orEmpty().length.toString(),
         ),
         weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
+        agentScope = if (agentId != null) "agent:$agentId" else "general",
     )
-    tasteEngine.recomputeProfile()
+    tasteEngine.recomputeProfile(if (agentId != null) "agent:$agentId" else "")
 }
 
 sealed interface ModelSelectionState {
@@ -968,6 +970,7 @@ class ChatViewModel @Inject constructor(
                 reaction = reaction,
                 modelId = modelId,
                 specialistName = _state.value.activeAgent?.name ?: _state.value.selectedSpecialist?.name,
+                agentId = _state.value.activeAgentId,
             )
         }
     }
