@@ -8,6 +8,7 @@ import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
+import com.aura.world.BeliefPromoter
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,6 +58,7 @@ class DreamConsolidator @Inject constructor(
     private val routineDao: RoutineDao,
     private val kgProposalDao: KgEdgeProposalDao,
     private val contradictionDao: ContradictionDao,
+    private val beliefPromoter: BeliefPromoter? = null,
     private val providerRegistry: ProviderRegistry,
     private val embedder: Embedder,
     private val crashLogger: CrashLogger,
@@ -209,6 +211,18 @@ class DreamConsolidator @Inject constructor(
                 throw cancelled
             } catch (t: Throwable) {
                 try { android.util.Log.w("DreamConsolidator", "densifyGraph: ${t.message}") } catch (_: RuntimeException) {}
+            }
+
+            // 10. PROMOTE -- turn reinforced KG edges about the user into
+            //     world-model beliefs. Runs after densifyGraph so it sees
+            //     any edges this cycle added.
+            try {
+                val promoted = beliefPromoter?.promote() ?: 0
+                report = report.copy(beliefsPromoted = promoted)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                try { android.util.Log.w("DreamConsolidator", "promoteBeliefs: ${t.message}") } catch (_: RuntimeException) {}
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled

@@ -40,6 +40,8 @@ data class DreamCycleReport(
     val memoriesArchived: Int = 0,
     // Phase 9: user-profile update (mirrors Python's update_profile_from_memories)
     val profileUpdated: Boolean = false,
+    // Phase 10: promote reinforced KG edges into world-model beliefs
+    val beliefsPromoted: Int = 0,
 ) {
     /** A one-line summary suitable for the Settings UI. */
     fun statsLine(): String = buildString {
