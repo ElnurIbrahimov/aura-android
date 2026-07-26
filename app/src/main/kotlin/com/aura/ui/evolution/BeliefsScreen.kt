@@ -28,10 +28,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.components.AuraEmptyState
 import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraThemeTokens
 
 @Composable
 fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
-    val beliefs by viewModel.beliefs.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val beliefs = state.beliefs
     val selected by viewModel.selected.collectAsStateWithLifecycle()
 
     AuraScreenShell(
@@ -67,6 +69,17 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                                 Text("conf: ${belief.confidence}", style = MaterialTheme.typography.labelSmall)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text("status: ${belief.status}", style = MaterialTheme.typography.labelSmall)
+                            }
+                            val supporting = state.evidence[belief.id].orEmpty()
+                            if (supporting.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                supporting.take(3).forEach { evidence ->
+                                    Text(
+                                        text = "· ${evidence.summary}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AuraThemeTokens.colors.textSecondary,
+                                    )
+                                }
                             }
                         }
                     }
