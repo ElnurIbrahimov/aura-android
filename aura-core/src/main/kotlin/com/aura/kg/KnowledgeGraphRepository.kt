@@ -13,6 +13,7 @@ import javax.inject.Singleton
 @Singleton
 class KnowledgeGraphRepository @Inject constructor(
     private val dao: KnowledgeGraphDao,
+    private val beliefConflictProbe: com.aura.world.BeliefConflictProbe? = null,
 ) {
     private val mutex = Mutex()
 
@@ -20,7 +21,7 @@ class KnowledgeGraphRepository @Inject constructor(
         nodes: List<KgNode>,
         edges: List<KgEdge>,
         provenance: ConversationProvenance,
-    ) = mutex.withLock {
+    ): Unit = mutex.withLock {
         val now = System.currentTimeMillis()
         val stableTurnId = if (provenance.isPresent) {
             "${provenance.conversationId}:${provenance.turnTimestamp}"
@@ -59,6 +60,11 @@ class KnowledgeGraphRepository @Inject constructor(
                 ).toEntity()
             )
         }
+        // Structural belief conflicts are cheap enough to resolve inline — a
+        // single indexed lookup per predicate, no model call. Best-effort:
+        // never fail a KG save because revision had a problem.
+        runCatching { beliefConflictProbe?.check(edges.map { it.toEntity() }) }
+            .onFailure { android.util.Log.w("KgRepository", "belief probe failed: ${it.message}") }
     }
 
     suspend fun search(query: String): List<KgNode> =
