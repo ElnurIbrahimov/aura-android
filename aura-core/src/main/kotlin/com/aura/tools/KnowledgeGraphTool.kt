@@ -98,6 +98,7 @@ class KnowledgeGraphTool @Inject constructor(
             appendLine()
             appendLine("Rules:")
             appendLine("- 'label' is a concise name for the node.")
+            appendLine("- Refer to the speaker as label 'user' with type 'person'. Never use their real name, 'I', or 'me' for that node.")
             appendLine("- 'type' must be one of the allowed node types (default to 'unknown' if unsure).")
             appendLine("- 'properties' is optional (omit for empty).")
             appendLine("- 'source_label' and 'target_label' reference node labels from the nodes array.")
