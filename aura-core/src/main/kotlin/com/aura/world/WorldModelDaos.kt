@@ -32,7 +32,7 @@ interface BeliefDao {
     @Query("SELECT * FROM beliefs WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): BeliefEntity?
 
-    @Query("UPDATE beliefs SET status = :status, supersededBy = :supersededBy, updatedAt = :timestamp WHERE id = :id")
+    @Query("UPDATE beliefs SET status = :status, supersededBy = :supersededBy, validTo = :timestamp, updatedAt = :timestamp WHERE id = :id")
     suspend fun supersede(id: kotlin.String, status: kotlin.String, supersededBy: kotlin.String, timestamp: kotlin.Long)
 
     @Query("UPDATE beliefs SET lastVerifiedAt = :timestamp, confidence = :confidence WHERE id = :id")

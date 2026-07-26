@@ -36,6 +36,19 @@ class BeliefReviserTest {
     }
 
     @Test
+    fun `superseding stamps validTo with the timestamp passed in`() = runBlocking {
+        val verdict = Verdict.Winner(belief("new"), belief("old"), margin = 0.4f)
+
+        reviser().applyVerdict(verdict, now = 9_999L)
+
+        // BeliefDao.supersede's fourth argument is both `updatedAt` and,
+        // per the design spec, `validTo` — the DAO is mocked, so we can only
+        // verify the argument value that the query will stamp into both
+        // columns, not the row itself (that needs a Room/androidTest).
+        coVerify { beliefDao.supersede("old", "superseded", "new", 9_999L) }
+    }
+
+    @Test
     fun `revision records a resolved contradiction linking both beliefs`() = runBlocking {
         val verdict = Verdict.Winner(belief("new"), belief("old"), margin = 0.4f)
 
