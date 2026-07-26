@@ -139,6 +139,17 @@ a `reinforcementCount` column on `EdgeEntity` incremented in
 done in slice 1 — ship the proxy, tune only if promotion proves too noisy in
 practice.
 
+**Correction (found during Task 2 review).** The proxy is only meaningful
+because `saveGraph` preserves `createdAt` across re-saves. As originally
+written it did not: `KgEdge.createdAt` defaults at parse time, `saveGraph`
+captures `now` seconds later after the LLM round-trip, and `insertEdge` is
+`OnConflictStrategy.REPLACE`. So `lastReinforced > createdAt` was true on the
+*first* sighting, and a repeat sighting reset `createdAt`, destroying
+first-seen time. The bar filtered nothing and reduced to `confidence >= 0.7`.
+Fixed by adding `KnowledgeGraphDao.getEdge(id)` and carrying the existing
+row's `createdAt` forward, so a first save gives `createdAt == lastReinforced`
+(bar fails) and a second gives `lastReinforced > createdAt` (bar passes).
+
 Promotion is idempotent: re-promoting an unchanged edge calls
 `beliefDao.verify(...)` to bump `lastVerifiedAt` rather than creating a
 duplicate.

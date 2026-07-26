@@ -15,6 +15,11 @@
 - Supersession never deletes a row. `status`/`supersededBy`/`validTo` only.
 - `ARBITER_MIN_MARGIN = 0.15f` on a 0..1 normalised score. Below the margin, do not revise.
 - Promotion bar: `confidence >= 0.7f` AND `lastReinforced > createdAt` AND subject is the user node.
+- The bar only filters because `KnowledgeGraphRepository.saveGraph` carries an
+  existing edge's `createdAt` forward (Task 2 fix round). `insertEdge` is
+  `OnConflictStrategy.REPLACE`, so without that carry-forward a re-save resets
+  `createdAt` and `lastReinforced > createdAt` holds on the FIRST sighting —
+  making the bar inert. Do not remove it.
 - Evidence rows are append-only. Never rewrite or delete one during revision.
 - Follow existing file idioms: `kotlin.String` in `world/` and `kg/` entity/DAO files, plain `String` elsewhere.
 - Test command: `./gradlew :aura-core:testDebugUnitTest --offline --tests "<FQCN>"`.
