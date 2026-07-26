@@ -17,6 +17,8 @@ object KnowledgeGraphModule {
 
     @Provides
     @Singleton
-    fun provideKnowledgeGraphRepository(dao: KnowledgeGraphDao): KnowledgeGraphRepository =
-        KnowledgeGraphRepository(dao)
+    fun provideKnowledgeGraphRepository(
+        dao: KnowledgeGraphDao,
+        beliefConflictProbe: com.aura.world.BeliefConflictProbe,
+    ): KnowledgeGraphRepository = KnowledgeGraphRepository(dao, beliefConflictProbe)
 }
