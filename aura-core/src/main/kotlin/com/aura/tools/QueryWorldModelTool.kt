@@ -58,7 +58,16 @@ class QueryWorldModelTool @Inject constructor(
                 if (beliefs.isNotEmpty()) {
                     appendLine("## Beliefs (${beliefs.size})")
                     beliefs.forEach { b ->
-                        appendLine("- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)")
+                        append("- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)")
+                        val superseded = runCatching { beliefDao.history(b.subject, b.predicate) }
+                            .getOrDefault(emptyList())
+                            .filter { it.status == "superseded" }
+                        if (superseded.isNotEmpty()) {
+                            append(" (previously: ")
+                            append(superseded.joinToString(", ") { it.valueJson })
+                            append(")")
+                        }
+                        appendLine()
                     }
                     appendLine()
                 }

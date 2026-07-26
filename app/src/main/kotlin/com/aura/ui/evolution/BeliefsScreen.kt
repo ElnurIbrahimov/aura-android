@@ -81,6 +81,18 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                                     )
                                 }
                             }
+                            val chain = state.history[belief.id].orEmpty().filter { it.status == "superseded" }
+                            if (chain.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val previouslyLabel = stringResource(R.string.previously)
+                                chain.take(3).forEach { old ->
+                                    Text(
+                                        text = "$previouslyLabel${old.valueJson}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AuraThemeTokens.colors.textSecondary,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

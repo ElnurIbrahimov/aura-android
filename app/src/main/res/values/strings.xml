@@ -209,6 +209,7 @@
     <string name="preferred_model_empty_default">Preferred model (empty = default)</string>
     <string name="premise">Premise</string>
     <string name="preparing_your_space">Preparing your space…</string>
+    <string name="previously">previously: </string>
     <string name="priority">Priority</string>
     <string name="proactive">Proactive</string>
     <string name="proactive_history">Proactive history</string>

@@ -20,6 +20,12 @@ data class BeliefsUiState(
     val beliefs: List<BeliefEntity> = emptyList(),
     /** Evidence supporting each belief, keyed by belief id. */
     val evidence: Map<String, List<EvidenceEntity>> = emptyMap(),
+    /**
+     * Full supersession chain per active belief, keyed by belief id.
+     * `BeliefDao.history` orders by createdAt ASC (oldest first) and includes
+     * the currently active belief alongside any superseded predecessors.
+     */
+    val history: Map<String, List<BeliefEntity>> = emptyMap(),
 )
 
 @HiltViewModel
@@ -42,7 +48,16 @@ class BeliefsViewModel @Inject constructor(
         val evidenceByBelief = loaded.associate { belief ->
             belief.id to runCatching { evidenceDao.forBelief(belief.id) }.getOrDefault(emptyList())
         }
-        _state.value = BeliefsUiState(beliefs = loaded, evidence = evidenceByBelief)
+        val historyByBelief = loaded.associate { belief ->
+            belief.id to runCatching {
+                beliefDao.history(belief.subject, belief.predicate)
+            }.getOrDefault(emptyList())
+        }
+        _state.value = BeliefsUiState(
+            beliefs = loaded,
+            evidence = evidenceByBelief,
+            history = historyByBelief,
+        )
     }
 
     private val _selected = MutableStateFlow<BeliefEntity?>(null)
