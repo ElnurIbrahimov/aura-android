@@ -47,14 +47,14 @@ import javax.inject.Inject
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-private fun formatToolResult(result: ToolResult): String = when (result) {
+    private fun formatToolResult(result: ToolResult): String = when (result) {
     is ToolResult.Ok -> result.output
     is ToolResult.Error -> "Error: ${result.message}"
     is ToolResult.NeedsPermission -> "Still needs permission: ${result.permission}"
     is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
 }
 
-private fun extractCitations(toolName: String, result: String): List<Citation> {
+    private fun extractCitations(toolName: String, result: String): List<Citation> {
     return when (toolName) {
         "deep_research" -> {
             runCatching {
@@ -333,6 +333,14 @@ class ChatViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(ChatUiState())
 
+    private val conversationController = ChatConversationController(
+        _state = _state,
+        conversationStore = conversationStore,
+        knowledgeGraphRepository = knowledgeGraphRepository,
+        scope = viewModelScope,
+        cancelSend = ::cancel,
+    )
+
     /** Reactive list of installed skills, exposed for the composer attachment sheet. */
     val skills: StateFlow<List<Skill>> = skillsStore?.skills ?: MutableStateFlow(emptyList())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -386,23 +394,8 @@ class ChatViewModel @Inject constructor(
         )
     }
 
-    private fun saveConversation() {
-        if (_state.value.incognitoMode) return
-        viewModelScope.launch {
-            runCatching {
-                conversationStore.save(_state.value.conversation)
-            }.onFailure { e ->
-                // Surface the first save failure per session as a
-                // non-blocking warning. Subsequent failures don't
-                // re-set the warning so the UI doesn't spam.
-                if (_state.value.saveWarning == null) {
-                    _state.update {
-                        it.copy(saveWarning = "Conversation could not be saved: ${e.message ?: e.javaClass.simpleName}")
-                    }
-                }
-            }
-        }
-    }
+    private fun saveConversation() = conversationController.saveConversation()
+
 
     init {
         textToSpeech.initialize()
@@ -536,6 +529,7 @@ class ChatViewModel @Inject constructor(
      *   - the picker opening (so a key added in Settings is picked up)
      *   - a manual retry tap from the picker
      */
+
     fun refreshModels() {
         val repository = modelCatalogRepository
         if (repository == null) {
@@ -598,6 +592,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Pick a model for this chat only; global default belongs to Settings. */
+
     fun setModel(model: String) {
         _state.update {
             it.copy(
@@ -609,6 +604,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Explicitly promote the current chat model to the default for future chats. */
+
     fun makeActiveModelDefault() {
         val model = _state.value.activeModel
         if (model.isBlank()) return
@@ -646,6 +642,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Stop the current TTS utterance. Called from the "Stop reading" pill. */
+
     fun stopTts() {
         textToSpeech.stop()
     }
@@ -660,6 +657,7 @@ class ChatViewModel @Inject constructor(
      * takes effect on the next user message — the in-flight turn
      * (if any) keeps the value it was started with.
      */
+
     fun toggleIncognito() {
         _state.update { it.copy(incognitoMode = !it.incognitoMode) }
     }
@@ -670,6 +668,7 @@ class ChatViewModel @Inject constructor(
      * user message (or the conversation is empty). Used by the
      * 'Copy last response' button in the chat header.
      */
+
     fun lastAssistantText(): String {
         val conv = _state.value.conversation
         // Walk turns in reverse to find the most recent assistant
@@ -684,41 +683,24 @@ class ChatViewModel @Inject constructor(
         return ""
     }
 
-    fun loadConversation(id: String) {
-        viewModelScope.launch {
-            _state.update { it.copy(conversationLoading = true) }
-            try {
-                conversationStore.load(id)?.let { conv ->
-                    _state.update { it.copy(conversation = conv) }
-                }
-            } finally {
-                _state.update { it.copy(conversationLoading = false) }
-            }
-        }
-    }
+    fun loadConversation(id: String) = conversationController.loadConversation(id)
+
 
     /**
      * Fork the current conversation from a specific turn index.
      * Creates a new conversation with turns up to [fromTurnIndex],
      * loads it, and saves. The original conversation is untouched.
      */
-    fun forkConversation(fromTurnIndex: Int) {
-        val convId = _state.value.conversation.id
-        viewModelScope.launch {
-            val forkId = conversationStore.fork(convId, fromTurnIndex)
-            if (forkId != null) {
-                conversationStore.load(forkId)?.let { conv ->
-                    _state.update { it.copy(conversation = conv) }
-                }
-            }
-        }
-    }
+
+    fun forkConversation(fromTurnIndex: Int) = conversationController.forkConversation(fromTurnIndex)
+
 
     /**
      * Start a fresh session owned by a compact surface (widget, share sheet,
      * future quick actions) without allowing the asynchronous recent-chat load
      * to overwrite it. Execution still uses the full send controller and agent loop.
      */
+
     fun startIsolatedSession(
         systemPrompt: String,
         model: String? = null,
@@ -759,6 +741,7 @@ class ChatViewModel @Inject constructor(
      * system prompt. The old conversation is NOT deleted — it stays
      * in History. Cancels any in-flight streaming first.
      */
+
     fun newConversation() {
         cancel()
         isolatedSessionRequested = false
@@ -781,30 +764,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun clearConversation() {
-        cancel()
-        val conv = _state.value.conversation
-        _state.update {
-            it.copy(
-                conversation = conv.copy(turns = emptyList()),
-                draft = "",
-                error = null,
-                errorRetryable = false,
-                errorTyped = null,
-                deepModeActive = false,
-                inFlightToolCalls = emptyList(),
-            )
-        }
-        viewModelScope.launch {
-            conversationStore.save(_state.value.conversation)
-        }
-    }
+    fun clearConversation() = conversationController.clearConversation()
+
 
     /**
      * Insert a council synthesis as an assistant-authored turn in the
      * current conversation. Used when the user taps "Send to chat" from
      * the agent council screen.
      */
+
     fun insertCouncilResult(text: String) {
         cancel()
         _state.update { old ->
@@ -815,27 +783,7 @@ class ChatViewModel @Inject constructor(
         saveConversation()
     }
 
-    fun exportConversation(): kotlin.String {
-        val conv = _state.value.conversation
-        val sb = StringBuilder()
-        sb.appendLine("# ${conv.title.ifBlank { "Conversation" }}")
-        sb.appendLine()
-        for (turn in conv.turns) {
-            turn.user?.let {
-                sb.appendLine("## User")
-                sb.appendLine()
-                sb.appendLine(it)
-                sb.appendLine()
-            }
-            turn.assistant?.let {
-                sb.appendLine("## Aura")
-                sb.appendLine()
-                sb.appendLine(it)
-                sb.appendLine()
-            }
-        }
-        return sb.toString()
-    }
+    fun exportConversation(): kotlin.String = conversationController.exportConversation()
 
     fun editAndResend(turnIndex: Int, newText: kotlin.String) {
         if (_state.value.streaming) return
@@ -861,32 +809,8 @@ class ChatViewModel @Inject constructor(
      * undo. In incognito mode the conversation was never persisted
      * so we just reset the UI state.
      */
-    fun deleteCurrentConversation() {
-        cancel()
-        val convId = _state.value.conversation.id
-        viewModelScope.launch {
-            if (!_state.value.incognitoMode) {
-                runCatching { conversationStore.delete(convId) }.onFailure { Log.w(TAG, "Delete conversation failed", it) }
-            }
-            _state.update {
-                it.copy(
-                    conversation = com.aura.agent.Conversation(
-                        systemPrompt = "You are Aura, a personal AI assistant. Be concise and direct. Ask what they need help with.",
-                        title = "New conversation",
-                    ),
-                    draft = "",
-                    error = null,
-                    errorRetryable = false,
-                    errorTyped = null,
-                    deepModeEnabled = false,
-                    deepModeActive = false,
-                    activeAgent = null,
-                    activeAgentId = null,
-                    inFlightToolCalls = emptyList(),
-                )
-            }
-        }
-    }
+
+    fun deleteCurrentConversation() = conversationController.deleteCurrentConversation()
 
     fun dismissPermission() {
         _state.update { it.copy(pendingPermission = null, permissionRationale = null, pendingToolRetry = null) }
@@ -897,6 +821,7 @@ class ChatViewModel @Inject constructor(
      * approved set and re-engage the model so the tool re-executes
      * with the approved set in ToolContext.
      */
+
     fun approveRemoteCost() {
         val pending = _state.value.pendingApproval ?: return
         val toolName = pending.first
@@ -913,12 +838,14 @@ class ChatViewModel @Inject constructor(
      * User confirmed an IMPLICIT/BIOMETRIC tool. Dismiss the dialog and
      * re-engage so the tool executes with the user's confirmation in context.
      */
+
     fun confirmTool(toolName: String) {
         _state.update { it.copy(pendingApproval = null) }
         sendController.runSend(viewModelScope)
     }
 
     /** User dismissed the REMOTE_COST approval dialog. */
+
     fun dismissApproval() {
         _state.update { it.copy(pendingApproval = null) }
     }
@@ -931,6 +858,7 @@ class ChatViewModel @Inject constructor(
      * match any current turn. The new conversation is persisted to
      * Room so the reaction survives reloads.
      */
+
     fun reactToTurn(turnTimestamp: Long, reaction: Reaction?) {
         val current = _state.value.conversation
         val index = current.turns.indexOfFirst { it.timestamp == turnTimestamp }
@@ -983,18 +911,10 @@ class ChatViewModel @Inject constructor(
      * - capitalizes the first letter
      * No LLM call — deterministic and instant.
      */
+
     private fun generateTitle(text: String): String = generateConversationTitle(text)
 
-    private fun refreshKgNodeCount() {
-        viewModelScope.launch {
-            runCatching {
-                val count = knowledgeGraphRepository.stats().nodeCount
-                if (count > _state.value.kgNodeCount) {
-                    _state.update { it.copy(kgNodeCount = count) }
-                }
-            }.onFailure { Log.w(TAG, "KG stats refresh failed", it) }
-        }
-    }
+    private fun refreshKgNodeCount() = conversationController.refreshKgNodeCount()
 
     private fun setErrorWithAutoDismiss(error: String, retryable: Boolean = false, typed: AuraError? = null) {
         val friendly = com.aura.ui.components.friendlyErrorMessage(error)
@@ -1019,6 +939,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Retry the last user turn without duplicating it in history. */
+
     fun retryLast() {
         if (_state.value.streaming) return
         val retry = prepareConversationForRetry(_state.value.conversation) ?: return
