@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.Properties
 import javax.inject.Inject
+import android.util.Log
 import javax.inject.Singleton
 import javax.mail.Authenticator
 import javax.mail.Message
@@ -123,6 +124,8 @@ class SendEmailBackgroundTool @Inject constructor(
                 setText(body)
             }
             Transport.send(message)
+        }.onFailure {
+            Log.w("SendEmailBackground", "SMTP send failed: ${it.message}")
         }
     }
 }
