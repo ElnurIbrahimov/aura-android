@@ -19,8 +19,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -32,32 +34,75 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aura.dream.ContradictionEntity
+import com.aura.dream.ContradictionDao
+import com.aura.dream.DreamConsolidationDao
+import com.aura.dream.DreamSummaryEntity
+import com.aura.dream.KgEdgeProposalDao
+import com.aura.dream.KgEdgeProposalEntity
+import com.aura.dream.RoutineDao
 import com.aura.dream.RoutineEntity
+import com.aura.kg.KnowledgeGraphRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModel
-import com.aura.dream.ContradictionDao
-import com.aura.dream.RoutineDao
 
 @HiltViewModel
 class DreamsViewModel @Inject constructor(
-    routineDao: RoutineDao,
-    contradictionDao: ContradictionDao,
+    private val routineDao: RoutineDao,
+    private val contradictionDao: ContradictionDao,
+    private val dreamDao: DreamConsolidationDao,
+    private val kgProposalDao: KgEdgeProposalDao,
+    private val knowledgeGraphRepository: KnowledgeGraphRepository,
 ) : ViewModel() {
+
+    val summaries: StateFlow<List<DreamSummaryEntity>> = dreamDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
+
     val routines: StateFlow<List<RoutineEntity>> = routineDao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    // UNRESOLVED only: belief-linked contradictions are written by
-    // BeliefReviser already RESOLVED (the revision happened automatically at
-    // write time), so without this filter every belief revision would show
-    // up here as a "Contradiction" to review even though nothing is pending.
-    // This screen is for things that still need the user's attention.
     val contradictions: StateFlow<List<ContradictionEntity>> = contradictionDao.observeByStatus("UNRESOLVED")
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
+
+    val kgProposals: StateFlow<List<KgEdgeProposalEntity>> = kgProposalDao.observeByStatus("PENDING")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
+
+    fun resolveContradiction(id: String, acceptNewer: Boolean) {
+        viewModelScope.launch {
+            val entity = contradictionDao.byId(id) ?: return@launch
+            val resolved = entity.copy(
+                status = if (acceptNewer) "RESOLVED" else "DISMISSED",
+                resolvedAt = System.currentTimeMillis(),
+            )
+            contradictionDao.update(resolved)
+        }
+    }
+
+    fun acceptKgProposal(id: String) {
+        viewModelScope.launch {
+            val entity = kgProposalDao.byId(id) ?: return@launch
+            knowledgeGraphRepository.addRelatesToEdge(entity.fromNodeId, entity.toNodeId, entity.similarity)
+            kgProposalDao.update(entity.copy(status = "ACCEPTED", decidedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun rejectKgProposal(id: String) {
+        viewModelScope.launch {
+            val entity = kgProposalDao.byId(id) ?: return@launch
+            kgProposalDao.update(entity.copy(status = "REJECTED", decidedAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun deleteSummary(id: String) {
+        viewModelScope.launch {
+            dreamDao.deleteById(id)
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,8 +111,10 @@ fun DreamsScreen(
     onBack: () -> Unit = {},
     viewModel: DreamsViewModel = viewModel(),
 ) {
+    val summaries by viewModel.summaries.collectAsStateWithLifecycle()
     val routines by viewModel.routines.collectAsStateWithLifecycle()
     val contradictions by viewModel.contradictions.collectAsStateWithLifecycle()
+    val kgProposals by viewModel.kgProposals.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -86,13 +133,25 @@ fun DreamsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (summaries.isNotEmpty()) {
+                item {
+                    Text(
+                        "Dream summaries (${summaries.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                items(summaries, key = { it.id }) { summary ->
+                    SummaryCard(summary)
+                }
+            }
             if (routines.isNotEmpty()) {
                 item {
                     Text(
                         "Routines (${routines.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 4.dp),
+                        modifier = Modifier.padding(top = 16.dp),
                     )
                 }
                 items(routines, key = { it.id }) { routine ->
@@ -105,14 +164,35 @@ fun DreamsScreen(
                         "Contradictions (${contradictions.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                        modifier = Modifier.padding(top = 16.dp),
                     )
                 }
                 items(contradictions, key = { it.id }) { contradiction ->
-                    ContradictionCard(contradiction)
+                    ContradictionCard(
+                        contradiction = contradiction,
+                        onResolve = { viewModel.resolveContradiction(it, acceptNewer = true) },
+                        onDismiss = { viewModel.resolveContradiction(it, acceptNewer = false) },
+                    )
                 }
             }
-            if (routines.isEmpty() && contradictions.isEmpty()) {
+            if (kgProposals.isNotEmpty()) {
+                item {
+                    Text(
+                        "Graph proposals (${kgProposals.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+                items(kgProposals, key = { it.id }) { proposal ->
+                    KgProposalCard(
+                        proposal = proposal,
+                        onAccept = { viewModel.acceptKgProposal(it) },
+                        onReject = { viewModel.rejectKgProposal(it) },
+                    )
+                }
+            }
+            if (summaries.isEmpty() && routines.isEmpty() && contradictions.isEmpty() && kgProposals.isEmpty()) {
                 item {
                     Text(
                         "No dream summaries yet. Run a dream consolidation cycle from Settings to generate routines and detect contradictions.",
@@ -127,10 +207,35 @@ fun DreamsScreen(
 }
 
 @Composable
+private fun SummaryCard(summary: DreamSummaryEntity) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                summary.compressedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (summary.dominantTags.isNotBlank()) {
+                Text(
+                    summary.dominantTags.split(",").joinToString("  ") { "#${it.trim()}" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Text(
+                "${summary.sourceCount} sources · ${summary.modelUsed}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun RoutineCard(routine: RoutineEntity) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -167,10 +272,12 @@ private fun RoutineCard(routine: RoutineEntity) {
 }
 
 @Composable
-private fun ContradictionCard(contradiction: ContradictionEntity) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+private fun ContradictionCard(
+    contradiction: ContradictionEntity,
+    onResolve: (String) -> Unit,
+    onDismiss: (String) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -205,11 +312,45 @@ private fun ContradictionCard(contradiction: ContradictionEntity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { onDismiss(contradiction.id) }) { Text("Dismiss") }
+                OutlinedButton(onClick = { onResolve(contradiction.id) }) { Text("Use newer") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KgProposalCard(
+    proposal: KgEdgeProposalEntity,
+    onAccept: (String) -> Unit,
+    onReject: (String) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
-                "Status: ${contradiction.status}",
+                "${proposal.fromLabel}  →  ${proposal.toLabel}",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                "Similarity ${"%.0f".format(proposal.similarity * 100)}% · ${proposal.proposedEdge}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { onReject(proposal.id) }) { Text("Reject") }
+                OutlinedButton(onClick = { onAccept(proposal.id) }) { Text("Accept") }
+            }
         }
     }
 }

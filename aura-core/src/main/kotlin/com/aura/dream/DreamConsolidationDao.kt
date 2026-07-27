@@ -49,6 +49,9 @@ interface DreamConsolidationDao {
     @Query("SELECT clusterId FROM dream_summaries")
     suspend fun allClusterIds(): List<String>
 
+    @Query("DELETE FROM dream_summaries WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("DELETE FROM dream_summaries")
     suspend fun deleteAll()
 

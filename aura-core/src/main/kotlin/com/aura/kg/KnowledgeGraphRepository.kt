@@ -220,4 +220,34 @@ class KnowledgeGraphRepository @Inject constructor(
     )
 
     data class Stats(val nodeCount: Int, val edgeCount: Int)
+
+    /**
+     * Insert a single RELATES_TO edge between two existing nodes.
+     * Used by the dream KG proposal accept flow.
+     */
+    suspend fun addRelatesToEdge(
+        sourceId: String,
+        targetId: String,
+        weight: Float = 0.7f,
+    ) = mutex.withLock {
+        val now = System.currentTimeMillis()
+        val id = KgId.edge(EdgeType.RELATES_TO, sourceId, targetId)
+        val firstSeen = dao.getEdge(id)?.createdAt ?: now
+        dao.insertEdge(
+            EdgeEntity(
+                id = id,
+                type = EdgeType.RELATES_TO.name.lowercase(),
+                sourceId = sourceId,
+                targetId = targetId,
+                weight = weight,
+                properties = "{}",
+                confidence = 0.7f,
+                sourceTurnId = "",
+                createdAt = firstSeen,
+                lastReinforced = now,
+                sourceConversationId = "",
+                sourceTurnTimestamp = 0L,
+            ),
+        )
+    }
 }
