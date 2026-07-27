@@ -183,7 +183,7 @@ class OnboardingViewModel @Inject constructor(
     }
 
     private companion object {
-        val PROVIDERS = listOf("ollama", "anthropic")
+        val PROVIDERS = listOf("ollama", "anthropic", "openai", "deepseek", "gemini", "groq", "openrouter")
     }
 }
 
