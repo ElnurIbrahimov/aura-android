@@ -26,7 +26,7 @@ stale by design — do not treat them as a description of the current codebase.
 | 07-26 | Full pass | 1,257 tests | Anthropic parallel tool-call routing (P0) |
 | 07-26 | Pass 2 | 1,259 tests | Same bug class in the OpenAI-compat family (P0) |
 | 07-26 | Phase 1 audits (3) | v0.36.0 | 28 UI findings, data-layer gaps, agent-loop re-verification |
-| 07-26 | External review | 1,286 tests | Cost/latency defaults, test-quality problems (see §2.6) |
+| 07-27 | runCatching + dual-state cleanup | 1,596 tests | Council/chat wiring, task cancellation, agent context, specialist cleanup, silent runCatching logging |
 
 Ten passes in ten days. See §4 for what that produced and what it cost.
 
