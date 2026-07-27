@@ -198,16 +198,15 @@ class ChatSendController(
             state.update { it.copy(conversation = it.conversation.copy(title = title)) }
         }
 
-        val specialist = current.selectedSpecialist
-            ?: current.activeAgent?.let { agent ->
-                com.aura.agent.Specialist(
-                    name = agent.name,
-                    icon = agent.icon,
-                    systemPrompt = agent.identity,
-                    toolsAllowed = agent.toolSet(),
-                    suggestedModel = agent.preferredModel,
-                )
-            }
+        val specialist = current.activeAgent?.let { agent ->
+            com.aura.agent.Specialist(
+                name = agent.name,
+                icon = agent.icon,
+                systemPrompt = agent.identity,
+                toolsAllowed = agent.toolSet(),
+                suggestedModel = agent.preferredModel,
+            )
+        }
         responseBuffer = StringBuilder()
 
         onSaveConversation()  // Save user message immediately
@@ -234,6 +233,7 @@ class ChatSendController(
                             memoryEnabled = !state.value.incognitoMode,
                             approvedRemoteCostTools = state.value.approvedRemoteCostTools + "delegate_to_agent",
                             userMessage = "@$agentName: $task",
+                            activeAgentId = state.value.activeAgentId ?: "",
                         )
                         val result = when (val r = toolExecutor.execute("delegate_to_agent", toolArgs, ctx)) {
                             is com.aura.agent.ToolResult.Ok -> r.output

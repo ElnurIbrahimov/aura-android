@@ -73,6 +73,8 @@ class IdentityStore @Inject constructor(
                     Log.w(TAG, "Failed to delete legacy identity override file after save", it)
                 }
             }
+        }.onFailure {
+            Log.w(TAG, "Failed to save identity", it)
         }.isSuccess
     }
 
@@ -83,6 +85,8 @@ class IdentityStore @Inject constructor(
                 Log.w(TAG, "Failed to delete legacy identity override file on reset", it)
             }
         }
+    }.onFailure {
+        Log.w(TAG, "Failed to reset identity", it)
     }.isSuccess
 
     suspend fun hasOverride(): Boolean =

@@ -207,6 +207,7 @@ class DelegateToAgentTool @Inject constructor(
             // 15-30s tools (brave_search, web_search)
             // have time to complete.
             timeout = 30_000L,
+            activeAgentId = if (ctx.activeAgentId.isNotBlank()) ctx.activeAgentId else agent.id,
         )
         val executor = toolExecutor.get()
         for (step in 1..DELEGATION_MAX_STEPS) {

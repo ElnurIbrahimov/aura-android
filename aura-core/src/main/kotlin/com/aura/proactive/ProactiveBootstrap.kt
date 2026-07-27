@@ -1,5 +1,6 @@
 package com.aura.proactive
 
+import android.util.Log
 import android.content.Intent
 import com.aura.data.UserPreferences
 import com.aura.evolution.EvolutionScheduler
@@ -39,6 +40,8 @@ import javax.inject.Singleton
  * been unused for 60 days actually gets its score nudged down).
  */
 @Singleton
+private const val TAG = "ProactiveBootstrap"
+
 class ProactiveBootstrap @Inject constructor(
     @ApplicationContext private val appContext: android.content.Context,
     private val scheduler: ProactiveScheduler,
@@ -76,7 +79,7 @@ class ProactiveBootstrap @Inject constructor(
         // than the retention window. Cheap (indexed), no UI impact, no
         // need for a separate Worker.
         scope.launch {
-            runCatching { conversationStore.purgeDeletedOlderThan() }
+            runCatching { conversationStore.purgeDeletedOlderThan() }.onFailure { android.util.Log.w(TAG, "Purge deleted conversations failed", it) }
         }
         // Keep one long-lived reconciliation collector.
         // their persisted defaults immediately and every Settings mutation
@@ -321,4 +324,5 @@ class ProactiveBootstrap @Inject constructor(
         /** Custom broadcast action the [com.aura.widget.AskAuraWidget] listens for. */
         const val ACTION_REFRESH_WIDGET = "com.aura.action.REFRESH_WIDGET"
     }
+
 }

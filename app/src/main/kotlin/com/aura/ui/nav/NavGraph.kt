@@ -206,6 +206,7 @@ fun NavGraph(
                 val draft = it.arguments?.getString("draft")
                 val focusTurn = it.arguments?.getString("focusTurn")?.toLongOrNull()
                 ChatRoute(
+                    navController = navController,
                     resumeConversationId = convId,
                     morningBriefSummary = summary,
                     initialDraft = draft,
@@ -327,12 +328,20 @@ fun NavGraph(
                     onDone = { navController.popBackStack() },
                 )
             }
-            composable("council") {
-                CouncilScreen(onBack = { navController.popBackStack() })
-            }
-            composable("schedule") {
-                val viewModel: ScheduleViewModel = hiltViewModel()
-                ScheduleScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            composable(
+                route = "council/{convId}",
+                arguments = listOf(navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+            ) { backStackEntry ->
+                val convId = backStackEntry.arguments?.getString("convId")
+                CouncilScreen(
+                    onBack = { navController.popBackStack() },
+                    onSendToChat = { text ->
+                        if (!convId.isNullOrBlank()) {
+                            navController.previousBackStackEntry?.savedStateHandle?.set("council_result", text)
+                            navController.popBackStack()
+                        }
+                    },
+                )
             }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(
@@ -340,6 +349,11 @@ fun NavGraph(
                     onRollback = { proposalId -> navController.navigate("evolution/rollback/$proposalId") },
                 )
             }
+            composable("schedule") {
+                val viewModel: ScheduleViewModel = hiltViewModel()
+                ScheduleScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
+
             composable("evolution/beliefs") {
                 BeliefsScreen()
             }

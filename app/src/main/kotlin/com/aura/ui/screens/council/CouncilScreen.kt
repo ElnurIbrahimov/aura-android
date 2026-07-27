@@ -54,6 +54,7 @@ import com.aura.ui.viewmodel.CouncilViewModel
 @Composable
 fun CouncilScreen(
     onBack: () -> Unit,
+    onSendToChat: (String) -> Unit = {},
     viewModel: CouncilViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -78,7 +79,6 @@ fun CouncilScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(12.dp))
-
             Text(
                 text = "Ask multiple agents, then let one synthesize the best answer.",
                 color = AuraThemeTokens.colors.textSecondary,
@@ -138,7 +138,20 @@ fun CouncilScreen(
 
             state.result?.let { result ->
                 Spacer(Modifier.height(16.dp))
-                Text("Final synthesis", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Final synthesis", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    IconButton(onClick = { onSendToChat(result.directorOutput) }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send synthesis to chat",
+                            tint = AuraThemeTokens.colors.actionPrimary,
+                        )
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

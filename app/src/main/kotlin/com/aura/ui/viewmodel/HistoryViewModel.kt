@@ -1,5 +1,6 @@
 package com.aura.ui.viewmodel
 
+import android.util.Log
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -179,7 +180,7 @@ class HistoryViewModel @Inject constructor(
             // 7-day tombstones get hard-purged on every delete. Cheap
             // because the index on deletedAt makes it O(log n + purge
             // count). Bounded to a few hundred rows in practice.
-            runCatching { store.purgeDeletedOlderThan() }
+            runCatching { store.purgeDeletedOlderThan() }.onFailure { Log.w("HistoryViewModel", "purge deleted failed", it) }
         }
     }
 

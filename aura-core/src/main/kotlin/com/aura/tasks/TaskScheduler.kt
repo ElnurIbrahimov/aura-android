@@ -33,8 +33,8 @@ class TaskScheduler @Inject constructor(
 
     /** Cancel reminders for a task. */
     suspend fun cancel(taskId: String) {
-        // ReminderScheduler has no cancel by taskId; worker will replace by unique work? It uses reminder id.
-        // We can cancel WorkManager by tag if we tagged with taskId. For now no-op: callers cancel by reminder id.
+        if (taskId.isBlank()) return
+        reminderScheduler.cancelByTaskId(taskId)
     }
 
     /** Flow of tasks enriched with next occurrence. */

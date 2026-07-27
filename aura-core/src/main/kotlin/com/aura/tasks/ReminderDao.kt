@@ -40,4 +40,7 @@ interface ReminderDao {
 
     @Query("DELETE FROM reminders WHERE taskId = :taskId")
     suspend fun deleteByTaskId(taskId: String)
+
+    @Query("SELECT * FROM reminders WHERE taskId = :taskId")
+    suspend fun getByTaskId(taskId: String): List<ReminderEntity>
 }

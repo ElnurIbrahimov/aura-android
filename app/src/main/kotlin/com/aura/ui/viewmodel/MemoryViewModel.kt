@@ -1,5 +1,6 @@
 package com.aura.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.memory.MemoryEditEntity
@@ -366,14 +367,14 @@ class MemoryViewModel @Inject constructor(
 
     fun renameCategory(oldCategory: String, newCategory: String) {
         viewModelScope.launch {
-            runCatching { memoryStore.renameCategory(oldCategory, newCategory) }
+            runCatching { memoryStore.renameCategory(oldCategory, newCategory) }.onFailure { Log.w("MemoryViewModel", "rename category failed", it) }
             refresh()
         }
     }
 
     fun mergeCategories(source: String, target: String) {
         viewModelScope.launch {
-            runCatching { memoryStore.mergeCategories(source, target) }
+            runCatching { memoryStore.mergeCategories(source, target) }.onFailure { Log.w("MemoryViewModel", "merge categories failed", it) }
             refresh()
         }
     }

@@ -11,8 +11,6 @@ import com.aura.agent.AgentEvent
 import com.aura.agent.ConversationStore
 import com.aura.agent.MemoryAugmentedAgenticLoop
 import com.aura.agent.Reaction
-import com.aura.agent.Specialist
-import com.aura.agent.SpecialistRouter
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolRegistry
@@ -225,12 +223,10 @@ data class ChatUiState(
     val modelsError: String? = null,
     val modelSelection: ModelSelectionState = ModelSelectionState.Missing,
     val ttsEnabled: Boolean = true,
-    /** Active agent selected for this chat, if any. Replaces legacy [selectedSpecialist]. */
+    /** Active agent selected for this chat, if any. */
     val activeAgent: com.aura.agent.AgentEntity? = null,
     /** Available agents from [AgentStore]. Populated on init. */
     val availableAgents: List<com.aura.agent.AgentEntity> = emptyList(),
-    val selectedSpecialist: Specialist? = null,
-    val suggestedSpecialist: Specialist? = null,
     /** Agent ID for per-agent memory scoping. Derived from [activeAgent]. */
     val activeAgentId: String? = null,
     val pendingPermission: String? = null,
@@ -595,11 +591,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun setDraft(text: String) {
-        _state.update { old ->
-            val suggested = if (text.isBlank()) null
-                else SpecialistRouter.pickSpecialist(text)
-            old.copy(draft = text, suggestedSpecialist = suggested)
-        }
+        _state.update { it.copy(draft = text) }
     }
 
     /** Pick a model for this chat only; global default belongs to Settings. */
@@ -632,33 +624,6 @@ class ChatViewModel @Inject constructor(
                 "You are ${agent.name}. ${agent.identity.trim()}"
             } else (old.conversation.systemPrompt ?: "")
             old.copy(
-                activeAgent = agent,
-                selectedSpecialist = null,
-                activeAgentId = agentId,
-                activeModel = newModel,
-                conversation = old.conversation.copy(systemPrompt = systemPrompt),
-            )
-        }
-    }
-
-    /**
-     * Legacy specialist setter. Prefer [setActiveAgent]; this only exists
-     * for callers that still hold a [Specialist] reference.
-     */
-    fun setSpecialist(specialist: Specialist?) {
-        _state.update { old ->
-            val agent = old.availableAgents.find { it.name.equals(specialist?.name, ignoreCase = true) }
-            val newModel = agent?.preferredModel?.takeIf { it.isNotBlank() }
-                ?: specialist?.suggestedModel
-                ?: old.activeModel
-            val agentId = agent?.id ?: specialist?.let { "agent_${it.name}" }
-            val systemPrompt = if (agent != null && !agent.identity.isNullOrBlank()) {
-                "You are ${agent.name}. ${agent.identity.trim()}"
-            } else if (specialist != null && specialist.systemPrompt.isNotBlank()) {
-                "You are ${specialist.name}. ${specialist.systemPrompt.trim()}"
-            } else old.conversation.systemPrompt
-            old.copy(
-                selectedSpecialist = specialist,
                 activeAgent = agent,
                 activeAgentId = agentId,
                 activeModel = newModel,
@@ -778,8 +743,6 @@ class ChatViewModel @Inject constructor(
                     ModelSelectionState.Missing
                 },
                 ttsEnabled = false,
-                selectedSpecialist = null,
-                suggestedSpecialist = null,
                 activeAgent = null,
                 activeAgentId = null,
                 inFlightToolCalls = emptyList(),
@@ -807,8 +770,6 @@ class ChatViewModel @Inject constructor(
                 errorRetryable = false,
                 errorTyped = null,
                 deepModeEnabled = false,
-                selectedSpecialist = null,
-                suggestedSpecialist = null,
                 activeAgent = null,
                 activeAgentId = null,
                 deepModeActive = false,
@@ -834,6 +795,21 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             conversationStore.save(_state.value.conversation)
         }
+    }
+
+    /**
+     * Insert a council synthesis as an assistant-authored turn in the
+     * current conversation. Used when the user taps "Send to chat" from
+     * the agent council screen.
+     */
+    fun insertCouncilResult(text: String) {
+        cancel()
+        _state.update { old ->
+            old.copy(
+                conversation = old.conversation.addAssistant(text, old.activeAgentId),
+            )
+        }
+        saveConversation()
     }
 
     fun exportConversation(): kotlin.String {
@@ -901,8 +877,6 @@ class ChatViewModel @Inject constructor(
                     errorTyped = null,
                     deepModeEnabled = false,
                     deepModeActive = false,
-                    selectedSpecialist = null,
-                    suggestedSpecialist = null,
                     activeAgent = null,
                     activeAgentId = null,
                     inFlightToolCalls = emptyList(),
@@ -969,7 +943,7 @@ class ChatViewModel @Inject constructor(
                 turn = turn,
                 reaction = reaction,
                 modelId = modelId,
-                specialistName = _state.value.activeAgent?.name ?: _state.value.selectedSpecialist?.name,
+                specialistName = _state.value.activeAgent?.name,
                 agentId = _state.value.activeAgentId,
             )
         }

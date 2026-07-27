@@ -38,7 +38,6 @@ import com.aura.ui.components.EmptyChatState
 import com.aura.ui.components.FollowUpSuggestionChips
 import com.aura.ui.components.MoaThinkingIndicator
 import com.aura.ui.components.QuickChipRow
-import com.aura.ui.components.SpecialistChips
 import com.aura.ui.components.VisionPromptChips
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
@@ -179,26 +178,14 @@ fun ChatContent(
                 SaveWarningBanner(warning, onDismissSaveWarning)
             }
 
-            if (state.draft.isNotBlank() || state.activeAgent != null || state.selectedSpecialist != null) {
-                if (state.activeAgent != null) {
+            if (state.draft.isNotBlank() || state.activeAgent != null) {
+                state.activeAgent?.let { agent ->
                     AgentChip(
-                        agent = state.activeAgent,
+                        agent = agent,
                         onClick = onShowAgentPicker,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                 }
-                SpecialistChips(
-                    selected = state.selectedSpecialist
-                        ?: state.availableAgents.find { it.id == state.activeAgentId }?.let { agent ->
-                            com.aura.agent.Specialist.ALL.find { it.name.equals(agent.name, ignoreCase = true) }
-                        },
-                    suggested = state.suggestedSpecialist,
-                    onSelect = { _ ->
-                        // Specialist chips are now visualized as agent mappings.
-                        // The agent picker sheet is the canonical selection surface.
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                )
             }
             state.pendingVisionBitmap?.let { bitmap ->
                 VisionPromptChips(

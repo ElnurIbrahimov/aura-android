@@ -440,7 +440,7 @@ fun MarkdownText(
             annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
                 .firstOrNull()
                 ?.let { annotation ->
-                    runCatching { uriHandler.openUri(annotation.item) }
+                    runCatching { uriHandler.openUri(annotation.item) }.onFailure { android.util.Log.w("MarkdownText", "openUri failed", it) }
                 }
         },
     )

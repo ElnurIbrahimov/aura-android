@@ -86,7 +86,6 @@ import com.aura.ui.components.MoaThinkingIndicator
 import com.aura.ui.components.ModelPickerSheet
 import com.aura.ui.components.AgentPickerSheet
 import com.aura.ui.theme.AuraThemeTokens
-import com.aura.ui.components.SpecialistChips
 import com.aura.ui.viewmodel.ChatViewModel
 import com.aura.ui.viewmodel.calculateImageSampleSize
 import com.aura.ui.voice.VoiceOverlay
@@ -160,6 +159,7 @@ internal fun findSourceTurnIndex(turnTimestamps: List<Long>, targetTimestamp: Lo
 
 @Composable
 fun ChatRoute(
+    navController: androidx.navigation.NavHostController,
     viewModel: ChatViewModel = hiltViewModel(),
     resumeConversationId: String? = null,
     morningBriefSummary: String? = null,
@@ -230,6 +230,18 @@ fun ChatRoute(
     // Sync ViewModel draft back to savedDraft for persistence
     LaunchedEffect(state.draft) {
         savedDraft = state.draft
+    }
+
+    // Listen for council result coming back from the council screen.
+    val currentBackStackEntry = navController.currentBackStackEntry
+    val councilResultFlow = currentBackStackEntry?.savedStateHandle?.getStateFlow<String?>("council_result", null)
+    val councilResult by councilResultFlow?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
+    LaunchedEffect(councilResult) {
+        val result = councilResult
+        if (!result.isNullOrBlank()) {
+            viewModel.insertCouncilResult(result)
+            currentBackStackEntry?.savedStateHandle?.set("council_result", null)
+        }
     }
 
     var showModelPicker by remember { mutableStateOf(false) }
@@ -393,6 +405,9 @@ fun ChatRoute(
         onDismissProviderWarning = viewModel::dismissProviderWarning,
         onDismissSaveWarning = viewModel::dismissSaveWarning,
         onShowAgentPicker = { showAgentPicker = true },
+        onOpenCouncil = {
+            navController.navigate("council".plus("/").plus(state.conversation.id))
+        },
         onRunVisionPrompt = viewModel::runVisionPrompt,
         onDismissVision = viewModel::dismissPendingVision,
         onShowSources = { showSources = true },

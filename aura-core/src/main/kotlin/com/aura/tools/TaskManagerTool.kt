@@ -1,11 +1,6 @@
 package com.aura.tools
 
 import android.content.Context
-import androidx.work.Constraints
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
@@ -16,7 +11,6 @@ import com.aura.providers.ToolProperty
 import com.aura.tasks.TaskEntity
 import com.aura.tasks.TaskDao
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +23,7 @@ import javax.inject.Singleton
 class TaskManagerTool @Inject constructor(
     @ApplicationContext private val context: Context,
     private val taskDao: TaskDao,
+    private val taskScheduler: com.aura.tasks.TaskScheduler,
 ) {
     fun definition() = ToolDefinition(
         name = "manage_tasks",
@@ -76,19 +71,18 @@ class TaskManagerTool @Inject constructor(
                             )
                         )
                         if (triggerAt != null && triggerAt > System.currentTimeMillis()) {
-                            val work = OneTimeWorkRequestBuilder<ReminderWorker>()
-                                .setInitialDelay(triggerAt - System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-                                .setInputData(
-                                    Data.Builder()
-                                        .putString("title", "📋 $title")
-                                        .putString("body", "Task reminder")
-                                        .putString("task_id", id)
-                                        .build()
+                            taskScheduler.schedule(
+                                TaskEntity(
+                                    id = id,
+                                    title = title,
+                                    createdAt = System.currentTimeMillis(),
+                                    description = description,
+                                    dueAt = triggerAt,
+                                    status = "pending",
+                                    priority = priority,
+                                    tags = tags,
                                 )
-                                .setConstraints(Constraints.NONE)
-                                .addTag("task-$id")
-                                .build()
-                            WorkManager.getInstance(context).enqueueUniqueWork("task-$id", ExistingWorkPolicy.REPLACE, work)
+                            )
                         }
                         val whenDisplay = triggerAt?.let { TimeParser.format(it) } ?: "(no reminder)"
                         ToolResult.Ok("Task created (id $id): $title — $whenDisplay")
@@ -115,6 +109,7 @@ class TaskManagerTool @Inject constructor(
                 "complete" -> {
                     val id = call.arguments["id"] as? String ?: return@Tool ToolResult.Error("missing 'id'", "bad_args")
                     try {
+                        taskScheduler.cancel(id)
                         taskDao.markComplete(id, System.currentTimeMillis())
                         ToolResult.Ok("Task $id marked complete.")
                     } catch (e: Exception) {
@@ -124,8 +119,8 @@ class TaskManagerTool @Inject constructor(
                 "delete" -> {
                     val id = call.arguments["id"] as? String ?: return@Tool ToolResult.Error("missing 'id'", "bad_args")
                     try {
+                        taskScheduler.cancel(id)
                         taskDao.delete(id)
-                        WorkManager.getInstance(context).cancelUniqueWork("task-$id")
                         ToolResult.Ok("Task $id deleted.")
                     } catch (e: Exception) {
                         ToolResult.Error("delete failed: ${e.message}", "exception")

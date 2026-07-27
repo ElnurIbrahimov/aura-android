@@ -3,7 +3,6 @@ package com.aura.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.WorkManager
 import com.aura.tasks.ReminderDao
 import com.aura.tasks.ReminderEntity
 import com.aura.tasks.ReminderStore
@@ -40,6 +39,7 @@ class TasksViewModel @Inject constructor(
     private val taskDao: TaskDao,
     private val reminderDao: ReminderDao,
     private val reminderStore: ReminderStore,
+    private val taskScheduler: com.aura.tasks.TaskScheduler,
 ) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(TasksUiState())
     val state: StateFlow<TasksUiState> = _state.asStateFlow()
@@ -102,19 +102,19 @@ class TasksViewModel @Inject constructor(
 
     fun deleteTask(id: String) {
         viewModelScope.launch {
-            taskDao.delete(id)
+            taskScheduler.cancel(id)
             // Any linked reminder is now obsolete.
             reminderDao.deleteByTaskId(id)
-            WorkManager.getInstance(getApplication()).cancelUniqueWork("task-$id")
+            taskDao.delete(id)
             refreshTasks()
         }
     }
 
     fun markDone(id: String) {
         viewModelScope.launch {
+            taskScheduler.cancel(id)
             taskDao.markComplete(id, System.currentTimeMillis())
             reminderDao.deleteByTaskId(id)
-            WorkManager.getInstance(getApplication()).cancelUniqueWork("task-$id")
             refreshTasks()
         }
     }
@@ -156,6 +156,7 @@ class TasksViewModel @Inject constructor(
         viewModelScope.launch {
             val done = taskDao.all().filter { it.status == "done" }
             for (task in done) {
+                taskScheduler.cancel(task.id)
                 taskDao.delete(task.id)
             }
             refreshTasks()

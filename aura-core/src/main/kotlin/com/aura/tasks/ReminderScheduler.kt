@@ -32,6 +32,7 @@ class ReminderScheduler @Inject constructor(
                     .build(),
             )
             .addTag(REMINDER_TAG)
+            .apply { if (reminder.taskId.isNotBlank()) addTag(taskTag(reminder.taskId)) }
             .build()
         val scheduled = reminder.copy(
             workId = work.id.toString(),
@@ -73,6 +74,18 @@ class ReminderScheduler @Inject constructor(
     suspend fun delete(id: String) {
         WorkManager.getInstance(context).cancelUniqueWork(uniqueName(id))
         reminderDao.delete(id)
+    }
+
+
+    private fun taskTag(taskId: String): String = "reminder-task-$taskId"
+
+    /** Cancel every reminder tagged with this taskId and mark them cancelled. */
+    suspend fun cancelByTaskId(taskId: String) {
+        if (taskId.isBlank()) return
+        WorkManager.getInstance(context).cancelAllWorkByTag(taskTag(taskId))
+        reminderDao.getByTaskId(taskId).forEach {
+            reminderDao.insert(it.copy(status = "cancelled"))
+        }
     }
 
     private fun uniqueName(id: String): String = "reminder-$id"

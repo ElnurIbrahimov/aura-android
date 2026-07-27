@@ -19,6 +19,7 @@ import javax.inject.Inject
 class ScheduleViewModel @Inject constructor(
     private val taskDao: TaskDao,
     private val reminderDao: ReminderDao,
+    private val taskScheduler: com.aura.tasks.TaskScheduler,
 ) : ViewModel() {
 
     data class UiState(
@@ -49,7 +50,10 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun deleteTask(id: String) {
-        viewModelScope.launch { taskDao.delete(id) }
+        viewModelScope.launch {
+            taskScheduler.cancel(id)
+            taskDao.delete(id)
+        }
     }
 
     fun cancelReminder(id: String) {

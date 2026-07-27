@@ -1,10 +1,9 @@
 package com.aura.tools
 
 import android.content.Context
-import androidx.work.ExistingWorkPolicy
-import androidx.work.WorkManager
 import com.aura.tasks.TaskDao
 import com.aura.tasks.TaskEntity
+import com.aura.tasks.TaskScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -26,22 +25,13 @@ class TaskManagerToolTest {
 
     private val context = mockk<Context>(relaxed = true)
     private val taskDao = mockk<TaskDao>(relaxed = true)
-    private val workManager = mockk<WorkManager>(relaxed = true)
+    private val taskScheduler = mockk<TaskScheduler>(relaxed = true)
 
-    @Before
-    fun setUp() {
-        mockkStatic(WorkManager::class)
-        every { WorkManager.getInstance(any()) } returns workManager
-    }
-
-    @After
-    fun tearDown() {
-        unmockkStatic(WorkManager::class)
-    }
+    private fun createTool() = TaskManagerTool(context, taskDao, taskScheduler)
 
     @Test
     fun `create stores full task metadata`() = runBlocking {
-        val tool = TaskManagerTool(context, taskDao)
+        val tool = createTool()
         val call = com.aura.agent.ToolCall(
             id = "c1",
             name = "manage_tasks",
@@ -72,7 +62,7 @@ class TaskManagerToolTest {
 
     @Test
     fun `list returns pending tasks summary`() = runBlocking {
-        val tool = TaskManagerTool(context, taskDao)
+        val tool = createTool()
         coEvery { taskDao.allPending() } returns listOf(
             TaskEntity(id = "t1", title = "One", createdAt = 1L, dueAt = 3_600_000L),
         )
@@ -92,7 +82,7 @@ class TaskManagerToolTest {
 
     @Test
     fun `complete marks task complete`() = runBlocking {
-        val tool = TaskManagerTool(context, taskDao)
+        val tool = createTool()
         coEvery { taskDao.markComplete("t1", any()) } returns Unit
 
         val result = tool.tool.execute(
@@ -110,7 +100,7 @@ class TaskManagerToolTest {
 
     @Test
     fun `delete removes task and cancels reminder`() = runBlocking {
-        val tool = TaskManagerTool(context, taskDao)
+        val tool = createTool()
         coEvery { taskDao.delete("t1") } returns Unit
 
         val result = tool.tool.execute(
@@ -124,12 +114,11 @@ class TaskManagerToolTest {
 
         assertTrue(result is com.aura.agent.ToolResult.Ok, "expected Ok, got $result")
         coVerify { taskDao.delete("t1") }
-        coVerify { workManager.cancelUniqueWork("task-t1") }
     }
 
     @Test
     fun `create without title returns error`() = runBlocking {
-        val tool = TaskManagerTool(context, taskDao)
+        val tool = createTool()
         val result = tool.tool.execute(
             com.aura.agent.ToolCall(
                 id = "c2",
@@ -141,5 +130,63 @@ class TaskManagerToolTest {
 
         assertTrue(result is com.aura.agent.ToolResult.Error, "expected Error, got $result")
         assertEquals("bad_args", result.code)
+    }
+
+    @Test
+    fun `delete cancels task reminders via scheduler`() = runBlocking {
+        val tool = createTool()
+        val id = "task-delete-1"
+        coEvery { taskDao.delete(any()) } returns Unit
+
+        tool.tool.execute(
+            com.aura.agent.ToolCall(
+                id = "d2",
+                name = "manage_tasks",
+                arguments = mapOf("action" to "delete", "id" to id),
+            ),
+            mockk(relaxed = true),
+        )
+
+        coVerify(exactly = 1) { taskScheduler.cancel(id) }
+    }
+
+    @Test
+    fun `complete cancels task reminders via scheduler`() = runBlocking {
+        val tool = createTool()
+        val id = "task-complete-1"
+        coEvery { taskDao.markComplete(any(), any()) } returns Unit
+
+        tool.tool.execute(
+            com.aura.agent.ToolCall(
+                id = "c2",
+                name = "manage_tasks",
+                arguments = mapOf("action" to "complete", "id" to id),
+            ),
+            mockk(relaxed = true),
+        )
+
+        coVerify(exactly = 1) { taskScheduler.cancel(id) }
+    }
+
+    @Test
+    fun `create with reminder calls scheduler`() = runBlocking {
+        val tool = createTool()
+
+        tool.tool.execute(
+            com.aura.agent.ToolCall(
+                id = "c3",
+                name = "manage_tasks",
+                arguments = mapOf(
+                    "action" to "create",
+                    "title" to "Book flight",
+                    "when" to "09:00",
+                    "description" to "via app",
+                    "tags" to "travel",
+                ),
+            ),
+            mockk(relaxed = true),
+        )
+
+        coVerify(exactly = 1) { taskScheduler.schedule(any()) }
     }
 }

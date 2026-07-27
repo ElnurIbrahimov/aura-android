@@ -1,5 +1,6 @@
 package com.aura.proactive
 
+import android.util.Log
 import com.aura.data.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

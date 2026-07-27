@@ -67,6 +67,8 @@ data class ToolContext(
      * anything to local state.
      */
     val memoryEnabled: Boolean = true,
+    /** Agent selected by the user in the parent conversation. */
+    val activeAgentId: String = "",
 )
 
 /**

@@ -122,7 +122,7 @@ fun MemoryScreen(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
-        }
+        }.onFailure { android.util.Log.w("MemoryScreen", "takePersistableUriPermission failed", it) }
         documentViewModel.import(uri)
     }
 
@@ -506,7 +506,7 @@ fun MemoryScreen(
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         },
                     )
-                }
+                }.onFailure { android.util.Log.w("MemoryScreen", "open document failed", it) }
             },
             onDelete = documentViewModel::delete,
             onDismiss = { showDocuments = false },

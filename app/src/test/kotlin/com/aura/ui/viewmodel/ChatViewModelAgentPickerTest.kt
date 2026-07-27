@@ -2,10 +2,10 @@ package com.aura.ui.viewmodel
 
 import com.aura.agent.AgentEntity
 import com.aura.agent.AgentStore
+import com.aura.agent.Specialist
 import com.aura.agent.Conversation
 import com.aura.agent.ConversationStore
 import com.aura.data.UserPreferences
-import com.aura.agent.Specialist
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -99,15 +99,15 @@ class ChatViewModelAgentPickerTest {
     }
 
     @Test
-    fun `setSpecialist maps to matching builtin agent`() = runTest(dispatcher) {
+    fun `setActiveAgent selects matching builtin agent`() = runTest(dispatcher) {
         val viewModel = makeViewModel()
         advanceUntilIdle()
 
-        val researcher = Specialist.Researcher
-        viewModel.setSpecialist(researcher)
+        val researcher = viewModel.state.value.availableAgents.find { it.id == "agent_researcher" }!!
+        viewModel.setActiveAgent(researcher)
 
         val state = viewModel.state.value
-        assertEquals("available=${state.availableAgents.map { it.id }}", "agent_researcher", state.activeAgentId)
+        assertEquals("agent_researcher", state.activeAgentId)
         assertNotNull(state.activeAgent)
         assertEquals("agent_researcher", state.activeAgent?.id)
     }

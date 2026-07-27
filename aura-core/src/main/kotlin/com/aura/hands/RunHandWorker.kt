@@ -79,7 +79,7 @@ class RunHandWorker @AssistedInject constructor(
                     "Aura Hand Failed: ${hand.name}",
                     (error.message ?: "Unexpected runtime failure").take(200),
                 )
-            }
+            }.onFailure { Log.w(TAG, "Failed to post hand failure notification", it) }
             return Result.success()
         }
         // One-time WorkRequests avoid periodic-work drift. Every terminal run
