@@ -49,6 +49,8 @@ fun SettingsScreen(
     onNavigateEvolutionInbox: () -> Unit = {},
     onNavigateBeliefs: () -> Unit = {},
     onNavigateAgentEditor: () -> Unit = {},
+    onNavigateWorldModel: () -> Unit = {},
+    onNavigateTasteProfile: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
     usageViewModel: UsageViewModel = hiltViewModel(),
@@ -185,6 +187,8 @@ fun SettingsScreen(
         EvolutionSettingsSection(
             onNavigateEvolutionInbox = onNavigateEvolutionInbox,
             onNavigateBeliefs = onNavigateBeliefs,
+            onNavigateWorldModel = onNavigateWorldModel,
+            onNavigateTasteProfile = onNavigateTasteProfile,
         )
 
         // 11. Data & Backup

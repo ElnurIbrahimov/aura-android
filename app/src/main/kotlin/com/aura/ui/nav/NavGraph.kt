@@ -57,6 +57,8 @@ import com.aura.ui.screens.council.CouncilScreen
 import com.aura.ui.screens.schedule.ScheduleScreen
 import com.aura.ui.viewmodel.ScheduleViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.aura.ui.screens.TasteProfileScreen
+import com.aura.ui.screens.WorldModelScreen
 import com.aura.ui.screens.TasksScreen
 
 @Composable
@@ -237,6 +239,8 @@ fun NavGraph(
                     onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
                     onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
                     onNavigateAgentEditor = { navController.navigate("agent_editor?agentId=") },
+                    onNavigateWorldModel = { navController.navigate("world_model") },
+                    onNavigateTasteProfile = { navController.navigate("taste_profile") },
                 )
             }
             composable("diagnostics") {
@@ -272,6 +276,12 @@ fun NavGraph(
             composable("proactive") { ProactiveHistoryScreen() }
             composable("dreams") {
                 DreamsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("world_model") {
+                WorldModelScreen(onBack = { navController.popBackStack() })
+            }
+            composable("taste_profile") {
+                TasteProfileScreen(onBack = { navController.popBackStack() })
             }
             composable("reminders") {
                 RemindersScreen(onBack = { navController.popBackStack() })
