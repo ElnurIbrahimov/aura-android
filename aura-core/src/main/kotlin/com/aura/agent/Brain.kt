@@ -24,6 +24,7 @@ import javax.inject.Singleton
 class Brain @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val identityStore: IdentityStore,
+    private val contextBudgetResolver: ContextBudgetResolver,
 ) {
     /** Current identity as a cold flow; each subscription resolves DataStore anew. */
     val identity: Flow<String> = flow {
@@ -53,6 +54,13 @@ class Brain @Inject constructor(
         tools: List<ToolDefinition> = emptyList(),
         options: ChatOptions = ChatOptions(),
     ): Flow<BrainChunk> = flow {
+        val resolvedMaxTokens = options.maxTokens
+            ?: contextBudgetResolver.maxTokensFor(model)
+        val resolvedOptions = if (resolvedMaxTokens != null) {
+            options.copy(maxTokens = resolvedMaxTokens)
+        } else {
+            options
+        }
         // nameById accumulates tool-call ids to names across the stream so
         // providers that send argument deltas without re-sending the name
         // (e.g. Anthropic input_json_delta) can still be routed to the
@@ -68,7 +76,7 @@ class Brain @Inject constructor(
                 return size > MAX_NAME_BY_ID
             }
         }
-        providerRegistry.chat(model, messages, options, tools).collect { providerChunk ->
+        providerRegistry.chat(model, messages, resolvedOptions, tools).collect { providerChunk ->
             emit(BrainChunk.fromProvider(providerChunk, nameById))
         }
     }

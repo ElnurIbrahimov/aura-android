@@ -28,7 +28,7 @@ package com.aura.providers
  * MUST be the largest published context for that model
  * (e.g. a model with 8K/32K/128K variants → 128K).
  */
-internal object ProviderContextWindows {
+object ProviderContextWindows {
 
     /** Look up context window in tokens. Returns null when unknown — caller uses 32K default. */
     fun lookup(prefix: String, model: String): Int? = when (prefix) {

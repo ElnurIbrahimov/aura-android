@@ -53,6 +53,7 @@ class BrainIdentityResolutionTest {
             brain = Brain(
                 providerRegistry = mockk(relaxed = true),
                 identityStore = store,
+                contextBudgetResolver = mockk(relaxed = true),
             ),
             store = store,
             preferences = preferences,
