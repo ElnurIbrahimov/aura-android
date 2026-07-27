@@ -28,6 +28,7 @@ fun HomeRoute(
     onOpenCreative: () -> Unit = {},
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
+    onOpenCapabilities: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val greeting = remember(state.hour, state.userName) {
@@ -66,5 +67,6 @@ fun HomeRoute(
         },
         onOpenAgentRuns = onOpenAgentRuns,
         onOpenProduction = onOpenProduction,
+        onOpenCapabilities = onOpenCapabilities,
     )
 }

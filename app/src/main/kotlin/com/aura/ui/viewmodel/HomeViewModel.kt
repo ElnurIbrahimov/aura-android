@@ -3,6 +3,8 @@ package com.aura.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.aura.capabilities.CapabilityKind
+import com.aura.capabilities.CapabilityRegistry
 import com.aura.kg.KnowledgeGraphRepository
 import com.aura.memory.MemoryEntity
 import com.aura.memory.MemoryStore
@@ -96,8 +98,17 @@ data class HomeUiState(
     val toolsCount: Int = 0,
     val proactiveCount: Int = 0,
     val skillsCount: Int = 0,
+    /**
+     * Map of capability kind to the display name of the first configured
+     * provider for that kind. Empty means no capability providers are set up.
+     * Drives the Home "Capabilities" destination card and the Capabilities
+     * screen badge counts.
+     */
+    val activeCapabilities: Map<CapabilityKind, String> = emptyMap(),
 ) {
     val isEmptyResolved: Boolean get() = loadState is HomeLoadState.Empty
+
+    val capabilityCount: Int get() = activeCapabilities.size
 
     fun hasHomeData(): Boolean = today.isNotEmpty() ||
         recentMemories.isNotEmpty() ||
@@ -106,7 +117,8 @@ data class HomeUiState(
         proactiveEvent != null ||
         proactiveUnreadCount > 0 ||
         handsCount > 0 ||
-        proactiveCount > 0
+        proactiveCount > 0 ||
+        activeCapabilities.isNotEmpty()
 }
 
 @HiltViewModel
@@ -121,6 +133,7 @@ class HomeViewModel @Inject constructor(
     private val handDao: com.aura.hands.HandDao,
     private val toolRegistry: com.aura.agent.ToolRegistry,
     private val skillsStore: com.aura.skills.SkillsStore,
+    private val capabilityRegistry: CapabilityRegistry,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -149,6 +162,18 @@ class HomeViewModel @Inject constructor(
         observeHands()
         observeSkills()
         loadToolsCount()
+        refreshCapabilities()
+    }
+
+    private fun refreshCapabilities() {
+        viewModelScope.launch {
+            val active = CapabilityKind.entries.mapNotNull { kind ->
+                capabilityRegistry.forKind(kind)?.let { provider ->
+                    kind to com.aura.providers.providerLabel(provider.prefix)
+                }
+            }.toMap()
+            updateObserved { it.copy(activeCapabilities = active) }
+        }
     }
 
     private fun observeReminders() {

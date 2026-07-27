@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.SettingsInputComponent
+import com.aura.capabilities.CapabilityKind
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -60,11 +62,13 @@ fun HomeSecondaryActions(
     onOpenHands: () -> Unit,
     onOpenTools: () -> Unit,
     skillsCount: Int = 0,
+    activeCapabilities: Map<CapabilityKind, String> = emptyMap(),
     onOpenSkills: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
     onOpenProactive: () -> Unit,
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
+    onOpenCapabilities: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val destinations = listOf(
@@ -127,6 +131,12 @@ fun HomeSecondaryActions(
             "Film & story pipelines",
             Icons.Filled.Movie,
             onOpenProduction,
+        ),
+        HomeDestination(
+            "Capabilities",
+            if (activeCapabilities.isEmpty()) "Add image, video, search" else "${activeCapabilities.size} active",
+            Icons.Filled.SettingsInputComponent,
+            onOpenCapabilities,
         ),
     )
 

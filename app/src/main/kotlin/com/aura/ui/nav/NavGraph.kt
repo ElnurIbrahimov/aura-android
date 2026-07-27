@@ -37,6 +37,7 @@ import com.aura.ui.evolution.EvolutionInboxScreen
 import com.aura.ui.evolution.BeliefsScreen
 import com.aura.ui.evolution.EvolutionRollbackScreen
 import com.aura.ui.screens.DiagnosticsScreen
+import com.aura.ui.screens.CapabilitiesScreen
 import com.aura.ui.screens.HandsScreen
 import com.aura.ui.screens.HistoryScreen
 import com.aura.ui.screens.creative.CreativeProjectScreen
@@ -173,6 +174,7 @@ fun NavGraph(
                     onOpenProactive = { navController.navigate("proactive") },
                     onOpenAgentRuns = { navController.navigate("agent_runs") },
                     onOpenProduction = { navController.navigate("production") },
+                    onOpenCapabilities = { navController.navigate("capabilities") },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
@@ -311,6 +313,9 @@ fun NavGraph(
             }
             composable("skills") {
                 SkillsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("capabilities") {
+                CapabilitiesScreen(onBack = { navController.popBackStack() })
             }
             composable("production") {
                 ProductionPipelineScreen(

@@ -121,6 +121,7 @@ fun HomeContent(
     onOpenAgentRuns: () -> Unit = {},
 
     onOpenProduction: () -> Unit = {},
+    onOpenCapabilities: () -> Unit = {},
 
     modifier: Modifier = Modifier,
 
@@ -346,6 +347,7 @@ fun HomeContent(
 
                             onOpenProduction = onOpenProduction,
 
+                            onOpenCapabilities = onOpenCapabilities,
                         )
 
                     }
@@ -386,6 +388,8 @@ fun HomeContent(
 
                             onOpenProduction = onOpenProduction,
 
+                onOpenCapabilities = onOpenCapabilities,
+
                 )
 
                 HomeLoadState.Content -> homeResolvedItems(
@@ -422,6 +426,8 @@ fun HomeContent(
 
                             onOpenProduction = onOpenProduction,
 
+                onOpenCapabilities = onOpenCapabilities,
+
                 )
 
             }
@@ -449,6 +455,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
     onOpenProactive: () -> Unit = {},
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
+    onOpenCapabilities: () -> Unit = {},
 ) {
     val priority = selectHomePriority(state)
 
@@ -524,6 +531,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
             proactiveCount = maxOf(state.proactiveCount, state.proactiveUnreadCount),
 
             skillsCount = state.skillsCount,
+            activeCapabilities = state.activeCapabilities,
 
             onOpenMemory = onOpenMemory,
 
@@ -544,6 +552,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
             onOpenAgentRuns = onOpenAgentRuns,
 
             onOpenProduction = onOpenProduction,
+            onOpenCapabilities = onOpenCapabilities,
 
         )
 
