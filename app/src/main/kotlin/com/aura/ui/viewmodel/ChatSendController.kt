@@ -372,10 +372,23 @@ class ChatSendController(
                             // loop as "Approval needed: ..."). Surface it
                             // as a dialog instead of silently feeding it
                             // back to the model.
-                            if (event.result.startsWith("Approval needed: ")) {
-                                val rationale = event.result.removePrefix("Approval needed: ")
-                                state.update { old ->
-                                    old.copy(pendingApproval = event.name to rationale)
+                            val approvalPrefix = "Approval needed: "
+                            val confirmPrefixRegex = Regex("^(NONE|IMPLICIT|EXPLICIT|BIOMETRIC):confirm:([^:]+)(?::(.*))?$")
+                            when {
+                                event.result.startsWith(approvalPrefix) -> {
+                                    val rationale = event.result.removePrefix(approvalPrefix)
+                                    state.update { old ->
+                                        old.copy(pendingApproval = Triple(event.name, "Approval", rationale))
+                                    }
+                                }
+                                confirmPrefixRegex.matches(event.result) -> {
+                                    val match = confirmPrefixRegex.find(event.result)!!
+                                    val level = match.groupValues[1]
+                                    val tool = match.groupValues[2]
+                                    val rationale = match.groupValues[3].ifBlank { "$level confirmation required" }
+                                    state.update { old ->
+                                        old.copy(pendingApproval = Triple(tool, level, rationale))
+                                    }
                                 }
                             }
                             if (event.needsPermission != null) {

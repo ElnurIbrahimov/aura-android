@@ -235,11 +235,11 @@ data class ChatUiState(
     /** Tool name + args that the permission was requested for. Used to retry after grant. */
     val pendingToolRetry: Pair<String, String>? = null,
     /**
-     * Tool name + rationale when a REMOTE_COST tool needs user
-     * approval. The UI shows a dialog; approveRemoteCost() adds
-     * the tool to [approvedRemoteCostTools] and re-engages.
+     * Tool name + approval kind + rationale when a tool needs user
+     * approval/confirmation. The UI shows a dialog; approveRemoteCost()
+     * adds REMOTE_COST tools to [approvedRemoteCostTools] and re-engages.
      */
-    val pendingApproval: Pair<String, String>? = null,
+    val pendingApproval: Triple<String, String, String>? = null,
     /**
      * Per-conversation set of REMOTE_COST tools the user has
      * approved. Passed into ToolContext so ToolExecutor lets
@@ -906,6 +906,15 @@ class ChatViewModel @Inject constructor(
                 approvedRemoteCostTools = it.approvedRemoteCostTools + toolName,
             )
         }
+        sendController.runSend(viewModelScope)
+    }
+
+    /**
+     * User confirmed an IMPLICIT/BIOMETRIC tool. Dismiss the dialog and
+     * re-engage so the tool executes with the user's confirmation in context.
+     */
+    fun confirmTool(toolName: String) {
+        _state.update { it.copy(pendingApproval = null) }
         sendController.runSend(viewModelScope)
     }
 

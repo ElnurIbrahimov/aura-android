@@ -80,7 +80,7 @@ class ToolExecutor @Inject constructor(
                 is com.aura.agent.policy.PolicyResult.Disabled ->
                     return ToolResult.Error("Tool '$name' is disabled by policy.", "policy_disabled")
                 is com.aura.agent.policy.PolicyResult.NeedsConfirmation ->
-                    return ToolResult.NeedsApproval("Tool '$name' requires ${pr.level} confirmation.")
+                    return ToolResult.NeedsApproval("${pr.level.name}:confirm:$name")
                 is com.aura.agent.policy.PolicyResult.NeedsApproval ->
                     return ToolResult.NeedsApproval("Tool '$name' requires per-run approval.")
                 is com.aura.agent.policy.PolicyResult.CostExceeded ->

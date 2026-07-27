@@ -35,6 +35,7 @@ fun ToolPermissionsSection(
     onSetToolConfirmation: (String, ConfirmationLevel) -> Unit,
 ) {
     var editingToolPolicy by remember { mutableStateOf<String?>(null) }
+    var showAll by remember { mutableStateOf(false) }
 
     SettingsSection(
         emoji = "\uD83D\uDEE1\uFE0F",
@@ -49,7 +50,8 @@ fun ToolPermissionsSection(
         )
         Spacer(modifier = Modifier.height(8.dp))
         val tools = toolPolicies.entries.sortedBy { it.key }
-        for ((toolName, policy) in tools.take(8)) {
+        val visibleTools = if (showAll) tools else tools.take(8)
+        for ((toolName, policy) in visibleTools) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
