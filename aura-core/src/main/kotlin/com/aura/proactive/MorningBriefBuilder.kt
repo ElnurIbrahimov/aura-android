@@ -119,7 +119,7 @@ class MorningBriefBuilder @Inject constructor(
         )
         runCatching {
             evolutionHooks?.onProactiveDelivered("mb_${now}", "morning_brief")
-        }
+        }.onFailure { android.util.Log.w("MorningBriefBuilder", "evolution hook failed", it) }
         return androidx.work.ListenableWorker.Result.success()
     }
 

@@ -259,12 +259,12 @@ class SettingsViewModel @Inject constructor(
             runCatching {
                 emotionEngine.load()
                 _emotionSnapshot.value = emotionEngine.snapshot()
-            }
+            }.onFailure { Log.w("SettingsViewModel", "emotion engine load failed", it) }
         }
         viewModelScope.launch {
             runCatching {
                 _daemonThoughtsCount.value = proactiveEventDao.countByType("daemon_thought")
-            }
+            }.onFailure { Log.w("SettingsViewModel", "daemon thought count failed", it) }
         }
     }
 

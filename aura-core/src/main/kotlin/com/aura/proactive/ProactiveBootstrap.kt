@@ -275,7 +275,7 @@ class ProactiveBootstrap @Inject constructor(
             if (!config.enabled) continue
             runCatching {
                 mcpClientManager.connect(config, config.authToken)
-            }
+            }.onFailure { android.util.Log.w(TAG, "MCP connect failed for ${config.id}", it) }
         }
 
         // Register all discovered MCP tools into the ToolRegistry

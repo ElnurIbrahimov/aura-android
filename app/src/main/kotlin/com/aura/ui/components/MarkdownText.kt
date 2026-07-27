@@ -510,6 +510,7 @@ private fun ClickableMarkdownBlock(
                     .firstOrNull()
                     ?.let { annotation ->
                         runCatching { uriHandler.openUri(annotation.item) }
+                            .onFailure { android.util.Log.w("MarkdownText", "openUri failed: ${annotation.item}", it) }
                     }
             },
         )

@@ -1,4 +1,5 @@
 package com.aura.ui.viewmodel
+import android.util.Log
 
 import android.app.Application
 import android.graphics.Bitmap
@@ -306,6 +307,8 @@ data class InFlightToolCall(
     val startedAtMs: Long = System.currentTimeMillis(),
 )
 
+private const val TAG = "ChatViewModel"
+
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     application: Application,
@@ -412,7 +415,7 @@ class ChatViewModel @Inject constructor(
                 textToSpeech.state.collect { tts ->
                     _state.update { it.copy(ttsState = tts) }
                 }
-            }
+            }.onFailure { Log.w(TAG, "TTS state collect failed", it) }
         }
         // Observe network connectivity and update UI state.
         viewModelScope.launch {
@@ -432,7 +435,7 @@ class ChatViewModel @Inject constructor(
                     networkCallback = callback
                     _state.update { it.copy(isOnline = cm.activeNetwork != null) }
                 }
-            }
+            }.onFailure { Log.w(TAG, "Connectivity callback registration failed", it) }
         }
         // Pre-load skills so the composer attachment sheet renders
         // the list on first launch instead of flashing empty.
@@ -505,7 +508,7 @@ class ChatViewModel @Inject constructor(
                 category = "episode",
                 importance = 0.8f,
             )
-        }
+        }.onFailure { Log.w(TAG, "Onboarding memory seed failed", it) }
     }
 
     override fun onCleared() {
@@ -515,7 +518,7 @@ class ChatViewModel @Inject constructor(
                 val cm = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
                     as? android.net.ConnectivityManager
                 cm?.unregisterNetworkCallback(cb)
-            }
+            }.onFailure { Log.w(TAG, "Connectivity callback unregistration failed", it) }
         }
         super.onCleared()
     }
@@ -863,7 +866,7 @@ class ChatViewModel @Inject constructor(
         val convId = _state.value.conversation.id
         viewModelScope.launch {
             if (!_state.value.incognitoMode) {
-                runCatching { conversationStore.delete(convId) }
+                runCatching { conversationStore.delete(convId) }.onFailure { Log.w(TAG, "Delete conversation failed", it) }
             }
             _state.update {
                 it.copy(
@@ -980,7 +983,7 @@ class ChatViewModel @Inject constructor(
                 if (count > _state.value.kgNodeCount) {
                     _state.update { it.copy(kgNodeCount = count) }
                 }
-            }
+            }.onFailure { Log.w(TAG, "KG stats refresh failed", it) }
         }
     }
 

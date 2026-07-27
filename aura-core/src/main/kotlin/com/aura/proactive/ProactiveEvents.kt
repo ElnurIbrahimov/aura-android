@@ -116,7 +116,7 @@ class ProactiveEvents(
                 // small. Errors are swallowed — cleanup is best-effort.
                 val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
                 dao.deleteOlderThan(cutoff)
-            }
+            }.onFailure { android.util.Log.w("ProactiveEvents", "history load/retention failed", it) }
         }
         scope.launch {
             bus.events.collect { event ->
@@ -190,7 +190,7 @@ class ProactiveEvents(
                     feedback = feedback,
                 )
             )
-        }
+        }.onFailure { android.util.Log.w("ProactiveEvents", "record interaction failed", it) }
         runCatching {
             when (action) {
                 "dismissed" -> evolutionHooks?.onProactiveDismissed(eventId.toString(), dismissalKind = feedback.ifBlank { "user" })
@@ -199,7 +199,7 @@ class ProactiveEvents(
                 "opened" -> evolutionHooks?.onProactiveOpened(eventId.toString(), eventType = eventType)
                 else -> evolutionHooks?.onProactiveDelivered(eventId.toString(), eventType = eventType)
             }
-        }
+        }.onFailure { android.util.Log.w("ProactiveEvents", "evolution hook failed", it) }
     }
 
     private fun ProactiveEventBus.Event.withId(id: Long): ProactiveEventBus.Event = when (this) {

@@ -287,7 +287,7 @@ class HandRepository @Inject constructor(
                 trigger = trigger,
                 startedAt = System.currentTimeMillis(),
             ))
-        }
+        }.onFailure { Log.w("HandRepository", "insertRun failed", it) }
     }
 
     private fun redactedVariablesJson(variables: Map<String, String>): String = buildJsonObject {

@@ -98,7 +98,7 @@ class MemoryViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { dreamConsolidationDao?.observeCount()?.collect { count ->
                 _state.update { it.copy(dreamSummaryCount = count) }
-            } }
+            } }.onFailure { Log.w("MemoryViewModel", "dream count observe failed", it) }
         }
         // Observe the v2 dream phase outputs (routines + contradictions).
         // The count is the cheap stat the user sees in the Memory header;
@@ -107,12 +107,12 @@ class MemoryViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { routineDao?.observeCount()?.collect { c ->
                 _state.update { it.copy(routineCount = c) }
-            } }
+            } }.onFailure { Log.w("MemoryViewModel", "routine count observe failed", it) }
         }
         viewModelScope.launch {
             runCatching { contradictionDao?.observeUnresolvedCount()?.collect { c ->
                 _state.update { it.copy(contradictionCount = c) }
-            } }
+            } }.onFailure { Log.w("MemoryViewModel", "contradiction count observe failed", it) }
         }
     }
 
@@ -396,7 +396,7 @@ class MemoryViewModel @Inject constructor(
                     )
                 )
                 evolutionHooks?.onMemoryFeedback(memoryId, helpful, note)
-            }
+            }.onFailure { Log.w("MemoryViewModel", "feedback insert failed", it) }
         }
     }
 }
