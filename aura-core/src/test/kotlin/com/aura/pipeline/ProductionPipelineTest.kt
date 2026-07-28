@@ -3,6 +3,7 @@ package com.aura.pipeline
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -93,6 +94,64 @@ class ProductionPipelineTest {
                 "Pipeline ${pipeline.name} should have default roles",
                 pipeline.defaultRoles.isNotEmpty(),
             )
+        }
+    }
+
+    @Test
+    fun no_circular_dependencies() {
+        for (pipeline in ProductionPipeline.all) {
+            val visited = mutableSetOf<String>()
+            val inStack = mutableSetOf<String>()
+
+            fun hasCycle(stageId: String): Boolean {
+                if (stageId in inStack) return true
+                if (stageId in visited) return false
+                visited.add(stageId)
+                inStack.add(stageId)
+                val stage = pipeline.stages.firstOrNull { it.id == stageId } ?: return false
+                for (dep in stage.dependsOn) {
+                    if (hasCycle(dep)) return true
+                }
+                inStack.remove(stageId)
+                return false
+            }
+
+            for (stage in pipeline.stages) {
+                assertFalse(
+                    "Pipeline ${pipeline.name} has circular dependency reachable from ${stage.id}",
+                    hasCycle(stage.id),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun topological_order_is_valid() {
+        for (pipeline in ProductionPipeline.all) {
+            val positions = pipeline.stages.withIndex().associate { it.value.id to it.index }
+            for (stage in pipeline.stages) {
+                for (dep in stage.dependsOn) {
+                    assertTrue(
+                        "Pipeline ${pipeline.name}: ${stage.id} at ${positions[stage.id]} depends on $dep at ${positions[dep]}",
+                        (positions[dep] ?: Int.MAX_VALUE) < (positions[stage.id] ?: -1),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun image_stages_have_image_output_type() {
+        val imageStageIds = setOf("storyboard")
+        for (pipeline in ProductionPipeline.all) {
+            for (stage in pipeline.stages) {
+                if (stage.id in imageStageIds) {
+                    assertEquals(
+                        "Stage ${stage.id} in ${pipeline.name} should have outputType=\"image\"",
+                        "image", stage.outputType,
+                    )
+                }
+            }
         }
     }
 }

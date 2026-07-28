@@ -238,7 +238,7 @@ fun NavGraph(
                     onNavigateDiagnostics = { navController.navigate("diagnostics") },
                     onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
                     onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
-                    onNavigateAgentEditor = { navController.navigate("agent_editor?agentId=") },
+                    onNavigateAgentEditor = { navController.navigate("agent_editor") },
                     onNavigateWorldModel = { navController.navigate("world_model") },
                     onNavigateTasteProfile = { navController.navigate("taste_profile") },
                 )
