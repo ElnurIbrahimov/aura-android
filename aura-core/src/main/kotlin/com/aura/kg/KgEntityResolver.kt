@@ -56,7 +56,17 @@ class KgEntityResolver @Inject constructor() {
         val resolvedNodes = mutableListOf<KgNode>()
         val newNodesToInsert = mutableListOf<KgNode>()
 
+        // Track nodes we've already processed in this batch to
+        // prevent intra-batch duplicates (same entity mentioned in
+        // two edges of the same turn).
+        val processedLabels = mutableMapOf<String, KgNode>()
         for (newNode in newNodes) {
+            // Check intra-batch first
+            val batchMatch = processedLabels[newNode.label.lowercase()]
+            if (batchMatch != null) {
+                idRemap[newNode.id] = batchMatch.id
+                continue
+            }
             val existing = findMatch(newNode, existingByLabel, existingNodes)
             if (existing != null) {
                 // Merge: reuse existing ID, boost confidence
@@ -68,6 +78,7 @@ class KgEntityResolver @Inject constructor() {
                 // No match — keep as new
                 resolvedNodes.add(newNode)
                 newNodesToInsert.add(newNode)
+                processedLabels[newNode.label.lowercase()] = newNode
             }
         }
 
@@ -105,13 +116,17 @@ class KgEntityResolver @Inject constructor() {
         existingByLabel: Map<String, KgNode>,
         existingNodes: List<KgNode>,
     ): KgNode? {
-        // Exact match (case-insensitive)
-        existingByLabel[newNode.label.lowercase()]?.let { return it }
+        // Exact match (case-insensitive) — must be same NodeType
+        existingByLabel[newNode.label.lowercase()]?.let {
+            if (it.type == newNode.type) return it
+        }
 
         // Fuzzy match: only for short labels (≤20 chars) to avoid
-        // expensive O(n) comparison on large graphs
+        // expensive O(n) comparison on large graphs. Must be same
+        // NodeType to prevent "Sam" (PERSON) merging with "Pam" (CONCEPT).
         if (newNode.label.length > 20) return null
         for (existing in existingNodes) {
+            if (existing.type != newNode.type) continue
             if (isSimilar(newNode.label, existing.label)) return existing
         }
         return null

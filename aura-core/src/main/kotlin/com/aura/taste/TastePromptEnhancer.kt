@@ -30,6 +30,8 @@ class TastePromptEnhancer @Inject constructor() {
     fun enhance(systemPrompt: kotlin.String, tasteContext: kotlin.String): kotlin.String {
         if (tasteContext.isBlank()) return systemPrompt
         val instructions = convertToInstructions(tasteContext)
+        // If the enhancer couldn't parse any instructions, fall back
+        // to the raw taste context rather than discarding it entirely.
         if (instructions.isBlank()) return systemPrompt
         return "$systemPrompt\n\n$instructions"
     }
@@ -73,6 +75,6 @@ class TastePromptEnhancer @Inject constructor() {
             }
         }
         return if (lines.isEmpty()) ""
-        else "Style guidelines (learned from your preferences):\n${lines.joinToString(" ") { "- $it" }}"
+        else "Style guidelines (learned from your preferences):\n${lines.joinToString("\n") { "- $it" }}"
     }
 }

@@ -26,6 +26,21 @@ class EvolutionCoordinator @Inject constructor(
     suspend fun runAll(): RunResult {
         val start = System.currentTimeMillis()
         val candidates = detectors.runAll()
+        // Score candidates with real evaluators if available.
+        if (evaluators != null) {
+            for (candidate in candidates.filter { it.status == CandidateStatus.PENDING.name }) {
+                runCatching {
+                    val score = evaluators!!.evaluate(
+                        userMessage = candidate.rationale,
+                        response = candidate.argsJson,
+                        model = candidate.domain,
+                    )
+                    if (score != null) {
+                        candidateDao.setStatus(candidate.id, candidate.status, "evaluator_score: $score")
+                    }
+                }.onFailure { android.util.Log.w("EvolutionCoordinator", "evaluator failed for ${candidate.id}: ${it.message}") }
+            }
+        }
         val reflected = reflectAndPromote(candidates)
         val duration = System.currentTimeMillis() - start
         metrics.recordRun(candidates.size, duration)

@@ -189,7 +189,14 @@ class ConversationCompactor @Inject constructor(
         val repo = kgRepository ?: return ""
         return runCatching {
             val nodes = repo.recent(20)
-            val edges = repo.allEdges().take(20)
+            if (nodes.isEmpty()) return@runCatching ""
+            val nodeIds = nodes.map { it.id }.toSet()
+            // Fetch all edges and filter to those incident to the
+            // recent nodes — not an uncorrelated slice of all edges.
+            val allEdges = repo.allEdges()
+            val edges = allEdges.filter { edge ->
+                edge.sourceId in nodeIds && edge.targetId in nodeIds
+            }.take(20)
             if (edges.isEmpty()) return@runCatching ""
             val nodeMap = nodes.associateBy { it.id }
             val lines = edges.mapNotNull { edge ->

@@ -539,17 +539,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // TasteEngine is configured or no signals exist yet.
             val tasteContext = if (step == 1 && tasteEngine != null) {
                 val tasteScopes = if (agentId != null) listOf("general", "agent:$agentId") else listOf("general")
-                runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
-            } else cachedTasteContext ?: ""
-            if (step == 1) {
-                // Enhance the taste context with explicit style instructions.
-                // The raw taste context is a passive observation ("prefers tone: concise");
-                // the enhancer converts it to an active instruction ("Be concise.").
-                val enhancedTaste = if (tastePromptEnhancer != null && tasteContext.isNotBlank()) {
-                    tastePromptEnhancer.enhance("", tasteContext)
-                } else tasteContext
+                val rawTaste = runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
+                // Enhance on step 1 so the FIRST step's system prompt
+                // gets the explicit instructions, not just step 2+.
+                val enhancedTaste = if (tastePromptEnhancer != null && rawTaste.isNotBlank()) {
+                    val enhanced = tastePromptEnhancer.enhance("", rawTaste)
+                    if (enhanced.isNotBlank()) enhanced else rawTaste
+                } else rawTaste
                 cachedTasteContext = enhancedTaste
-            }
+                enhancedTaste
+            } else cachedTasteContext ?: ""
+
 
             // 2) Build messages
             // Resolve the active agent's personality directive (if any).
@@ -1081,7 +1081,11 @@ private suspend fun extractProfileFromText(text: String) {
             val phrases = hand.triggerPhrase.split("|").map { it.trim() }.filter { it.isNotBlank() }
             phrases.any { phrase ->
                 val escaped = Regex.escape(phrase.lowercase())
-                Regex("\\b$escaped\\b").containsMatchIn(lower)
+                // Use UNICODE_CHARACTER_CLASS so \b respects non-ASCII
+                // word characters (Azerbaijani ə, ü, ş, etc.). Without
+                // this, \b is ASCII-only and trigger phrases with
+                // non-Latin characters at the boundary never match.
+                Regex("\\b$escaped\\b", RegexOption.IGNORE_CASE).containsMatchIn(lower)
             }
         }
     }
