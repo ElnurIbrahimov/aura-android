@@ -147,7 +147,7 @@ class CloudEmbedder @Inject constructor(
                 // degrading recall quality. Now log so the
                 // failure is visible in logcat and the
                 // user can see "Aura: cloud embed failed
-                // (XXX), falling back to local".
+                // (see logcat for cause), falling back to local".
                 Log.w("CloudEmbedder", "cloud embed failed for model=$model, falling back to local", e)
             }
         }

@@ -109,7 +109,9 @@ class ModelRoleRouter @Inject constructor(
     suspend fun availableModels(role: ModelRole): List<kotlin.String> {
         val configured = providerRegistry.configured()
         return configured.flatMap { provider ->
-            runCatching { provider.listModels() }.getOrDefault(emptyList())
+            runCatching { provider.listModels() }
+                .onFailure { android.util.Log.w("ModelRoleRouter", "listModels failed for ${provider.prefix}", it) }
+                .getOrDefault(emptyList())
         }.distinct()
     }
 }

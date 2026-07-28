@@ -103,12 +103,14 @@ class MoaProvider(
         val preset = currentPresets().values.firstOrNull { it.enabled } ?: return false
         val aggProvider = runCatching {
             registry.get().get(preset.aggregator.providerPrefix)
-        }.getOrNull() ?: return false
+        }.onFailure { android.util.Log.w("MoaProvider", "aggregator provider ${preset.aggregator.providerPrefix} not in registry", it) }
+            .getOrNull() ?: return false
         if (!aggProvider.isConfigured()) return false
         for (ref in preset.referenceModels) {
             val provider = runCatching {
                 registry.get().get(ref.providerPrefix)
-            }.getOrNull() ?: return false
+            }.onFailure { android.util.Log.w("MoaProvider", "reference provider ${ref.providerPrefix} not in registry", it) }
+                .getOrNull() ?: return false
             if (!provider.isConfigured()) return false
         }
         return true

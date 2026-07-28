@@ -82,11 +82,13 @@ class SecureModelCatalogCache @Inject constructor(
     }
 
     private suspend fun readUnsafe(): Map<kotlin.String, CachedProviderModels> {
-        val raw = runCatching { secureDataStore.getString(CACHE_KEY) }.getOrNull()
-            ?: return emptyMap()
+        val raw = runCatching { secureDataStore.getString(CACHE_KEY) }
+            .onFailure { android.util.Log.w("SecureModelCatalogCache", "DataStore read failed", it) }
+            .getOrNull() ?: return emptyMap()
         return runCatching {
             json.decodeFromString(PersistedModelCatalog.serializer(), raw).providers
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w("SecureModelCatalogCache", "cached catalog parse failed", it) }
+            .getOrDefault(emptyMap())
     }
 
     private companion object {

@@ -61,7 +61,9 @@ class AgentRunExecutorWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        val completedIds = steps.filter { it.status == "SUCCESS" }.map { it.id }.toSet()
+        // P2-BUILD-DX: completedIds is not used after the P1-AGENTIC-F3
+        // refactor that moved readiness to DagResolver. Compute failedIds
+        // directly so we still know whether to short-circuit the run.
         val failedIds = steps.filter { it.status == "FAILED" }.map { it.id }.toSet()
 
         // If any step failed, check whether the run can continue (non-dependent steps)

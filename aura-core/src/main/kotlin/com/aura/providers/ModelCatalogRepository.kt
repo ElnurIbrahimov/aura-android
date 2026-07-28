@@ -140,7 +140,9 @@ class ModelCatalogRepository @Inject constructor(
         val generation = refreshGeneration
         val hydrated = linkedMapOf<String, ProviderModelList>()
         for (provider in providerRegistry.all()) {
-            if (!runCatching { provider.isConfigured() }.getOrDefault(false)) continue
+            if (!runCatching { provider.isConfigured() }
+                    .onFailure { android.util.Log.w("ModelCatalogRepository", "isConfigured failed for ${provider.prefix}", it) }
+                    .getOrDefault(false)) continue
             val cached = cache.getCachedModels(provider.prefix) ?: continue
             hydrated[provider.prefix] = ProviderModelList(
                 providerPrefix = provider.prefix,
