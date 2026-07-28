@@ -90,15 +90,21 @@ class EvolutionCoordinator @Inject constructor(
                         // Auto-apply: if the domain has autoApplyApproved enabled,
                         // apply the proposal immediately instead of routing to the
                         // inbox. The EvolutionRollbackManager supports rollback for
-                        // all 20 actions, so auto-applied changes are safe to revert.
+                        // most actions; destructive merges (MERGE_SKILLS, MERGE_MEMORIES)
+                        // are best-effort and may irreversibly lose the source entity.
+                        // The autoApplyApproved flag defaults to false — this path
+                        // is explicitly opt-in per domain.
                         if (settings.autoApplyApproved && applySaga != null) {
-                            val result = applySaga.apply(proposal)
-                            if (result is EvolutionApplySaga.ApplyResult.Ok) {
-                                candidateDao.setStatus(candidate.id, CandidateStatus.AUTO_APPLIED.name, "auto-applied: ${verdict.reason}")
-                                android.util.Log.i("EvolutionCoordinator", "auto-applied proposal ${proposal.id} in domain ${candidate.domain}: ${result.summary}")
-                            } else {
-                                candidateDao.setStatus(candidate.id, CandidateStatus.PROMOTED.name, "auto-apply failed, pending review: ${verdict.reason}")
-                            }
+                            val saga = applySaga
+                            runCatching {
+                                val result = saga.apply(proposal)
+                                if (result is EvolutionApplySaga.ApplyResult.Ok) {
+                                    candidateDao.setStatus(candidate.id, CandidateStatus.AUTO_APPLIED.name, "auto-applied: ${verdict.reason}")
+                                    android.util.Log.i("EvolutionCoordinator", "auto-applied proposal ${proposal.id} in domain ${candidate.domain}: ${result.summary}")
+                                } else {
+                                    candidateDao.setStatus(candidate.id, CandidateStatus.PROMOTED.name, "auto-apply failed, pending review: ${verdict.reason}")
+                                }
+                            }.onFailure { android.util.Log.w("EvolutionCoordinator", "auto-apply threw for ${proposal.id}: ${it.message}") }
                         }
                         promoted++
                     }

@@ -51,7 +51,7 @@ interface EvolutionCandidateDao {
     @Query("UPDATE evolution_candidates SET status = :status, updatedAt = :timestamp, reflectionResult = :reflection WHERE id = :id")
     suspend fun setStatus(id: kotlin.String, status: kotlin.String, reflection: kotlin.String = "", timestamp: kotlin.Long = System.currentTimeMillis())
 
-    @Query("DELETE FROM evolution_candidates WHERE createdAt <= :cutoff AND status IN ('rejected', 'promoted')")
+    @Query("DELETE FROM evolution_candidates WHERE createdAt <= :cutoff AND status IN ('REJECTED', 'PROMOTED', 'AUTO_APPLIED')")
     suspend fun deleteStale(cutoff: kotlin.Long): Int
 
     @Query("SELECT * FROM evolution_candidates ORDER BY createdAt ASC")

@@ -374,7 +374,9 @@ class ChatViewModel @Inject constructor(
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
             onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
             recentTopics = {
-                runCatching { conversationStore.recentTopics(5) }.getOrDefault("")
+                runCatching { conversationStore.recentTopics(5) }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    .getOrDefault("")
             },
         )
     }

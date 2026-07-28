@@ -21,6 +21,7 @@ import javax.inject.Inject
  * LISTENING → user speaks → STT FinalResult → send() → THINKING
  * THINKING → agent Done → TTS speaks response → SPEAKING
  * SPEAKING → TTS done → LISTENING (loop)
+ * SPEAKING + user barges in → THINKING (interrupt)
  *
  * Exit conditions:
  * - User taps "Stop"
@@ -56,6 +57,8 @@ class ContinuousVoiceViewModel @Inject constructor(
     private var sttCollectorJob: Job? = null
     private var ttsCollectorJob: Job? = null
     private var responseWaitJob: Job? = null
+    /** Barge-in collector — cancelled alongside the others in stopLoop(). */
+    private var bargeInJob: Job? = null
 
     /**
      * Start the voice loop. The caller (ChatScreen) provides callbacks
@@ -76,6 +79,7 @@ class ContinuousVoiceViewModel @Inject constructor(
         sttCollectorJob?.cancel()
         ttsCollectorJob?.cancel()
         responseWaitJob?.cancel()
+        bargeInJob?.cancel()
         speechToText.cancel()
         textToSpeech.stop()
         _state.update { it.copy(active = false, phase = VoiceModeState.IDLE) }
@@ -156,8 +160,13 @@ class ContinuousVoiceViewModel @Inject constructor(
         onSend: (String) -> Unit,
         onStreamingDone: () -> Boolean,
     ) {
-        // Cancel any previous TTS collector so only one exists at a time.
+        // Cancel previous collectors — including the LISTENING STT
+        // collector — so only the barge-in collector (assigned below)
+        // watches STT during SPEAKING. Single-owner discipline prevents
+        // duplicate onSend() from two live collectors on the same StateFlow.
+        sttCollectorJob?.cancel()
         ttsCollectorJob?.cancel()
+        bargeInJob?.cancel()
 
         _state.update { it.copy(phase = VoiceModeState.SPEAKING) }
         val response = _state.value.lastResponse
@@ -173,43 +182,31 @@ class ContinuousVoiceViewModel @Inject constructor(
         // Barge-in: keep STT running during SPEAKING so the user can
         // interrupt the assistant mid-response. When PartialResult fires
         // with enough text (> 2 chars), cancel TTS and treat it as a
-        // new user turn.
+        // new user turn. Word-count guard raises the bar above the
+        // assistant's own voice bleeding into the mic, and STOP_PHRASES
+        // are checked here so the user can exit voice mode mid-reply.
         speechToText.start()
-        val bargeInCollector = viewModelScope.launch {
+        bargeInJob = viewModelScope.launch {
             speechToText.state.collect { sttState ->
                 if (_state.value.phase != VoiceModeState.SPEAKING) return@collect
                 when (sttState) {
                     is SpeechToText.State.PartialResult -> {
                         val text = sttState.text.trim()
-                        if (text.length > 2) {
-                            textToSpeech.stop()
-                            coroutineContext[Job]?.cancel()
-                            _state.update { it.copy(phase = VoiceModeState.THINKING, partialTranscript = text) }
-                            onSend(text)
-                            responseWaitJob = viewModelScope.launch responseWait@{
-                                while (_state.value.active && !onStreamingDone()) {
-                                    delay(200)
-                                }
-                                if (!_state.value.active) return@responseWait
-                                speakResponse(onSend, onStreamingDone)
-                            }
+                        if (text.split(" ").size > 1 && text.length > 3) {
+                            handleBargeIn(text, onSend, onStreamingDone)
                         }
                     }
                     is SpeechToText.State.FinalResult -> {
-                        // Full sentence detected during TTS — strong barge-in.
                         val text = sttState.text.trim()
                         if (text.isNotBlank()) {
-                            textToSpeech.stop()
-                            coroutineContext[Job]?.cancel()
-                            _state.update { it.copy(phase = VoiceModeState.THINKING, partialTranscript = text) }
-                            onSend(text)
-                            responseWaitJob = viewModelScope.launch responseWait@{
-                                while (_state.value.active && !onStreamingDone()) {
-                                    delay(200)
-                                }
-                                if (!_state.value.active) return@responseWait
-                                speakResponse(onSend, onStreamingDone)
+                            // Check stop commands here — fixing onSend("stop")
+                            // the LISTENING collector would have caught but the
+                            // barge-in path must handle independently.
+                            if (text.lowercase() in STOP_PHRASES) {
+                                stopLoop()
+                                return@collect
                             }
+                            handleBargeIn(text, onSend, onStreamingDone)
                         }
                     }
                     else -> Unit
@@ -221,7 +218,7 @@ class ContinuousVoiceViewModel @Inject constructor(
         ttsCollectorJob = viewModelScope.launch {
             textToSpeech.state.collect { ttsState ->
                 if (ttsState is TextToSpeech.State.Ready && _state.value.phase == VoiceModeState.SPEAKING) {
-                    bargeInCollector.cancel()
+                    bargeInJob?.cancel()
                     speechToText.cancel()
                     if (_state.value.active) {
                         startListening(onSend, onStreamingDone)
@@ -229,6 +226,30 @@ class ContinuousVoiceViewModel @Inject constructor(
                     return@collect
                 }
             }
+        }
+    }
+
+    /**
+     * Commit the barge-in: set phase to THINKING BEFORE stopping TTS
+     * so the TTS collector's `phase == SPEAKING` guard can't win the
+     * race and reset to LISTENING, silently discarding the response.
+     */
+    private fun handleBargeIn(
+        text: String,
+        onSend: (String) -> Unit,
+        onStreamingDone: () -> Boolean,
+    ) {
+        _state.update { it.copy(phase = VoiceModeState.THINKING, partialTranscript = text) }
+        textToSpeech.stop()
+        bargeInJob?.cancel()
+        speechToText.cancel()
+        onSend(text)
+        responseWaitJob = viewModelScope.launch responseWait@{
+            while (_state.value.active && !onStreamingDone()) {
+                delay(200)
+            }
+            if (!_state.value.active) return@responseWait
+            speakResponse(onSend, onStreamingDone)
         }
     }
 

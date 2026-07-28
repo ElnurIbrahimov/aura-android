@@ -65,6 +65,7 @@ class DaemonWorker @AssistedInject constructor(
             val taskContext = runCatching {
                 val today = java.util.Calendar.getInstance().apply {
                     set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
                 }.timeInMillis
                 val tomorrow = today + 24L * 60 * 60 * 1000
                 val due = taskDao?.dueInRange(today, tomorrow) ?: emptyList()
@@ -94,7 +95,8 @@ class DaemonWorker @AssistedInject constructor(
             } else ""
 
             val systemPrompt = if (contextBlock.isNotBlank()) {
-                """You are Aura's background thinking daemon. Review the recent
+                """
+                You are Aura's background thinking daemon. Review the recent
                 conversation and the user's current context (calendar, fading
                 memories, due tasks). Generate a brief, helpful insight
                 (max 2 sentences). Connect the conversation to the context
@@ -105,7 +107,8 @@ class DaemonWorker @AssistedInject constructor(
                 $contextBlock
                 """.trimIndent()
             } else {
-                """You are Aura's background thinking daemon. Review the recent
+                """
+                You are Aura's background thinking daemon. Review the recent
                 conversation and generate a brief insight or observation
                 (max 2 sentences). If there's nothing notable, respond with
                 exactly "SKIP". Do not repeat what was already said.
