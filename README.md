@@ -8,9 +8,9 @@ This is my personal copy.
 
 ## Status
 
-**v0.36.0** (versionCode 41).
+**v0.38.0** (versionCode 43).
 
-- 59 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council)
+- 62 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign)
@@ -43,8 +43,8 @@ This is my personal copy.
 - Agent trace + observability (20 event types via TraceSink)
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v12)
-- 239 unit test files, 1,596 tests, 0 failures (was 217 / 1,286 at v0.35.3)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v14)
+- 253 unit test files, 1,423 tests, 0 failures (was 217 / 1,286 at v0.35.3)
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
 - 4 daily-use UX round-2 fixes (offline indicator, image paste, TTS state mirror + stop pill, response duration footer)
