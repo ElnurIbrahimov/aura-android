@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -711,5 +713,73 @@ class BackupManagerTest {
         )
         // 17 legacy + 10 schema-v10 = 27
         assertEquals(27, counts.total)
+    }
+
+    /**
+     * P1-SEC-F2 regression: SMTP host/port/username/from must NOT appear
+     * in the JSON export. The previous implementation included them in
+     * plaintext, which leaked the user's mailbox identity and SMTP relay
+     * to anyone holding the backup file. The user re-enters them after
+     * restore, just like the SMTP password (which has always been
+     * excluded).
+     */
+    @Test
+    fun `snapshot never includes SMTP host port username or from`() = runTest {
+        coEvery { memoryDao.allForExport() } returns emptyList()
+        coEvery { memoryEditDao.allForBackup() } returns emptyList()
+        coEvery { documentDao.allForBackup() } returns emptyList()
+        coEvery { creativeProjectDao.allForBackup() } returns emptyList()
+        coEvery { conversationDao.allForExport() } returns emptyList()
+        coEvery { kgDao.allNodes() } returns emptyList()
+        coEvery { kgDao.allEdges() } returns emptyList()
+        coEvery { handDao.getAll() } returns emptyList()
+        coEvery { handDao.allRunsForBackup() } returns emptyList()
+        coEvery { taskDao.all() } returns emptyList()
+        coEvery { reminderDao.allForBackup() } returns emptyList()
+        coEvery { proactiveEventDao.allForBackup() } returns emptyList()
+        coEvery { userProfileDao.get() } returns null
+        coEvery { agentDao.allOnce() } returns emptyList()
+        every { userPreferences.defaultModel } returns flowOf(null)
+        every { userPreferences.firstRunComplete } returns flowOf(true)
+        every { userPreferences.appLockEnabled } returns flowOf(false)
+        every { userPreferences.lastSeenProactiveAt } returns flowOf(0L)
+        every { userPreferences.morningBriefEnabled } returns flowOf(true)
+        every { userPreferences.calendarMonitorEnabled } returns flowOf(true)
+        every { userPreferences.ttsEnabled } returns flowOf(true)
+        every { userPreferences.incognitoDefault } returns flowOf(false)
+        every { userPreferences.themeMode } returns flowOf("system")
+        every { userPreferences.customIdentity } returns flowOf("")
+        every { userPreferences.specialistOverrides } returns flowOf("{}")
+        every { userPreferences.morningBriefHour } returns flowOf(7)
+        every { userPreferences.specialistToolOverrides } returns flowOf("{}")
+        every { userPreferences.visionModel } returns flowOf(null)
+        every { userPreferences.backgroundModel } returns flowOf(null)
+        every { userPreferences.deepModeModel } returns flowOf(null)
+        every { userPreferences.moaReferenceModels } returns flowOf(emptyList())
+        every { userPreferences.moaAggregatorModel } returns flowOf(null)
+        every { userPreferences.imageModel } returns flowOf("")
+        // Even when the user has real SMTP values set, the snapshot
+        // must not include them.
+        every { userPreferences.smtpHost } returns flowOf("mail.example.com")
+        every { userPreferences.smtpPort } returns flowOf(465)
+        every { userPreferences.smtpUsername } returns flowOf("user@example.com")
+        every { userPreferences.smtpFrom } returns flowOf("Aura <noreply@example.com>")
+        every { userPreferences.mcpServersJson } returns flowOf("[]")
+        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { providerKeys.embeddingModel } returns ""
+
+        val backup = manager.snapshot(appVersionName = "0.1.0")
+        val json = manager.encodeToJson(backup)
+
+        // P1-SEC-F2: nothing SMTP-identity-shaped should leave the device.
+        assertNull(backup.preferences.smtpHost)
+        assertNull(backup.preferences.smtpUsername)
+        assertNull(backup.preferences.smtpFrom)
+        assertEquals(0, backup.preferences.smtpPort)
+        assertFalse(json.contains("mail.example.com"))
+        assertFalse(json.contains("user@example.com"))
+        assertFalse(json.contains("noreply@example.com"))
     }
 }

@@ -103,4 +103,32 @@ class DagResolverTest {
         assertEquals(1, ready.size)
         assertEquals("s4", ready.first().id)
     }
+
+    /**
+     * P1-AGENTIC-F4 regression: when a run is paused awaiting user
+     * approval, the executor must NOT mark it FAILED. The resolver
+     * now reports the BLOCKED step IDs so the executor can transition
+     * to PAUSED instead.
+     */
+    @Test
+    fun `blockedStepIds returns the ids of BLOCKED steps`() {
+        val resolver = DagResolver()
+        val steps = listOf(
+            step(id = "a", status = "SUCCESS", dependsOn = "[]"),
+            step(id = "b", status = "BLOCKED", dependsOn = "[]"),
+            step(id = "c", status = "PENDING", dependsOn = """["b"]"""),
+        )
+        val blocked = resolver.blockedStepIds(steps)
+        assertEquals(listOf("b"), blocked)
+    }
+
+    @Test
+    fun `blockedStepIds is empty when no step is BLOCKED`() {
+        val resolver = DagResolver()
+        val steps = listOf(
+            step(id = "a", status = "SUCCESS", dependsOn = "[]"),
+            step(id = "b", status = "PENDING", dependsOn = """["a"]"""),
+        )
+        assertEquals(emptyList<kotlin.String>(), resolver.blockedStepIds(steps))
+    }
 }
