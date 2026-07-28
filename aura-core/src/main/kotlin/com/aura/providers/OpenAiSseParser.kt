@@ -28,25 +28,41 @@ internal class OpenAiSseParser {
     private val toolCallIndexToId = mutableMapOf<Int, String>()
 
     /**
-     * Parse one SSE `data:` event into a [ProviderChunk], or null if
-     * the event is not interesting (e.g. a comment, an empty delta,
-     * or unparseable JSON).
+     * Parse one SSE `data:` event into zero or more [ProviderChunk]s.
      *
-     * Returns a [ProviderChunk] with `finishReason = stop` when the
-     * data is `[DONE]`.
+     * Returns a list rather than a single chunk because a single SSE event
+     * can carry multiple parallel tool calls in its `tool_calls` array
+     * (a real pattern in vLLM, Together, and some OpenAI proxies). The
+     * downstream caller must emit every chunk in the list so that
+     * Brain.fromProvider's index->id routing sees every tool call start.
+     *
+     * Returns:
+     *   - empty list for uninteresting events (comments, empty deltas,
+     *     unparseable JSON)
+     *   - a list with one `finishReason = stop` chunk when `data == "[DONE]"`
+     *   - a list of text/tool/finish chunks otherwise
+     *
+     * P0-AGENTIC-F1: previous implementation returned a single chunk,
+     * which **dropped** all but the last tool call when multiple were
+     * batched into one event. The Brain's LRU nameById then mis-routed
+     * the dropped calls' argument deltas to the surviving tool call.
+     *
+     * Order: tool calls come first so a parallel-call chunk adjacent to
+     * a finishReason (which some servers emit) is still routed correctly.
      */
-    fun parseEvent(data: String): ProviderChunk? {
-        if (data == "[DONE]") return ProviderChunk(finishReason = FinishReason.stop)
-        val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return null }
-        val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return null
-        val delta = (choice["delta"] as? JsonObject) ?: return null
+    fun parseEvent(data: String): List<ProviderChunk> {
+        if (data == "[DONE]") return listOf(ProviderChunk(finishReason = FinishReason.stop))
+        val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return emptyList() }
+        val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return emptyList()
+        val delta = (choice["delta"] as? JsonObject) ?: return emptyList()
+
+        // Tool calls — emit one chunk per array entry. resolveIds() updates
+        // the index->id map as a side effect.
+        val toolChunks = parseToolCalls(delta)
 
         // Text content
         val text = (delta["content"] as? JsonPrimitive)?.content
         val textChunk = if (text != null) ProviderChunk(text = text) else null
-
-        // Tool calls — resolve id via index for parallel tool calls
-        val toolChunk = parseToolCalls(delta)
 
         // Finish reason
         val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
@@ -60,12 +76,20 @@ internal class OpenAiSseParser {
             ProviderChunk(finishReason = reason)
         } else null
 
-        // Prefer tool call > finish > text > null
-        return toolChunk ?: finishChunk ?: textChunk
+        // Order: tool calls first (so Brain captures the start), then
+        // finish (so a finishing event cannot swallow a queued tool
+        // chunk), then text. Empty list when nothing worth emitting.
+        return toolChunks + listOfNotNull(finishChunk, textChunk)
     }
 
-    private fun parseToolCalls(delta: JsonObject): ProviderChunk? {
-        val toolCalls = (delta["tool_calls"] as? JsonArray) ?: return null
+    /**
+     * Return one [ProviderChunk] per `tool_calls` array entry. Updates
+     * the index->id map on every call so subsequent argument-only deltas
+     * carry the index back to the same id.
+     */
+    private fun parseToolCalls(delta: JsonObject): List<ProviderChunk> {
+        val toolCalls = (delta["tool_calls"] as? JsonArray) ?: return emptyList()
+        val out = mutableListOf<ProviderChunk>()
         for (tc in toolCalls) {
             val tco = tc.jsonObject
             val fn = tco["function"]?.jsonObject ?: continue
@@ -84,8 +108,8 @@ internal class OpenAiSseParser {
             } else {
                 ""
             }
-            return ProviderChunk(toolCall = ToolCall(id = resolvedId, name = name, arguments = args))
+            out += ProviderChunk(toolCall = ToolCall(id = resolvedId, name = name, arguments = args))
         }
-        return null
+        return out
     }
 }

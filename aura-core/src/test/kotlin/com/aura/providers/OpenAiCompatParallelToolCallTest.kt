@@ -150,4 +150,47 @@ class OpenAiCompatParallelToolCallTest {
         assertEquals("call_X", toolChunks[0].toolCall?.id)
         assertEquals("search", toolChunks[0].toolCall?.name)
     }
+
+    /**
+     * P0-AGENTIC-F1 regression: a single SSE event may carry multiple
+     * parallel tool calls in its `tool_calls` array (a real pattern in
+     * vLLM, Together, and some OpenAI proxies). The previous contract
+     * returned a single chunk from parseEvent, which dropped all but the
+     * last tool call in the array. With the fix, every tool call in the
+     * array is emitted as its own chunk so Brain.fromProvider sees every
+     * start.
+     */
+    @Test
+    fun `multiple tool calls in a single SSE event are all emitted`() = runBlocking {
+        val sseData = listOf(
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_A","type":"function","function":{"name":"search","arguments":""}},{"index":1,"id":"call_B","type":"function","function":{"name":"fetch","arguments":""}}]}}]}""",
+            """{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}""",
+            "[DONE]",
+        )
+        val sseBody = sseData.joinToString("") { "data: $it\n\n" }
+
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody(sseBody),
+        )
+
+        val chunks = withTimeout(10_000L) {
+            provider.chat("test-model", listOf(
+                ProviderMessage(role = ProviderMessage.Role.user, content = "go"),
+            ), ChatOptions(), emptyList()).toList()
+        }
+
+        val toolChunks = chunks.filter { it.toolCall != null }
+        assertEquals(2, toolChunks.size, "Both tools must be emitted from a single event")
+
+        val ids = toolChunks.mapNotNull { it.toolCall?.id }.toSet()
+        assertTrue("call_A" in ids, "call_A missing from emitted chunks")
+        assertTrue("call_B" in ids, "call_B missing from emitted chunks")
+
+        val names = toolChunks.mapNotNull { it.toolCall?.name }.toSet()
+        assertTrue("search" in names, "search missing from emitted chunks")
+        assertTrue("fetch" in names, "fetch missing from emitted chunks")
+    }
 }

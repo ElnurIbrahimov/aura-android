@@ -65,11 +65,16 @@ open class OpenAiCompatProvider(
         val sseParser = OpenAiSseParser()
         val src = EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                val chunk = sseParser.parseEvent(data)
-                if (chunk != null) {
+                val chunks = sseParser.parseEvent(data)
+                // P0-AGENTIC-F1: parseEvent returns a list to support parallel
+                // tool calls batched in a single SSE event. Emit every chunk;
+                // close the channel only when the stream signals finish.
+                var finished = false
+                for (chunk in chunks) {
                     channel.trySend(chunk)
-                    if (chunk.finishReason != null) channel.close()
+                    if (chunk.finishReason != null) finished = true
                 }
+                if (finished) channel.close()
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
                 // 401/400/403 are not retryable — retrying with the same

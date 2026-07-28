@@ -39,7 +39,11 @@ class TriggerWorker @AssistedInject constructor(
                 }
                 is TriggerAction.StartChat -> {
                     // TODO: start chat with prompt via notification tap
-                    android.util.Log.d("TriggerWorker", "StartChat ${action.prompt}")
+                    // P0-BUILD-DX-F2: do NOT log the user prompt text (privacy);
+                    // the handler is unimplemented so the log adds no operational value.
+                    // Length-only signal preserves a debugging affordance without
+                    // leaking content.
+                    android.util.Log.d("TriggerWorker", "StartChat handler=TODO promptLen=${action.prompt.length}")
                 }
             }
         }
