@@ -63,6 +63,19 @@ class UserProfileStore @Inject constructor(
         }
     }
 
+    /** Merge newly extracted traits without deleting traits learned earlier. */
+    suspend fun mergeTraits(newTraits: List<kotlin.String>) {
+        loadJob.join()
+        updateMutex.withLock {
+            val current = _profile.value
+            val mergedTraits = (current.traits + newTraits)
+                .map(kotlin.String::trim)
+                .filter(kotlin.String::isNotBlank)
+                .distinctBy(kotlin.String::lowercase)
+            persist(current.copy(traits = mergedTraits))
+        }
+    }
+
     suspend fun awaitLoaded() = loadJob.join()
 
     fun getSystemPrompt(): String = _profile.value.toSystemPrompt()

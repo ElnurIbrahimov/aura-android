@@ -76,6 +76,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
     private val reflectionEngine: ReflectionEngine? = null,
     private val strategyBandit: StrategyBandit? = null,
+    private val llmProfileExtractor: com.aura.profile.LlmProfileExtractor? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -893,8 +894,25 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         //    extraction on the user message first, then on the assistant
         //    text as a secondary path (the assistant may echo user facts).
         if (memoryEnabled && lastUserMessage.isNotBlank()) {
-            runCatching { extractProfileFromText(lastUserMessage) }
+            // First pass: fast regex extraction (name, location, job, preferences).
+            val regexFound = runCatching { extractProfileFromText(lastUserMessage) }
                 .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (user) failed: ${it.message}") }
+                .isSuccess
+            // Second pass: LLM extraction for things regex misses
+            // ("I use Vim", "I'm allergic to peanuts", "my wife's name is Sarah").
+            // Only fires when regex found nothing AND the LLM extractor is available.
+            // Uses a cheap model, 200 tokens, 5s timeout — non-blocking.
+            if (!regexFound && llmProfileExtractor != null && lastUserMessage.length > 15) {
+                runCatching {
+                    val profileModel = resolveCheapModel(effectiveModel)
+                    val extraction = llmProfileExtractor.extract(lastUserMessage, profileModel)
+                    if (extraction != null) {
+                        extraction.name?.let { userProfileStore.update(name = it) }
+                        if (extraction.traits.isNotEmpty()) userProfileStore.mergeTraits(extraction.traits)
+                        if (extraction.facts.isNotEmpty()) userProfileStore.mergeFacts(extraction.facts)
+                    }
+                }.onFailure { android.util.Log.w("AgenticLoop", "LLM profile extraction failed: ${it.message}") }
+            }
         }
         // Only the user's own text is a reliable source for profile facts.
         // The assistant may echo user facts, but it may also hallucinate them
