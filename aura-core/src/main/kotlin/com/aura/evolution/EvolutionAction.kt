@@ -49,4 +49,6 @@ enum class CandidateStatus {
     REFLECTED,
     REJECTED,
     PROMOTED,
+    /** Auto-applied by EvolutionCoordinator when domain has autoApplyApproved. */
+    AUTO_APPLIED,
 }

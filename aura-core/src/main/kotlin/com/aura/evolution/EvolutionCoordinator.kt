@@ -22,6 +22,7 @@ class EvolutionCoordinator @Inject constructor(
     private val candidateDao: EvolutionCandidateDao,
     private val settingsDao: EvolutionSettingsDao,
     private val evaluators: EvolutionEvaluators? = null,
+    private val applySaga: EvolutionApplySaga? = null,
 ) {
     suspend fun runAll(): RunResult {
         val start = System.currentTimeMillis()
@@ -85,7 +86,20 @@ class EvolutionCoordinator @Inject constructor(
                         "model: ${verdict.reason}",
                     )
                     if (verdict.approve) {
-                        proposalStore.fromCandidate(candidate.copy(reflectionResult = verdict.reason))
+                        val proposal = proposalStore.fromCandidate(candidate.copy(reflectionResult = verdict.reason))
+                        // Auto-apply: if the domain has autoApplyApproved enabled,
+                        // apply the proposal immediately instead of routing to the
+                        // inbox. The EvolutionRollbackManager supports rollback for
+                        // all 20 actions, so auto-applied changes are safe to revert.
+                        if (settings.autoApplyApproved && applySaga != null) {
+                            val result = applySaga.apply(proposal)
+                            if (result is EvolutionApplySaga.ApplyResult.Ok) {
+                                candidateDao.setStatus(candidate.id, CandidateStatus.AUTO_APPLIED.name, "auto-applied: ${verdict.reason}")
+                                android.util.Log.i("EvolutionCoordinator", "auto-applied proposal ${proposal.id} in domain ${candidate.domain}: ${result.summary}")
+                            } else {
+                                candidateDao.setStatus(candidate.id, CandidateStatus.PROMOTED.name, "auto-apply failed, pending review: ${verdict.reason}")
+                            }
+                        }
                         promoted++
                     }
                 }
