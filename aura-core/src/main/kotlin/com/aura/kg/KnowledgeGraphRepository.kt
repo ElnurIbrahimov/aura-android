@@ -14,6 +14,7 @@ import javax.inject.Singleton
 class KnowledgeGraphRepository @Inject constructor(
     private val dao: KnowledgeGraphDao,
     private val beliefConflictProbe: com.aura.world.BeliefConflictProbe? = null,
+    private val entityResolver: KgEntityResolver? = null,
 ) {
     private val mutex = Mutex()
 
@@ -28,7 +29,22 @@ class KnowledgeGraphRepository @Inject constructor(
         } else {
             ""
         }
-        for (node in nodes) {
+        // Entity resolution: dedup new nodes/edges against existing
+        // graph to prevent paraphrase duplicates. Best-effort: if the
+        // resolver is unavailable, insert directly (current behavior).
+        val (nodesToInsert, edgesToInsert) = if (entityResolver != null) {
+            val existingNodes = dao.allNodes().map { KgNode.fromEntity(it) }
+            val existingEdges = dao.allEdges().map { KgEdge.fromEntity(it) }
+            val result = entityResolver.resolve(nodes, edges, existingNodes, existingEdges)
+            if (result.mergedNodeCount > 0 || result.mergedEdgeCount > 0) {
+                android.util.Log.i("KgRepository",
+                    "Entity resolution: merged ${result.mergedNodeCount} nodes, ${result.mergedEdgeCount} edges")
+            }
+            result.nodesToInsert to result.edgesToInsert
+        } else {
+            nodes to edges
+        }
+        for (node in nodesToInsert) {
             val id = node.id.ifBlank { KgId.node(node.type, node.label) }
             dao.insertNode(
                 node.copy(
@@ -40,7 +56,7 @@ class KnowledgeGraphRepository @Inject constructor(
                 ).toEntity()
             )
         }
-        for (edge in edges) {
+        for (edge in edgesToInsert) {
             val id = edge.id.ifBlank { KgId.edge(edge.type, edge.sourceId, edge.targetId) }
             // REPLACE overwrites the whole row, so without this the original
             // creation time is lost on every re-save and `lastReinforced >
