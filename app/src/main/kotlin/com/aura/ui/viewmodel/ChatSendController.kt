@@ -101,6 +101,7 @@ class ChatSendController(
     private val generateTitle: (String) -> String,
     private val onError: (String) -> Unit,
     private val onRunComplete: (Long) -> Unit = {},
+    private val recentTopics: (suspend () -> String)? = null,
 ) {
     /** Active streaming coroutine, if any. */
     var runJob: Job? = null
@@ -324,6 +325,7 @@ class ChatSendController(
                     approvedRemoteCostTools = state.value.approvedRemoteCostTools,
                     agentId = state.value.activeAgentId,
                     planningEnabled = userPreferences.planningEnabled.first(),
+                    recentTopics = recentTopics?.invoke() ?: "",
                 ).collect { event ->
                     when (event) {
                         is AgentEvent.TextDelta -> {

@@ -341,3 +341,33 @@ private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
     if (aN == 0f || bN == 0f) return 0f
     return dot / (aN * bN)
 }
+
+/**
+ * Extract active topics from recent conversation titles and summaries.
+ * Returns a comma-separated list of keywords for injection into the
+ * system prompt on new conversations. Simple word-frequency heuristic
+ * — no LLM call needed.
+ */
+suspend fun ConversationStore.recentTopics(limit: Int = 5): String {
+    val recent = recent(limit)
+    if (recent.isEmpty()) return ""
+    val words = recent.flatMap { conv ->
+        val text = "${conv.title} ${conv.contextSummary}"
+        text.lowercase()
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.length > 3 }
+            .filter { it !in STOP_WORDS }
+    }
+    return words.groupingBy { it }.eachCount()
+        .entries
+        .sortedByDescending { it.value }
+        .take(8)
+        .joinToString(", ") { it.key }
+}
+
+private val STOP_WORDS = setOf(
+    "this", "that", "with", "from", "have", "been", "were", "they",
+    "their", "about", "which", "what", "when", "your", "just", "like",
+    "some", "more", "would", "could", "there", "also", "than", "other"
+)

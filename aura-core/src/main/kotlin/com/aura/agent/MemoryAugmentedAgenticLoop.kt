@@ -290,6 +290,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          * [com.aura.data.UserPreferences.planningEnabled].
          */
         planningEnabled: Boolean = false,
+        /**
+         * Keywords from the user's recent conversation topics (computed
+         * by [com.aura.agent.ConversationStore.recentTopics]). Injected
+         * into the system prompt so the agent has cross-conversation
+         * continuity — it knows what the user has been discussing.
+         */
+        recentTopics: String = "",
     ): Flow<AgentEvent> = flow {
         val runId = "run_${System.currentTimeMillis()}"
         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
@@ -571,6 +578,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val reflectionContext = if (!priorReflection.isNullOrBlank()) {
                 "\n\n## Previous attempt reflection:\n$priorReflection"
             } else ""
+            val topicContext = if (recentTopics.isNotBlank()) {
+                "\n\n## Recent topics: $recentTopics\nIf relevant, offer to continue where the user left off."
+            } else ""
             val messages = buildList {
                 val sys = listOfNotNull(
                     if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}") }.getOrNull() else null,
@@ -579,7 +589,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext
+                ).joinToString("\n\n") + topicContext + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext
 
                 // 2.5) Planning step: ask the model to outline its approach before
                 // calling tools. The plan is injected as a system prefix so the

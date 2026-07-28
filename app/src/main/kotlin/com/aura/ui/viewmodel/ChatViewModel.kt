@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.aura.data.UserPreferences
 import com.aura.agent.AgentEvent
 import com.aura.agent.ConversationStore
+import com.aura.agent.recentTopics
 import com.aura.agent.MemoryAugmentedAgenticLoop
 import com.aura.agent.Reaction
 import com.aura.agent.ToolContext
@@ -372,6 +373,9 @@ class ChatViewModel @Inject constructor(
             generateTitle = ::generateTitle,
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
             onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
+            recentTopics = {
+                runCatching { conversationStore.recentTopics(5) }.getOrDefault("")
+            },
         )
     }
 
