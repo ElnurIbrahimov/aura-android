@@ -21,6 +21,7 @@ class EvolutionCoordinator @Inject constructor(
     private val proposalStore: EvolutionProposalStore,
     private val candidateDao: EvolutionCandidateDao,
     private val settingsDao: EvolutionSettingsDao,
+    private val evaluators: EvolutionEvaluators? = null,
 ) {
     suspend fun runAll(): RunResult {
         val start = System.currentTimeMillis()
