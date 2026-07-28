@@ -74,6 +74,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val agentStore: AgentStore? = null,
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
+    private val reflectionEngine: ReflectionEngine? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -366,6 +367,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // (or memoryEnabled=false in incognito mode).
         var lastRecall: com.aura.agent.RecallSummary? = null
 
+        // Track tool errors for reflection on failure.
+        val toolErrors = mutableListOf<Pair<kotlin.String, kotlin.String>>()
+
         while (!finished && step < maxSteps) {
             step += 1
             coroutineContext.ensureActive()
@@ -545,6 +549,16 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 }.onFailure { android.util.Log.w("AgenticLoop", "personality resolution failed: ${it.message}") }.getOrNull() ?: ""
             }
             val personalityDirective = cachedPersonality ?: ""
+
+            // Inject prior reflection from a failed previous run in this
+            // conversation. The reflection tells the model what went wrong
+            // last time and what to try differently. Only present when a
+            // prior run in this conversation hit max_steps_exceeded with
+            // tool errors.
+            val priorReflection = currentConversation.metadata["lastReflection"] as? kotlin.String
+            val reflectionContext = if (!priorReflection.isNullOrBlank()) {
+                "\n\n## Previous attempt reflection:\n$priorReflection"
+            } else ""
             val messages = buildList {
                 val sys = listOfNotNull(
                     if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}") }.getOrNull() else null,
@@ -553,7 +567,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + memoryContext + beliefContext + tasteContext + emotionContext + handContext
+                ).joinToString("\n\n") + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext
 
                 // 2.5) Planning step: ask the model to outline its approach before
                 // calling tools. The plan is injected as a system prefix so the
@@ -788,7 +802,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 }
                 val rawResultText = when (result) {
                     is ToolResult.Ok -> result.output
-                    is ToolResult.Error -> "Error: ${result.message}"
+                    is ToolResult.Error -> {
+                    toolErrors.add(name to result.message)
+                    "Error: ${result.message}"
+                }
                     is ToolResult.NeedsPermission -> "Permission needed: ${result.permission} — ${result.rationale}"
                     is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
                 }
@@ -890,6 +907,27 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         if (!finished) {
             emit(AgentEvent.Error("max_steps_exceeded", "Hit max steps ($maxSteps) without finishing.", retryable = false))
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_FAILED, errorCode = "max_steps_exceeded")
+            // Reflection: generate a short "what went wrong, what to try
+            // differently" note and store it on the conversation. The
+            // next run() for this conversation will inject it into the
+            // system prompt so the model self-corrects instead of
+            // repeating the same mistakes.
+            if (reflectionEngine != null && toolErrors.isNotEmpty()) {
+                runCatching {
+                    val reflectionModel = resolveCheapModel(effectiveModel)
+                    val reflection = reflectionEngine.reflect(
+                        userMessage = lastUserMessage,
+                        toolErrors = toolErrors,
+                        maxSteps = maxSteps,
+                        model = reflectionModel,
+                    )
+                    if (!reflection.isNullOrBlank()) {
+                        currentConversation = currentConversation.copy(
+                            metadata = currentConversation.metadata + ("lastReflection" to reflection),
+                        )
+                    }
+                }.onFailure { android.util.Log.w("AgenticLoop", "reflection generation failed: ${it.message}") }
+            }
         } else {
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED)
         }
