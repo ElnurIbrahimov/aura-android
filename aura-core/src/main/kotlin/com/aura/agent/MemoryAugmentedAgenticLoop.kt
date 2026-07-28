@@ -75,6 +75,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
     private val reflectionEngine: ReflectionEngine? = null,
+    private val strategyBandit: StrategyBandit? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -251,7 +252,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     fun run(
         conversation: Conversation,
         model: String,
-        maxSteps: Int = 10,
+        strategy: ReasoningStrategy? = null,
+        maxSteps: Int = if (strategy != null) strategy.maxSteps else 10,
         options: ChatOptions = ChatOptions(),
         recallLimit: Int = 5,
         specialist: Specialist? = null,
@@ -580,7 +582,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // 15s before the user sees a token and bills a second request on
                 // every turn, which is a bad default for conversational use; users
                 // doing tool-heavy work turn it on in Settings.
-                val needsPlan = planningEnabled &&
+                val effectivePlanning = strategy?.enablePlanning ?: planningEnabled
+        val needsPlan = effectivePlanning &&
                     lastUserMessage.length > 20 &&
                     lastUserMessage.split(Regex("\\s+")).filter { it.isNotBlank() }.size > 3
                 val plan = if (step == 1 && needsPlan) {

@@ -3,6 +3,9 @@ package com.aura.ui.viewmodel
 import android.app.Application
 import com.aura.agent.AgentEvent
 import com.aura.agent.MemoryAugmentedAgenticLoop
+import com.aura.agent.ProblemCategory
+import com.aura.agent.ReasoningStrategy
+import com.aura.agent.StrategyBandit
 import com.aura.agent.Specialist
 import com.aura.agent.ToolResult
 import com.aura.core.error.AuraError
@@ -84,6 +87,7 @@ class ChatSendController(
     private val application: Application,
     private val state: MutableStateFlow<ChatUiState>,
     private val loop: MemoryAugmentedAgenticLoop,
+    private val strategyBandit: StrategyBandit? = null,
     private val userPreferences: UserPreferences,
     private val textToSpeech: TextToSpeech,
     private val knowledgeGraphRepository: KnowledgeGraphRepository,
@@ -294,7 +298,18 @@ class ChatSendController(
                 // than the default 10. The Researcher specialist is allowed
                 // more steps because deep_research performs multiple
                 // search→fetch→gap-detect→search cycles.
-                val maxSteps = when (resolvedSpecialist?.name) {
+                // Strategy selection: classify the request and pick a
+                // reasoning strategy via Thompson Sampling. The bandit
+                // learns which strategies work best for which task types.
+                // Falls back to the existing maxSteps heuristic when the
+                // bandit is disabled or unavailable.
+                val category = ProblemCategory.classify(text, resolvedSpecialist)
+                val strategy = if (strategyBandit != null) {
+                    runCatching { strategyBandit.selectStrategy(category) }
+                        .getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
+                } else null
+
+                val maxSteps = strategy?.maxSteps ?: when (resolvedSpecialist?.name) {
                     "researcher" -> 20
                     "general" -> 15
                     else -> 10
@@ -302,6 +317,7 @@ class ChatSendController(
                 loop.run(
                     conversation = conversation,
                     model = model,
+                    strategy = strategy,
                     maxSteps = maxSteps,
                     specialist = resolvedSpecialist,
                     memoryEnabled = !state.value.incognitoMode,
@@ -421,6 +437,10 @@ class ChatSendController(
                         }
                         is AgentEvent.Error -> {
                             consecutiveFailures++
+                            // Record strategy bandit outcome: failure on max_steps_exceeded
+                            if (strategy != null && strategyBandit != null && event.code == "max_steps_exceeded") {
+                                runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }
+                            }
                             val typed = event.typedError
                             val display = typed?.formatUserMessage() ?: "${event.code}: ${event.message}"
                             setErrorWithAutoDismiss(display, event.retryable, typed)
