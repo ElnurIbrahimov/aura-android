@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
 class ConversationCompactor @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val crashLogger: CrashLogger,
+    private val kgRepository: com.aura.kg.KnowledgeGraphRepository? = null,
 ) {
     private val json = Json { encodeDefaults = true }
 
@@ -115,10 +116,24 @@ class ConversationCompactor @Inject constructor(
 
             val summary = output.toString().trim().take(MAX_SUMMARY_CHARS)
             if (summary.isBlank()) conversation
-            else conversation.copy(
-                contextSummary = summary,
-                summaryThroughTurn = compactThrough,
-            )
+            else {
+                // Entity-aware compaction: extract entities from the
+                // compacted turns and prepend a compact entity table to
+                // the prose summary. This preserves structured facts
+                // ("user -> likes -> Kotlin") that would be lost in a
+                // prose-only summary. Best-effort: if KG extraction
+                // fails, the prose summary stands alone (current behavior).
+                val entityTable = buildEntitySnapshot()
+                val combinedSummary = if (entityTable.isNotBlank()) {
+                    "$entityTable\n\n$summary"
+                } else {
+                    summary
+                }
+                conversation.copy(
+                    contextSummary = combinedSummary,
+                    summaryThroughTurn = compactThrough,
+                )
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
@@ -157,6 +172,34 @@ class ConversationCompactor @Inject constructor(
             cachedModelsWithContext(provider).firstOrNull { it.name == modelName }?.contextWindow
         }.onFailure { android.util.Log.w("ConversationCompactor", "lookupContextWindow failed for $model: ${it.message}") }
         .getOrNull()
+    }
+
+    /**
+     * Build a compact entity snapshot from the knowledge graph to
+     * prepend to the compaction summary. This ensures structured facts
+     * ("user -> likes -> Kotlin") survive compaction even when the
+     * prose summary loses them.
+     *
+     * Queries the KG for recent nodes+edges and formats them as:
+     * "Known facts: user→likes→Kotlin, user→lives_in→Baku, ..."
+     *
+     * Best-effort: returns empty string on any failure.
+     */
+    private suspend fun buildEntitySnapshot(): kotlin.String {
+        val repo = kgRepository ?: return ""
+        return runCatching {
+            val nodes = repo.recent(20)
+            val edges = repo.allEdges().take(20)
+            if (edges.isEmpty()) return@runCatching ""
+            val nodeMap = nodes.associateBy { it.id }
+            val lines = edges.mapNotNull { edge ->
+                val source = nodeMap[edge.sourceId]?.label ?: return@mapNotNull null
+                val target = nodeMap[edge.targetId]?.label ?: return@mapNotNull null
+                "$source→${edge.type}→$target"
+            }
+            if (lines.isEmpty()) ""
+            else "Known facts: ${lines.joinToString(", ")}"
+        }.getOrDefault("")
     }
 
     companion object {
