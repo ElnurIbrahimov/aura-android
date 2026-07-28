@@ -152,6 +152,11 @@ fun HandsScreen(
                     }
                 },
             )
+            Spacer(Modifier.height(8.dp))
+            HandsStatusFilterChips(
+                selected = state.statusFilter,
+                onSelect = { viewModel.setStatusFilter(it) },
+            )
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
@@ -577,3 +582,28 @@ internal fun runtimeVariableInputs(hand: Hand): Map<String, String> {
 private fun parseVariableDefaults(raw: String): Map<String, String> = runCatching {
     Json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.content }
 }.getOrDefault(emptyMap())
+@Composable
+private fun HandsStatusFilterChips(
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    val filters = listOf(
+        "all" to "All",
+        "enabled" to "Enabled",
+        "disabled" to "Disabled",
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+    ) {
+        filters.forEach { (key, label) ->
+            FilterChip(
+                selected = selected == key,
+                onClick = { onSelect(key) },
+                label = { Text(label) },
+            )
+        }
+    }
+}

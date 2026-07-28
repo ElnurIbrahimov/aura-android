@@ -1,5 +1,9 @@
 package com.aura.ui.viewmodel
 
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlin.test.assertTrue
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.toList
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolRegistry
@@ -196,6 +200,15 @@ class HandsViewModelTest {
         vm.clearHistory()
 
         coVerify { repository.deleteRunHistory() }
+    }
+
+    @Test
+    fun `status filter state is recorded`() {
+        val vm = viewModel()
+        vm.setStatusFilter("enabled")
+        assertEquals("enabled", vm.state.value.statusFilter)
+        vm.setStatusFilter("disabled")
+        assertEquals("disabled", vm.state.value.statusFilter)
     }
 
     private fun viewModel() = HandsViewModel(repository, executor, registry, scheduler)

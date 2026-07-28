@@ -24,10 +24,12 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -67,6 +69,7 @@ sealed class TopLevelRoute(
         Icons.AutoMirrored.Outlined.Chat,
     )
     data object Memory : TopLevelRoute("memory", "Memory", Icons.Filled.Memory, Icons.Outlined.Memory)
+    data object Tasks : TopLevelRoute("tasks", "Tasks", Icons.Filled.TaskAlt, Icons.Outlined.TaskAlt)
     data object Settings : TopLevelRoute("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
     data object Evolution : TopLevelRoute("evolution/inbox", "Evolve", Icons.Filled.AutoFixHigh, Icons.Outlined.AutoFixHigh)
 }
@@ -75,6 +78,7 @@ internal val topLevelRoutes = listOf(
     TopLevelRoute.Home,
     TopLevelRoute.Chat,
     TopLevelRoute.Memory,
+    TopLevelRoute.Tasks,
     TopLevelRoute.Evolution,
     TopLevelRoute.Settings,
 )

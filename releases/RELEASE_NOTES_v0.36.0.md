@@ -1,21 +1,19 @@
-# Aura Android v0.36.0 — Multi-agent chat + scheduled tasks
+# Aura Android v0.36.0
 
-## New features
-- Chat agent picker: switch between agents in the input bar.
-- @agent mentions in chat: delegate a question to any agent inline.
-- Agent council UI: pick multiple agents and run them in parallel.
-- Per-agent identity injection in system prompt.
-- Agent-scoped taste signals and delegated-agent memory storage.
-- Weekdays recurrence for reminders.
-- `schedule_task` tool: agents can schedule future notifications or chat starts.
-- Upcoming Schedule screen with Tasks/Reminders tabs.
-- Conditional trigger engine: scheduled + web-change triggers with SSRF-safe fetch.
-- Trigger Worker runs every 15 minutes, gated by Settings.
+8 upgrade items shipped on `feat/tier-1-friction`.
+
+## New / Improved
+- **Capability surface** — `CapabilitiesScreen` + ViewModel + route, showing all 6 capability kinds and which providers power them.
+- **Dreams screen** — full entity display for routines, contradictions, and edge proposals with actions.
+- **World model + taste profile** — new `WorldModelScreen`/`TasteProfileScreen` routes wired through `EvolutionSettingsSection`.
+- **Tool confirmation parity** — `WRITE_REMOTE` tools now require explicit confirmation; `IMPLICIT`/`EXPLICIT` prefixes distinguish implicit confirmation from cost approval.
+- **Context-window budget propagation** — `ContextBudgetResolver` resolves provider-specific context windows; `Brain.stream` fills `maxTokens` when null.
+- **runCatching logging enforcement** — added `.onFailure` logging to the last silent catch; `SilentRunCatchingAuditTest` guards against future regressions.
+- **ChatViewModel extraction** — new `ChatConversationController` for save/load/fork/clear/export/delete/KG refresh; ChatViewModel down from 1112 to 1033 lines.
+- **Onboarding scaffolding** — provider setup now offers 7 primary providers (ollama, anthropic, openai, deepseek, gemini, groq, openrouter) instead of 2; added `OnboardingViewModelTest`.
 
 ## Tests
-- 4 new test files: AgentTasteTest, MemoryAugmentedAgenticLoopAgentPersonalityTest, ScheduleTaskToolTest, TaskSchedulerTest, TriggerEngineTest, ReminderRecurrenceTest.
-- Full suite green.
+- 1238+ unit tests passing, 0 failures.
 
-## Notes
-- TaskDatabase migrated to v5 (recurrence column).
-- `aura-android` remote branch `feat/tier-1-friction`.
+## APK
+`releases/aura-debug-v0.36.0.apk` (≈38.7 MB).

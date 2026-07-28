@@ -17,6 +17,9 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -46,6 +49,7 @@ data class HandsUiState(
      * against hand name and trigger phrase.
      */
     val searchQuery: String = "",
+    val statusFilter: String = "all",
 )
 
 @HiltViewModel
@@ -58,6 +62,21 @@ class HandsViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(HandsUiState())
     val state: StateFlow<HandsUiState> = _state.asStateFlow()
+
+    /** Hands visible in the UI after applying status and search filters. */
+    val filteredHands: StateFlow<List<Hand>> = _state
+        .map { current ->
+            val statusFiltered = when (current.statusFilter) {
+                "enabled" -> current.hands.filter { it.enabled }
+                "disabled" -> current.hands.filter { !it.enabled }
+                else -> current.hands
+            }
+            val q = current.searchQuery.trim().lowercase()
+            if (q.isBlank()) statusFiltered else statusFiltered.filter { hand ->
+                hand.name.lowercase().contains(q) || hand.triggerPhrase.lowercase().contains(q)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         load()
@@ -230,5 +249,9 @@ class HandsViewModel @Inject constructor(
 
     fun setSearchQuery(query: String) {
         _state.value = _state.value.copy(searchQuery = query)
+    }
+
+    fun setStatusFilter(filter: String) {
+        _state.value = _state.value.copy(statusFilter = filter)
     }
 }

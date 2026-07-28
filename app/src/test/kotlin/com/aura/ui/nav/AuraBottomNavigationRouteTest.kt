@@ -14,8 +14,8 @@ class AuraBottomNavigationRouteTest {
     }
 
     @Test
-    fun `navigation exposes exactly four stable top level routes`() {
-        assertEquals(listOf("home", "chat", "memory", "evolution/inbox", "settings"), topLevelRoutes.map { it.route })
+    fun `navigation exposes exactly six stable top level routes`() {
+        assertEquals(listOf("home", "chat", "memory", "tasks", "evolution/inbox", "settings"), topLevelRoutes.map { it.route })
         assertTrue(topLevelRoutes.map { it.route }.toSet().size == topLevelRoutes.size)
     }
 }
