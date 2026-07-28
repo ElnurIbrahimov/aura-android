@@ -39,8 +39,12 @@ class EvolutionApplySaga @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    private companion object {
+        private const val TAG = "EvolutionApplySaga"
+    }
+
     suspend fun apply(proposal: EvolutionProposalEntity): ApplyResult {
-        val action = runCatching { EvolutionAction.valueOf(proposal.action) }.getOrNull()
+        val action = runCatching { EvolutionAction.valueOf(proposal.action) }.onFailure { android.util.Log.w(TAG, "apply: parse action failed: ${it.message}") }.getOrNull()
             ?: return ApplyResult.Error(proposal.id, "unknown action ${proposal.action}")
 
         return when (action) {
@@ -72,7 +76,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyCreateSkill(proposal: EvolutionProposalEntity): ApplyResult {
         val skill = runCatching {
             json.decodeFromString<Skill>(proposal.patchJson)
-        }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
+        }.onFailure { android.util.Log.w(TAG, "apply: decode create skill failed: ${it.message}") }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         skillsStore?.add(skill) ?: return ApplyResult.Error(proposal.id, "SkillsStore not available")
         skillRevisionStore?.snapshot(skill, proposal.id, "created by evolution")
         proposalStore.markApplied(proposal.id, "created skill ${skill.name}")
@@ -85,7 +89,7 @@ class EvolutionApplySaga @Inject constructor(
         proposalStore.recordRollbackSnapshot(proposal.id, json.encodeToString(Skill.serializer(), existing))
         val patch = runCatching {
             json.decodeFromString<Skill>(proposal.patchJson)
-        }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
+        }.onFailure { android.util.Log.w(TAG, "apply: decode patch skill failed: ${it.message}") }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         val merged = existing.copy(
             name = patch.name.takeIf { it.isNotBlank() } ?: existing.name,
             description = patch.description.takeIf { it.isNotBlank() } ?: existing.description,
@@ -103,7 +107,7 @@ class EvolutionApplySaga @Inject constructor(
         proposalStore.recordRollbackSnapshot(proposal.id, json.encodeToString(Skill.serializer(), existing))
         val replacement = runCatching {
             json.decodeFromString<Skill>(proposal.patchJson)
-        }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
+        }.onFailure { android.util.Log.w(TAG, "apply: decode rewrite skill failed: ${it.message}") }.getOrNull() ?: return ApplyResult.Error(proposal.id, "patchJson is not a valid Skill")
         val merged = existing.copy(
             name = replacement.name.takeIf { it.isNotBlank() } ?: existing.name,
             description = replacement.description.takeIf { it.isNotBlank() } ?: existing.description,
@@ -186,7 +190,7 @@ class EvolutionApplySaga @Inject constructor(
         proposalStore.recordRollbackSnapshot(proposal.id, json.encodeToString(Skill.serializer(), existing))
         val example = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)["example"]
-        }.getOrNull() ?: return ApplyResult.Error(proposal.id, "missing example in patch")
+        }.onFailure { android.util.Log.w(TAG, "apply: decode add example failed: ${it.message}") }.getOrNull() ?: return ApplyResult.Error(proposal.id, "missing example in patch")
         val exampleBlock = "\n\n## Example\n\n$example\n"
         val updated = existing.copy(body = existing.body + exampleBlock)
         skillsStore.update(updated)
