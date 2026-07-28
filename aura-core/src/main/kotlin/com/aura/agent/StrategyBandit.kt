@@ -78,7 +78,18 @@ enum class ProblemCategory {
         }
 
         private fun matchesAny(lower: kotlin.String, keywords: Set<kotlin.String>): Boolean =
-            keywords.any { kw -> lower.contains(kw) }
+            keywords.any { kw ->
+                val word = kw.trim()
+                // Use word-boundary regex for short keywords (≤5 chars) to
+                // prevent false positives like "prove" matching "improve",
+                // "build" matching "building", "fix" matching "fixture".
+                if (word.length <= 5) {
+                    val escaped = Regex.escape(word)
+                    Regex("\\b$escaped\\b", RegexOption.IGNORE_CASE).containsMatchIn(lower)
+                } else {
+                    lower.contains(word)
+                }
+            }
     }
 }
 
@@ -164,11 +175,12 @@ class StrategyBandit @Inject constructor(
         }
         val d = shape - 1.0 / 3.0
         val c = 1.0 / Math.sqrt(9.0 * d)
+        val rng = java.util.Random()
         while (true) {
             var x: Double
             var v: Double
             do {
-                x = java.util.Random().nextGaussian()
+                x = rng.nextGaussian()
                 v = 1.0 + c * x
             } while (v <= 0.0)
             v = v * v * v

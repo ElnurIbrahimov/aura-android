@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "bcbbddbdf0a48c4d67866131b4338ff4",
+    "identityHash": "849d03da09935122072449ae257fafb2",
     "entities": [
       {
         "tableName": "strategy_bandit",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`category` TEXT NOT NULL, `strategy` TEXT NOT NULL, `alpha` REAL NOT NULL, `beta` REAL NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`category`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`category` TEXT NOT NULL, `strategy` TEXT NOT NULL, `alpha` REAL NOT NULL, `beta` REAL NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`category`, `strategy`))",
         "fields": [
           {
             "fieldPath": "category",
@@ -42,7 +42,8 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "category"
+            "category",
+            "strategy"
           ]
         },
         "indices": [],
@@ -52,7 +53,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bcbbddbdf0a48c4d67866131b4338ff4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '849d03da09935122072449ae257fafb2')"
     ]
   }
 }

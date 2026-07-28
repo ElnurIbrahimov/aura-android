@@ -455,6 +455,10 @@ class ChatSendController(
                         is AgentEvent.Done -> {
                             // Reset failure counter on successful completion.
                             consecutiveFailures = 0
+                            // Record strategy bandit outcome: success
+                            if (strategy != null && strategyBandit != null) {
+                                runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }
+                            }
                             // Record wall-clock duration for the response footer.
                             if (runStartTimeMs > 0) {
                                 lastRunDurationMs = System.currentTimeMillis() - runStartTimeMs

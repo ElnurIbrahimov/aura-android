@@ -30,7 +30,7 @@ import javax.inject.Singleton
 class LlmProfileExtractor @Inject constructor(
     private val providerRegistry: ProviderRegistry,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /**
      * Extract structured user facts from [userText].
@@ -70,13 +70,12 @@ Do not include the assistant's claims. Do not hallucinate."""
             val raw = builder.toString().trim()
             if (raw.isBlank()) return null
 
-            // The model may wrap JSON in markdown fences — strip them.
-            val cleaned = raw
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
+            // The model may wrap JSON in markdown fences, add commentary,
+            // or use case variants like "```JSON" or "``` json".
+            // Extract the first { ... } block from the response.
+            val cleaned = extractJsonBlock(raw)
 
+            if (cleaned == null) return null
             val parsed = json.decodeFromString(ProfileExtraction.serializer(), cleaned)
             // Only return if we found something — don't return empty extractions
             if (parsed.name.isNullOrBlank() && parsed.traits.isEmpty() && parsed.facts.isEmpty()) {
@@ -88,6 +87,33 @@ Do not include the assistant's claims. Do not hallucinate."""
             Log.w("LlmProfileExtractor", "extraction failed: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Extract the first JSON object ({ ... }) from a raw string that may
+     * contain markdown fences, prose, or commentary. Handles:
+     * - ```json
+{...}
+``` (case-insensitive fence prefix)
+     * - ```{...}``` (bare fence)
+     * - Leading/trailing prose around a {...} block
+     * - Multiple JSON objects (takes the first balanced one)
+     */
+    private fun extractJsonBlock(raw: kotlin.String): kotlin.String? {
+        val start = raw.indexOf('{')
+        if (start < 0) return null
+        // Find the matching closing brace by counting depth
+        var depth = 0
+        for (i in start until raw.length) {
+            when (raw[i]) {
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) return raw.substring(start, i + 1)
+                }
+            }
+        }
+        return null // unbalanced — return raw and let JSON parser fail
     }
 
     companion object {

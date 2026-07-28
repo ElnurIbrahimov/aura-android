@@ -951,6 +951,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             }
         } else {
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED)
+            // Clear stale reflection from a prior failed run — the model
+            // succeeded this time, so the reflection is no longer relevant.
+            // Without this, a one-time failure's reflection would be injected
+            // into every future run of this conversation forever.
+            if (currentConversation.metadata.containsKey("lastReflection")) {
+                currentConversation = currentConversation.copy(
+                    metadata = currentConversation.metadata - "lastReflection",
+                )
+            }
         }
         // Persist emotion state after each turn so it survives cold starts.
         if (memoryEnabled && emotionEngine != null) {
