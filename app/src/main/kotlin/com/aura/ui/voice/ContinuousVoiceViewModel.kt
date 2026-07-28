@@ -170,11 +170,59 @@ class ContinuousVoiceViewModel @Inject constructor(
             utteranceId = "voice-mode-${System.currentTimeMillis()}",
             flush = true,
         )
+        // Barge-in: keep STT running during SPEAKING so the user can
+        // interrupt the assistant mid-response. When PartialResult fires
+        // with enough text (> 2 chars), cancel TTS and treat it as a
+        // new user turn.
+        speechToText.start()
+        val bargeInCollector = viewModelScope.launch {
+            speechToText.state.collect { sttState ->
+                if (_state.value.phase != VoiceModeState.SPEAKING) return@collect
+                when (sttState) {
+                    is SpeechToText.State.PartialResult -> {
+                        val text = sttState.text.trim()
+                        if (text.length > 2) {
+                            textToSpeech.stop()
+                            coroutineContext[Job]?.cancel()
+                            _state.update { it.copy(phase = VoiceModeState.THINKING, partialTranscript = text) }
+                            onSend(text)
+                            responseWaitJob = viewModelScope.launch responseWait@{
+                                while (_state.value.active && !onStreamingDone()) {
+                                    delay(200)
+                                }
+                                if (!_state.value.active) return@responseWait
+                                speakResponse(onSend, onStreamingDone)
+                            }
+                        }
+                    }
+                    is SpeechToText.State.FinalResult -> {
+                        // Full sentence detected during TTS — strong barge-in.
+                        val text = sttState.text.trim()
+                        if (text.isNotBlank()) {
+                            textToSpeech.stop()
+                            coroutineContext[Job]?.cancel()
+                            _state.update { it.copy(phase = VoiceModeState.THINKING, partialTranscript = text) }
+                            onSend(text)
+                            responseWaitJob = viewModelScope.launch responseWait@{
+                                while (_state.value.active && !onStreamingDone()) {
+                                    delay(200)
+                                }
+                                if (!_state.value.active) return@responseWait
+                                speakResponse(onSend, onStreamingDone)
+                            }
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }
         // Watch TTS state — when it goes back to Ready, the utterance
         // is done and we can resume listening. Single collector.
         ttsCollectorJob = viewModelScope.launch {
             textToSpeech.state.collect { ttsState ->
                 if (ttsState is TextToSpeech.State.Ready && _state.value.phase == VoiceModeState.SPEAKING) {
+                    bargeInCollector.cancel()
+                    speechToText.cancel()
                     if (_state.value.active) {
                         startListening(onSend, onStreamingDone)
                     }
