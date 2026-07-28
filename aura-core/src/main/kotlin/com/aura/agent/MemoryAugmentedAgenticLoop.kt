@@ -77,6 +77,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val reflectionEngine: ReflectionEngine? = null,
     private val strategyBandit: StrategyBandit? = null,
     private val llmProfileExtractor: com.aura.profile.LlmProfileExtractor? = null,
+    private val tastePromptEnhancer: com.aura.taste.TastePromptEnhancer? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -540,7 +541,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val tasteScopes = if (agentId != null) listOf("general", "agent:$agentId") else listOf("general")
                 runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
             } else cachedTasteContext ?: ""
-            if (step == 1) cachedTasteContext = tasteContext
+            if (step == 1) {
+                // Enhance the taste context with explicit style instructions.
+                // The raw taste context is a passive observation ("prefers tone: concise");
+                // the enhancer converts it to an active instruction ("Be concise.").
+                val enhancedTaste = if (tastePromptEnhancer != null && tasteContext.isNotBlank()) {
+                    tastePromptEnhancer.enhance("", tasteContext)
+                } else tasteContext
+                cachedTasteContext = enhancedTaste
+            }
 
             // 2) Build messages
             // Resolve the active agent's personality directive (if any).
@@ -1065,8 +1074,15 @@ private suspend fun extractProfileFromText(text: String) {
         if (userMessage.isBlank()) return null
         val lower = userMessage.lowercase()
         return handRepository.getEnabled().firstOrNull { hand ->
-            hand.triggerPhrase.isNotBlank() &&
-                lower.contains(hand.triggerPhrase.lowercase())
+            if (hand.triggerPhrase.isBlank()) return@firstOrNull false
+            // Support multi-phrase triggers: "git status|git log" matches
+            // either phrase. Each phrase is matched with word boundaries
+            // to prevent false positives like "git" matching "widget".
+            val phrases = hand.triggerPhrase.split("|").map { it.trim() }.filter { it.isNotBlank() }
+            phrases.any { phrase ->
+                val escaped = Regex.escape(phrase.lowercase())
+                Regex("\\b$escaped\\b").containsMatchIn(lower)
+            }
         }
     }
 }
