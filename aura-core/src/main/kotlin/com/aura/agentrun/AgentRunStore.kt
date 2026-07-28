@@ -63,11 +63,11 @@ class AgentRunStore @Inject constructor(
 
     suspend fun listRecent(limit: Int = 50): List<AgentRunEntity> = runDao.recent(limit)
 
-    suspend fun updateStatus(id: kotlin.String, status: kotlin.String) {
+    suspend fun updateStatus(id: kotlin.String, status: kotlin.String) = mutex.withLock {
         runDao.updateStatus(id, status, System.currentTimeMillis())
     }
 
-    suspend fun finish(id: kotlin.String, status: kotlin.String, error: kotlin.String = "") {
+    suspend fun finish(id: kotlin.String, status: kotlin.String, error: kotlin.String = "") = mutex.withLock {
         runDao.finish(id, status, error, System.currentTimeMillis())
         emitEvent(id, if (status == "COMPLETED") "RUN_COMPLETED" else "RUN_FAILED")
     }
@@ -88,14 +88,14 @@ class AgentRunStore @Inject constructor(
     suspend fun stepsForRun(runId: kotlin.String): List<StepEntity> =
         stepDao.forRun(runId)
 
-    suspend fun completeStep(stepId: kotlin.String, result: kotlin.String) {
-        val step = stepDao.getById(stepId) ?: return
+    suspend fun completeStep(stepId: kotlin.String, result: kotlin.String) = mutex.withLock {
+        val step = stepDao.getById(stepId) ?: return@withLock
         stepDao.complete(stepId, "SUCCESS", result, System.currentTimeMillis())
         emitEvent(step.agentRunId, "STEP_COMPLETED", stepId = stepId)
     }
 
-    suspend fun failStep(stepId: kotlin.String, error: kotlin.String) {
-        val step = stepDao.getById(stepId) ?: return
+    suspend fun failStep(stepId: kotlin.String, error: kotlin.String) = mutex.withLock {
+        val step = stepDao.getById(stepId) ?: return@withLock
         stepDao.fail(stepId, "FAILED", error, System.currentTimeMillis())
         emitEvent(step.agentRunId, "STEP_FAILED", stepId = stepId, success = false)
     }
@@ -112,8 +112,8 @@ class AgentRunStore @Inject constructor(
      * and (b) emitted STEP_FAILED events, making approval flows look
      * broken to the user.
      */
-    suspend fun blockStep(stepId: kotlin.String, reason: kotlin.String) {
-        val step = stepDao.getById(stepId) ?: return
+    suspend fun blockStep(stepId: kotlin.String, reason: kotlin.String) = mutex.withLock {
+        val step = stepDao.getById(stepId) ?: return@withLock
         stepDao.fail(stepId, "BLOCKED", reason, System.currentTimeMillis())
         emitEvent(step.agentRunId, "STEP_BLOCKED", stepId = stepId)
     }
@@ -172,15 +172,15 @@ class AgentRunStore @Inject constructor(
         approval
     }
 
-    suspend fun approve(id: kotlin.String) {
+    suspend fun approve(id: kotlin.String) = mutex.withLock {
         approvalDao.decide(id, "APPROVED", "", System.currentTimeMillis())
-        val approval = approvalDao.getById(id) ?: return
+        val approval = approvalDao.getById(id) ?: return@withLock
         emitEvent(approval.agentRunId, "APPROVAL_DECIDED", stepId = approval.stepId)
     }
 
-    suspend fun deny(id: kotlin.String, reason: kotlin.String = "") {
+    suspend fun deny(id: kotlin.String, reason: kotlin.String = "") = mutex.withLock {
         approvalDao.decide(id, "DENIED", reason, System.currentTimeMillis())
-        val approval = approvalDao.getById(id) ?: return
+        val approval = approvalDao.getById(id) ?: return@withLock
         emitEvent(approval.agentRunId, "APPROVAL_DECIDED", stepId = approval.stepId, success = false)
     }
 
@@ -189,8 +189,8 @@ class AgentRunStore @Inject constructor(
      * executor worker can pick it up again after an approval or manual retry.
      * Emits a STEP_RESET event for observability.
      */
-    suspend fun resetStep(stepId: kotlin.String) {
-        val step = stepDao.getById(stepId) ?: return
+    suspend fun resetStep(stepId: kotlin.String) = mutex.withLock {
+        val step = stepDao.getById(stepId) ?: return@withLock
         stepDao.markStarted(stepId, "PENDING", System.currentTimeMillis())
         emitEvent(step.agentRunId, "STEP_RESET", stepId = stepId)
     }

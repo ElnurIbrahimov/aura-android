@@ -94,6 +94,22 @@ class KeyManager(private val keyStore: KeyStore? = null) {
      * (e.g. the keystore was wiped and the key no longer matches the stored
      * ciphertext), rather than throwing.
      */
+    /**
+     * Decrypts a Base64-encoded ciphertext (IV + AES/GCM payload) produced
+     * by [encrypt].
+     *
+     * Returns `null` gracefully if the AEAD authentication tag check fails
+     * (e.g. the keystore was wiped and the key no longer matches the stored
+     * ciphertext), rather than throwing.
+     *
+     * P1-SEC-F1: the third catch is narrowed from `Exception` to
+     * `GeneralSecurityException` so hard crypto errors (`KeyPermanently-
+     * InvalidatedException`, `InvalidKeyException`, `UnrecoverableKeyException`)
+     * bubble up to `SecureDataStore.getString`, which re-raises them as
+     * `DecryptionFailedException`. Previously these were silently mapped
+     * to "no value", which is indistinguishable from "key legitimately
+     * missing" and left the user in a permanent `StorageError` state.
+     */
     fun decrypt(ciphertextB64: String, key: SecretKey): String? {
         return try {
             val combined = Base64.getDecoder().decode(ciphertextB64)
@@ -107,8 +123,11 @@ class KeyManager(private val keyStore: KeyStore? = null) {
             null // auth tag mismatch — caller can decide to fall back gracefully
         } catch (_: IllegalArgumentException) {
             null // invalid Base64 input
-        } catch (_: Exception) {
-            null // any other unexpected error; return null gracefully in v1
+        } catch (e: java.security.GeneralSecurityException) {
+            // Permanent keystore issue (invalidated key, provider missing, etc.).
+            // Bubble up so SecureDataStore can surface DecryptionFailedException
+            // and the caller can decide whether to re-init or surface a hard error.
+            throw e
         }
     }
 }

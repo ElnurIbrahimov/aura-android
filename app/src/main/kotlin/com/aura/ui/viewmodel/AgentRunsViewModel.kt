@@ -99,6 +99,14 @@ class AgentRunsViewModel @Inject constructor(
                 agentRunStore.resetStep(stepId)
             }
             if (runId.isNotBlank()) {
+                // P1-AGENTIC-F4: a paused run was set to PAUSED by the
+                // executor when it detected a BLOCKED step. Flip back
+                // to RUNNING so the re-enqueue below is honored by the
+                // worker's "skip if not RUNNING" guard.
+                val run = agentRunStore.loadRun(runId)
+                if (run != null && run.status == "PAUSED") {
+                    agentRunStore.updateStatus(runId, "RUNNING")
+                }
                 refreshDetail(runId)
                 AgentRunExecutorService.enqueue(appContext, runId)
             }

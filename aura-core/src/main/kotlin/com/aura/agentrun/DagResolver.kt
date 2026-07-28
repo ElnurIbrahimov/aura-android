@@ -63,6 +63,9 @@ class DagResolver @Inject constructor() {
 
     /**
      * Returns true if all dependencies of [step] have status=SUCCESS.
+     * A BLOCKED dependency is NOT satisfied — that step is paused for
+     * user approval, not failed — and the caller must wait for the
+     * approval before the dependent step can run.
      */
     private fun dependenciesSatisfied(step: StepEntity, stepMap: Map<kotlin.String, StepEntity>): kotlin.Boolean {
         val depIds = parseDependsOn(step.dependsOn)
@@ -70,6 +73,23 @@ class DagResolver @Inject constructor() {
         return depIds.all { depId ->
             stepMap[depId]?.status == "SUCCESS"
         }
+    }
+
+    /**
+     * P1-AGENTIC-F4: when [readySteps] is empty but the run has
+     * in-progress work, distinguish between "stuck on a hard failure"
+     * (every remaining step is FAILED or has no path to SUCCESS) and
+     * "paused awaiting approval" (one or more steps are BLOCKED).
+     *
+     * The old behavior was to mark the entire run FAILED with the
+     * message "Stuck: N steps pending with unmet dependencies" — which
+     * lied: the run was just waiting for the user to grant a permission.
+     *
+     * Returns the list of step IDs that are currently BLOCKED, or
+     * empty if the run is genuinely stuck (no BLOCKED, no PENDING-ready).
+     */
+    fun blockedStepIds(steps: List<StepEntity>): List<kotlin.String> {
+        return steps.filter { it.status == "BLOCKED" }.map { it.id }
     }
 
     /**

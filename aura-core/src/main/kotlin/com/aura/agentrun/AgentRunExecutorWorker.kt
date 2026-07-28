@@ -78,13 +78,35 @@ class AgentRunExecutorWorker @AssistedInject constructor(
         val ready = dagResolver.readySteps(steps)
 
         if (ready.isEmpty()) {
-            // No ready steps — either all done or stuck (circular dependency)
+            // P1-AGENTIC-F4: distinguish "stuck on a hard failure" from
+            // "paused awaiting approval". Previously every empty-ready
+            // batch with pending siblings was marked FAILED with the
+            // message "Stuck: N steps pending with unmet dependencies"
+            // — which lied when the actual cause was a BLOCKED upstream
+            // step waiting for user approval. Now we leave the run in
+            // RUNNING state and surface "PAUSED" so the UI can route
+            // the user to the approval flow.
             val pending = steps.filter { it.status == "PENDING" }
-            if (pending.isEmpty()) {
-                agentRunStore.finish(runId, "COMPLETED")
-            } else {
-                // Stuck — mark as failed
-                agentRunStore.finish(runId, "FAILED", "Stuck: ${pending.size} steps pending with unmet dependencies")
+            val blockedIds = dagResolver.blockedStepIds(steps)
+            when {
+                pending.isEmpty() && blockedIds.isEmpty() -> {
+                    agentRunStore.finish(runId, "COMPLETED")
+                }
+                blockedIds.isNotEmpty() -> {
+                    // Run is paused for approval. Leave RUNNING so the
+                    // next worker tick (after the user approves) can
+                    // resume. Re-enqueue after a delay so the UI can
+                    // refresh even if the user grants via Settings.
+                    Log.d(TAG, "Run $runId paused for approval on ${blockedIds.size} step(s)")
+                    agentRunStore.updateStatus(runId, "PAUSED")
+                    AgentRunExecutorService.enqueue(applicationContext, runId)
+                }
+                else -> {
+                    // Hard stuck — no ready, no PENDING-with-met-deps, no
+                    // BLOCKED. The dep graph is unsatisfiable (cycles /
+                    // referenced deleted steps). Mark FAILED.
+                    agentRunStore.finish(runId, "FAILED", "Stuck: ${pending.size} steps pending with unmet dependencies")
+                }
             }
             return Result.success()
         }

@@ -220,10 +220,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
                 moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
                 imageModel = userPreferences.imageModel.first().takeIf { it.isNotBlank() },
-                smtpHost = userPreferences.smtpHost.first().takeIf { it.isNotBlank() },
-                smtpPort = userPreferences.smtpPort.first(),
-                smtpUsername = userPreferences.smtpUsername.first().takeIf { it.isNotBlank() },
-                smtpFrom = userPreferences.smtpFrom.first().takeIf { it.isNotBlank() },
+                // P1-SEC-F2: SMTP host/port/username/from are no longer
+                // snapshotted. Round-tripping them put the user's mailbox
+                // identity (and the SMTP relay they can be impersonated
+                // through) in plaintext in every backup file. The user
+                // re-enters them after restore, just like the password.
+                smtpHost = null,
+                smtpPort = 0,
+                smtpUsername = null,
+                smtpFrom = null,
                 mcpServersJson = userPreferences.mcpServersJson.first(),
                 evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
@@ -438,16 +443,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         backup.preferences.moaAggregatorModel?.let { userPreferences.setMoaAggregatorModel(it) }
         backup.preferences.imageModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setImageModel(it) }
-        backup.preferences.smtpHost?.takeIf { it.isNotBlank() }?.let { host ->
-            userPreferences.setSmtpConfig(
-                host = host,
-                port = backup.preferences.smtpPort,
-                username = backup.preferences.smtpUsername ?: "",
-                from = backup.preferences.smtpFrom ?: "",
-                // Password is intentionally not backed up — stored in SecureDataStore.
-                password = "",
-            )
-        }
+        // P1-SEC-F2: SMTP host/port/username/from are intentionally NOT
+        // restored from the backup. The user has to re-paste them just like
+        // the password. The live SMTP config (if any) is left untouched.
         if (backup.preferences.mcpServersJson.isNotBlank() && backup.preferences.mcpServersJson != "[]") {
             userPreferences.setMcpServersJson(backup.preferences.mcpServersJson)
         }
