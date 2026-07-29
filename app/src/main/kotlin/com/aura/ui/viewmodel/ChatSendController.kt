@@ -87,7 +87,7 @@ class ChatSendController(
     private val application: Application,
     private val state: MutableStateFlow<ChatUiState>,
     private val loop: MemoryAugmentedAgenticLoop,
-    private val strategyBandit: StrategyBandit? = null,
+    private val strategyBandit: StrategyBandit,
     private val userPreferences: UserPreferences,
     private val textToSpeech: TextToSpeech,
     private val knowledgeGraphRepository: KnowledgeGraphRepository,
@@ -440,7 +440,7 @@ class ChatSendController(
                         is AgentEvent.Error -> {
                             consecutiveFailures++
                             // Record strategy bandit outcome: failure on max_steps_exceeded
-                            if (strategy != null && strategyBandit != null && event.code == "max_steps_exceeded") {
+                            if (strategy != null && event.code == "max_steps_exceeded") {
                                 runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }
                             }
                             val typed = event.typedError
@@ -458,7 +458,7 @@ class ChatSendController(
                             // Reset failure counter on successful completion.
                             consecutiveFailures = 0
                             // Record strategy bandit outcome: success
-                            if (strategy != null && strategyBandit != null) {
+                            if (strategy != null) {
                                 runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }
                             }
                             // Record wall-clock duration for the response footer.

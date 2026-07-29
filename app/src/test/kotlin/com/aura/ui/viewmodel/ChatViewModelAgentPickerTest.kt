@@ -160,6 +160,7 @@ class ChatViewModelAgentPickerTest {
             skillsStore = null,
             tasteEngine = mockk(relaxed = true),
             agentStore = agentStore,
+            strategyBandit = io.mockk.mockk<com.aura.agent.StrategyBandit>(relaxed = true),
         )
     }
 }

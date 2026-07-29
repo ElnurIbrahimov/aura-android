@@ -44,6 +44,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.aura.agent.StrategyBandit
 import javax.inject.Inject
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -330,6 +331,7 @@ class ChatViewModel @Inject constructor(
     private val skillsStore: SkillsStore? = null,
     private val tasteEngine: TasteEngine,
     private val agentStore: com.aura.agent.AgentStore,
+    private val strategyBandit: com.aura.agent.StrategyBandit,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -371,6 +373,7 @@ class ChatViewModel @Inject constructor(
             extractCitations = ::extractCitations,
             setErrorWithAutoDismiss = ::setErrorWithAutoDismiss,
             generateTitle = ::generateTitle,
+            strategyBandit = strategyBandit,
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
             onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
             recentTopics = {
