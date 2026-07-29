@@ -53,7 +53,8 @@ class ProductionPipelineEngine @Inject constructor(
     }
 
     private fun stepsFor(pipeline: Pipeline, projectId: String, brief: String): List<StepSpec> {
-        val escaped = brief.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+        val escaped = brief.replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
         // Pre-generate UUIDs for all steps so we can reference them in
         // dependsOn. DagResolver matches by step ID (UUID), not positional
         // index — positional "[0]", "[1]" would never resolve.
