@@ -63,8 +63,17 @@ open class OpenAiCompatProvider(
         val request = buildRequest(model, messages, options, tools, stream = true)
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
         val sseParser = OpenAiSseParser()
-        val src = EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
+        // P0-PROVIDERS-CANCEL: wrap the listener so the source reference is
+        // visible to cancel() immediately. We assign a mutable holder first,
+        // pass it into the listener, then create the EventSource with that
+        // listener. The holder is updated in onOpen and is also checked by
+        // cancel() as a fallback.
+        val sourceHolder = EventSourceHolder()
+        activeEventSource = sourceHolder
+        val listener = object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                sourceHolder.source = eventSource
+                activeEventSource = eventSource
                 val chunks = sseParser.parseEvent(data)
                 // P0-AGENTIC-F1: parseEvent returns a list to support parallel
                 // tool calls batched in a single SSE event. Emit every chunk;
@@ -85,8 +94,8 @@ open class OpenAiCompatProvider(
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
-        })
-        activeEventSource = src
+        }
+        EventSources.createFactory(httpClient).newEventSource(request, listener)
         // Bound the per-request read so a misbehaving server that never sends
         // [DONE] and never closes the stream can't hang the agent forever. The
         // OkHttp read timeout (configured in ProviderModule) is the primary
@@ -105,9 +114,9 @@ open class OpenAiCompatProvider(
             // to completion.
             activeEventSource?.cancel()
             activeEventSource = null
+            sourceHolder.cancel()
         }
     }
-
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         if (defaultModels.isNotEmpty()) return@withContext defaultModels
         try {
@@ -171,7 +180,12 @@ open class OpenAiCompatProvider(
     }
 
     override suspend fun cancel() {
-        activeEventSource?.cancel()
+        val holder = activeEventSource
+        if (holder is EventSourceHolder) {
+            holder.cancel()
+        } else {
+            activeEventSource?.cancel()
+        }
         activeEventSource = null
     }
 
@@ -237,4 +251,16 @@ open class OpenAiCompatProvider(
         // short enough that a misbehaving server doesn't hang the agent loop.
         const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
     }
+
+/**
+ * Holds an [EventSource] that may not be assigned yet. Used as a
+ * cancellation bridge during the brief window between SSE source creation
+ * and the [onOpen] callback.
+ */
+private class EventSourceHolder : EventSource {
+    @Volatile var source: EventSource? = null
+
+    override fun request(): okhttp3.Request = source?.request() ?: okhttp3.Request.Builder().url("http://localhost").build()
+    override fun cancel() { source?.cancel() }
+}
 }
