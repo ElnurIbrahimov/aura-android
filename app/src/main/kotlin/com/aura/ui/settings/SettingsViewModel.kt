@@ -11,6 +11,7 @@ import com.aura.agent.policy.ToolPolicy
 import com.aura.agent.policy.ToolPolicyDefaults
 import com.aura.agent.policy.ToolPolicyStore
 import com.aura.data.UserPreferences
+import com.aura.triggers.Trigger
 import com.aura.mcp.McpClientManager
 import com.aura.mcp.McpConnectionState
 import com.aura.mcp.McpServerConfig
@@ -166,6 +167,8 @@ data class SettingsUiState(
     val dreamLastRunStats: String = "",
     /** Count of dream summaries ever written. */
     val dreamTotalSummaries: Int = 0,
+    val triggersEnabled: Boolean = true,
+    val triggers: List<com.aura.triggers.Trigger> = emptyList(),
     /** True while a manual "Run now" cycle is in progress. */
     val dreamRunning: Boolean = false,
     /** Distinct from credentialStates["custom"]: the URL/key are stored
@@ -303,6 +306,8 @@ class SettingsViewModel @Inject constructor(
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
+            val triggersEnabled = userPreferences.triggersEnabled.first()
+            val triggers = userPreferences.triggers.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
             val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.getOrDefault(0)
@@ -353,6 +358,8 @@ class SettingsViewModel @Inject constructor(
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
+                triggersEnabled = triggersEnabled,
+                triggers = triggers,
             )
         }
     }
@@ -544,6 +551,27 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setPlanningEnabled(enabled)
             _state.update { it.copy(planningEnabled = enabled) }
+        }
+    }
+
+    fun setTriggersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setTriggersEnabled(enabled)
+            _state.update { it.copy(triggersEnabled = enabled) }
+        }
+    }
+
+    fun saveTrigger(trigger: Trigger) {
+        viewModelScope.launch {
+            userPreferences.addOrReplaceTrigger(trigger)
+            _state.update { it.copy(triggers = userPreferences.triggers.first()) }
+        }
+    }
+
+    fun removeTrigger(id: String) {
+        viewModelScope.launch {
+            userPreferences.removeTrigger(id)
+            _state.update { it.copy(triggers = userPreferences.triggers.first()) }
         }
     }
 

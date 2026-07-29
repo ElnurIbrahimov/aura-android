@@ -36,6 +36,7 @@ import com.aura.ui.settings.sections.ModelRolesSection
 import com.aura.ui.settings.sections.PersonaSection
 import com.aura.ui.settings.sections.PrivacySection
 import com.aura.ui.settings.sections.ToolPermissionsSection
+import com.aura.ui.settings.sections.TriggersSection
 import com.aura.ui.settings.sections.UsageSection
 import com.aura.ui.theme.AuraThemeTokens
 import kotlinx.coroutines.launch
@@ -166,6 +167,15 @@ fun SettingsScreen(
             onSetCalendarMonitor = viewModel::setCalendarMonitorEnabled,
             onSetDecayEnabled = viewModel::setDecayEnabled,
             onNavigateProfile = onNavigateProfile,
+        )
+
+        // 8b. Triggers
+        TriggersSection(
+            triggersEnabled = state.triggersEnabled,
+            triggers = state.triggers,
+            onSetEnabled = viewModel::setTriggersEnabled,
+            onSave = viewModel::saveTrigger,
+            onRemove = viewModel::removeTrigger,
         )
 
         // 9. Emotion & Daemon

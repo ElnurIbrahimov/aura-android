@@ -281,6 +281,20 @@ class UserPreferences @Inject constructor(
         }
     }
 
+    /** Append a trigger, replacing any existing trigger with the same id. */
+    suspend fun addOrReplaceTrigger(trigger: com.aura.triggers.Trigger) {
+        val updated = triggers.first().toMutableList()
+        updated.removeAll { it.id == trigger.id }
+        updated.add(trigger)
+        setTriggers(updated)
+    }
+
+    /** Remove a trigger by id. */
+    suspend fun removeTrigger(id: kotlin.String) {
+        val updated = triggers.first().filter { it.id != id }
+        setTriggers(updated)
+    }
+
     /**
      * Whether the agentic loop makes a separate "planning" LLM call before
      * answering. Default **false** — this is opt-in.
