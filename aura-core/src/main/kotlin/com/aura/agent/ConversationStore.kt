@@ -371,5 +371,10 @@ suspend fun ConversationStore.recentTopics(limit: Int = 5, excludeId: kotlin.Str
 private val STOP_WORDS = setOf(
     "this", "that", "with", "from", "have", "been", "were", "they",
     "their", "about", "which", "what", "when", "your", "just", "like",
-    "some", "more", "would", "could", "there", "also", "than", "other"
+    "some", "more", "would", "could", "there", "also", "than", "other",
+    // Added: high-frequency English fillers from observed compaction output
+    "want", "need", "make", "using", "should", "into", "then", "them",
+    "will", "does", "here", "only", "much", "very", "really", "still",
+    "after", "before", "over", "back", "well", "even", "know", "think",
+    "https", "github", "docs",
 )

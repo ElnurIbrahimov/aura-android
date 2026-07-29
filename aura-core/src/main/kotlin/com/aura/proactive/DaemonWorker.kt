@@ -22,6 +22,17 @@ import kotlinx.coroutines.flow.toList
  *
  * Respects the daemonEnabled preference. Uses the background model
  * to avoid interfering with active chats.
+ *
+ * ## Privacy
+ *
+ * When the daemon finds a recent conversation, it sends the last few
+ * turns to the configured [backgroundModel] for review. With the
+ * tool-context extensions (calendar, fading memories, tasks due today),
+ * this worker also transmits today's calendar event titles, memory
+ * contents, and task names to the same remote inference endpoint.
+ * Enabling daemon mode with a cloud provider therefore shares more
+ * personal data than conversation-only mode. Consider using a local
+ * model or keeping the feature off if this is a concern.
  */
 @HiltWorker
 class DaemonWorker @AssistedInject constructor(
