@@ -45,6 +45,7 @@ private val quickPrompts = listOf(
 @Composable
 fun HomePrimaryAction(
     onAskAura: (String) -> Unit,
+    label: String = "Ask Aura",
     modifier: Modifier = Modifier,
 ) {
     val colors = AuraThemeTokens.colors
@@ -69,7 +70,7 @@ fun HomePrimaryAction(
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             Text(
-                text = stringResource(R.string.ask_aura),
+                text = label,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,

@@ -390,7 +390,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
         Column(modifier = Modifier.testTag(if (isEmpty) "home-empty" else "home-content")) {
 
-            HomePrimaryAction(onAskAura = onAskAura)
+            HomePrimaryAction(
+                onAskAura = onAskAura,
+                label = if (state.recentMemories.isNotEmpty()) "Continue" else "Ask Aura",
+            )
 
         }
 

@@ -80,76 +80,24 @@ fun HomeSecondaryActions(
         ),
         HomeDestination(
             "Tasks",
-            if (tasksCount == 0) "Create task" else "$tasksCount open",
+            if (tasksCount == 0) "No tasks" else "$tasksCount pending",
             Icons.Filled.TaskAlt,
             onOpenTasks,
         ),
         HomeDestination(
             "Calendar",
-            if (calendarCount == 0) "Check calendar" else "$calendarCount today",
+            if (calendarCount == 0) "Today" else "$calendarCount today",
             Icons.Filled.CalendarMonth,
             onOpenCalendar,
         ),
         HomeDestination(
-            "Hands",
-            if (handsCount == 0) "Create hand" else "$handsCount active",
+            "More",
+            "Tools & agents",
             Icons.Filled.Build,
-            onOpenHands,
-        ),
-        HomeDestination(
-            "Skills",
-            if (skillsCount == 0) "Add skill" else "$skillsCount active",
-            Icons.Filled.MenuBook,
-            onOpenSkills,
-        ),
-        HomeDestination(
-            "Creative",
-            "Worlds, drafts, scenarios",
-            Icons.Filled.AutoStories,
-            onOpenCreative,
-        ),
-        HomeDestination(
-            "Tools",
-            if (toolsCount == 0) "Browse tools" else "$toolsCount available",
-            Icons.Filled.Lightbulb,
             onOpenTools,
         ),
-        HomeDestination(
-            "Proactive",
-            if (proactiveCount == 0) "View activity" else "$proactiveCount updates",
-            Icons.Filled.NotificationsActive,
-            onOpenProactive,
-        ),
-        HomeDestination(
-            "Runs",
-            "Agent runs",
-            Icons.Filled.AccountTree,
-            onOpenAgentRuns,
-        ),
-        HomeDestination(
-            "Production",
-            "Film & story pipelines",
-            Icons.Filled.Movie,
-            onOpenProduction,
-        ),
-        HomeDestination(
-            "Capabilities",
-            if (activeCapabilities.isEmpty()) "Add image, video, search" else "${activeCapabilities.size} active",
-            Icons.Filled.SettingsInputComponent,
-            onOpenCapabilities,
-        ),
     )
-
-    Column(
-        modifier = modifier.testTag("home-secondary"),
-        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
-    ) {
-        Text(
-            text = stringResource(R.string.open),
-            style = MaterialTheme.typography.labelLarge,
-            color = AuraThemeTokens.colors.textSecondary,
-        )
-        LazyRow(
+    LazyRow(
             modifier = Modifier.testTag("home-destinations"),
             horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
@@ -157,7 +105,6 @@ fun HomeSecondaryActions(
                 HomeDestinationCard(destination)
             }
         }
-    }
 }
 
 @Composable
