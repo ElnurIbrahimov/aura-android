@@ -494,29 +494,13 @@ private fun AssistantMessage(
                 Spacer(Modifier.height(8.dp))
                 CitationChipRow(citations = citations, onShowSources = onShowSources)
             }
-            // Footer: model + timestamp + actions
+            // Footer: timestamp + actions (model metadata moved to debug)
             if (!isStreaming) {
                 Spacer(Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (!modelLabel.isNullOrBlank()) {
-                        Text(
-                            text = modelLabel,
-                            fontFamily = JetBrainsMono,
-                            fontSize = 10.sp,
-                            color = AuraThemeTokens.colors.textTertiary,
-                        )
-                    }
-                    if (durationMs > 0) {
-                        Text(
-                            text = formatDuration(durationMs),
-                            fontFamily = JetBrainsMono,
-                            fontSize = 10.sp,
-                            color = AuraThemeTokens.colors.textTertiary,
-                        )
-                    }
                     if (timestamp > 0) {
                         Text(
                             text = com.aura.ui.util.formatRelativeTime(timestamp),

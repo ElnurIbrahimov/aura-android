@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +30,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.JetBrainsMono
 
@@ -161,26 +159,9 @@ fun StreamingText(
         }
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = annotated,
-            style = style,
-            modifier = modifier,
-        )
-        if (isStreaming && tokensPerSec > 0) {
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                color = semanticColors.surface2,
-                shape = RoundedCornerShape(6.dp),
-            ) {
-                Text(
-                    text = "$tokensPerSec tok/s",
-                    fontFamily = JetBrainsMono,
-                    fontSize = 10.sp,
-                    color = semanticColors.textSecondary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
-        }
-    }
+    Text(
+        text = annotated,
+        style = style,
+        modifier = modifier,
+    )
 }
