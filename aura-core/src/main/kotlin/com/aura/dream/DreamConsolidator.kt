@@ -571,15 +571,12 @@ class DreamConsolidator @Inject constructor(
     // ---------------------------------------------------------------------
 
     /**
-     * Mark low-importance, old memories as "archived" by setting
+     * Mark low-importance, old memories as "forgotten" by setting
      * their decayScore to 0. Mirrors Python's
      * `DreamConsolidator._prune_stale_sqlite`.
      *
-     * The Python impl uses a `lifecycle_state` field on the
-     * memory record. Android doesn't have that field, so we use
-     * the existing FadeMem signal: decayScore == 0 is treated
-     * as "forgotten" by retrieval. The row stays in the table
-     * (audit trail) but stops surfacing.
+     * FadeMem treats decayScore == 0 as forgotten, so the row
+     * stays in the table (audit trail) but stops surfacing in recall.
      *
      * Threshold: importance < [PRUNE_IMPORTANCE_FLOOR] AND
      * accessCount == 0 AND age > [PRUNE_AGE_DAYS] days. These
@@ -596,13 +593,7 @@ class DreamConsolidator @Inject constructor(
             if (entity.createdAt >= cutoff) continue
             if (entity.decayScore <= 0f) continue
             runCatching {
-                memoryStore.update(
-                    id = entity.id,
-                    content = entity.content,
-                    category = entity.category,
-                    importance = entity.importance,
-                    tags = entity.tags + (if (entity.tags.isNotEmpty()) "," else "") + "pruned:dream",
-                )
+                memoryStore.updateDecayScore(entity.id, 0f)
                 archived++
             }.onFailure {
                 android.util.Log.w("DreamConsolidator", "prune update failed for ${entity.id}: ${it.message}")

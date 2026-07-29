@@ -23,6 +23,8 @@ class TriggerWorker @AssistedInject constructor(
     private val triggerEngine: TriggerEngine,
     private val notificationsTool: NotificationsTool,
     private val userPreferences: UserPreferences,
+    private val handRunEnqueuer: com.aura.tools.HandRunEnqueuer,
+    private val handRepository: com.aura.hands.HandRepository,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -33,21 +35,32 @@ class TriggerWorker @AssistedInject constructor(
         for (action in actions) {
             when (action) {
                 is TriggerAction.Notify -> notificationsTool.post(action.title, action.body)
-                is TriggerAction.RunHand -> {
-                    // TODO: enqueue hand via AgentRunExecutor
-                    android.util.Log.d("TriggerWorker", "RunHand ${action.handId}")
-                }
-                is TriggerAction.StartChat -> {
-                    // TODO: start chat with prompt via notification tap
-                    // P0-BUILD-DX-F2: do NOT log the user prompt text (privacy);
-                    // the handler is unimplemented so the log adds no operational value.
-                    // Length-only signal preserves a debugging affordance without
-                    // leaking content.
-                    android.util.Log.d("TriggerWorker", "StartChat handler=TODO promptLen=${action.prompt.length}")
-                }
+                is TriggerAction.RunHand -> enqueueHand(action.handId)
+                is TriggerAction.StartChat -> postChatNotification(action.prompt)
             }
         }
         return Result.success()
+    }
+
+    private suspend fun enqueueHand(handId: String) {
+        val hand = handRepository.getById(handId)
+            ?: handRepository.getByName(handId)
+            ?: return
+        handRunEnqueuer.enqueue(
+            handName = hand.name,
+            variablesJson = "{}",
+            trigger = "trigger",
+            conversationId = "",
+            modelId = "",
+            context = null,
+        )
+    }
+
+    private fun postChatNotification(prompt: String) {
+        notificationsTool.post(
+            title = "Aura",
+            body = prompt.take(160).ifEmpty { "Tap to continue in Aura" },
+        )
     }
 
     companion object {

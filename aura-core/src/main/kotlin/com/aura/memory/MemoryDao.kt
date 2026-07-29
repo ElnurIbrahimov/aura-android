@@ -103,6 +103,9 @@ interface MemoryDao {
     @Query("UPDATE memories SET accessedAt = :now, accessCount = accessCount + 1, decayScore = MIN(1.0, decayScore + 0.1) WHERE id = :id")
     suspend fun touch(id: String, now: Long = System.currentTimeMillis())
 
+    @Query("UPDATE memories SET decayScore = :decayScore WHERE id = :id")
+    suspend fun updateDecayScore(id: String, decayScore: Float)
+
     @Query("DELETE FROM memories WHERE id = :id")
     suspend fun delete(id: String)
 

@@ -509,8 +509,7 @@ class MemoryStore @Inject constructor(
     /**
      * Run decay pass: recompute the decay score for every memory.
      * Uses batch updates (50 per batch) to avoid N+1 individual
-     * UPDATE statements. The threshold (0.05) skips memories whose
-     * score hasn't meaningfully changed since the last pass.
+     * UPDATE statements.
      */
     suspend fun runDecayPass() {
         val now = System.currentTimeMillis()
@@ -526,6 +525,15 @@ class MemoryStore @Inject constructor(
         toUpdate.chunked(50).forEach { batch ->
             dao.updateAll(batch)
         }
+    }
+
+    /**
+     * Set the decay score for a single memory without touching
+     * other fields or writing to the edit-audit trail. Used by
+     * [DreamConsolidator] to mark stale memories as forgotten.
+     */
+    suspend fun updateDecayScore(id: String, decayScore: Float) {
+        dao.updateDecayScore(id, decayScore)
     }
 }
 
