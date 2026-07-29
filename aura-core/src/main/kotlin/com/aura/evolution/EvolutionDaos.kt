@@ -99,7 +99,7 @@ interface EvolutionProposalDao {
     @Query("UPDATE evolution_proposals SET status = :status, resolvedAt = :timestamp, outcomeNote = :note WHERE id = :id")
     suspend fun resolve(id: kotlin.String, status: kotlin.String, note: kotlin.String, timestamp: kotlin.Long = System.currentTimeMillis())
 
-    @Query("DELETE FROM evolution_proposals WHERE resolvedAt <= :cutoff AND status IN ('rejected', 'rolled_back', 'superseded')")
+    @Query("DELETE FROM evolution_proposals WHERE resolvedAt <= :cutoff AND status IN ('REJECTED', 'ROLLED_BACK', 'SUPERSEDED')")
     suspend fun deleteResolvedOlderThan(cutoff: kotlin.Long): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

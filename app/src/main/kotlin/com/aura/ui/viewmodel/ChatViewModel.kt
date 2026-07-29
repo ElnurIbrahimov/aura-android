@@ -374,9 +374,16 @@ class ChatViewModel @Inject constructor(
             onError = { msg -> _state.update { it.copy(error = com.aura.ui.components.friendlyErrorMessage(msg)) } },
             onRunComplete = { durationMs -> _state.update { it.copy(lastResponseDurationMs = durationMs) } },
             recentTopics = {
-                runCatching { conversationStore.recentTopics(5) }
-                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
-                    .getOrDefault("")
+                // Only inject on new conversations — the KDoc says
+                // "for new conversations" and injecting the current
+                // conversation's own topics on every turn causes the
+                // model to offer to "continue where the user left off"
+                // mid-conversation.
+                if (state.value.conversation.turns.isEmpty()) {
+                    runCatching { conversationStore.recentTopics(5, state.value.conversation.id) }
+                        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                        .getOrDefault("")
+                } else ""
             },
         )
     }

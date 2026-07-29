@@ -348,10 +348,12 @@ private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
  * system prompt on new conversations. Simple word-frequency heuristic
  * — no LLM call needed.
  */
-suspend fun ConversationStore.recentTopics(limit: Int = 5): String {
+suspend fun ConversationStore.recentTopics(limit: Int = 5, excludeId: kotlin.String? = null): String {
     val recent = recent(limit)
     if (recent.isEmpty()) return ""
-    val words = recent.flatMap { conv ->
+    val filtered = if (excludeId != null) recent.filter { it.id != excludeId } else recent
+    if (filtered.isEmpty()) return ""
+    val words = filtered.flatMap { conv ->
         val text = "${conv.title} ${conv.contextSummary}"
         text.lowercase()
             .replace(Regex("[^a-z0-9\\s]"), " ")

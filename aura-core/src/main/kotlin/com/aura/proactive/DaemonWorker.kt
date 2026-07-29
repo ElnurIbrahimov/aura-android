@@ -31,9 +31,9 @@ class DaemonWorker @AssistedInject constructor(
     private val providerRegistry: ProviderRegistry,
     private val conversationStore: ConversationStore,
     private val eventBus: ProactiveEventBus,
-    private val calendarReadTool: com.aura.tools.CalendarReadTool? = null,
-    private val memoryStore: com.aura.memory.MemoryStore? = null,
-    private val taskDao: com.aura.tasks.TaskDao? = null,
+    private val calendarReadTool: com.aura.tools.CalendarReadTool,
+    private val memoryStore: com.aura.memory.MemoryStore,
+    private val taskDao: com.aura.tasks.TaskDao,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -51,13 +51,13 @@ class DaemonWorker @AssistedInject constructor(
             // help the daemon prepare relevant insights instead of
             // just reflecting on the last conversation.
             val calendarContext = runCatching {
-                val events = calendarReadTool?.readTodaysEvents() ?: emptyList()
+                val events = calendarReadTool.readTodaysEvents()
                 if (events.isNotEmpty()) {
                     "Today's calendar: ${events.joinToString("; ")}"
                 } else ""
             }.getOrDefault("")
             val memoryContext = runCatching {
-                val decayed = memoryStore?.decayedBelow(0.4f, 5) ?: emptyList()
+                val decayed = memoryStore.decayedBelow(0.4f, 5)
                 if (decayed.isNotEmpty()) {
                     "Fading memories: ${decayed.joinToString("; ") { it.content.take(80) }}"
                 } else ""
@@ -68,7 +68,7 @@ class DaemonWorker @AssistedInject constructor(
                     set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
                 }.timeInMillis
                 val tomorrow = today + 24L * 60 * 60 * 1000
-                val due = taskDao?.dueInRange(today, tomorrow) ?: emptyList()
+                val due = taskDao.dueInRange(today, tomorrow)
                 if (due.isNotEmpty()) {
                     "Tasks due today: ${due.joinToString("; ") { it.title }}"
                 } else ""
