@@ -71,6 +71,7 @@ internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
+internal val KEY_AGENT_ID = stringPreferencesKey("agent_id")
 internal val KEY_TRIGGERS_ENABLED = booleanPreferencesKey("triggers_enabled")
 internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
@@ -258,6 +259,7 @@ class UserPreferences @Inject constructor(
      * indefinitely — useful for users who want to preserve everything.
      */
     val decayEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DECAY_ENABLED] ?: true }
+val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     /** Whether the trigger worker runs every 15m. Default true (opt-out). */
     val triggersEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_TRIGGERS_ENABLED] ?: true }
 
@@ -424,6 +426,16 @@ class UserPreferences @Inject constructor(
 
     suspend fun setDecayEnabled(enabled: Boolean) {
         context.auraPrefs.edit { prefs -> prefs[KEY_DECAY_ENABLED] = enabled }
+    }
+
+    suspend fun setAgentId(agentId: String?) {
+        context.auraPrefs.edit { prefs ->
+            if (agentId == null) {
+                prefs.remove(KEY_AGENT_ID)
+            } else {
+                prefs[KEY_AGENT_ID] = agentId
+            }
+        }
     }
 
     suspend fun setEvolutionOnboardingShown(shown: Boolean) {

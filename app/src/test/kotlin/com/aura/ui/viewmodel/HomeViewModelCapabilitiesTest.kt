@@ -1,9 +1,13 @@
 package com.aura.ui.viewmodel
 
 import android.app.Application
+import com.aura.agent.AgentStore
+import com.aura.agent.ToolRegistry
 import com.aura.capabilities.CapabilityKind
 import com.aura.capabilities.CapabilityProvider
 import com.aura.capabilities.CapabilityRegistry
+import com.aura.data.UserPreferences
+import com.aura.emotion.EmotionEngine
 import com.aura.hands.HandDao
 import com.aura.kg.KnowledgeGraphRepository
 import com.aura.memory.MemoryStore
@@ -13,10 +17,11 @@ import com.aura.skills.SkillsStore
 import com.aura.tasks.ReminderDao
 import com.aura.tasks.TaskDao
 import com.aura.tools.CalendarReadTool
-import com.aura.agent.ToolRegistry
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,10 +32,12 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+
+
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelCapabilitiesTest {
@@ -47,6 +54,9 @@ class HomeViewModelCapabilitiesTest {
     private val toolRegistry = mockk<ToolRegistry>(relaxed = true)
     private val skillsStore = mockk<SkillsStore>(relaxed = true)
     private val capabilityRegistry = mockk<CapabilityRegistry>(relaxed = true)
+    private val agentStore = mockk<AgentStore>(relaxed = true)
+    private val userPreferences = mockk<UserPreferences>(relaxed = true)
+    private val emotionEngine = mockk<EmotionEngine>(relaxed = true)
 
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -63,6 +73,11 @@ class HomeViewModelCapabilitiesTest {
         every { proactiveEvents.history } returns MutableStateFlow(emptyList())
         every { toolRegistry.definitions() } returns emptyList()
         every { capabilityRegistry.forKind(any()) } returns null
+                every { agentStore.all() } returns flowOf(emptyList())
+        coEvery { agentStore.byId(any()) } returns null
+        every { userPreferences.defaultModel } returns flowOf("ollama:general")
+        every { userPreferences.agentId } returns flowOf(null)
+        every { emotionEngine.snapshot() } returns EmotionEngine.EmotionSnapshot()
     }
 
     @After fun tearDown() { Dispatchers.resetMain() }
@@ -80,6 +95,9 @@ class HomeViewModelCapabilitiesTest {
             toolRegistry = toolRegistry,
             skillsStore = skillsStore,
             capabilityRegistry = capabilityRegistry,
+            agentStore = agentStore,
+            userPreferences = userPreferences,
+            emotionEngine = emotionEngine,
         )
     }
 

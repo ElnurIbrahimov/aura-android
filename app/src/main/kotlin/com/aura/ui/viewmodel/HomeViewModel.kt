@@ -10,8 +10,11 @@ import com.aura.memory.MemoryEntity
 import com.aura.memory.MemoryStore
 import com.aura.proactive.BriefContext
 import com.aura.proactive.ProactiveEventBus
+import com.aura.agent.AgentStore
+import com.aura.emotion.EmotionEngine
 import com.aura.proactive.ProactiveEvents
 import com.aura.tasks.ReminderDao
+import com.aura.data.UserPreferences
 import com.aura.tasks.TaskDao
 import com.aura.tools.CalendarReadTool
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -105,6 +108,14 @@ data class HomeUiState(
      * screen badge counts.
      */
     val activeCapabilities: Map<CapabilityKind, String> = emptyMap(),
+    /** Currently selected agent id from chat/session state. */
+    val activeAgentId: String? = null,
+    /** Human-readable name of the active agent for the presence surface. */
+    val activeAgentName: String? = null,
+    /** Latest emotional snapshot for the agent presence surface. */
+    val emotionSnapshot: com.aura.emotion.EmotionEngine.EmotionSnapshot? = null,
+    /** One-line callback to anchor the home scene in recent context. */
+    val memoryCallback: String? = null,
 ) {
     val isEmptyResolved: Boolean get() = loadState is HomeLoadState.Empty
 
@@ -134,6 +145,9 @@ class HomeViewModel @Inject constructor(
     private val toolRegistry: com.aura.agent.ToolRegistry,
     private val skillsStore: com.aura.skills.SkillsStore,
     private val capabilityRegistry: CapabilityRegistry,
+    private val agentStore: AgentStore,
+    private val userPreferences: UserPreferences,
+    private val emotionEngine: EmotionEngine,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -163,6 +177,7 @@ class HomeViewModel @Inject constructor(
         observeSkills()
         loadToolsCount()
         refreshCapabilities()
+        observeActiveAgent()
     }
 
     private fun refreshCapabilities() {
@@ -270,6 +285,41 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+
+    private fun observeActiveAgent() {
+        viewModelScope.launch {
+            userPreferences.defaultModel.collect { }
+            userPreferences.agentId.collect { agentId ->
+                val name = agentId?.let { agentStore.byId(it)?.name }
+                updateObserved { it.copy(activeAgentId = agentId, activeAgentName = name) }
+                rebuildMemoryCallback()
+            }
+        }
+    }
+
+    private fun refreshEmotionSnapshot() {
+        updateObserved { it.copy(emotionSnapshot = emotionEngine.snapshot()) }
+    }
+
+    private fun rebuildMemoryCallback() {
+        viewModelScope.launch {
+            val callback = buildMemoryCallback()
+            updateObserved { it.copy(memoryCallback = callback) }
+        }
+    }
+
+    private suspend fun buildMemoryCallback(): String? {
+        val recent = runCatching { memoryStore.recent(1) }.getOrDefault(emptyList()).firstOrNull()
+        if (recent != null) {
+            return "Still thinking about: ${recent.content.take(60)}"
+        }
+        val tasks = runCatching { taskDao.allPending().take(1) }.getOrDefault(emptyList())
+        if (tasks.isNotEmpty()) {
+            return "You have ${tasks.size} pending task${if (tasks.size == 1) "" else "s"}."
+        }
+        return null
+    }
+
     fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(loadState = HomeLoadState.Loading) }
@@ -312,6 +362,8 @@ class HomeViewModel @Inject constructor(
                     loadState = resolveHomeLoadState(loaded.hasHomeData(), calendarError),
                 )
                 rebuildBriefContext()
+                rebuildMemoryCallback()
+                refreshEmotionSnapshot()
             } catch (error: Exception) {
                 _state.update { current ->
                     current.copy(
