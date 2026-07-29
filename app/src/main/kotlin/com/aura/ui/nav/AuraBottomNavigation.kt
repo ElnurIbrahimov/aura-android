@@ -99,7 +99,7 @@ fun AuraBottomNavigation(
         color = colors.surface0,
         shape = RectangleShape,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        border = BorderStroke(0.dp, Color.Transparent),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(navigationBarInsets)
@@ -109,16 +109,16 @@ fun AuraBottomNavigation(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(AuraDimensions.bottomNavigationHeight)
+                    .height(AuraDimensions.bottomNavigationHeight - 8.dp)
                     .testTag("bottom-navigation-row")
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 topLevelRoutes.forEach { route ->
                     val selected = baseRoute == route.route
                     val containerColor by animateColorAsState(
-                        targetValue = if (selected) colors.selection else Color.Transparent,
+                        targetValue = if (selected) colors.surface1 else Color.Transparent,
                         animationSpec = tween(durationMillis = AuraDimensions.motionStandardMs),
                         label = "bar-item-bg",
                     )
