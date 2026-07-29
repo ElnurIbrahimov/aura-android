@@ -1,6 +1,8 @@
 package com.aura.tools
 
 import android.content.Context
+import com.aura.agent.ToolContext
+import com.aura.agentrun.AgentRunContextSnapshot
 import com.aura.agentrun.AgentRunExecutorService
 import com.aura.agentrun.AgentRunStore
 import com.aura.agentrun.StepSpec
@@ -34,7 +36,12 @@ class HandRunEnqueuer @Inject constructor(
      * @param variablesJson optional variable overrides
      * @param trigger one of the [com.aura.hands.HandRunTrigger] values
      * @param conversationId optional originating conversation
-     * @return run ID or null if the hand does not exist
+     * @param modelId optional originating model
+     * @param context optional originating tool context; passed through to
+     *   background execution so incognito mode, approved remote-cost tools,
+     *   and active agent survive the hand-off.
+     * @return run ID or null if the hand does not exist, is disabled, or
+     *   fails its conditions.
      */
     suspend fun enqueue(
         handName: String,
@@ -42,6 +49,7 @@ class HandRunEnqueuer @Inject constructor(
         trigger: String,
         conversationId: String = "",
         modelId: String = "",
+        context: ToolContext? = null,
     ): String? {
         val hand = handRepository.getByName(handName) ?: return null
         // Respect the enabled flag — disabled hands should not execute
@@ -55,12 +63,22 @@ class HandRunEnqueuer @Inject constructor(
         val failedCondition = conditions.firstOrNull { !it.matches(variables) }
         if (failedCondition != null) return null
 
+        val metadata = context?.let {
+            AgentRunContextSnapshot(
+                userMessage = it.userMessage,
+                approvedRemoteCostTools = it.approvedRemoteCostTools,
+                memoryEnabled = it.memoryEnabled,
+                activeAgentId = it.activeAgentId,
+            ).toJson()
+        } ?: "{}"
+
         val steps = handRepository.parseSteps(hand.steps)
         val run = agentRunStore.createRun(
             trigger = trigger,
             goalDescription = "Execute hand '${hand.name}': run automation macro",
             conversationId = conversationId,
             modelId = modelId,
+            metadata = metadata,
         )
         if (steps.isNotEmpty()) {
             // Pre-generate step IDs so we can reference them in dependsOn.

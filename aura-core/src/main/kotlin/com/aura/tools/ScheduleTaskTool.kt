@@ -63,6 +63,7 @@ class ScheduleTaskTool @Inject constructor(
                 description = prompt,
                 createdAt = System.currentTimeMillis(),
                 dueAt = dueAt,
+                recurrence = recurrence,
                 status = "pending",
             )
             taskDao.insert(task)

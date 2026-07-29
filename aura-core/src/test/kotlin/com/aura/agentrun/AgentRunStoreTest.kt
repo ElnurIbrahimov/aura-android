@@ -38,6 +38,25 @@ class AgentRunStoreTest {
         assertNotNull(run.goalId)
         assertEquals("Find the best coffee shop nearby", goalSlot.captured.description)
         assertEquals(run.id, goalSlot.captured.agentRunId)
+        assertEquals("{}", runSlot.captured.metadata)
+    }
+
+    @Test
+    fun createRun_persists_metadata_when_provided() = runTest {
+        val runSlot = slot<AgentRunEntity>()
+        coEvery { runDao.upsert(capture(runSlot)) } returns Unit
+        coEvery { goalDao.upsert(any()) } returns Unit
+
+        store.createRun(
+            trigger = "USER_QUERY",
+            goalDescription = "g",
+            metadata = """{"memoryEnabled":false,"approvedRemoteCostTools":["web_search"],"userMessage":"go","activeAgentId":"agent_1"}""",
+        )
+
+        assertEquals(
+            """{"memoryEnabled":false,"approvedRemoteCostTools":["web_search"],"userMessage":"go","activeAgentId":"agent_1"}""",
+            runSlot.captured.metadata,
+        )
     }
 
     @Test

@@ -34,6 +34,7 @@ class AgentRunStore @Inject constructor(
         goalDescription: kotlin.String,
         conversationId: kotlin.String = "",
         modelId: kotlin.String = "",
+        metadata: kotlin.String = "{}",
     ): AgentRunEntity = mutex.withLock {
         val goalId = UUID.randomUUID().toString()
         val runId = UUID.randomUUID().toString()
@@ -51,6 +52,7 @@ class AgentRunStore @Inject constructor(
             triggerType = trigger,
             conversationId = conversationId,
             modelId = modelId,
+            metadata = metadata,
             startedAt = now,
             updatedAt = now,
         )

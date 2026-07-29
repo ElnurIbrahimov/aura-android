@@ -41,6 +41,7 @@ class ScheduleTaskToolTest {
         val taskSlot = slot<TaskEntity>()
         coVerify { taskDao.insert(capture(taskSlot)) }
         assertEquals("Follow-up", taskSlot.captured.title)
+        assertEquals("daily", taskSlot.captured.recurrence)
         coVerify { taskScheduler.schedule(taskSlot.captured) }
 
     }

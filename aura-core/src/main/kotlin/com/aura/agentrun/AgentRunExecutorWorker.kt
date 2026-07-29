@@ -168,8 +168,13 @@ class AgentRunExecutorWorker @AssistedInject constructor(
         run: AgentRunEntity,
         step: StepEntity,
     ): ToolResult {
-        val ctx = ToolContext(
+        val snapshot = AgentRunContextSnapshot.fromJson(run.metadata)
+        val ctx = com.aura.agent.ToolContext(
             conversationId = run.conversationId.ifBlank { "agent_run:${run.id}" },
+            userMessage = snapshot.userMessage,
+            approvedRemoteCostTools = snapshot.approvedRemoteCostTools,
+            memoryEnabled = snapshot.memoryEnabled,
+            activeAgentId = snapshot.activeAgentId,
             timeout = 120_000L,
         )
         return try {

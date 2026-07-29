@@ -68,6 +68,7 @@ class RunHandTool @Inject constructor(
                 variablesJson = variablesRaw,
                 trigger = triggerValue,
                 conversationId = ctx.conversationId,
+                context = ctx,
             )
             if (enqueueResult != null) {
                 return@Tool ToolResult.Ok("Queued hand '${hand.name}' as agent run $enqueueResult")
