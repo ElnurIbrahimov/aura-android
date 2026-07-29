@@ -5,6 +5,10 @@ import com.aura.agent.ConversationDao
 import com.aura.agent.ConversationEntity
 import com.aura.agent.AgentDao
 import com.aura.agent.AgentEntity
+import com.aura.agent.StrategyBanditDao
+import com.aura.agent.StrategyBanditEntity
+import com.aura.agent.toBackup
+import com.aura.agent.toEntity
 import com.aura.data.UserPreferences
 import com.aura.creative.CreativeProjectDao
 import com.aura.creative.CreativeProjectEntity
@@ -120,6 +124,8 @@ class BackupManager @Inject constructor(
     private val evolutionCandidateDao: com.aura.evolution.EvolutionCandidateDao? = null,
     private val proactiveInteractionDao: com.aura.proactive.ProactiveInteractionDao? = null,
     private val routingOutcomeDao: com.aura.taste.RoutingOutcomeDao? = null,
+    // Schema v14: learned strategy weights.
+    private val strategyBanditDao: StrategyBanditDao? = null,
 ) {
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
@@ -274,6 +280,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             evolutionCandidates = evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),
         )
     }
 
@@ -711,6 +718,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 routingOutcomes
             )
     }
+
+    private suspend fun restoreStrategyBandit(backup: AuraBackup) {
+        val rows = backup.strategyBandit.map { it.toEntity() }
+        if (rows.isNotEmpty()) {
+            strategyBanditDao?.clear()
+            strategyBanditDao?.insertAll(rows)
+        }
+    }
+
 }
 
 // ── Mappers: Entity → Backup ──

@@ -43,6 +43,7 @@ class BackupManagerTest {
     private val evolutionSettingsDao = mockk<com.aura.evolution.EvolutionSettingsDao>(relaxed = true)
     private val evolutionRevisionDao = mockk<com.aura.evolution.EvolutionRevisionDao>(relaxed = true)
     private val agentDao = mockk<com.aura.agent.AgentDao>(relaxed = true)
+    private val strategyBanditDao = mockk<com.aura.agent.StrategyBanditDao>(relaxed = true)
 
     private val manager = BackupManager(
         context = context,
@@ -66,6 +67,7 @@ class BackupManagerTest {
         evolutionSettingsDao = evolutionSettingsDao,
         evolutionRevisionDao = evolutionRevisionDao,
         agentDao = agentDao,
+        strategyBanditDao = strategyBanditDao,
     )
 
     @Test

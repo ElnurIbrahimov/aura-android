@@ -1,6 +1,7 @@
 package com.aura.backup
 
 import com.aura.agent.AgentEntity
+import com.aura.agent.StrategyBanditBackup
 import com.aura.usage.UsageSnapshot
 import kotlinx.serialization.Serializable
 
@@ -82,9 +83,11 @@ data class AuraBackup(
     val evolutionCandidates: List<EvolutionCandidateBackup> = emptyList(),
     val proactiveInteractions: List<ProactiveInteractionBackup> = emptyList(),
     val routingOutcomes: List<RoutingOutcomeBackup> = emptyList(),
+    // Schema v15: learned strategy weights.
+    val strategyBandit: List<StrategyBanditBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 14
+        const val SCHEMA_VERSION = 15
     }
 }
 

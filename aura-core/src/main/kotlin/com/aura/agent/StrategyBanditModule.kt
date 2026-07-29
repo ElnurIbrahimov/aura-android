@@ -20,5 +20,5 @@ object StrategyBanditModule {
             .build()
 
     @Provides
-    fun provideDao(db: StrategyBanditDatabase): StrategyBanditDao = db.dao()
+    fun provideStrategyBanditDao(db: StrategyBanditDatabase): StrategyBanditDao = db.dao()
 }
