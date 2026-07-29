@@ -15,6 +15,9 @@ import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Processes pending steps for an AgentRun. Each step calls a tool via
@@ -113,38 +116,45 @@ class AgentRunExecutorWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        // Execute each ready step
-        for (step in ready) {
-            val result = executeStep(run, step)
-            when (result) {
-                is ToolResult.Ok -> agentRunStore.completeStep(step.id, result.output)
-                is ToolResult.Error -> {
-                    agentRunStore.failStep(step.id, result.message)
-                    // Continue executing other ready steps — one failure
-                    // shouldn't block independent steps in the same batch.
+        // Execute each ready step in parallel. DAG-ready steps have no
+        // dependencies on each other, so they can run concurrently.
+        coroutineScope {
+            ready.map { step ->
+                async {
+                    val result = executeStep(run, step)
+                    step to result
                 }
-                is ToolResult.NeedsPermission -> {
-                    // Mark step as BLOCKED (not FAILED) so the run can
-                    // resume after the user grants the permission via
-                    // AgentRunsViewModel.approve(). Until v0.30.x this
-                    // called failStep(), which surfaced approval-gated
-                    // tools as run failures.
-                    agentRunStore.requestApproval(
-                        runId = runId,
-                        stepId = step.id,
-                        toolName = step.toolName,
-                        rationale = ApprovalKind.permissionRationale(result.permission),
-                    )
-                    agentRunStore.blockStep(step.id, "Permission required: ${result.permission}")
-                }
-                is ToolResult.NeedsApproval -> {
-                    agentRunStore.requestApproval(
-                        runId = runId,
-                        stepId = step.id,
-                        toolName = step.toolName,
-                        rationale = result.rationale,
-                    )
-                    agentRunStore.blockStep(step.id, "Approval required: ${result.rationale}")
+            }.awaitAll().forEach { (step, result) ->
+                when (result) {
+                    is ToolResult.Ok -> agentRunStore.completeStep(step.id, result.output)
+                    is ToolResult.Error -> {
+                        agentRunStore.failStep(step.id, result.message)
+                        // Continue executing other ready steps — one failure
+                        // shouldn't block independent steps in the same batch.
+                    }
+                    is ToolResult.NeedsPermission -> {
+                        // Mark step as BLOCKED (not FAILED) so the run can
+                        // resume after the user grants the permission via
+                        // AgentRunsViewModel.approve(). Until v0.30.x this
+                        // called failStep(), which surfaced approval-gated
+                        // tools as run failures.
+                        agentRunStore.requestApproval(
+                            runId = runId,
+                            stepId = step.id,
+                            toolName = step.toolName,
+                            rationale = ApprovalKind.permissionRationale(result.permission),
+                        )
+                        agentRunStore.blockStep(step.id, "Permission required: ${result.permission}")
+                    }
+                    is ToolResult.NeedsApproval -> {
+                        agentRunStore.requestApproval(
+                            runId = runId,
+                            stepId = step.id,
+                            toolName = step.toolName,
+                            rationale = result.rationale,
+                        )
+                        agentRunStore.blockStep(step.id, "Approval required: ${result.rationale}")
+                    }
                 }
             }
         }
