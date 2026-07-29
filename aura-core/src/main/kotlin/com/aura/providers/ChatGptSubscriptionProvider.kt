@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -108,26 +109,50 @@ class ChatGptSubscriptionProvider(
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
-        val src = EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
+        val sourceHolder = EventSourceHolder()
+        activeEventSource = sourceHolder
+        // P0-AGENTIC-F2: track tool_calls by index so parallel tool-call deltas
+        // route to the correct ToolCall. The responses API may send multiple
+        // function_call events in one response; chat-completions-style deltas
+        // include an `index` field.
+        val toolCallsByIndex = mutableMapOf<Int, ToolCallBuilder>()
+        EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                sourceHolder.source = eventSource
+                activeEventSource = eventSource
                 if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
                 val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
                 // The responses API streams "output_text.delta" events. Fall back to chat-completions style for forward compat.
                 val text = (obj["delta"] as? JsonObject)?.get("text").let { (it as? JsonPrimitive)?.content }
                     ?: (obj["output_text"] as? JsonPrimitive)?.content
                 if (text != null) channel.trySend(ProviderChunk(text = text))
-                // Parse tool calls from the Responses API
-                // The responses API sends function_call events with type "function_call" or
-                // falls back to chat-completions style tool_calls in the delta.
-                val toolCallObj = (obj["delta"] as? JsonObject)?.get("tool_call")?.jsonObject
-                    ?: (obj["delta"] as? JsonObject)?.get("tool_calls")?.jsonArray?.firstOrNull()?.jsonObject
-                    ?: obj["tool_call"]?.jsonObject
-                if (toolCallObj != null) {
-                    val fnName = (toolCallObj["name"] ?: toolCallObj["function"]?.jsonObject?.get("name"))?.jsonPrimitive?.content ?: ""
-                    val fnArgs = (toolCallObj["arguments"] ?: toolCallObj["function"]?.jsonObject?.get("arguments"))?.jsonPrimitive?.content ?: "{}"
-                    val callId = toolCallObj["id"]?.jsonPrimitive?.content ?: "chatgpt_${System.currentTimeMillis()}_${fnName.hashCode()}"
-                    if (fnName.isNotBlank()) {
-                        channel.trySend(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
+                // Parse tool calls from the Responses API, index-aware.
+                val delta = obj["delta"] as? JsonObject
+                val toolCallArray = delta?.get("tool_calls")?.jsonArray
+                if (toolCallArray != null) {
+                    for (item in toolCallArray) {
+                        val toolCallObj = item.jsonObject
+                        val idx = toolCallObj["index"]?.jsonPrimitive?.intOrNull ?: 0
+                        val builder = toolCallsByIndex.getOrPut(idx) { ToolCallBuilder() }
+                        toolCallObj["id"]?.jsonPrimitive?.content?.let { builder.id = it }
+                        val fnObj = toolCallObj["function"]?.jsonObject
+                        fnObj?.get("name")?.jsonPrimitive?.content?.let { builder.name = it }
+                        fnObj?.get("arguments")?.jsonPrimitive?.content?.let { builder.arguments.append(it) }
+                        if (builder.isComplete()) {
+                            channel.trySend(ProviderChunk(toolCall = builder.toToolCall()))
+                            toolCallsByIndex.remove(idx)
+                        }
+                    }
+                } else {
+                    val toolCallObj = delta?.get("tool_call")?.jsonObject
+                        ?: obj["tool_call"]?.jsonObject
+                    if (toolCallObj != null) {
+                        val fnName = (toolCallObj["name"] ?: toolCallObj["function"]?.jsonObject?.get("name"))?.jsonPrimitive?.content ?: ""
+                        val fnArgs = (toolCallObj["arguments"] ?: toolCallObj["function"]?.jsonObject?.get("arguments"))?.jsonPrimitive?.content ?: "{}"
+                        val callId = toolCallObj["id"]?.jsonPrimitive?.content ?: "chatgpt_${System.currentTimeMillis()}_${fnName.hashCode()}"
+                        if (fnName.isNotBlank()) {
+                            channel.trySend(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
+                        }
                     }
                 }
                 val done = (obj["type"] as? JsonPrimitive)?.content in setOf("response.completed", "response.done")
@@ -145,7 +170,6 @@ class ChatGptSubscriptionProvider(
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
         })
-        activeEventSource = src
         try {
             // 5-min defensive timeout matching OpenAiCompatProvider. The
             // ChatGPT Responses API occasionally stops sending chunks
@@ -191,4 +215,16 @@ class ChatGptSubscriptionProvider(
         activeEventSource?.cancel()
         activeEventSource = null
     }
+
+/**
+ * Mutable accumulator for streaming OpenAI tool-call deltas.
+ */
+private class ToolCallBuilder {
+    var id: String = ""
+    var name: String = ""
+    val arguments = StringBuilder()
+
+    fun isComplete(): Boolean = id.isNotBlank() && name.isNotBlank()
+    fun toToolCall(): ToolCall = ToolCall(id = id, name = name, arguments = arguments.toString().ifBlank { "{}" })
+}
 }

@@ -119,6 +119,7 @@ class GeminiProvider(
                     val content = candidate?.get("content")?.jsonObject
                     val parts = content?.get("parts")?.jsonArray
                     if (parts != null) {
+                        var partIndex = 0
                         for (part in parts) {
                             val partObj = part as? JsonObject ?: continue
                             // Text part
@@ -129,9 +130,13 @@ class GeminiProvider(
                             if (fnCall != null) {
                                 val fnName = fnCall["name"]?.jsonPrimitive?.content ?: ""
                                 val fnArgs = fnCall["args"]?.toString() ?: "{}"
-                                val callId = "gemini_${System.currentTimeMillis()}_${fnName.hashCode()}"
+                                // P0-AGENTIC-F2: stable per-part ids so parallel
+                                // calls to the same function don't collide. Index
+                                // within the response is deterministic.
+                                val callId = "gemini_${partIndex}_${fnName}"
                                 emit(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
                             }
+                            partIndex++
                         }
                     }
 

@@ -252,15 +252,4 @@ open class OpenAiCompatProvider(
         const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
     }
 
-/**
- * Holds an [EventSource] that may not be assigned yet. Used as a
- * cancellation bridge during the brief window between SSE source creation
- * and the [onOpen] callback.
- */
-private class EventSourceHolder : EventSource {
-    @Volatile var source: EventSource? = null
-
-    override fun request(): okhttp3.Request = source?.request() ?: okhttp3.Request.Builder().url("http://localhost").build()
-    override fun cancel() { source?.cancel() }
-}
 }
