@@ -113,6 +113,8 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")
+    every { userPreferences.triggersEnabled } returns flowOf(false)
+    every { userPreferences.triggers } returns flowOf(emptyList())
         coEvery { identityStore.readCurrent() } returns ""
         coEvery { identityStore.hasOverride() } returns false
     }
