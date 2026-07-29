@@ -54,7 +54,7 @@ fun TriggersSection(
                 val summary = when (val c = trigger.condition) {
                     is TriggerCondition.Schedule -> "schedule @ ${c.cron}"
                     is TriggerCondition.WebChanged -> "web: ${c.url}"
-                    is TriggerCondition.LocationEntered -> "location"
+                    is TriggerCondition.LocationEntered -> "location (not yet implemented)"
                     is TriggerCondition.IntentReceived -> "intent: ${c.action}"
                 }
                 Text("• ${trigger.label} — $summary", style = MaterialTheme.typography.bodySmall)

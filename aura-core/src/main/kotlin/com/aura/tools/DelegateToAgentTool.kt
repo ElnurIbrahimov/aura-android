@@ -9,6 +9,7 @@ import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
+import com.aura.agent.truncateToolResult
 import com.aura.memory.MemoryStore
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
@@ -238,7 +239,7 @@ class DelegateToAgentTool @Inject constructor(
                 if (tools.none { it.name == toolName }) continue
                 val result = executor.execute(toolName, args, childCtx)
                 val resultText = when (result) {
-                    is ToolResult.Ok -> result.output
+                    is ToolResult.Ok -> truncateToolResult(result.output)
                     is ToolResult.Error -> "Error: ${result.message}"
                     else -> "Unknown result"
                 }

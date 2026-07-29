@@ -286,7 +286,9 @@ class HandRepositoryTest {
         coVerify {
             dao.updateRun(match {
                 it.status == HandRunStatus.SUCCESS.value &&
-                    it.output.length == 8_000 &&
+                    it.output.length <= 8_000 &&
+                    it.output.contains("Step 1") &&
+                    it.output.contains("[...truncated") &&
                     it.variablesJson.contains("[redacted]") &&
                     !it.variablesJson.contains(secret)
             })

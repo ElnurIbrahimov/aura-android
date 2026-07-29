@@ -122,7 +122,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyMergeSkills(proposal: EvolutionProposalEntity): ApplyResult {
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val sourceId = args["sourceId"] ?: return ApplyResult.Error(proposal.id, "missing sourceId")
         val targetId = args["targetId"] ?: proposal.targetId
         val source = skillsStore?.findById(sourceId)
@@ -171,13 +171,13 @@ class EvolutionApplySaga @Inject constructor(
         userPreferences ?: return ApplyResult.Error(proposal.id, "UserPreferences not available")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val specialistName = args["specialist"] ?: return ApplyResult.Error(proposal.id, "missing specialist")
         val newPrompt = args["prompt"] ?: return ApplyResult.Error(proposal.id, "missing prompt")
         val current = userPreferences.specialistOverrides.first()
         val map = runCatching {
             json.decodeFromString<Map<String, String>>(current.ifBlank { "{}" })
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val updated = map + (specialistName to newPrompt)
         userPreferences.setSpecialistOverrides(json.encodeToString(MapSerializer(String.serializer(), String.serializer()), updated))
         proposalStore.markApplied(proposal.id, "patched $specialistName prompt")
@@ -205,7 +205,7 @@ class EvolutionApplySaga @Inject constructor(
         memoryStore ?: return ApplyResult.Error(proposal.id, "MemoryStore not available")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val memoryIds = args["memoryIds"]?.split(",")?.map { it.trim() } ?: return ApplyResult.Error(proposal.id, "missing memoryIds")
         val consolidated = args["consolidatedContent"] ?: return ApplyResult.Error(proposal.id, "missing consolidatedContent")
         val category = args["category"] ?: "consolidated"
@@ -225,7 +225,7 @@ class EvolutionApplySaga @Inject constructor(
         // cross-agent consolidation). If the sources list is
         // empty or all sources are gone, default to general.
         val sourceScopes = memoryIds
-            .mapNotNull { id -> memoryStore?.let { runCatching { it.get(id) }.getOrNull()?.scope } }
+            .mapNotNull { id -> memoryStore?.let { runCatching { it.get(id) }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrNull()?.scope } }
         val targetScope = when {
             sourceScopes.isEmpty() -> "general"
             sourceScopes.toSet().size == 1 -> sourceScopes.first()
@@ -268,7 +268,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyUpdateMemoryCategory(proposal: EvolutionProposalEntity): ApplyResult {
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val newCategory = args["category"] ?: return ApplyResult.Error(proposal.id, "missing category in patch")
         val mem = memoryStore?.get(proposal.targetId)
             ?: return ApplyResult.Error(proposal.id, "memory not found: ${proposal.targetId}")
@@ -282,7 +282,7 @@ class EvolutionApplySaga @Inject constructor(
         memoryStore ?: return ApplyResult.Error(proposal.id, "MemoryStore not available")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val sourceId = args["sourceId"] ?: return ApplyResult.Error(proposal.id, "missing sourceId")
         val targetId = args["targetId"] ?: proposal.targetId
         val source = memoryStore.get(sourceId) ?: return ApplyResult.Error(proposal.id, "source memory not found")
@@ -301,7 +301,7 @@ class EvolutionApplySaga @Inject constructor(
         beliefDao ?: return ApplyResult.Error(proposal.id, "BeliefDao not available")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val subject = args["subject"] ?: "user"
         val predicate = args["predicate"] ?: "property"
         val value = args["value"] ?: ""
@@ -333,7 +333,7 @@ class EvolutionApplySaga @Inject constructor(
             """{"id":"${existing.id}","subject":"${existing.subject}","predicate":"${existing.predicate}","valueJson":"${existing.valueJson}","confidence":${existing.confidence},"status":"${existing.status}"}""")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val newValue = args["value"] ?: existing.valueJson
         val newBelief = existing.copy(
             valueJson = newValue,
@@ -363,7 +363,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyNewProactiveRule(proposal: EvolutionProposalEntity): ApplyResult {
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val title = args["title"] ?: "New proactive rule"
         val body = args["body"] ?: ""
         val eventType = args["eventType"] ?: "custom"
@@ -386,7 +386,7 @@ class EvolutionApplySaga @Inject constructor(
         // it manually from the proactive settings.
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val newHour = args["hour"] ?: "unknown"
         proposalStore.markApplied(proposal.id, "recommended timing adjustment to hour $newHour (apply manually)")
         return ApplyResult.Ok(proposal.id, "timing adjustment recorded — apply hour $newHour in Settings")
@@ -396,7 +396,7 @@ class EvolutionApplySaga @Inject constructor(
         proactiveEventDao ?: return ApplyResult.Error(proposal.id, "ProactiveEventDao not available")
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val tag = args["correlationTag"] ?: proposal.targetId
         proactiveEventDao.deleteByCorrelationTag(tag)
         proposalStore.markApplied(proposal.id, "disabled rule $tag")
@@ -408,7 +408,7 @@ class EvolutionApplySaga @Inject constructor(
         // by disable, we re-create it from the proposal patch.
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val title = args["title"] ?: "Re-enabled rule"
         val body = args["body"] ?: ""
         proactiveEventDao?.insert(
@@ -427,7 +427,7 @@ class EvolutionApplySaga @Inject constructor(
     private suspend fun applyRewriteRuleMessage(proposal: EvolutionProposalEntity): ApplyResult {
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
         val newTitle = args["title"] ?: return ApplyResult.Error(proposal.id, "missing title")
         val newBody = args["body"] ?: ""
         proactiveEventDao?.insert(

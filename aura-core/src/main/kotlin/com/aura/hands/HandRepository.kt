@@ -4,6 +4,7 @@ import android.util.Log
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolResult
+import com.aura.agent.truncateToolResult
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -176,7 +177,7 @@ class HandRepository @Inject constructor(
                 )
             }
             when (result) {
-                is ToolResult.Ok -> outputs += "Step ${index + 1} (${step.tool}): ${result.output}"
+                is ToolResult.Ok -> outputs += "Step ${index + 1} (${step.tool}): ${truncateToolResult(result.output)}"
                 is ToolResult.Error -> {
                     val message = "Step ${index + 1} (${step.tool}) failed: ${result.message}"
                     return finish(

@@ -76,5 +76,8 @@ class BootReceiver : BroadcastReceiver() {
             ExistingPeriodicWorkPolicy.UPDATE,
             evolutionRequest,
         )
+        // Re-enqueue trigger worker (15 min). The worker itself no-ops if
+        // triggers are disabled, so this is safe — same pattern as evolution.
+        com.aura.triggers.TriggerWorker.schedule(context)
     }
 }

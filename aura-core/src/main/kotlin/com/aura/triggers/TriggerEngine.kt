@@ -19,7 +19,7 @@ class TriggerEngine @Inject constructor(
             when (val condition = trigger.condition) {
                 is TriggerCondition.Schedule -> checkSchedule(condition, now)
                 is TriggerCondition.WebChanged -> checkWebChanged(condition)
-                is TriggerCondition.LocationEntered -> null // TODO: requires location permission + FusedLocationProvider
+                is TriggerCondition.LocationEntered -> null // Not yet implemented: requires location permission + FusedLocationProvider. UI labels this as "not yet implemented" in TriggersSection.
                 is TriggerCondition.IntentReceived -> null // handled by BroadcastReceiver, not periodic worker
             }?.let { trigger.action }
         }

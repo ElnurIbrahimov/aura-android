@@ -11,6 +11,7 @@ import androidx.work.workDataOf
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolResult
+import com.aura.agent.truncateToolResult
 import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -126,7 +127,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                 }
             }.awaitAll().forEach { (step, result) ->
                 when (result) {
-                    is ToolResult.Ok -> agentRunStore.completeStep(step.id, result.output)
+                    is ToolResult.Ok -> agentRunStore.completeStep(step.id, truncateToolResult(result.output))
                     is ToolResult.Error -> {
                         agentRunStore.failStep(step.id, result.message)
                         // Continue executing other ready steps — one failure
