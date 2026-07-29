@@ -309,11 +309,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun buildMemoryCallback(): String? {
-        val recent = runCatching { memoryStore.recent(1) }.getOrDefault(emptyList()).firstOrNull()
+        val recent = runCatching { memoryStore.recent(3) }.getOrDefault(emptyList())
+            .filter { it.content.isNotBlank() }
+            .maxByOrNull { it.accessCount }
         if (recent != null) {
-            return "Still thinking about: ${recent.content.take(60)}"
+            val snippet = recent.content.take(60).let { if (recent.content.length > 60) "$it…" else it }
+            return "Still thinking about: $snippet"
         }
-        val tasks = runCatching { taskDao.allPending().take(1) }.getOrDefault(emptyList())
+        val tasks = runCatching { taskDao.allPending() }.getOrDefault(emptyList())
         if (tasks.isNotEmpty()) {
             return "You have ${tasks.size} pending task${if (tasks.size == 1) "" else "s"}."
         }
