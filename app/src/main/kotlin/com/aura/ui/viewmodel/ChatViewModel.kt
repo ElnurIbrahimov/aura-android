@@ -246,6 +246,8 @@ data class ChatUiState(
     val pendingBrowserUrl: String? = null,
     /** Canvas content detected from the model response. Opens CanvasSheet. */
     val pendingCanvas: com.aura.ui.screens.canvas.CanvasContent? = null,
+    /** Proactive in-chat message from AgentPresence. Shown as a special bubble. */
+    val proactiveMessage: String? = null,
     /**
      * Per-conversation set of REMOTE_COST tools the user has
      * approved. Passed into ToolContext so ToolExecutor lets
@@ -336,6 +338,7 @@ class ChatViewModel @Inject constructor(
     private val tasteEngine: TasteEngine,
     private val agentStore: com.aura.agent.AgentStore,
     private val strategyBandit: com.aura.agent.StrategyBandit,
+    private val proactiveMessageStore: com.aura.proactive.ProactiveMessageStore? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -878,6 +881,26 @@ class ChatViewModel @Inject constructor(
     /** Clear the pending canvas (user closed the canvas sheet). */
     fun dismissCanvas() {
         _state.update { it.copy(pendingCanvas = null) }
+    }
+
+    /** Consume the proactive message (user tapped "Let's talk" or dismissed). */
+    fun dismissProactiveMessage() {
+        viewModelScope.launch {
+            runCatching { proactiveMessageStore?.consumeMessage() }
+        }
+        _state.update { it.copy(proactiveMessage = null) }
+    }
+
+    /** Load proactive message if one is waiting. Called on chat open. */
+    fun loadProactiveMessage() {
+        viewModelScope.launch {
+            runCatching {
+                val msg = proactiveMessageStore?.consumeMessage()
+                if (!msg.isNullOrBlank()) {
+                    _state.update { it.copy(proactiveMessage = msg) }
+                }
+            }.onFailure { android.util.Log.w("ChatViewModel", "proactive load: ${it.message}") }
+        }
     }
 
     /** Save canvas content as a memory. */

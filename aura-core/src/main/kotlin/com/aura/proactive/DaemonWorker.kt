@@ -46,6 +46,8 @@ class DaemonWorker @AssistedInject constructor(
     private val memoryStore: com.aura.memory.MemoryStore,
     private val taskDao: com.aura.tasks.TaskDao,
     private val awarenessEngine: ProactiveAwarenessEngine? = null,
+    private val agentPresence: com.aura.consciousness.AgentPresence? = null,
+    private val proactiveMessageStore: ProactiveMessageStore? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -68,6 +70,22 @@ class DaemonWorker @AssistedInject constructor(
                         body = finding.message,
                     ),
                 )
+            }
+
+            // Proactive in-chat message: if the user hasn't interacted
+            // in 3+ days, generate an outreach message and store it for
+            // the next time they open the app.
+            if (agentPresence != null && proactiveMessageStore != null) {
+                runCatching {
+                    val lastConv = conversationStore.recent(limit = 1).firstOrNull()
+                    val daysSince = if (lastConv != null) {
+                        ((System.currentTimeMillis() - lastConv.updatedAt) / (1000L * 60 * 60 * 24)).toInt()
+                    } else 0
+                    val outreach = agentPresence?.generateOutreachMessage(daysSince)
+                    if (outreach != null) {
+                        proactiveMessageStore?.setMessage(outreach)
+                    }
+                }.onFailure { android.util.Log.w("DaemonWorker", "proactive outreach: ${it.message}") }
             }
 
             val conversations = conversationStore.recent(limit = 1)

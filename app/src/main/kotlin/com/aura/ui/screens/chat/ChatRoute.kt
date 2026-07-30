@@ -198,6 +198,8 @@ fun ChatRoute(
     }
     LaunchedEffect(state.conversation.id) {
         followLiveEdge = focusTurnTimestamp == null
+        // Load proactive message when opening a conversation
+        viewModel.loadProactiveMessage()
     }
     LaunchedEffect(
         state.conversation.id,
@@ -673,6 +675,35 @@ fun ChatRoute(
             canvas = canvas,
             onSave = viewModel::saveCanvasToMemory,
             onDismiss = viewModel::dismissCanvas,
+        )
+    }
+
+    // Proactive in-chat message from AgentPresence
+    state.proactiveMessage?.let { msg ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissProactiveMessage,
+            title = {
+                androidx.compose.material3.Text(
+                    "Aura",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                )
+            },
+            text = {
+                androidx.compose.material3.Text(msg)
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    viewModel.dismissProactiveMessage()
+                    // Pre-fill the chat input with the proactive message
+                    // so the user can send it as context for a conversation
+                    viewModel.setDraft(msg)
+                }) { androidx.compose.material3.Text("Let's talk") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::dismissProactiveMessage) {
+                    androidx.compose.material3.Text("Not now")
+                }
+            },
         )
     }
 
