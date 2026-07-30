@@ -82,6 +82,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
+    private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -604,6 +605,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             narrativeSelf?.toPrompt()?.ifBlank { null },
                             intrinsicMotivation?.toPrompt()?.ifBlank { null },
                             theoryOfMind?.toPrompt()?.ifBlank { null },
+                            affinityTracker?.getDirective()?.ifBlank { null },
                         ).joinToString("\n\n").ifBlank { "" }
                     } else "")
 
@@ -1023,6 +1025,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 narrativeSelf?.updateFromInteraction(lastUserMessage, assistantText)
                 narrativeSelf?.save()
             }.onFailure { android.util.Log.w("AgenticLoop", "narrative self update failed: ${it.message}") }
+            // Record affinity: increase score per turn.
+            runCatching { affinityTracker?.recordTurn() }
+                .onFailure { android.util.Log.w("AgenticLoop", "affinity record failed: ${it.message}") }
         }
 
         // Persist the recall summary on the conversation's last

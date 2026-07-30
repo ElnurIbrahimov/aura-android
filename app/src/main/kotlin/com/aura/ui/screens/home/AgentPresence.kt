@@ -10,12 +10,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +49,8 @@ fun AgentPresence(
     memoryCallback: String?,
     emotionSnapshot: EmotionEngine.EmotionSnapshot?,
     modifier: Modifier = Modifier,
+    affinityLevel: String = "",
+    affinityProgress: Float = 0f,
 ) {
     val colors = AuraThemeTokens.colors
     val name = agentName ?: "Aura"
@@ -93,6 +100,33 @@ fun AgentPresence(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = AuraSpacing.lg),
             )
+        }
+        // Affinity progress bar
+        if (affinityLevel.isNotBlank()) {
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AuraSpacing.xl),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = affinityLevel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { affinityProgress },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = tint,
+                    trackColor = colors.surface2,
+                )
+            }
         }
     }
 }

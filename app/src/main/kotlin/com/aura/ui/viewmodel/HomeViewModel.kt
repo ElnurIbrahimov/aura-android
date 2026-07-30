@@ -115,6 +115,10 @@ data class HomeUiState(
     val activeAgentName: String? = null,
     /** Latest emotional snapshot for the agent presence surface. */
     val emotionSnapshot: com.aura.emotion.EmotionEngine.EmotionSnapshot? = null,
+    /** Affinity level shown on Home as a relationship progress bar. */
+    val affinityScore: Float = 0f,
+    val affinityLevel: String = "Acquaintance",
+    val affinityProgress: Float = 0f,
     /** One-line callback to anchor the home scene in recent context. */
     val memoryCallback: String? = null,
 ) {
@@ -146,6 +150,7 @@ class HomeViewModel @Inject constructor(
     private val toolRegistry: com.aura.agent.ToolRegistry,
     private val skillsStore: com.aura.skills.SkillsStore,
     private val creativeProjectStore: com.aura.creative.CreativeProjectStore,
+    private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val capabilityRegistry: CapabilityRegistry,
     private val agentStore: AgentStore,
     private val userPreferences: UserPreferences,
@@ -310,6 +315,21 @@ class HomeViewModel @Inject constructor(
 
     private fun refreshEmotionSnapshot() {
         updateObserved { it.copy(emotionSnapshot = emotionEngine.snapshot()) }
+        // Also refresh affinity if available.
+        viewModelScope.launch {
+            runCatching {
+                val state = affinityTracker?.load()
+                if (state != null) {
+                    updateObserved {
+                        it.copy(
+                            affinityScore = state.score,
+                            affinityLevel = state.level.label,
+                            affinityProgress = state.progressToNext,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun rebuildMemoryCallback() {

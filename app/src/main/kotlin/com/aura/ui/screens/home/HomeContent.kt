@@ -147,6 +147,8 @@ fun HomeContent(
                     agentName = state.activeAgentName ?: state.activeAgentId,
                     memoryCallback = state.memoryCallback,
                     emotionSnapshot = state.emotionSnapshot,
+                    affinityLevel = state.affinityLevel,
+                    affinityProgress = state.affinityProgress,
                     modifier = Modifier.padding(top = AuraSpacing.lg, bottom = AuraSpacing.md),
                 )
             }
