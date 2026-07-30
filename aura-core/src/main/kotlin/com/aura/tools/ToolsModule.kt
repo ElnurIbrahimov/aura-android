@@ -38,6 +38,7 @@ object ToolsModule {
         clipboardRead: ClipboardReadTool,
         clipboardWrite: ClipboardWriteTool,
         openBrowserTab: OpenBrowserTabTool,
+        codeInterpreter: CodeInterpreterTool,
         httpFileRead: HttpFileReadTool,
         httpFileWrite: HttpFileWriteTool,
         ttsSpeak: TtsSpeakTool,
@@ -102,6 +103,7 @@ object ToolsModule {
         registry.register(clipboardRead.tool)
         registry.register(clipboardWrite.tool)
         registry.register(openBrowserTab.tool)
+        registry.register(codeInterpreter.tool)
         registry.register(httpFileRead.tool)
         registry.register(httpFileWrite.tool)
         registry.register(ttsSpeak.tool)
