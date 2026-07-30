@@ -62,6 +62,7 @@ fun HomeSecondaryActions(
     onOpenHands: () -> Unit,
     onOpenTools: () -> Unit,
     skillsCount: Int = 0,
+    creativeCount: Int = 0,
     activeCapabilities: Map<CapabilityKind, String> = emptyMap(),
     onOpenSkills: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
@@ -71,7 +72,7 @@ fun HomeSecondaryActions(
     onOpenCapabilities: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val destinations = listOf(
+    val destinations = listOfNotNull(
         HomeDestination(
             "Memory",
             if (memoryCount == 0) "Add memory" else "$memoryCount saved",
@@ -91,8 +92,50 @@ fun HomeSecondaryActions(
             onOpenCalendar,
         ),
         HomeDestination(
-            "More",
-            "Tools & agents",
+            "Creative",
+            if (creativeCount == 0) "New project" else "$creativeCount projects",
+            Icons.Filled.AutoStories,
+            onOpenCreative,
+        ),
+        HomeDestination(
+            "Hands",
+            if (handsCount == 0) "New macro" else "$handsCount macros",
+            Icons.Filled.AccountTree,
+            onOpenHands,
+        ),
+        HomeDestination(
+            "Skills",
+            if (skillsCount == 0) "No skills" else "$skillsCount skills",
+            Icons.Filled.Lightbulb,
+            onOpenSkills,
+        ),
+        HomeDestination(
+            "Proactive",
+            if (proactiveCount == 0) "All caught up" else "$proactiveCount events",
+            Icons.Filled.NotificationsActive,
+            onOpenProactive,
+        ),
+        HomeDestination(
+            "Agent Runs",
+            "Durable runs & approvals",
+            Icons.Filled.Movie,
+            onOpenAgentRuns,
+        ),
+        HomeDestination(
+            "Production",
+            "Pipelines & workflows",
+            Icons.Filled.Movie,
+            onOpenProduction,
+        ),
+        HomeDestination(
+            "Capabilities",
+            "Connected services",
+            Icons.Filled.SettingsInputComponent,
+            onOpenCapabilities,
+        ),
+        HomeDestination(
+            "Tools",
+            "All ${toolsCount} tools",
             Icons.Filled.Build,
             onOpenTools,
         ),

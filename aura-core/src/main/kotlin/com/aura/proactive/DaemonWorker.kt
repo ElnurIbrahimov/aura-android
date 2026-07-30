@@ -45,6 +45,7 @@ class DaemonWorker @AssistedInject constructor(
     private val calendarReadTool: com.aura.tools.CalendarReadTool,
     private val memoryStore: com.aura.memory.MemoryStore,
     private val taskDao: com.aura.tasks.TaskDao,
+    private val awarenessEngine: ProactiveAwarenessEngine? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -55,6 +56,20 @@ class DaemonWorker @AssistedInject constructor(
         if (backgroundModel.isNullOrBlank()) return Result.success()
 
         return try {
+            // Run proactive awareness checks (staleness, goal-blockers,
+            // relationship gaps). These are local, heuristic, no LLM cost.
+            val findings = runCatching { awarenessEngine?.runAll().orEmpty() }
+                .onFailure { android.util.Log.w("DaemonWorker", "awareness check failed: ${it.message}") }
+                .getOrDefault(emptyList())
+            findings.forEach { finding ->
+                eventBus.emit(
+                    ProactiveEventBus.Event.DaemonInsight(
+                        title = finding.title,
+                        body = finding.message,
+                    ),
+                )
+            }
+
             val conversations = conversationStore.recent(limit = 1)
             // Gather context from tools the daemon can read:
             // calendar (today's events), memory (decayed items),

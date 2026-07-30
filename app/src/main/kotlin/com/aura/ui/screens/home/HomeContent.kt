@@ -461,6 +461,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
             proactiveCount = maxOf(state.proactiveCount, state.proactiveUnreadCount),
 
             skillsCount = state.skillsCount,
+            creativeCount = state.creativeProjectCount,
             activeCapabilities = state.activeCapabilities,
 
             onOpenMemory = onOpenMemory,

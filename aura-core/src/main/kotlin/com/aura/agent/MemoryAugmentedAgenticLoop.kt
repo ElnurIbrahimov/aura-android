@@ -79,6 +79,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val llmProfileExtractor: com.aura.profile.LlmProfileExtractor? = null,
     private val tastePromptEnhancer: com.aura.taste.TastePromptEnhancer? = null,
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
+    private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
+    private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
+    private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -535,6 +538,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 if (step == 1) {
                     emotionEngine.update(lastUserMessage)
                     emotionEngine.decay()
+                    // Consciousness: update user mental model from message
+                    runCatching { theoryOfMind?.updateFromMessage(lastUserMessage) }
+                        .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}") }
                 }
                 val mood = emotionEngine.moodString()
                 val profile = emotionEngine.profile()
@@ -590,7 +596,16 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + topicContext + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext
+                ).joinToString("\n\n") + topicContext + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext +
+                    // Consciousness layer: NarrativeSelf, IntrinsicMotivation, TheoryOfMind.
+                    // All are heuristic, no LLM cost. Injected on step 1 only.
+                    (if (step == 1) {
+                        listOfNotNull(
+                            narrativeSelf?.toPrompt()?.ifBlank { null },
+                            intrinsicMotivation?.toPrompt()?.ifBlank { null },
+                            theoryOfMind?.toPrompt()?.ifBlank { null },
+                        ).joinToString("\n\n").ifBlank { "" }
+                    } else "")
 
                 // 2.5) Planning step: ask the model to outline its approach before
                 // calling tools. The plan is injected as a system prefix so the
@@ -1000,6 +1015,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         if (memoryEnabled && emotionEngine != null) {
             runCatching { emotionEngine.save() }
                 .onFailure { android.util.Log.w("AgenticLoop", "emotion save failed: ${it.message}") }
+        }
+        // Consciousness: update narrative self from the completed interaction.
+        if (memoryEnabled) {
+            runCatching {
+                val assistantText = currentConversation.turns.lastOrNull()?.assistant.orEmpty()
+                narrativeSelf?.updateFromInteraction(lastUserMessage, assistantText)
+                narrativeSelf?.save()
+            }.onFailure { android.util.Log.w("AgenticLoop", "narrative self update failed: ${it.message}") }
         }
 
         // Persist the recall summary on the conversation's last

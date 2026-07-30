@@ -74,7 +74,7 @@ class ProactiveBootstrapTest {
 
     @Test
     fun `morning brief on schedules morning brief only`() {
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
         verify(exactly = 1) { scheduler.scheduleMorningBrief() }
         verify(exactly = 0) { scheduler.cancelMorningBrief() }
@@ -83,7 +83,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `morning brief off cancels morning brief only`() {
         every { userPreferences.morningBriefEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.applyGates(morningBriefOn = false, calendarMonitorOn = false)
         verify(exactly = 0) { scheduler.scheduleMorningBrief() }
         verify(exactly = 1) { scheduler.cancelMorningBrief() }
@@ -91,7 +91,7 @@ class ProactiveBootstrapTest {
 
     @Test
     fun `applyGates returns the morning brief decision`() {
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         val decisions = bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
         assertTrue(decisions.morningBriefScheduled)
         assertTrue(decisions.calendarMonitorShouldRun)
@@ -100,7 +100,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `applyGates returns false when morning brief is off`() {
         every { userPreferences.morningBriefEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         val decisions = bootstrap.applyGates(morningBriefOn = false, calendarMonitorOn = true)
         assertFalse(decisions.morningBriefScheduled)
         assertTrue(decisions.calendarMonitorShouldRun, "calendar monitor is independent of morning brief")
@@ -109,7 +109,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `applyGates returns false for calendar monitor when off`() {
         every { userPreferences.calendarMonitorEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         val decisions = bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = false)
         assertTrue(decisions.morningBriefScheduled, "morning brief is independent of calendar monitor")
         assertFalse(decisions.calendarMonitorShouldRun)
@@ -121,7 +121,7 @@ class ProactiveBootstrapTest {
         // so the broadcast / FGS calls don't trip AbstractMethodError.
         // The Throwable-catch in start() absorbs any stub blowups,
         // so the gate decision itself is what we verify.
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.start()
         awaitVerification("scheduleMorningBrief was not called within 2s") {
             verify(exactly = 1) { scheduler.scheduleMorningBrief() }
@@ -138,7 +138,7 @@ class ProactiveBootstrapTest {
         every { userPreferences.calendarMonitorEnabled } returns calendarEnabled
         every { userPreferences.morningBriefHour } returns briefHour
 
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.start()
         awaitVerification("initial morning brief was not scheduled") {
             verify(atLeast = 1) { scheduler.scheduleMorningBrief(7) }
@@ -159,7 +159,7 @@ class ProactiveBootstrapTest {
     fun `evolution enabled schedules evolution worker`() {
         every { userPreferences.evolutionEnabled } returns flowOf(true)
         every { userPreferences.evolutionIntervalHours } returns flowOf(12)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.start()
         awaitVerification("evolution scheduler was not called within 2s") {
             verify(atLeast = 1) { evolutionScheduler.schedule(12L) }
@@ -169,7 +169,7 @@ class ProactiveBootstrapTest {
     @Test
     fun `evolution disabled cancels evolution worker`() {
         every { userPreferences.evolutionEnabled } returns flowOf(false)
-        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, agentStore, conversationStore)
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         bootstrap.start()
         awaitVerification("evolution cancel was not called within 2s") {
             verify(atLeast = 1) { evolutionScheduler.cancel() }

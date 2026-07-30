@@ -101,6 +101,7 @@ data class HomeUiState(
     val toolsCount: Int = 0,
     val proactiveCount: Int = 0,
     val skillsCount: Int = 0,
+    val creativeProjectCount: Int = 0,
     /**
      * Map of capability kind to the display name of the first configured
      * provider for that kind. Empty means no capability providers are set up.
@@ -144,6 +145,7 @@ class HomeViewModel @Inject constructor(
     private val handDao: com.aura.hands.HandDao,
     private val toolRegistry: com.aura.agent.ToolRegistry,
     private val skillsStore: com.aura.skills.SkillsStore,
+    private val creativeProjectStore: com.aura.creative.CreativeProjectStore,
     private val capabilityRegistry: CapabilityRegistry,
     private val agentStore: AgentStore,
     private val userPreferences: UserPreferences,
@@ -175,6 +177,7 @@ class HomeViewModel @Inject constructor(
         observeReminders()
         observeHands()
         observeSkills()
+        observeCreativeProjects()
         loadToolsCount()
         refreshCapabilities()
         observeActiveAgent()
@@ -264,6 +267,14 @@ class HomeViewModel @Inject constructor(
             skillsStore.awaitLoaded()
             skillsStore.skills.collect { skills ->
                 updateObserved { it.copy(skillsCount = skills.size) }
+            }
+        }
+    }
+
+    private fun observeCreativeProjects() {
+        viewModelScope.launch {
+            creativeProjectStore.observeAll().collect { projects ->
+                updateObserved { it.copy(creativeProjectCount = projects.size) }
             }
         }
     }

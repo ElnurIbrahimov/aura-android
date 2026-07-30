@@ -2,6 +2,7 @@ package com.aura.consciousness
 
 import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -35,7 +36,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class NarrativeSelf @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
 ) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val file: File get() = File(context.filesDir, "narrative_self.json")

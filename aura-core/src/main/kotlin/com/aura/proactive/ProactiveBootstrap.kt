@@ -52,6 +52,7 @@ class ProactiveBootstrap @Inject constructor(
     private val mcpToolBridge: McpToolBridge,
     private val secureDataStore: SecureDataStore,
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
+    private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val agentStore: com.aura.agent.AgentStore,
     private val conversationStore: com.aura.agent.ConversationStore,
 ) {
@@ -72,6 +73,10 @@ class ProactiveBootstrap @Inject constructor(
         // Load persisted emotion state so it survives cold starts.
         emotionEngine?.let { engine ->
             scope.launch { runCatching { engine.load() } }
+        }
+        // Load persisted narrative self so it survives cold starts.
+        narrativeSelf?.let { ns ->
+            scope.launch { runCatching { ns.load() } }
         }
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }

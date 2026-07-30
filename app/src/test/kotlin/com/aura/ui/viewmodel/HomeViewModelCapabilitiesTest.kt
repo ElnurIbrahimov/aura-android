@@ -94,6 +94,7 @@ class HomeViewModelCapabilitiesTest {
             handDao = handDao,
             toolRegistry = toolRegistry,
             skillsStore = skillsStore,
+            creativeProjectStore = mockk(relaxed = true),
             capabilityRegistry = capabilityRegistry,
             agentStore = agentStore,
             userPreferences = userPreferences,
