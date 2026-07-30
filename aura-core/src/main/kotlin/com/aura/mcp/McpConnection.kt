@@ -55,7 +55,7 @@ internal class McpConnection(
                 putJsonObject("capabilities") { }
                 put("clientInfo", buildJsonObject {
                     put("name", "aura-android")
-                    put("version", "0.39.0")
+                    put("version", "0.39.1")
                 })
             })
             val response = withTimeoutOrNull(INIT_TIMEOUT_MS) {

@@ -62,4 +62,12 @@ interface DreamConsolidationDao {
      */
     @Query("SELECT * FROM dream_summaries ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<DreamSummaryEntity>
+
+    /**
+     * Most recent summaries, newest first. Used by
+     * [DreamConsolidator.updateProfileFromConsolidated] to extract
+     * profile-worthy facts from this cycle's output.
+     */
+    @Query("SELECT * FROM dream_summaries ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recentSummaries(limit: Int = 10): List<DreamSummaryEntity>
 }

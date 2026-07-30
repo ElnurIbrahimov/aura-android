@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 
 /**
- * Background "thinking" worker — runs periodically (every ~8 min),
+ * Background "thinking" worker — runs periodically (every ~15 min,
  * reviews recent conversation, and if the model generates something
  * substantive, posts it as a proactive event via [ProactiveEventBus].
  *

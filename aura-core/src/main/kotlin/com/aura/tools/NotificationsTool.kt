@@ -78,12 +78,13 @@ class NotificationsTool @Inject constructor(
             }
         },
     category = "communication")
-    internal fun post(title: String, body: String) {
-        // Launch the app's main activity by package + launcher intent. Works
-        // without depending on the app module's MainActivity class directly.
+    internal fun post(title: String, body: String, extras: Map<String, String> = emptyMap()) {
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
             ?: Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        for ((key, value) in extras) {
+            launchIntent.putExtra(key, value)
+        }
         val pi = PendingIntent.getActivity(
             context, 0, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

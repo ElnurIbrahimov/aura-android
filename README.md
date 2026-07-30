@@ -8,7 +8,7 @@ This is my personal copy.
 
 ## Status
 
-**v0.39.0** (versionCode 47).
+**v0.39.1** (versionCode 48).
 
 - 62 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)

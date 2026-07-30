@@ -73,21 +73,25 @@ data class AuraLaunchRequest(
     val openChat: Boolean = false,
     val openMemory: Boolean = false,
     val morningBriefSummary: String? = null,
+    val chatPrefillDraft: String? = null,
 )
 
 internal fun resolveAuraLaunchRequest(
     openChat: Boolean,
     openMemory: Boolean,
     morningBriefSummary: String?,
+    chatPrefillDraft: String? = null,
     previousSequence: Int,
 ): AuraLaunchRequest? {
     val brief = morningBriefSummary?.trim()?.takeIf { it.isNotEmpty() }
-    if (!openChat && !openMemory && brief == null) return null
+    val draft = chatPrefillDraft?.trim()?.takeIf { it.isNotEmpty() }
+    if (!openChat && !openMemory && brief == null && draft == null) return null
     return AuraLaunchRequest(
         sequence = previousSequence + 1,
-        openChat = openChat || brief != null,
-        openMemory = openMemory && brief == null,
+        openChat = openChat || brief != null || draft != null,
+        openMemory = openMemory && brief == null && draft == null,
         morningBriefSummary = brief,
+        chatPrefillDraft = draft,
     )
 }
 
@@ -150,6 +154,7 @@ class MainActivity : FragmentActivity() {
             openChat = intent.getBooleanExtra("openChat", false),
             openMemory = intent.getBooleanExtra("openMemory", false),
             morningBriefSummary = intent.getStringExtra("morningBriefSummary"),
+            chatPrefillDraft = intent.getStringExtra("chatPrefillDraft"),
             previousSequence = launchRequest.sequence,
         )?.let { launchRequest = it }
     }

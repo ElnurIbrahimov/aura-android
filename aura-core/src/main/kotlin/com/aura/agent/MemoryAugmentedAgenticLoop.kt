@@ -78,6 +78,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val strategyBandit: StrategyBandit? = null,
     private val llmProfileExtractor: com.aura.profile.LlmProfileExtractor? = null,
     private val tastePromptEnhancer: com.aura.taste.TastePromptEnhancer? = null,
+    private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -824,7 +825,22 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     break
                 }
                 val rawResultText = when (result) {
-                    is ToolResult.Ok -> result.output
+                    is ToolResult.Ok -> {
+                        // Record a world event for state-mutating tools.
+                        val tool = toolRegistry.get(name)
+                        val risk = tool?.risk ?: com.aura.agent.ToolRisk.READ_ONLY
+                        if (risk.ordinal >= com.aura.agent.ToolRisk.WRITE_LOCAL.ordinal) {
+                            runCatching {
+                                worldEventProducer?.recordToolExecution(
+                                    toolName = name,
+                                    toolRisk = risk,
+                                    resultSummary = result.output,
+                                    agentScope = if (agentId != null) "agent:$agentId" else "general",
+                                )
+                            }.onFailure { android.util.Log.w("AgenticLoop", "world event record failed: ${it.message}") }
+                        }
+                        result.output
+                    }
                     is ToolResult.Error -> {
                     toolErrors.add(name to result.message)
                     "Error: ${result.message}"

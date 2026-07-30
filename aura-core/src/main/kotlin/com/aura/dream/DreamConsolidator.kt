@@ -9,6 +9,8 @@ import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
 import com.aura.world.BeliefPromoter
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,6 +61,8 @@ class DreamConsolidator @Inject constructor(
     private val kgProposalDao: KgEdgeProposalDao,
     private val contradictionDao: ContradictionDao,
     private val beliefPromoter: BeliefPromoter? = null,
+    private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
+    private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
     private val providerRegistry: ProviderRegistry,
     private val embedder: Embedder,
     private val crashLogger: CrashLogger,
@@ -223,6 +227,33 @@ class DreamConsolidator @Inject constructor(
                 throw cancelled
             } catch (t: Throwable) {
                 try { android.util.Log.w("DreamConsolidator", "promoteBeliefs: ${t.message}") } catch (_: RuntimeException) {}
+            }
+
+            // 11. WORLD EVENT — record that a dream cycle completed so the
+            //     user can see it in the world model screen and the
+            //     opportunity engine can process it.
+            try {
+                worldEventProducer?.recordDreamCycle(
+                    cycleId = cycleId,
+                    summariesWritten = report.summariesWritten,
+                    memoriesArchived = report.memoriesArchived,
+                )
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                try { android.util.Log.w("DreamConsolidator", "worldEvent: ${t.message}") } catch (_: RuntimeException) {}
+            }
+
+            // 12. OPPORTUNITY ENGINE — scan unconsumed world events and
+            //     active beliefs, generate actionable opportunities for the
+            //     user to approve or dismiss. Runs after world event
+            //     recording so it sees this cycle's event.
+            try {
+                opportunityEngine?.runCycle()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                try { android.util.Log.w("DreamConsolidator", "opportunityEngine: ${t.message}") } catch (_: RuntimeException) {}
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
@@ -548,21 +579,76 @@ class DreamConsolidator @Inject constructor(
     /**
      * Phase 6: Update the user profile after a dream cycle.
      *
-     * Currently a stub: persists the profile with a bumped timestamp
-     * so the UI reflects the cycle. Full LLM-driven profile extraction
-     * from consolidated summaries is a future enhancement.
+     * Reads the dream summaries written this cycle and asks the cheap
+     * model to extract profile-worthy facts and traits. Merges them
+     * into the user profile via [UserProfileStore.mergeFacts] and
+     * [UserProfileStore.mergeTraits] so nothing learned earlier is
+     * lost.
      *
-     * Returns true if the persist succeeded, false on error or when
-     * no summaries were written.
+     * Returns true if the profile was updated (even partially), false
+     * on error or when no summaries were written.
      */
     internal suspend fun updateProfileFromConsolidated(summariesWritten: Int): Boolean {
         if (summariesWritten == 0) return false
         val store = userProfileStoreProvider.get()
         return runCatching {
             store.awaitLoaded()
-            store.update()  // timestamp-only persist; real extraction is future work
+            // Read the most recent dream summaries from this cycle.
+            val recentSummaries = dreamDao.recentSummaries(10)
+            if (recentSummaries.isEmpty()) {
+                store.update() // timestamp-only fallback
+                return@runCatching true
+            }
+            val joined = recentSummaries.joinToString("\n---\n") { it.compressedText }.take(2000)
+            val model = resolveCheapModel()
+            if (model.isBlank()) {
+                // No provider configured — timestamp-only persist.
+                store.update()
+                return@runCatching true
+            }
+            // Ask the cheap model to extract profile-worthy info.
+            val prompt = """
+                Extract user profile information from these memory consolidation summaries.
+                Return JSON with two arrays:
+                - "facts": short factual statements about the user (e.g. "works as a designer", "lives in Baku")
+                - "traits": personality or work-style traits (e.g. "prefers concise answers", "likes dark mode")
+                Only include things clearly about the user. Max 5 items per array.
+
+                Summaries:
+                $joined
+            """.trimIndent()
+            val output = StringBuilder()
+            providerRegistry.chat(
+                modelId = model,
+                messages = listOf(
+                    ProviderMessage(role = ProviderMessage.Role.system, content = "You extract structured profile data. Respond only with JSON."),
+                    ProviderMessage(role = ProviderMessage.Role.user, content = prompt),
+                ),
+                options = ChatOptions(temperature = 0.1, maxTokens = 300),
+                tools = emptyList(),
+            ).collect { chunk ->
+                chunk.error?.let { throw IllegalStateException("${it.code}: ${it.message}") }
+                chunk.text?.let { output.append(it) }
+            }
+            // Parse the JSON response and merge into profile.
+            val response = output.toString().trim()
+            val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+            val parsed = runCatching { json.parseToJsonElement(response) }.getOrNull()
+            if (parsed != null) {
+                val obj = parsed.jsonObject
+                val facts = obj["facts"]?.let {
+                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.getOrDefault(emptyList())
+                } ?: emptyList()
+                val traits = obj["traits"]?.let {
+                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.getOrDefault(emptyList())
+                } ?: emptyList()
+                if (facts.isNotEmpty()) store.mergeFacts(facts)
+                if (traits.isNotEmpty()) store.mergeTraits(traits)
+            }
+            // Always bump the timestamp so the UI reflects the cycle.
+            store.update()
             true
-        }.onFailure { android.util.Log.w("DreamConsolidator", "updateProfile: store.update failed: ${it.message}") }
+        }.onFailure { android.util.Log.w("DreamConsolidator", "updateProfile: ${it.message}") }
         .getOrDefault(false)
     }
 

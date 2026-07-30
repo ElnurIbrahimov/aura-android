@@ -32,6 +32,7 @@ class EvolutionInboxViewModel @Inject constructor(
     private val rollbackManager: EvolutionRollbackManager,
     private val userPreferences: UserPreferences,
     private val applySaga: EvolutionApplySaga,
+    private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
 ) : ViewModel() {
 
     private val _proposals = MutableStateFlow<List<EvolutionProposalEntity>>(emptyList())
@@ -75,6 +76,12 @@ class EvolutionInboxViewModel @Inject constructor(
                 when (val result = applySaga.apply(proposal)) {
                     is EvolutionApplySaga.ApplyResult.Ok -> {
                         // applySaga already calls proposalStore.markApplied
+                        runCatching {
+                            worldEventProducer?.recordEvolutionApproval(
+                                action = proposal.action,
+                                proposalId = proposal.id,
+                            )
+                        }
                     }
                     is EvolutionApplySaga.ApplyResult.Error -> {
                         proposalStore.markApplyFailed(id, result.message)

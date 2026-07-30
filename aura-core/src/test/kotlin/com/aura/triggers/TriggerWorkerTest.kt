@@ -111,7 +111,7 @@ class TriggerWorkerTest {
         val f = fixture(triggers = listOf(trigger))
         f.worker.doWork()
 
-        coVerify { f.notificationsTool.post("Aura", "Summarize my day") }
+        coVerify { f.notificationsTool.post("Aura", "Summarize my day", any()) }
     }
 
     @Test

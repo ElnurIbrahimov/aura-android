@@ -83,6 +83,9 @@ fun NavGraph(
             !launchRequest.morningBriefSummary.isNullOrBlank() -> {
                 "chat?brief=${android.net.Uri.encode(launchRequest.morningBriefSummary)}"
             }
+            !launchRequest.chatPrefillDraft.isNullOrBlank() -> {
+                "chat?draft=${android.net.Uri.encode(launchRequest.chatPrefillDraft)}"
+            }
             launchRequest.openChat -> TopLevelRoute.Chat.route
             launchRequest.openMemory -> TopLevelRoute.Memory.route
             else -> return@LaunchedEffect

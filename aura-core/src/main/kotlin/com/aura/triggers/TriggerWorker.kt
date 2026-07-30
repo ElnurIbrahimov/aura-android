@@ -60,6 +60,7 @@ class TriggerWorker @AssistedInject constructor(
         notificationsTool.post(
             title = "Aura",
             body = prompt.take(160).ifEmpty { "Tap to continue in Aura" },
+            extras = mapOf("chatPrefillDraft" to prompt, "openChat" to "true"),
         )
     }
 
