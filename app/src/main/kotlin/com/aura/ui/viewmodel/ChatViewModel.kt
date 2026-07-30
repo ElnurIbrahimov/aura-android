@@ -244,6 +244,8 @@ data class ChatUiState(
     val pendingApproval: Triple<String, String, String>? = null,
     /** URL to open in the in-app browser. Set when a tool returns [BROWSER:url]. */
     val pendingBrowserUrl: String? = null,
+    /** Canvas content detected from the model response. Opens CanvasSheet. */
+    val pendingCanvas: com.aura.ui.screens.canvas.CanvasContent? = null,
     /**
      * Per-conversation set of REMOTE_COST tools the user has
      * approved. Passed into ToolContext so ToolExecutor lets
@@ -871,6 +873,21 @@ class ChatViewModel @Inject constructor(
     /** Clear the pending browser URL (user closed the in-app browser). */
     fun dismissBrowser() {
         _state.update { it.copy(pendingBrowserUrl = null) }
+    }
+
+    /** Clear the pending canvas (user closed the canvas sheet). */
+    fun dismissCanvas() {
+        _state.update { it.copy(pendingCanvas = null) }
+    }
+
+    /** Save canvas content as a memory. */
+    fun saveCanvasToMemory(content: String) {
+        viewModelScope.launch {
+            runCatching {
+                memoryStore.store(content, source = "canvas", category = "canvas", importance = 0.7f)
+            }.onFailure { android.util.Log.w("ChatViewModel", "canvas save failed: ${it.message}") }
+        }
+        dismissCanvas()
     }
 
     /**

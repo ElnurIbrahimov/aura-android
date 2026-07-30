@@ -460,6 +460,12 @@ class ChatSendController(
                             state.update { old ->
                                 old.copy(conversation = event.conversation)
                             }
+                            // Detect canvas blocks in the final assistant response.
+                            val assistantText = event.conversation.turns.lastOrNull()?.assistant.orEmpty()
+                            val canvas = com.aura.ui.screens.canvas.extractCanvas(assistantText)
+                            if (canvas != null) {
+                                state.update { old -> old.copy(pendingCanvas = canvas) }
+                            }
                         }
                         is AgentEvent.Done -> {
                             // Reset failure counter on successful completion.

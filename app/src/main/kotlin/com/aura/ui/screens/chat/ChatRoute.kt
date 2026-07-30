@@ -667,6 +667,15 @@ fun ChatRoute(
         )
     }
 
+    // Canvas — opens when the model produces canvas-* fenced blocks.
+    state.pendingCanvas?.let { canvas ->
+        com.aura.ui.screens.canvas.CanvasSheet(
+            canvas = canvas,
+            onSave = viewModel::saveCanvasToMemory,
+            onDismiss = viewModel::dismissCanvas,
+        )
+    }
+
 }
 
 @Composable
