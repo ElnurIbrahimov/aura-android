@@ -81,4 +81,29 @@ class BeliefsViewModel @Inject constructor(
     fun clearSelection() {
         _selected.value = null
     }
+
+    /** Mark a belief as retired — no longer active, not superseded. */
+    fun retire(id: kotlin.String) {
+        viewModelScope.launch {
+            runCatching {
+                val now = System.currentTimeMillis()
+                beliefDao.supersede(id, "retired", "", now)
+            }.onFailure { android.util.Log.w("BeliefsVM", "retire failed: ${it.message}") }
+            _selected.value = beliefDao.getById(id)
+            load()
+        }
+    }
+
+    /** Verify a belief — bump lastVerifiedAt and confidence. */
+    fun verify(id: kotlin.String, confidence: Float? = null) {
+        viewModelScope.launch {
+            runCatching {
+                val belief = beliefDao.getById(id) ?: return@launch
+                val now = System.currentTimeMillis()
+                beliefDao.verify(id, confidence ?: belief.confidence, now)
+            }.onFailure { android.util.Log.w("BeliefsVM", "verify failed: ${it.message}") }
+            _selected.value = beliefDao.getById(id)
+            load()
+        }
+    }
 }

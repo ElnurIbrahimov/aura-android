@@ -231,17 +231,21 @@ class DreamConsolidator @Inject constructor(
 
             // 11. WORLD EVENT — record that a dream cycle completed so the
             //     user can see it in the world model screen and the
-            //     opportunity engine can process it.
-            try {
-                worldEventProducer?.recordDreamCycle(
-                    cycleId = cycleId,
-                    summariesWritten = report.summariesWritten,
-                    memoriesArchived = report.memoriesArchived,
-                )
-            } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                throw cancelled
-            } catch (t: Throwable) {
-                try { android.util.Log.w("DreamConsolidator", "worldEvent: ${t.message}") } catch (_: RuntimeException) {}
+            //     opportunity engine can process it. Only record when the
+            //     cycle actually produced results — a 0/0 event is
+            //     misleading.
+            if (report.summariesWritten > 0 || report.memoriesArchived > 0) {
+                try {
+                    worldEventProducer?.recordDreamCycle(
+                        cycleId = cycleId,
+                        summariesWritten = report.summariesWritten,
+                        memoriesArchived = report.memoriesArchived,
+                    )
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (t: Throwable) {
+                    try { android.util.Log.w("DreamConsolidator", "worldEvent: ${t.message}") } catch (_: RuntimeException) {}
+                }
             }
 
             // 12. OPPORTUNITY ENGINE — scan unconsumed world events and

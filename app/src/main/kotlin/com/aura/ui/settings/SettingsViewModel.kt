@@ -153,6 +153,7 @@ data class SettingsUiState(
     val smtpResult: String? = null,
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
+    val evolutionAutoApply: Boolean = false,
     val evolutionShadowEnabled: Boolean = false,
     val daemonEnabled: Boolean = false,
     /** Whether the dream consolidator is enabled (default true). */
@@ -210,6 +211,7 @@ class SettingsViewModel @Inject constructor(
     private val secureDataStore: com.aura.security.SecureDataStore,
     private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao,
     private val emotionEngine: com.aura.emotion.EmotionEngine,
+    private val evolutionSettingsStore: com.aura.evolution.EvolutionSettingsStore,
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao,
     @dagger.hilt.android.qualifiers.ApplicationContext
     private val appContext: android.content.Context,
@@ -302,6 +304,9 @@ class SettingsViewModel @Inject constructor(
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
+            val evolutionAutoApply = runCatching {
+                evolutionSettingsStore.all().any { it.autoApplyApproved }
+            }.getOrDefault(false)
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
@@ -351,6 +356,7 @@ class SettingsViewModel @Inject constructor(
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
                 evolutionShadowEnabled = evolutionShadowEnabled,
+                evolutionAutoApply = evolutionAutoApply,
                 daemonEnabled = daemonEnabled,
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
@@ -484,6 +490,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setEvolutionIntervalHours(hours)
             _state.update { it.copy(evolutionIntervalHours = hours) }
+        }
+    }
+
+    fun setEvolutionAutoApply(enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                for (domain in com.aura.evolution.EvolutionDomain.entries) {
+                    evolutionSettingsStore.setAutoApplyApproved(domain, enabled)
+                }
+            }
+            _state.update { it.copy(evolutionAutoApply = enabled) }
         }
     }
 

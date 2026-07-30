@@ -25,6 +25,7 @@ class TriggerWorker @AssistedInject constructor(
     private val userPreferences: UserPreferences,
     private val handRunEnqueuer: com.aura.tools.HandRunEnqueuer,
     private val handRepository: com.aura.hands.HandRepository,
+    private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -39,6 +40,11 @@ class TriggerWorker @AssistedInject constructor(
                 is TriggerAction.StartChat -> postChatNotification(action.prompt)
             }
         }
+        // Run the opportunity engine on every trigger cycle (15 min) so
+        // world events from tool execution are processed into opportunities
+        // without waiting for the daily dream cycle.
+        runCatching { opportunityEngine?.runCycle() }
+            .onFailure { Log.w("TriggerWorker", "opportunityEngine: ${it.message}") }
         return Result.success()
     }
 

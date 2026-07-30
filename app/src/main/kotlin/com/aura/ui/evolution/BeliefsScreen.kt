@@ -100,8 +100,7 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
         }
     }
 
-    // Detail dialog — previously select() loaded a belief that nothing read,
-    // so tapping a card did nothing. Now the selection drives a dialog.
+    // Detail dialog — shows belief details with retire/verify actions.
     selected?.let { belief ->
         AlertDialog(
             onDismissRequest = { viewModel.clearSelection() },
@@ -114,10 +113,23 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                     Text(belief.valueJson, style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        "Confidence: ${belief.confidence}",
+                        "Confidence: ${"%.0f".format(belief.confidence * 100)}%",
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Text("Status: ${belief.status}", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row {
+                        TextButton(onClick = {
+                            viewModel.verify(belief.id)
+                        }) { Text("Verify") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(
+                            onClick = {
+                                viewModel.retire(belief.id)
+                                viewModel.clearSelection()
+                            },
+                        ) { Text("Retire", color = AuraThemeTokens.colors.error) }
+                    }
                 }
             },
         )
