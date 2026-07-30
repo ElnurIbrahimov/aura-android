@@ -450,6 +450,7 @@ internal sealed class MarkdownBlock {
     data class Text(val content: String) : MarkdownBlock()
     data class Code(val language: String, val code: String) : MarkdownBlock()
     data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownBlock()
+    data class Chart(val language: String, val body: String) : MarkdownBlock()
 }
 
 /**
@@ -474,6 +475,13 @@ fun MarkdownColumn(
             when (block) {
                 is MarkdownBlock.Code -> {
                     CodeBlock(language = block.language, code = block.code)
+                    Spacer(Modifier.height(6.dp))
+                }
+                is MarkdownBlock.Chart -> {
+                    com.aura.ui.components.charts.ChartDispatcher(
+                        language = block.language,
+                        rawBody = block.body,
+                    )
                     Spacer(Modifier.height(6.dp))
                 }
                 is MarkdownBlock.Table -> {
@@ -575,7 +583,14 @@ internal fun splitMarkdownBlocks(text: String): List<MarkdownBlock> {
             appendText(text.substring(pos, range.first))
         }
         val match = codeBlockRegex.find(text, range.first) ?: return@forEach
-        blocks.add(MarkdownBlock.Code(match.groupValues[1], match.groupValues[2]))
+        val lang = match.groupValues[1]
+        val body = match.groupValues[2]
+        // Intercept chart-* languages — render as chart, not code block.
+        if (lang.startsWith("chart-")) {
+            blocks.add(MarkdownBlock.Chart(lang, body))
+        } else {
+            blocks.add(MarkdownBlock.Code(lang, body))
+        }
         pos = range.last + 1
     }
     if (pos < text.length) {
