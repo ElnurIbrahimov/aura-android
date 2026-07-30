@@ -72,7 +72,7 @@ private val headerRegex = Regex("^(#{1,3})\\s+(.+)$", RegexOption.MULTILINE)
 private val orderedListRegex = Regex("^(\\d+)\\.\\s+(.+)$", RegexOption.MULTILINE)
 private val bulletRegex = Regex("^[-*]\\s+(.+)$", RegexOption.MULTILINE)
 // Table delimiter row: pipes + dashes, optional colons for alignment.
-private val tableDelimiterRegex = Regex("^\\s*\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?\\s*$", RegexOption.MULTILINE)
+internal val tableDelimiterRegex = Regex("^\\s*\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?\\s*$", RegexOption.MULTILINE)
 // Detect a table header row: at least one pipe on a line, not a code block, not a bullet/header.
 private val tableRowRegex = Regex("^\\s*\\|.*\\|\\s*$", RegexOption.MULTILINE)
 // Combined inline patterns. Bold (group 1) takes priority over
@@ -446,7 +446,7 @@ fun MarkdownText(
     )
 }
 
-private sealed class MarkdownBlock {
+internal sealed class MarkdownBlock {
     data class Text(val content: String) : MarkdownBlock()
     data class Code(val language: String, val code: String) : MarkdownBlock()
     data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownBlock()
@@ -517,7 +517,7 @@ private fun ClickableMarkdownBlock(
     }
 }
 
-private fun splitMarkdownBlocks(text: String): List<MarkdownBlock> {
+internal fun splitMarkdownBlocks(text: String): List<MarkdownBlock> {
     val blocks = mutableListOf<MarkdownBlock>()
     val codeRanges = codeBlockRegex.findAll(text).map { it.range }.toList()
     var pos = 0
@@ -584,7 +584,7 @@ private fun splitMarkdownBlocks(text: String): List<MarkdownBlock> {
     return blocks
 }
 
-private fun parseTableCells(line: String): List<String> {
+internal fun parseTableCells(line: String): List<String> {
     // Trim leading/trailing pipes then split on pipes. Trim each cell.
     val trimmed = line.trim().trim('|').trim()
     return trimmed.split("|").map { it.trim() }
