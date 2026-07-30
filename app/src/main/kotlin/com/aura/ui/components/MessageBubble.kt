@@ -279,6 +279,7 @@ fun MessageBubble(
     reaction: Reaction? = null,
     animationIndex: Int = 0,
     durationMs: Long = 0L,
+    generatedImages: List<String> = emptyList(),
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
@@ -308,6 +309,7 @@ fun MessageBubble(
             reaction = reaction,
             animationIndex = animationIndex,
             copied = copied,
+            generatedImages = generatedImages,
             onCopiedChange = { copied = it },
             onCopy = {
                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -395,6 +397,7 @@ private fun AssistantMessage(
     reaction: Reaction?,
     animationIndex: Int,
     copied: Boolean,
+    generatedImages: List<String> = emptyList(),
     onCopiedChange: (Boolean) -> Unit,
     onCopy: () -> Unit,
     onShowSources: () -> Unit,
@@ -488,6 +491,13 @@ private fun AssistantMessage(
                     text = renderedText.ifBlank { "…" },
                     style = contentStyle,
                 )
+            }
+            // Inline images (from image_gen tool)
+            if (generatedImages.isNotEmpty() && !isStreaming) {
+                Spacer(Modifier.height(8.dp))
+                generatedImages.forEach { url ->
+                    InlineImage(url = url)
+                }
             }
             // Citations row
             if (citations.isNotEmpty() && !isStreaming) {

@@ -94,7 +94,11 @@ class ImageGenCapabilityTool @Inject constructor(
 
     private fun formatResult(result: ImageResult, providerName: String): String = buildString {
         appendLine("Image generated via $providerName.")
-        result.url?.let { appendLine("URL: $it") }
+        result.url?.let {
+            appendLine("URL: $it")
+            // Structured marker for inline image rendering in chat
+            append("[IMAGE:$it]")
+        }
         result.bytes?.let { appendLine("Size: ${it.size} bytes") }
         append("MIME: ${result.mimeType}")
     }

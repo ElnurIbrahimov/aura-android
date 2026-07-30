@@ -44,7 +44,7 @@ class ImageGenToolTest {
         )
         assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
         val text = (result as ToolResult.Ok).output
-        assertTrue(text.startsWith("https://"), "URL should start with https://, got: $text")
+        assertTrue("should contain [IMAGE: marker, got: $text") { text.contains("[IMAGE:") }
         assertTrue(text.contains("example.com/image"), "URL should contain example.com/image, got: $text")
     }
 

@@ -74,7 +74,7 @@ class ImageGenTool @Inject constructor(
 
             try {
                 val result = generateImage(prompt, size)
-                ToolResult.Ok(result)
+                ToolResult.Ok("[IMAGE:$result]")
             } catch (e: Exception) {
                 ToolResult.Error("image generation failed: ${e.message}", "http_error")
             }

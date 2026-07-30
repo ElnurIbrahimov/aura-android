@@ -386,6 +386,20 @@ class ChatSendController(
                                     old.copy(pendingBrowserUrl = browserMarker.groupValues[1])
                                 }
                             }
+                            // Detect [IMAGE:url] markers from image_gen tools.
+                            val imageMarkers = Regex("\\[IMAGE:(.+?)\\]").findAll(event.result).map { it.groupValues[1] }.toList()
+                            if (imageMarkers.isNotEmpty()) {
+                                state.update { old ->
+                                    val turns = old.conversation.turns
+                                    val last = turns.lastOrNull()
+                                    val updated = if (last != null) {
+                                        old.conversation.replaceLastTurn(
+                                            last.copy(generatedImages = last.generatedImages + imageMarkers)
+                                        )
+                                    } else old.conversation
+                                    old.copy(conversation = updated)
+                                }
+                            }
                             val citations = extractCitations(event.name, event.result)
                             if (citations.isNotEmpty()) {
                                 state.update { old ->
