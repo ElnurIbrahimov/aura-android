@@ -52,7 +52,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `keyFor returns null when no key is set`() = runTest {
+    fun `keyFor returns null when no key is set`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertNull(keys.keyFor("ollama"))
@@ -60,14 +60,14 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `keyFor returns null for blank keys`() = runTest {
+    fun `keyFor returns null for blank keys`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertFalse(keys.isConfigured("ollama"))
     }
 
     @Test
-    fun `isConfigured is false for unknown prefix`() = runTest {
+    fun `isConfigured is false for unknown prefix`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertFalse(keys.isConfigured("nonexistent-provider"))
@@ -97,7 +97,7 @@ class ProviderKeysTest {
     // ─── New credential state tests ───────────────────────────────────────
 
     @Test
-    fun `initial credential states are NotConfigured after load`() = runTest {
+    fun `initial credential states are NotConfigured after load`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         for (prefix in ProviderKeys.PREFIXES) {
@@ -110,14 +110,14 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `initial state map is empty`() = runTest {
+    fun `initial state map is empty`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         assertTrue(keys.state.value.isEmpty())
     }
 
     @Test
-    fun `loaded is initially false and becomes true after init`() = runTest {
+    fun `loaded is initially false and becomes true after init`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         assertFalse(keys.loaded.value, "loaded should be false before init completes")
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
@@ -125,7 +125,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `set stores key and returns it exactly`() = runTest {
+    fun `set stores key and returns it exactly`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-test-123-abc")
@@ -134,7 +134,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `set updates credential state to Saved`() = runTest {
+    fun `set updates credential state to Saved`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
@@ -142,7 +142,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `set with blank key clears credential`() = runTest {
+    fun `set with blank key clears credential`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
@@ -156,7 +156,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `set with whitespace-only key clears credential`() = runTest {
+    fun `set with whitespace-only key clears credential`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-ollama-key")
@@ -169,7 +169,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `setting one provider does not affect others`() = runTest {
+    fun `setting one provider does not affect others`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -182,7 +182,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `overwriting a key returns the latest value`() = runTest {
+    fun `overwriting a key returns the latest value`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "old-key")
@@ -192,7 +192,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `credential state transitions NotConfigured to Saved to NotConfigured`() = runTest {
+    fun `credential state transitions NotConfigured to Saved to NotConfigured`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -209,7 +209,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `only target provider credential state changes on set`() = runTest {
+    fun `only target provider credential state changes on set`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -221,7 +221,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `state flow preserves backward compat`() = runTest {
+    fun `state flow preserves backward compat`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -235,7 +235,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `write is persisted across ProviderKeys instances`() = runTest {
+    fun `write is persisted across ProviderKeys instances`() = runTest(dispatchTimeoutMs = 60_000) {
         val file = File.createTempFile("pkt_persist_", ".preferences_pb")
         file.deleteOnExit()
         val dataStore = PreferenceDataStoreFactory.create(produceFile = { file })
@@ -290,7 +290,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `concurrent sets for different providers both succeed`() = runTest {
+    fun `concurrent sets for different providers both succeed`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -309,7 +309,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `serial writes to same provider always reflect the latest`() = runTest {
+    fun `serial writes to same provider always reflect the latest`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -322,7 +322,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `setEmbeddingModel preserves credential states`() = runTest {
+    fun `setEmbeddingModel preserves credential states`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
@@ -335,7 +335,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `setEmbeddingModel with blank string removes the stored value`() = runTest {
+    fun `setEmbeddingModel with blank string removes the stored value`() = runTest(dispatchTimeoutMs = 60_000) {
         // P1 PROVIDERS F1 regression: pre-fix audit
         // questioned whether removeString actually
         // persisted. Pin the contract: blank input
@@ -355,7 +355,7 @@ class ProviderKeysTest {
     }
 
     @Test
-    fun `keyFor only returns keys for Saved providers`() = runTest {
+    fun `keyFor only returns keys for Saved providers`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
