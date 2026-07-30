@@ -242,6 +242,8 @@ data class ChatUiState(
      * adds REMOTE_COST tools to [approvedRemoteCostTools] and re-engages.
      */
     val pendingApproval: Triple<String, String, String>? = null,
+    /** URL to open in the in-app browser. Set when a tool returns [BROWSER:url]. */
+    val pendingBrowserUrl: String? = null,
     /**
      * Per-conversation set of REMOTE_COST tools the user has
      * approved. Passed into ToolContext so ToolExecutor lets
@@ -864,6 +866,11 @@ class ChatViewModel @Inject constructor(
 
     fun dismissApproval() {
         _state.update { it.copy(pendingApproval = null) }
+    }
+
+    /** Clear the pending browser URL (user closed the in-app browser). */
+    fun dismissBrowser() {
+        _state.update { it.copy(pendingBrowserUrl = null) }
     }
 
     /**

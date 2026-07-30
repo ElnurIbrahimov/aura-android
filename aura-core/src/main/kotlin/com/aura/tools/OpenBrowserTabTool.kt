@@ -1,9 +1,6 @@
 package com.aura.tools
 
 import android.content.Context
-import android.net.Uri
-import androidx.browser.customtabs.CustomTabColorSchemeParams
-import androidx.browser.customtabs.CustomTabsIntent
 import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
@@ -26,11 +23,10 @@ class OpenBrowserTabTool @Inject constructor(
 ) {
     fun definition() = ToolDefinition(
         name = "open_browser_tab",
-        description = "Open a URL in an in-app browser tab (Chrome Custom Tab).",
+        description = "Open a URL in an in-app browser tab.",
         parameters = ToolParameters(
             properties = mapOf(
                 "url" to ToolProperty(type = "string", description = "URL to open"),
-                "color" to ToolProperty(type = "string", description = "Optional toolbar color hex, e.g. '#1a1a1a'"),
             ),
             required = listOf("url"),
         ),
@@ -48,31 +44,11 @@ class OpenBrowserTabTool @Inject constructor(
             if (ssrfError != null) {
                 return@Tool ToolResult.Error(ssrfError, "ssrf_guard")
             }
-            val colorHex = call.arguments["color"] as? String
-            try {
-                val uri = Uri.parse(url)
-                val builder = CustomTabsIntent.Builder()
-                colorHex?.let { parseColor(it) }?.let { color ->
-                    builder.setDefaultColorSchemeParams(
-                        CustomTabColorSchemeParams.Builder()
-                            .setToolbarColor(color)
-                            .build()
-                    )
-                }
-                val intent = builder.build()
-                intent.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                intent.launchUrl(context, uri)
-                ToolResult.Ok("Opened in browser tab: $url")
-            } catch (e: Exception) {
-                ToolResult.Error("Could not open browser tab: ${e.message}", "exception")
-            }
+            // Return a structured marker so the chat UI can open an in-app
+            // WebView instead of leaving the app. The ChatSendController
+            // detects [BROWSER:url] and opens InAppBrowserSheet.
+            ToolResult.Ok("[BROWSER:$url]")
         },
         category = "web",
     )
-
-    private fun parseColor(hex: String): Int? = try {
-        android.graphics.Color.parseColor(hex)
-    } catch (_: IllegalArgumentException) {
-        null
-    }
 }

@@ -659,6 +659,14 @@ fun ChatRoute(
         )
     }
 
+    // In-app browser — opens when a tool returns [BROWSER:url].
+    state.pendingBrowserUrl?.let { url ->
+        com.aura.ui.screens.browser.InAppBrowserSheet(
+            initialUrl = url,
+            onDismiss = viewModel::dismissBrowser,
+        )
+    }
+
 }
 
 @Composable

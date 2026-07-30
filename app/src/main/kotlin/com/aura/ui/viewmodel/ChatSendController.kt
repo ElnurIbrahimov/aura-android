@@ -379,6 +379,13 @@ class ChatSendController(
                                     inFlightToolCalls = old.inFlightToolCalls.filterNot { it.id == event.id },
                                 )
                             }
+                            // Detect [BROWSER:url] marker from open_browser_tab tool.
+                            val browserMarker = Regex("\\[BROWSER:(.+?)\\]").find(event.result)
+                            if (browserMarker != null) {
+                                state.update { old ->
+                                    old.copy(pendingBrowserUrl = browserMarker.groupValues[1])
+                                }
+                            }
                             val citations = extractCitations(event.name, event.result)
                             if (citations.isNotEmpty()) {
                                 state.update { old ->
