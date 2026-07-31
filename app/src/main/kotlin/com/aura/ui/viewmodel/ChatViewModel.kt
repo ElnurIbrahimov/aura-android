@@ -79,6 +79,13 @@ private val json = Json { ignoreUnknownKeys = true; isLenient = true }
                 Citation(index = idx + 1, title = match.groupValues[1], url = match.groupValues[2])
             }.toList()
         }
+        "web_search" -> {
+            // Parse numbered results: "1. Title\n   URL\n   snippet"
+            val regex = """\d+\.\s+(.+?)\n\s+(https?://\S+)""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            regex.findAll(result).mapIndexed { idx, match ->
+                Citation(index = idx + 1, title = match.groupValues[1].trim(), url = match.groupValues[2].trim())
+            }.toList()
+        }
         else -> emptyList()
     }
 }
