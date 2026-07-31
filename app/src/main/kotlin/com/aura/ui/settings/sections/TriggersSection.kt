@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -57,7 +58,19 @@ fun TriggersSection(
                     is TriggerCondition.LocationEntered -> "location (not yet implemented)"
                     is TriggerCondition.IntentReceived -> "intent: ${c.action}"
                 }
-                Text("• ${trigger.label} — $summary", style = MaterialTheme.typography.bodySmall)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "• ${trigger.label} — $summary",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { onRemove(trigger.id) }) {
+                        Text("Delete")
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -79,6 +92,20 @@ fun TriggersSection(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
+            // Quick preset buttons
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+                listOf(
+                    "Daily @9am" to "daily@09:00",
+                    "Hourly" to "hourly",
+                    "Weekly Mon @9am" to "weekly@MON@09:00",
+                ).forEach { (label_text, cronValue) ->
+                    androidx.compose.material3.AssistChip(
+                        onClick = { cron = cronValue },
+                        label = { Text(label_text, style = MaterialTheme.typography.labelSmall) },
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = prompt,
