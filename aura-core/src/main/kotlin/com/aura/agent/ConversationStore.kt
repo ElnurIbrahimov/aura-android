@@ -157,6 +157,37 @@ class ConversationStore @Inject constructor(
         conv.metadata["pinned"] == "true"
 
     /**
+     * Set or clear the project tag on a conversation. Projects are stored
+     * in conversation metadata — no Room migration needed.
+     */
+    suspend fun setProject(id: String, project: String?): Boolean {
+        val entity = dao.getById(id) ?: return false
+        val metadata = runCatching {
+            convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
+        }.getOrElse { emptyMap() }.toMutableMap()
+        if (project.isNullOrBlank()) metadata.remove("project")
+        else metadata["project"] = project
+        dao.insert(entity.copy(
+            metadataJson = convJson.encodeToString(metadata),
+            updatedAt = System.currentTimeMillis(),
+        ))
+        return true
+    }
+
+    /**
+     * Extract the project tag from a conversation. Null if untagged.
+     */
+    fun projectOf(conv: Conversation): String? =
+        conv.metadata["project"]?.takeIf { it.isNotBlank() }
+
+    /**
+     * Return all unique project names from the conversation list.
+     */
+    suspend fun allProjects(): List<String> {
+        return recent(limit = 200).mapNotNull { projectOf(it) }.distinct()
+    }
+
+    /**
      * Recent conversations with pinned ones sorted to the top.
      * The list is otherwise ordered by updatedAt desc, same as
      * [recent]. Pinned items also have a stable insertion order

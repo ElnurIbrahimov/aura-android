@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -208,6 +209,30 @@ fun HistoryScreen(
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        // Project filter chips
+        if (state.availableProjects.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            LazyRow(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+            ) {
+                item {
+                    androidx.compose.material3.FilterChip(
+                        selected = state.projectFilter == null,
+                        onClick = { viewModel.setProjectFilter(null) },
+                        label = { Text("All") },
+                    )
+                }
+                items(state.availableProjects, key = { it }) { project ->
+                    androidx.compose.material3.FilterChip(
+                        selected = state.projectFilter == project,
+                        onClick = { viewModel.setProjectFilter(project) },
+                        label = { Text(project) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
         }
 
         Spacer(modifier = Modifier.height(8.dp))

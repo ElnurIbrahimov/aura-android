@@ -21,25 +21,13 @@ data class HistoryUiState(
     val loading: Boolean = true,
     val query: String = "",
     val searching: Boolean = false,
-    /**
-     * Multi-select mode is off by default. Toggled on by long-press
-     * on a row, or by the top-bar "Select" action. When true, each
-     * row renders a checkbox and the top bar swaps in bulk actions
-     * (delete N, share N).
-     */
     val selectMode: Boolean = false,
-    /**
-     * IDs of conversations currently selected. Empty when not in
-     * select mode. Survives within the session so partial selection
-     * is preserved across scroll.
-     */
     val selectedIds: Set<String> = emptySet(),
-    /**
-     * The most recently deleted conversation, kept for 5 seconds so
-     * the user can tap "Undo" in the snackbar to restore it. Null
-     * when nothing is recoverable.
-     */
     val lastDeleted: Conversation? = null,
+    /** Project filter — null = all projects, non-null = filter to that project. */
+    val projectFilter: String? = null,
+    /** All known project names from conversations. */
+    val availableProjects: List<String> = emptyList(),
 )
 
 /**
@@ -321,8 +309,24 @@ class HistoryViewModel @Inject constructor(
 
     private suspend fun refreshList() {
         val q = _state.value.query
-        val convos = if (q.isBlank()) store.recentPinnedFirst(50) else searchConversations(q, 50)
-        _state.update { it.copy(conversations = convos) }
+        val project = _state.value.projectFilter
+        val allConvos = if (q.isBlank()) store.recentPinnedFirst(50) else searchConversations(q, 50)
+        val projects = allConvos.mapNotNull { store.projectOf(it) }.distinct()
+        val filtered = if (project != null) allConvos.filter { store.projectOf(it) == project } else allConvos
+        _state.update { it.copy(conversations = filtered, availableProjects = projects) }
+    }
+
+    fun setProjectFilter(project: String?) {
+        viewModelScope.launch { refreshList() }
+        _state.update { it.copy(projectFilter = project) }
+        viewModelScope.launch { refreshList() }
+    }
+
+    fun setConversationProject(convId: String, project: String?) {
+        viewModelScope.launch {
+            store.setProject(convId, project)
+            refreshList()
+        }
     }
 
     /**
