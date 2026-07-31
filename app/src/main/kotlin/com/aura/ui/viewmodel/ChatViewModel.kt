@@ -890,11 +890,8 @@ class ChatViewModel @Inject constructor(
         _state.update { it.copy(pendingCanvas = null) }
     }
 
-    /** Consume the proactive message (user tapped "Let's talk" or dismissed). */
+    /** Clear the proactive message from UI state. The store was already consumed in loadProactiveMessage(). */
     fun dismissProactiveMessage() {
-        viewModelScope.launch {
-            runCatching { proactiveMessageStore?.consumeMessage() }
-        }
         _state.update { it.copy(proactiveMessage = null) }
     }
 

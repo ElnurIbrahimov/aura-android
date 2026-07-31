@@ -119,11 +119,17 @@ class CodeInterpreterTool @Inject constructor(
                         }
                     }, "__aura_log")
 
-                    // Override console.log to route to our interface
+                    // Override console.log to route to our interface.
+                    // The user code is passed as a JSON-encoded string and
+                    // eval'd inside the IIFE — no string interpolation of
+                    // untrusted code, preventing injection.
+                    val jsonCode = kotlinx.serialization.json.Json.encodeToString(
+                        kotlinx.serialization.serializer<kotlin.String>(),
+                        code,
+                    )
                     val wrappedCode = """
                         (function() {
-                            var __output = [];
-                            var origLog = console.log;
+                            var __code = $jsonCode;
                             console.log = function() {
                                 var args = Array.prototype.slice.call(arguments);
                                 var msg = args.map(function(a) {
@@ -135,7 +141,7 @@ class CodeInterpreterTool @Inject constructor(
                                 __aura_log.log(msg);
                             };
                             try {
-                                var __result = eval(${"'$"}{code.replace("\\", "\\\\").replace("'", "\\'").replace("\$", "\\$")});
+                                var __result = eval(__code);
                                 if (__result !== undefined) {
                                     console.log(__result);
                                 }

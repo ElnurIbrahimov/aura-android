@@ -34,18 +34,21 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.InputStream
 
+private val sharedImageClient by lazy {
+    OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+}
+
 /**
  * Load a bitmap from a URL on a background thread.
- * Returns null on failure. Uses OkHttp (already in the dependency graph).
+ * Returns null on failure. Uses a shared OkHttpClient instance.
  */
 private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
     runCatching {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
         val request = Request.Builder().url(url).build()
-        val response = client.newCall(request).execute()
+        val response = sharedImageClient.newCall(request).execute()
         if (!response.isSuccessful) return@withContext null
         val bytes = response.body?.bytes() ?: return@withContext null
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

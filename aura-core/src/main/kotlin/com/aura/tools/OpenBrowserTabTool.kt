@@ -13,9 +13,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Open a URL in an in-app Chrome Custom Tab. Falls back to an external
- * browser if no Custom Tabs provider is available.
- * Risk: WRITE_LOCAL (launches an activity).
+ * Open a URL in an in-app browser. Returns a [BROWSER:url] marker that
+ * the chat UI detects and opens as an InAppBrowserSheet — the user
+ * stays in the app.
+ *
+ * The [context] parameter is retained for Hilt injection but is not
+ * used directly — the tool no longer launches a Chrome Custom Tab.
+ *
+ * Risk: WRITE_LOCAL (opens a browser surface).
  */
 @Singleton
 class OpenBrowserTabTool @Inject constructor(

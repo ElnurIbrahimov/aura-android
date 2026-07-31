@@ -73,7 +73,6 @@ fun BarChartView(
             if (barCount == 0) return@Canvas
             val barWidth = (size.width / barCount) * 0.7f
             val gap = (size.width / barCount) * 0.3f
-            val maxLabelWidth = barWidth * 0.8f
             normalized.forEachIndexed { i, normValue ->
                 val colorIndex = i % CHART_COLORS.size
                 val barHeight = size.height * normValue * animationProgress

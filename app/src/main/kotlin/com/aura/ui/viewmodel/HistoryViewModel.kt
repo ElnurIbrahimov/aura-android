@@ -317,7 +317,6 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun setProjectFilter(project: String?) {
-        viewModelScope.launch { refreshList() }
         _state.update { it.copy(projectFilter = project) }
         viewModelScope.launch { refreshList() }
     }

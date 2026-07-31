@@ -87,14 +87,30 @@ class AffinityTracker @Inject constructor(
             it[KEY_SCORE] = newScore
             it[KEY_LAST_INTERACTION] = now
         }
+        // Invalidate cache — the level may have changed.
+        cachedDirective = null
     }
+
+    private var cachedDirective: String? = null
 
     /**
      * Generate the system prompt directive for the current affinity level.
+     * Cached — the DataStore read only happens once per process lifetime
+     * (the score changes slowly, 0.5 per turn).
      */
     suspend fun getDirective(): String {
+        cachedDirective?.let { return it }
         val state = load()
+        cachedDirective = state.level.directive
         return state.level.directive
+    }
+
+    /**
+     * Invalidate the directive cache. Call after recordTurn() if the
+     * level may have changed.
+     */
+    fun invalidateCache() {
+        cachedDirective = null
     }
 
     private fun applyDecay(score: Float, lastInteraction: Long): Float {
