@@ -558,6 +558,15 @@ fun ChatRoute(
     if (showContinuousVoice && hasMicPermission) {
         val cvState by continuousVoiceViewModel.state.collectAsStateWithLifecycle()
         if (voiceCallMode) {
+            // Timer: track call duration while in call mode
+            LaunchedEffect(voiceCallMode) {
+                voiceCallStartTime = System.currentTimeMillis()
+                voiceCallDurationMs = 0L
+                while (voiceCallMode) {
+                    kotlinx.coroutines.delay(1000)
+                    voiceCallDurationMs = System.currentTimeMillis() - voiceCallStartTime
+                }
+            }
             // Full-screen phone-call UI
             VoiceCallScreen(
                 state = cvState,

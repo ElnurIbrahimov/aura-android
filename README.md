@@ -10,7 +10,7 @@ This is my personal copy.
 
 **v0.39.1** (versionCode 48).
 
-- 62 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council)
+- 63 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign)
@@ -44,7 +44,7 @@ This is my personal copy.
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v14)
-- 262 unit test files, 1,425 tests, 0 failures (was 217 / 1,286 at v0.35.3)
+- 299 unit test files, 1,559 tests, 0 failures
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
 - 4 daily-use UX round-2 fixes (offline indicator, image paste, TTS state mirror + stop pill, response duration footer)
@@ -144,7 +144,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Evolution Inbox** — review self-improvement proposals, approve/reject.
 - **Evolution Rollback** — revert applied evolution changes.
 - **Knowledge Graph** — browse extracted entities and edges.
-- **Tools** — browse all 61 registered tools with risk levels.
+- **Tools** — browse all 63 registered tools with risk levels.
 - **Diagnostics** — provider health, model catalog, usage tracking.
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.

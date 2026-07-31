@@ -83,12 +83,18 @@ fun ChatTimeline(
                             onEdit = { onEditMessage(index, it) },
                         )
                     }
-                    turn.assistant?.let { assistant ->
+                    turn.assistant?.let { rawAssistant ->
                         val isLast = turn === state.conversation.turns.lastOrNull()
                         val isStreaming = state.streaming && isLast
                         val agentName = turn.agentId?.let { id ->
                             state.availableAgents.find { it.id == id }?.name
                         }
+                        // Strip canvas blocks from chat text so they
+                        // don't render as code blocks (they open as
+                        // CanvasSheet instead).
+                        val assistant = if (!isStreaming) {
+                            com.aura.ui.screens.canvas.stripCanvasBlocks(rawAssistant)
+                        } else rawAssistant
                         MessageBubble(
                             text = assistant,
                             isUser = false,
