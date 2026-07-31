@@ -88,6 +88,7 @@ import com.aura.ui.components.AgentPickerSheet
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.ChatViewModel
 import com.aura.ui.viewmodel.calculateImageSampleSize
+import com.aura.ui.voice.VoiceCallScreen
 import com.aura.ui.voice.VoiceOverlay
 import com.aura.ui.voice.ContinuousVoiceOverlay
 import com.aura.ui.voice.ContinuousVoiceViewModel
@@ -252,6 +253,10 @@ fun ChatRoute(
     var showVoiceOverlay by remember { mutableStateOf(false) }
     var showHoldToTalk by remember { mutableStateOf(false) }
     var showContinuousVoice by remember { mutableStateOf(false) }
+    var voiceCallMode by remember { mutableStateOf(false) }
+    var voiceMuted by remember { mutableStateOf(false) }
+    var voiceCallDurationMs by remember { mutableStateOf(0L) }
+    var voiceCallStartTime by remember { mutableStateOf(0L) }
     val continuousVoiceViewModel: ContinuousVoiceViewModel = hiltViewModel()
     var showStopStreamConfirm by remember { mutableStateOf(false) }
 
@@ -552,13 +557,28 @@ fun ChatRoute(
     // Continuous voice mode — hands-free conversation loop
     if (showContinuousVoice && hasMicPermission) {
         val cvState by continuousVoiceViewModel.state.collectAsStateWithLifecycle()
-        ContinuousVoiceOverlay(
-            state = cvState,
-            onStop = {
-                continuousVoiceViewModel.stopLoop()
-                showContinuousVoice = false
-            },
-        )
+        if (voiceCallMode) {
+            // Full-screen phone-call UI
+            VoiceCallScreen(
+                state = cvState,
+                callDurationMs = voiceCallDurationMs,
+                isMuted = voiceMuted,
+                onToggleMute = { voiceMuted = !voiceMuted },
+                onEndCall = {
+                    continuousVoiceViewModel.stopLoop()
+                    showContinuousVoice = false
+                    voiceCallMode = false
+                },
+            )
+        } else {
+            ContinuousVoiceOverlay(
+                state = cvState,
+                onStop = {
+                    continuousVoiceViewModel.stopLoop()
+                    showContinuousVoice = false
+                },
+            )
+        }
         LaunchedEffect(Unit) {
             continuousVoiceViewModel.startLoop(
                 onSend = { text ->
