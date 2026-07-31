@@ -74,6 +74,43 @@ fun AgentEditorScreen(
             )
         }
 
+        // Template picker — only for new agents
+        if (agentId == null && !state.isBuiltin) {
+            if (state.showTemplatePicker) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Choose a template",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AuraThemeTokens.colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                viewModel.templates.forEach { template ->
+                    OutlinedButton(
+                        onClick = { viewModel.applyTemplate(template) },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(template.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                            Text(template.description, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(onClick = viewModel::dismissTemplatePicker) {
+                    Text("Skip — start from scratch")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            } else if (state.name.isBlank()) {
+                OutlinedButton(
+                    onClick = viewModel::showTemplatePicker,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Pick a template")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         // Name

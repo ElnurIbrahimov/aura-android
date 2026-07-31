@@ -26,16 +26,40 @@ data class AgentEditorUiState(
     val isBuiltin: Boolean = false,
     val saved: Boolean = false,
     val error: String? = null,
+    val showTemplatePicker: Boolean = false,
 )
 
 @HiltViewModel
 class AgentEditorViewModel @Inject constructor(
     private val agentStore: AgentStore,
     private val toolRegistry: com.aura.agent.ToolRegistry,
+    private val agentTemplates: com.aura.agent.AgentTemplates = com.aura.agent.AgentTemplates(),
 ) : ViewModel() {
 
     /** All available tool names from the registry, sorted alphabetically. */
     val availableTools: List<String> get() = toolRegistry.definitions().map { it.name }.sorted()
+
+    /** All agent templates for the template picker. */
+    val templates: List<com.aura.agent.AgentTemplates.Template> get() = agentTemplates.all
+
+    fun showTemplatePicker() {
+        _state.value = _state.value.copy(showTemplatePicker = true)
+    }
+
+    fun dismissTemplatePicker() {
+        _state.value = _state.value.copy(showTemplatePicker = false)
+    }
+
+    fun applyTemplate(template: com.aura.agent.AgentTemplates.Template) {
+        _state.value = _state.value.copy(
+            name = template.name,
+            description = template.description,
+            identity = template.systemPromptHint,
+            toolsAllowed = template.toolsAllowed ?: emptySet(),
+            personality = template.personality,
+            showTemplatePicker = false,
+        )
+    }
 
     private val _state = MutableStateFlow(AgentEditorUiState())
     val state: StateFlow<AgentEditorUiState> = _state.asStateFlow()

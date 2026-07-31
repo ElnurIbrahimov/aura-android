@@ -380,6 +380,7 @@ class ChatSendController(
                                 )
                             }
                             // Detect [BROWSER:url] marker from open_browser_tab tool.
+                            // Non-greedy match — URLs don't contain ] in practice.
                             val browserMarker = Regex("\\[BROWSER:(.+?)\\]").find(event.result)
                             if (browserMarker != null) {
                                 state.update { old ->

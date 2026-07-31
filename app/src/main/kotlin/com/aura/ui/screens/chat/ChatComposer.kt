@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GraphicEq
@@ -73,6 +74,7 @@ fun ChatComposer(
     onTapToSpeak: () -> Unit = {},
     onHoldToTalk: () -> Unit = {},
     onContinuousVoice: () -> Unit = {},
+    onVoiceCall: () -> Unit = {},
     onCameraClick: () -> Unit = {},
     onGalleryClick: () -> Unit = {},
     onAudioClick: () -> Unit = {},
@@ -204,6 +206,15 @@ fun ChatComposer(
                             onClick = {
                                 voiceMenuOpen = false
                                 onContinuousVoice()
+                            },
+                        )
+                        VoiceModeItem(
+                            label = "Voice call",
+                            supporting = "Full-screen phone-call mode",
+                            icon = Icons.Filled.Call,
+                            onClick = {
+                                voiceMenuOpen = false
+                                onVoiceCall()
                             },
                         )
                     }

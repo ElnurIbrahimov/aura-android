@@ -451,6 +451,15 @@ fun ChatRoute(
                         micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                     }
                 },
+                onVoiceCall = {
+                    if (hasMicPermission) {
+                        showContinuousVoice = true
+                        voiceCallMode = true
+                    } else {
+                        micPermissionState = micPermissionState.request(ChatVoiceMode.Continuous)
+                        micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
+                },
                 onCameraClick = {
                     if (hasCameraPermission) cameraLauncher.launch(null)
                     else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)

@@ -1,6 +1,5 @@
 package com.aura.tools
 
-import android.content.Context
 import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
@@ -8,7 +7,6 @@ import com.aura.core.url.SsrfGuard
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,15 +15,10 @@ import javax.inject.Singleton
  * the chat UI detects and opens as an InAppBrowserSheet — the user
  * stays in the app.
  *
- * The [context] parameter is retained for Hilt injection but is not
- * used directly — the tool no longer launches a Chrome Custom Tab.
- *
  * Risk: WRITE_LOCAL (opens a browser surface).
  */
 @Singleton
-class OpenBrowserTabTool @Inject constructor(
-    @ApplicationContext private val context: Context,
-) {
+class OpenBrowserTabTool @Inject constructor() {
     fun definition() = ToolDefinition(
         name = "open_browser_tab",
         description = "Open a URL in an in-app browser tab.",
