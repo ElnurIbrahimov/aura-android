@@ -48,6 +48,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -66,6 +68,8 @@ interface FirstRunGateEntryPoint {
 interface MainActivityEntryPoint {
     fun userPreferences(): UserPreferences
     fun biometricActivityHolder(): BiometricActivityHolder
+    fun oauthFlow(): com.aura.integrations.OAuthFlow
+    fun integrationTokenStore(): com.aura.integrations.IntegrationTokenStore
 }
 
 data class AuraLaunchRequest(
@@ -150,6 +154,22 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleDeepLink(intent: Intent) {
+        val data = intent.data
+        if (data != null && data.scheme == "aura" && data.host == "oauth") {
+            // OAuth redirect — handled asynchronously by OAuthFlow
+            val mainActivity = this
+            CoroutineScope(Dispatchers.Main).launch {
+                val entry = EntryPointAccessors.fromApplication(
+                    applicationContext, MainActivityEntryPoint::class.java
+                )
+                val oauthFlow = entry.oauthFlow()
+                val userPrefs = entry.userPreferences()
+                val googleClientId = userPrefs.googleClientId.first()
+                val microsoftClientId = userPrefs.microsoftClientId.first()
+                oauthFlow.handleRedirect(data, googleClientId.takeIf { it.isNotBlank() }, microsoftClientId.takeIf { it.isNotBlank() })
+            }
+            return
+        }
         resolveAuraLaunchRequest(
             openChat = intent.getBooleanExtra("openChat", false),
             openMemory = intent.getBooleanExtra("openMemory", false),

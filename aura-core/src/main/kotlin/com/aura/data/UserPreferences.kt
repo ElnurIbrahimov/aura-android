@@ -85,6 +85,9 @@ internal val KEY_SMTP_FROM = stringPreferencesKey("smtp_from")
 
 internal val KEY_EMBEDDING_MODEL = stringPreferencesKey("embedding_model")
 
+internal val KEY_GOOGLE_CLIENT_ID = stringPreferencesKey("google_client_id")
+internal val KEY_MICROSOFT_CLIENT_ID = stringPreferencesKey("microsoft_client_id")
+
 @Singleton
 class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -499,6 +502,28 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         } else {
             secureDataStore?.removeString("smtp_password")
         }
+    }
+
+    // ---- Google / Microsoft OAuth client IDs ----
+
+    val googleClientId: Flow<String> = context.auraPrefs.data.map { it[KEY_GOOGLE_CLIENT_ID] ?: "" }
+    val microsoftClientId: Flow<String> = context.auraPrefs.data.map { it[KEY_MICROSOFT_CLIENT_ID] ?: "" }
+
+    /** Synchronous-ish accessor for use in tool execute blocks (not a @Composable). */
+    fun googleClientIdSync(): kotlin.String? = runCatching {
+        kotlinx.coroutines.runBlocking { googleClientId.first() }
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    fun microsoftClientIdSync(): kotlin.String? = runCatching {
+        kotlinx.coroutines.runBlocking { microsoftClientId.first() }
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    suspend fun setGoogleClientId(id: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_GOOGLE_CLIENT_ID] = id.trim() }
+    }
+
+    suspend fun setMicrosoftClientId(id: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_MICROSOFT_CLIENT_ID] = id.trim() }
     }
 
     private suspend fun setOptionalModel(key: Preferences.Key<String>, model: kotlin.String?) {

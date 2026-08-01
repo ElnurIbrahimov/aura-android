@@ -55,6 +55,7 @@ class ProactiveBootstrap @Inject constructor(
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val agentStore: com.aura.agent.AgentStore,
     private val conversationStore: com.aura.agent.ConversationStore,
+    private val integrationTokenStore: com.aura.integrations.IntegrationTokenStore? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -80,6 +81,8 @@ class ProactiveBootstrap @Inject constructor(
         }
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }
+        // Check Google/Microsoft integration connection state.
+        scope.launch { runCatching { integrationTokenStore?.checkConnectionState() } }
         // Soft-delete sweep on app start: hard-purges tombstones older
         // than the retention window. Cheap (indexed), no UI impact, no
         // need for a separate Worker.

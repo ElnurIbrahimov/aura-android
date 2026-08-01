@@ -1,0 +1,252 @@
+package com.aura.integrations
+
+import android.content.Context
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
+import com.aura.security.SecureDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import android.util.Log
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * OAuth 2.0 authorization code flow for Google and Microsoft.
+ *
+ * Launches a Custom Tabs browser tab for the user to consent,
+ * then exchanges the redirect code for access + refresh tokens
+ * via the token endpoint.
+ *
+ * Google scopes: Gmail modify, Calendar read/write, Drive read/write.
+ * Microsoft scopes: Mail.ReadWrite, Mail.Send, Calendars.ReadWrite,
+ * Files.ReadWrite.All.
+ *
+ * The redirect URI is a deep link back to the app:
+ * aura://oauth/google and aura://oauth/microsoft
+ */
+@Singleton
+class OAuthFlow @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val httpClient: OkHttpClient,
+    private val tokenStore: IntegrationTokenStore,
+) {
+    companion object {
+        private const val TAG = "OAuthFlow"
+
+        // Google OAuth endpoints
+        private const val GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+        private const val GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+        private const val GOOGLE_REDIRECT = "aura://oauth/google"
+        private const val GOOGLE_SCOPE = "https://mail.google.com/ " +
+            "https://www.googleapis.com/auth/calendar " +
+            "https://www.googleapis.com/auth/drive.file"
+        // Client ID is set by the user in Settings — stored in UserPreferences.
+        // For a personal-use app, using a public client ID with the loopback
+        // or custom scheme redirect is the standard approach.
+
+        // Microsoft OAuth endpoints (v2.0 consumer endpoint)
+        private const val MS_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+        private const val MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+        private const val MS_REDIRECT = "aura://oauth/microsoft"
+        private const val MS_SCOPE = "Mail.ReadWrite Mail.Send Calendars.ReadWrite Files.ReadWrite.All offline_access"
+    }
+
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /**
+     * Launch the Google OAuth consent flow in a browser tab.
+     * After consent, the browser redirects to [GOOGLE_REDIRECT],
+     * which is caught by [handleRedirect].
+     */
+    fun launchGoogleAuth(clientId: String) {
+        val url = Uri.parse(GOOGLE_AUTH_URL).buildUpon()
+            .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("redirect_uri", GOOGLE_REDIRECT)
+            .appendQueryParameter("response_type", "code")
+            .appendQueryParameter("scope", GOOGLE_SCOPE)
+            .appendQueryParameter("access_type", "offline")
+            .appendQueryParameter("prompt", "consent")
+            .build()
+            .toString()
+        launchBrowser(url)
+    }
+
+    /**
+     * Launch the Microsoft OAuth consent flow.
+     */
+    fun launchMicrosoftAuth(clientId: String) {
+        val url = Uri.parse(MS_AUTH_URL).buildUpon()
+            .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("redirect_uri", MS_REDIRECT)
+            .appendQueryParameter("response_type", "code")
+            .appendQueryParameter("scope", MS_SCOPE)
+            .appendQueryParameter("response_mode", "query")
+            .build()
+            .toString()
+        launchBrowser(url)
+    }
+
+    private fun launchBrowser(url: String) {
+        val intent = CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .build()
+        intent.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.launchUrl(context, Uri.parse(url))
+    }
+
+    /**
+     * Handle the OAuth redirect URI. Called by MainActivity when
+     * it receives an intent with scheme "aura" and path "oauth/...".
+     *
+     * Extracts the authorization code and exchanges it for tokens.
+     * Returns true if the redirect was handled (code was present),
+     * false if it was for a different path or had an error.
+     */
+    suspend fun handleRedirect(uri: Uri, googleClientId: String?, microsoftClientId: String?): Boolean {
+        val code = uri.getQueryParameter("code")
+        val error = uri.getQueryParameter("error")
+
+        if (error != null) {
+            Log.w(TAG, "OAuth error: $error")
+            return true
+        }
+        if (code.isNullOrBlank()) return false
+
+        when (uri.host) {
+            "oauth" -> {
+                val provider = uri.lastPathSegment // "google" or "microsoft"
+                when (provider) {
+                    "google" -> {
+                        val cid = googleClientId ?: return false
+                        exchangeGoogleCode(code, cid)
+                        return true
+                    }
+                    "microsoft" -> {
+                        val cid = microsoftClientId ?: return false
+                        exchangeMicrosoftCode(code, cid)
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private suspend fun exchangeGoogleCode(code: String, clientId: String) = withContext(Dispatchers.IO) {
+        val body = FormBody.Builder()
+            .add("grant_type", "authorization_code")
+            .add("code", code)
+            .add("redirect_uri", GOOGLE_REDIRECT)
+            .add("client_id", clientId)
+            .build()
+
+        val response = runCatching {
+            httpClient.newCall(Request.Builder().url(GOOGLE_TOKEN_URL).post(body).build()).execute()
+        }.onFailure { Log.w(TAG, "google token exchange failed: ${it.message}") }
+            .getOrNull() ?: return@withContext
+
+        response.use { resp ->
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "google token exchange HTTP ${resp.code}")
+                return@withContext
+            }
+            val responseBody = resp.body?.string() ?: return@withContext
+            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext
+            val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext
+            val refreshToken = parsed["refresh_token"]?.jsonPrimitive?.content ?: ""
+            val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+            tokenStore.storeGoogleTokens(accessToken, refreshToken, expiresIn)
+            Log.i(TAG, "google OAuth tokens stored")
+        }
+    }
+
+    private suspend fun exchangeMicrosoftCode(code: String, clientId: String) = withContext(Dispatchers.IO) {
+        val body = FormBody.Builder()
+            .add("grant_type", "authorization_code")
+            .add("code", code)
+            .add("redirect_uri", MS_REDIRECT)
+            .add("client_id", clientId)
+            .add("scope", MS_SCOPE)
+            .build()
+
+        val response = runCatching {
+            httpClient.newCall(Request.Builder().url(MS_TOKEN_URL).post(body).build()).execute()
+        }.onFailure { Log.w(TAG, "microsoft token exchange failed: ${it.message}") }
+            .getOrNull() ?: return@withContext
+
+        response.use { resp ->
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "microsoft token exchange HTTP ${resp.code}")
+                return@withContext
+            }
+            val responseBody = resp.body?.string() ?: return@withContext
+            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext
+            val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext
+            val refreshToken = parsed["refresh_token"]?.jsonPrimitive?.content ?: ""
+            val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+            tokenStore.storeMicrosoftTokens(accessToken, refreshToken, expiresIn)
+            Log.i(TAG, "microsoft OAuth tokens stored")
+        }
+    }
+
+    /**
+     * Refresh a Google access token using the stored refresh token.
+     * Called by [IntegrationTokenStore.getValidGoogleAccessToken].
+     */
+    suspend fun refreshGoogleToken(refreshToken: String, clientId: String): IntegrationTokenStore.TokenRefreshResult? =
+        withContext(Dispatchers.IO) {
+            val body = FormBody.Builder()
+                .add("grant_type", "refresh_token")
+                .add("refresh_token", refreshToken)
+                .add("client_id", clientId)
+                .build()
+
+            val response = runCatching {
+                httpClient.newCall(Request.Builder().url(GOOGLE_TOKEN_URL).post(body).build()).execute()
+            }.getOrNull() ?: return@withContext null
+
+            response.use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val responseBody = resp.body?.string() ?: return@withContext null
+                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext null
+                val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext null
+                val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
+                val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+                IntegrationTokenStore.TokenRefreshResult(accessToken, newRefresh, expiresIn)
+            }
+        }
+
+    /**
+     * Refresh a Microsoft access token.
+     */
+    suspend fun refreshMicrosoftToken(refreshToken: String, clientId: String): IntegrationTokenStore.TokenRefreshResult? =
+        withContext(Dispatchers.IO) {
+            val body = FormBody.Builder()
+                .add("grant_type", "refresh_token")
+                .add("refresh_token", refreshToken)
+                .add("client_id", clientId)
+                .add("scope", MS_SCOPE)
+                .build()
+
+            val response = runCatching {
+                httpClient.newCall(Request.Builder().url(MS_TOKEN_URL).post(body).build()).execute()
+            }.getOrNull() ?: return@withContext null
+
+            response.use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val responseBody = resp.body?.string() ?: return@withContext null
+                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext null
+                val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext null
+                val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
+                val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+                IntegrationTokenStore.TokenRefreshResult(accessToken, newRefresh, expiresIn)
+            }
+        }
+}

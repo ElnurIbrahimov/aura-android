@@ -213,6 +213,10 @@ class SettingsViewModel @Inject constructor(
     private val emotionEngine: com.aura.emotion.EmotionEngine,
     private val evolutionSettingsStore: com.aura.evolution.EvolutionSettingsStore,
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao,
+
+    private val oauthFlow: com.aura.integrations.OAuthFlow,
+    private val integrationTokenStore: com.aura.integrations.IntegrationTokenStore,
+
     @dagger.hilt.android.qualifiers.ApplicationContext
     private val appContext: android.content.Context,
 ) : ViewModel() {
@@ -1061,6 +1065,51 @@ class SettingsViewModel @Inject constructor(
                 _state.update { it.copy(smtpTesting = false, smtpResult = "✗ ${e.message}") }
             }
         }
+    }
+
+    // ---- Google / Microsoft Integrations ----
+
+    val googleConnected: StateFlow<Boolean> = integrationTokenStore.googleConnected
+    val microsoftConnected: StateFlow<Boolean> = integrationTokenStore.microsoftConnected
+
+    private val _googleClientId = MutableStateFlow("")
+    private val _microsoftClientId = MutableStateFlow("")
+    val googleClientId: StateFlow<String> = _googleClientId
+    val microsoftClientId: StateFlow<String> = _microsoftClientId
+
+    init {
+        viewModelScope.launch {
+            _googleClientId.value = userPreferences.googleClientId.first()
+            _microsoftClientId.value = userPreferences.microsoftClientId.first()
+        }
+    }
+
+    fun setGoogleClientId(id: String) {
+        viewModelScope.launch { userPreferences.setGoogleClientId(id) }
+        _googleClientId.value = id
+    }
+
+    fun setMicrosoftClientId(id: String) {
+        viewModelScope.launch { userPreferences.setMicrosoftClientId(id) }
+        _microsoftClientId.value = id
+    }
+
+    fun connectGoogle() {
+        val cid = _googleClientId.value.takeIf { it.isNotBlank() } ?: return
+        oauthFlow.launchGoogleAuth(cid)
+    }
+
+    fun disconnectGoogle() {
+        viewModelScope.launch { integrationTokenStore.disconnectGoogle() }
+    }
+
+    fun connectMicrosoft() {
+        val cid = _microsoftClientId.value.takeIf { it.isNotBlank() } ?: return
+        oauthFlow.launchMicrosoftAuth(cid)
+    }
+
+    fun disconnectMicrosoft() {
+        viewModelScope.launch { integrationTokenStore.disconnectMicrosoft() }
     }
 
     private fun applyCatalog(catalog: ModelCatalog) {

@@ -30,6 +30,7 @@ import com.aura.ui.settings.sections.AppearanceSection
 import com.aura.ui.settings.sections.DataAndBackupSection
 import com.aura.ui.settings.sections.DreamConsolidationSection
 import com.aura.ui.settings.sections.EmotionDaemonSection
+import com.aura.ui.settings.sections.IntegrationsSection
 import com.aura.ui.settings.sections.EvolutionSettingsSection
 import com.aura.ui.settings.sections.McpServersSection
 import com.aura.ui.settings.sections.ModelRolesSection
@@ -186,7 +187,10 @@ fun SettingsScreen(
             onSetDaemonEnabled = viewModel::setDaemonEnabled,
         )
 
-        // 9b. Agents — create and manage AI agents
+        // 9b. Integrations — Google + Microsoft
+        IntegrationsSection(viewModel = viewModel)
+
+        // 9c. Agents — create and manage AI agents
         SettingsClickableRow(
             title = "Agents",
             subtitle = "Create custom AI agents with their own personality, tools, and memory",

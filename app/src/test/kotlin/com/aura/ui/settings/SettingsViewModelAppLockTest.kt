@@ -91,6 +91,8 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.smtpUsername } returns flowOf("")
         every { userPreferences.smtpPassword } returns flowOf("")
         every { userPreferences.smtpFrom } returns flowOf("")
+        every { userPreferences.googleClientId } returns flowOf("")
+        every { userPreferences.microsoftClientId } returns flowOf("")
         coEvery { userPreferences.setAppLockEnabled(any()) } answers {
             appLockFlow.value = firstArg()
         }
@@ -150,6 +152,8 @@ class SettingsViewModelAppLockTest {
             io.mockk.mockk<com.aura.emotion.EmotionEngine>(relaxed = true),
             io.mockk.mockk<com.aura.evolution.EvolutionSettingsStore>(relaxed = true),
             io.mockk.mockk<com.aura.proactive.ProactiveEventDao>(relaxed = true),
+            io.mockk.mockk<com.aura.integrations.OAuthFlow>(relaxed = true),
+            io.mockk.mockk<com.aura.integrations.IntegrationTokenStore>(relaxed = true),
             io.mockk.mockk<android.content.Context>(relaxed = true),
         )
     }

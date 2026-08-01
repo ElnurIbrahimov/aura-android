@@ -1,6 +1,12 @@
 package com.aura.tools
 
 import com.aura.agent.ToolRegistry
+import com.aura.integrations.google.GoogleGmailTool
+import com.aura.integrations.google.GoogleCalendarTool
+import com.aura.integrations.google.GoogleDriveTool
+import com.aura.integrations.microsoft.MicrosoftMailTool
+import com.aura.integrations.microsoft.MicrosoftCalendarTool
+import com.aura.integrations.microsoft.MicrosoftFilesTool
 import com.aura.tools.evolution.ApproveEvolutionProposalTool
 import com.aura.tools.evolution.RollbackEvolutionTool
 import com.aura.tools.evolution.TriggerEvolutionRunTool
@@ -79,6 +85,12 @@ object ToolsModule {
         triggerEvolution: TriggerEvolutionRunTool,
         delegateToAgent: DelegateToAgentTool,
         runCouncil: RunCouncilTool,
+        gmail: GoogleGmailTool,
+        googleCalendar: GoogleCalendarTool,
+        googleDrive: GoogleDriveTool,
+        outlookMail: MicrosoftMailTool,
+        outlookCalendar: MicrosoftCalendarTool,
+        onedrive: MicrosoftFilesTool,
     ): ToolRegistry {
         val registry = ToolRegistry()
         registry.register(webSearch.tool)
@@ -146,6 +158,12 @@ object ToolsModule {
         registry.register(triggerEvolution.tool)
         registry.register(delegateToAgent.tool)
         registry.register(runCouncil.tool)
+        registry.register(gmail.tool)
+        registry.register(googleCalendar.tool)
+        registry.register(googleDrive.tool)
+        registry.register(outlookMail.tool)
+        registry.register(outlookCalendar.tool)
+        registry.register(onedrive.tool)
         return registry
     }
 }
