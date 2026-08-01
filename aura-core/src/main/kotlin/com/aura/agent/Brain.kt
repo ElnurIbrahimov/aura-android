@@ -178,6 +178,16 @@ sealed class BrainChunk {
             if (tc != null) {
                 if (tc.id.isNotEmpty() && tc.name.isNotEmpty()) {
                     if (nameById.put(tc.id, tc.name) == null) {
+                        // First time seeing this tool call. Return Start
+                        // with the name. The loop will register it and
+                        // collect args from subsequent deltas.
+                        // If args are present in this first chunk, return
+                        // ToolCallEnd so the loop processes the complete
+                        // call immediately (some providers send complete
+                        // tool calls in a single chunk).
+                        if (tc.arguments.isNotEmpty()) {
+                            return ToolCallEnd(tc.id, tc.name, tc.arguments)
+                        }
                         return ToolCallStart(tc.id, tc.name)
                     }
                     if (tc.arguments.isNotEmpty()) {

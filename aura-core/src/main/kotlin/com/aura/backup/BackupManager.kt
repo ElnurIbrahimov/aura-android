@@ -239,6 +239,20 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
                 daemonEnabled = userPreferences.daemonEnabled.first(),
+                // Schema v15: reasoning, integrations, per-role models, dream stats
+                reasoningEnabled = userPreferences.reasoningEnabled.first(),
+                reasoningBudget = userPreferences.reasoningBudget.first(),
+                googleClientId = userPreferences.googleClientId.first(),
+                microsoftClientId = userPreferences.microsoftClientId.first(),
+                fastModel = userPreferences.forRole(com.aura.providers.ModelRole.FAST).first(),
+                reasoningModel = userPreferences.forRole(com.aura.providers.ModelRole.REASONING).first(),
+                creativeDraftModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_DRAFT).first(),
+                creativeCriticModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_CRITIC).first(),
+                plannerModel = userPreferences.forRole(com.aura.providers.ModelRole.PLANNER).first(),
+                verifierModel = userPreferences.forRole(com.aura.providers.ModelRole.VERIFIER).first(),
+                evolutionModel = userPreferences.forRole(com.aura.providers.ModelRole.EVOLUTION).first(),
+                dreamLastRunAt = userPreferences.dreamLastRunAt.first(),
+                dreamLastRunStats = userPreferences.dreamLastRunStats.first(),
             ),
             usage = usageTracker.snapshot.value,
             agents = agentDao.allOnce().map { it.toBackup() },
@@ -459,6 +473,22 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         userPreferences.setEvolutionShadowEnabled(backup.preferences.evolutionShadowEnabled)
         userPreferences.setEvolutionOnboardingShown(backup.preferences.evolutionOnboardingShown)
         userPreferences.setDaemonEnabled(backup.preferences.daemonEnabled)
+        // Schema v15: restore reasoning, integrations, per-role models, dream stats
+        userPreferences.setReasoningEnabled(backup.preferences.reasoningEnabled)
+        userPreferences.setReasoningBudget(backup.preferences.reasoningBudget)
+        if (backup.preferences.googleClientId.isNotBlank()) {
+            userPreferences.setGoogleClientId(backup.preferences.googleClientId)
+        }
+        if (backup.preferences.microsoftClientId.isNotBlank()) {
+            userPreferences.setMicrosoftClientId(backup.preferences.microsoftClientId)
+        }
+        backup.preferences.fastModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.FAST, it) }
+        backup.preferences.reasoningModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.REASONING, it) }
+        backup.preferences.creativeDraftModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_DRAFT, it) }
+        backup.preferences.creativeCriticModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_CRITIC, it) }
+        backup.preferences.plannerModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.PLANNER, it) }
+        backup.preferences.verifierModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.VERIFIER, it) }
+        backup.preferences.evolutionModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.EVOLUTION, it) }
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
         // P0 fix: restore strategy bandit weights (were snapshotted but never restored)

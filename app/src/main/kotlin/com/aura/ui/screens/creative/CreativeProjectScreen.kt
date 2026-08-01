@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,13 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.aura.creative.CouncilRole
 import com.aura.creative.CreativeMode
 import com.aura.creative.CreativeProject
-import com.aura.creative.CouncilRole
+import com.aura.creative.ProseCraftTools
 import com.aura.creative.WritingTemplates
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.viewmodel.CreativeStudioUiState
 import com.aura.ui.viewmodel.CreativeStudioViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -100,7 +104,7 @@ fun CreativeProjectScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
-                listOf("World", "Write", "Simulate", "Council").forEachIndexed { index, label ->
+                listOf("World", "Write", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -130,9 +134,11 @@ fun CreativeProjectScreen(
                 item {
                     when (selectedTab) {
                         0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
-                        1 -> WritingRoom(state.output, state.generating, viewModel::generate, viewModel::cancelGeneration)
+                        1 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
                         2 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
-                        else -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
+                        3 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
+                        4 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
+                        else -> ToolsRoom(state, viewModel)
                     }
                 }
             }
@@ -206,6 +212,7 @@ private fun CouncilRoom(
 private fun WritingRoom(
     output: String,
     generating: Boolean,
+    wordCount: Int,
     onGenerate: (CreativeMode, String, String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -242,7 +249,145 @@ private fun WritingRoom(
                 Text(if (mode == CreativeMode.CONTINUITY) "Check continuity" else mode.label)
             }
         }
+        if (output.isNotBlank()) {
+            Text("$wordCount words", style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
+        }
         GenerationOutput(output = output, generating = generating)
+    }
+}
+
+@Composable
+private fun CraftRoom(
+    output: String,
+    generating: Boolean,
+    onApply: (ProseCraftTools.CraftTool, String, String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var selectedTool by remember { mutableStateOf(ProseCraftTools.CraftTool.SHOW_DONT_TELL) }
+    var selectedText by remember { mutableStateOf("") }
+    var context by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+        Text("Prose Craft Tools", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Select a craft tool, paste the text you want to transform, and run. Each tool applies a specific craft principle.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ProseCraftTools.CraftTool.entries) { tool ->
+                FilterChip(
+                    selected = selectedTool == tool,
+                    onClick = { selectedTool = tool },
+                    label = { Text("${tool.iconName} ${tool.label}") },
+                )
+            }
+        }
+        OutlinedTextField(
+            value = selectedText,
+            onValueChange = { selectedText = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            label = { Text("Selected text to transform") },
+        )
+        OutlinedTextField(
+            value = context,
+            onValueChange = { context = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            label = { Text("Surrounding context (optional)") },
+            supportingText = { Text("Paste the paragraph before/after for reference") },
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+            if (generating) {
+                OutlinedButton(onClick = onCancel) {
+                    Icon(Icons.Filled.Stop, contentDescription = null)
+                    Text(stringResource(R.string.stop))
+                }
+            }
+            Button(
+                enabled = selectedText.isNotBlank() && !generating,
+                onClick = { onApply(selectedTool, selectedText, context) },
+            ) {
+                Text(selectedTool.label)
+            }
+        }
+        GenerationOutput(output = output, generating = generating)
+    }
+}
+
+@Composable
+private fun ToolsRoom(
+    state: CreativeStudioUiState,
+    viewModel: CreativeStudioViewModel,
+) {
+    var voiceSample by remember { mutableStateOf("") }
+    var tensionText by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+        // Voice Calibration
+        Text("Voice Calibration", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Paste 500-5000 words of your writing. Aura will analyze your prose style and match it in generated content.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+        )
+        OutlinedTextField(
+            value = voiceSample,
+            onValueChange = { voiceSample = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            label = { Text("Your writing sample") },
+        )
+        Button(
+            enabled = voiceSample.length > 200 && !state.calibrating,
+            onClick = { viewModel.calibrateVoice(voiceSample) },
+        ) {
+            Text(if (state.calibrating) "Analyzing..." else "Calibrate Voice")
+        }
+        if (state.voiceProfile.isNotBlank()) {
+            Surface(
+                color = AuraThemeTokens.colors.surface1,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(AuraSpacing.md)) {
+                    Text("Voice Profile", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(state.voiceProfile, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        // Tension Analysis
+        Text("Tension Analysis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Paste your manuscript. Aura will analyze pacing scene-by-scene and produce a tension heatmap with recommendations.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+        )
+        OutlinedTextField(
+            value = tensionText,
+            onValueChange = { tensionText = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            label = { Text("Manuscript text") },
+        )
+        Button(
+            enabled = tensionText.length > 500 && !state.analyzingTension,
+            onClick = { viewModel.analyzeTension(tensionText) },
+        ) {
+            Text(if (state.analyzingTension) "Analyzing..." else "Analyze Pacing")
+        }
+        if (state.tensionReport.isNotBlank()) {
+            Surface(
+                color = AuraThemeTokens.colors.surface1,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(AuraSpacing.md)) {
+                    Text("Tension Report", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(state.tensionReport, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
     }
 }
 

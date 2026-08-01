@@ -385,6 +385,20 @@ data class PreferencesBackup(
     // UI but was previously lost on backup/restore. Default off; users
     // who have enabled it explicitly will get their preference back.
     val daemonEnabled: Boolean = false,
+    // Schema v15 additions — reasoning, integrations, per-role models, dream stats.
+    val reasoningEnabled: Boolean = true,
+    val reasoningBudget: Int = 32000,
+    val googleClientId: String = "",
+    val microsoftClientId: String = "",
+    val fastModel: String? = null,
+    val reasoningModel: String? = null,
+    val creativeDraftModel: String? = null,
+    val creativeCriticModel: String? = null,
+    val plannerModel: String? = null,
+    val verifierModel: String? = null,
+    val evolutionModel: String? = null,
+    val dreamLastRunAt: Long = 0L,
+    val dreamLastRunStats: String = "",
 )
 
 @Serializable

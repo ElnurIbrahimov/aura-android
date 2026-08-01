@@ -116,6 +116,9 @@ class ChatGptSubscriptionProvider(
         // function_call events in one response; chat-completions-style deltas
         // include an `index` field.
         val toolCallsByIndex = mutableMapOf<Int, ToolCallBuilder>()
+        // Per-stream counter for synthetic tool call ids to prevent
+        // id collisions when parallel calls arrive in the same millisecond.
+        var toolCallCounter = 0
         EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 sourceHolder.source = eventSource
@@ -149,7 +152,8 @@ class ChatGptSubscriptionProvider(
                     if (toolCallObj != null) {
                         val fnName = (toolCallObj["name"] ?: toolCallObj["function"]?.jsonObject?.get("name"))?.jsonPrimitive?.content ?: ""
                         val fnArgs = (toolCallObj["arguments"] ?: toolCallObj["function"]?.jsonObject?.get("arguments"))?.jsonPrimitive?.content ?: "{}"
-                        val callId = toolCallObj["id"]?.jsonPrimitive?.content ?: "chatgpt_${System.currentTimeMillis()}_${fnName.hashCode()}"
+                        val callId = toolCallObj["id"]?.jsonPrimitive?.content
+                            ?: "chatgpt_${System.currentTimeMillis()}_${toolCallCounter++}_${fnName.hashCode()}"
                         if (fnName.isNotBlank()) {
                             channel.trySend(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
                         }

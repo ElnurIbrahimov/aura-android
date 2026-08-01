@@ -115,7 +115,15 @@ class BackupManagerTest {
         every { userPreferences.mcpServersJson } returns flowOf("[]")
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        
         every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { userPreferences.reasoningEnabled } returns flowOf(true)
+        every { userPreferences.reasoningBudget } returns flowOf(32000)
+        every { userPreferences.googleClientId } returns flowOf("")
+        every { userPreferences.microsoftClientId } returns flowOf("")
+        every { userPreferences.dreamLastRunAt } returns flowOf(0L)
+        every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
         val backup = manager.snapshot(appVersionName = "0.1.0")
@@ -591,7 +599,15 @@ class BackupManagerTest {
         every { userPreferences.mcpServersJson } returns flowOf("[]")
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        
         every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { userPreferences.reasoningEnabled } returns flowOf(true)
+        every { userPreferences.reasoningBudget } returns flowOf(32000)
+        every { userPreferences.googleClientId } returns flowOf("")
+        every { userPreferences.microsoftClientId } returns flowOf("")
+        every { userPreferences.dreamLastRunAt } returns flowOf(0L)
+        every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
         val mgr = BackupManager(
@@ -769,7 +785,15 @@ class BackupManagerTest {
         every { userPreferences.mcpServersJson } returns flowOf("[]")
         every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        
         every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { userPreferences.reasoningEnabled } returns flowOf(true)
+        every { userPreferences.reasoningBudget } returns flowOf(32000)
+        every { userPreferences.googleClientId } returns flowOf("")
+        every { userPreferences.microsoftClientId } returns flowOf("")
+        every { userPreferences.dreamLastRunAt } returns flowOf(0L)
+        every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns ""
 
         val backup = manager.snapshot(appVersionName = "0.1.0")
