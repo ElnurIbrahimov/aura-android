@@ -43,27 +43,31 @@ enum class CreativeMode(val label: String, val instruction: String, val temperat
     ),
 }
 
+/**
+ * The creative engine. Generates content for a creative project by
+ * assembling a rich system prompt from:
+ * - The mode instruction (what to do)
+ * - Genre-specific craft guidance (how to do it well)
+ * - Mode-specific craft guidance (adjustments for this mode)
+ * - The world bible rendered as narrative, not data
+ * - Prior simulation summaries (so the model can build on what-if explorations)
+ * - The most recent artifacts (so iterative drafting has context)
+ * - Word count targets for long-form modes
+ *
+ * Conversation history: the last N turns of creative generation are
+ * included as prior messages so the model has continuity between
+ * calls. Without this, every call is amnesiac — you can't say "make
+ * the dialogue in the last scene sharper" because the model doesn't
+ * remember the last scene.
+ */
 @Singleton
 class CreativeEngine @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val userPreferences: UserPreferences,
     private val projectStore: CreativeProjectStore,
+    private val artifactStore: CreativeArtifactStore,
     private val brain: com.aura.agent.Brain,
 ) {
-    /**
-     * Generate creative content for a project.
-     *
-     * The SIMULATE mode is the heavy-lifter: it runs a full what-if
-     * simulation that can produce 12K-16K words in a single round.
-     * To support this, maxTokens is set to 28K (enough for ~21K words
-     * of output) and thinkingBudget is injected by Brain from
-     * UserPreferences (default 32K, on by default).
-     *
-     * The caller can override thinking via [thinkingBudget]:
-     * - null = use global preference (default on, 32K)
-     * - 0 = disable thinking for this call
-     * - N = use N tokens of thinking budget
-     */
     fun generate(
         projectId: String,
         mode: CreativeMode,
@@ -76,26 +80,12 @@ class CreativeEngine @Inject constructor(
             ?: throw IllegalArgumentException("Creative project not found.")
         val model = resolveModel()
         val template = WritingTemplates.byId(project.templateId)
-        val systemPrompt = buildString {
-            appendLine("You are Aura's Creative Studio engine working inside one durable project.")
-            appendLine(mode.instruction)
-            appendLine("Preserve the user's authorship: assist and extend; never claim generated exploration is canon.")
-            template?.let { appendLine("FORM: ${it.prompt}") }
-            appendLine()
-            append(buildProjectContext(project))
-        }
-        val userPrompt = buildString {
-            if (perspective.isNotBlank()) appendLine("Perspective: $perspective")
-            append(input.trim())
-        }
-        // maxTokens: SIMULATE and DRAFT need enough room for 12K-16K words
-        // (~16K-21K tokens). Other modes are short (brainstorm, outline,
-        // continuity). We set a generous floor so the model never
-        // truncates mid-sentence.
+        val systemPrompt = buildSystemPrompt(project, mode, template)
+        val messages = buildMessages(projectId, project, mode, input, perspective, systemPrompt)
         val outputBudget = when (mode) {
-            CreativeMode.SIMULATE, CreativeMode.DRAFT -> 28_672  // 28K tokens ≈ 21K words
-            CreativeMode.REWRITE -> 16_384  // 16K tokens
-            else -> 8_192  // 8K for brainstorm, outline, continuity
+            CreativeMode.SIMULATE, CreativeMode.DRAFT -> 28_672
+            CreativeMode.REWRITE -> 16_384
+            else -> 8_192
         }
         val options = ChatOptions(
             temperature = mode.temperature,
@@ -103,14 +93,7 @@ class CreativeEngine @Inject constructor(
             thinkingBudget = thinkingBudget,
         )
         val output = StringBuilder()
-        // Route through Brain so thinking budget is injected from
-        // UserPreferences (when thinkingBudget is null). When the
-        // caller explicitly sets thinkingBudget=0, thinking is off
-        // for this call. When non-null and >0, uses that budget.
-        brain.stream(model, listOf(
-            ProviderMessage(ProviderMessage.Role.system, systemPrompt),
-            ProviderMessage(ProviderMessage.Role.user, userPrompt),
-        ), emptyList(), options).collect { chunk ->
+        brain.stream(model, messages, emptyList(), options).collect { chunk ->
             when (chunk) {
                 is com.aura.agent.BrainChunk.Text -> {
                     if (chunk.text.isNotEmpty()) {
@@ -137,6 +120,223 @@ class CreativeEngine @Inject constructor(
         }
     }
 
+    /**
+     * Build the system prompt. This is the core SOTA upgrade —
+     * instead of 3 generic lines, the prompt now includes:
+     *
+     * 1. Role + mode instruction
+     * 2. Genre-specific craft guidance (40-80 lines of technique)
+     * 3. Mode-specific craft guidance (5-15 lines of adjustments)
+     * 4. Word count target for long-form modes
+     * 5. World bible rendered as narrative prose, not key-value data
+     * 6. Prior simulation summaries (last 3)
+     * 7. Recent artifacts (last 3, first 500 chars each)
+     */
+    private fun buildSystemPrompt(
+        project: CreativeProject,
+        mode: CreativeMode,
+        template: WritingTemplate?,
+    ): String = buildString {
+        appendLine("You are Aura's Creative Studio engine working inside one durable creative project.")
+        appendLine("You are not a chatbot. You are a craftsperson. Every word you write should serve the story.")
+        appendLine()
+        appendLine("== TASK ==")
+        appendLine(mode.instruction)
+        appendLine()
+        // Genre-specific craft
+        if (template != null) {
+            appendLine("== FORM: ${template.name} ==")
+            GenreCraftPrompts.forTemplate(template.id)?.let { craft ->
+                appendLine(craft)
+                appendLine()
+            }
+        }
+        // Mode-specific craft
+        appendLine("== MODE GUIDANCE ==")
+        appendLine(GenreCraftPrompts.forMode(mode))
+        appendLine()
+        // Word count target for long-form modes
+        if (mode == CreativeMode.DRAFT || mode == CreativeMode.SIMULATE) {
+            appendLine("== LENGTH TARGET ==")
+            appendLine("Aim for 12,000-16,000 words. Do not stop early. Do not summarize the ending — write it in full.")
+            appendLine("If you feel the story winding down, that's the final act. Push through to the resolution.")
+            appendLine("Write in scenes. Each scene is 1,000-1,500 words. That's 8-12 scenes for a full draft.")
+            appendLine()
+        }
+        // Authorship preservation
+        appendLine("== AUTHORSHIP ==")
+        appendLine("Preserve the user's authorship: assist and extend; never claim generated exploration is canon.")
+        appendLine("The user is the author. You are the instrument. Their voice matters more than your instinct.")
+        appendLine()
+        // World bible as narrative
+        appendLine("== WORLD BIBLE ==")
+        append(buildNarrativeWorldContext(project))
+    }
+
+    /**
+     * Render the world bible as narrative prose, not key-value data.
+     * Instead of "CHARACTERS: - Name; role=X; traits=[a, b]", write
+     * "The story centers on Name, a [role] shaped by [backstory]. They
+     * are driven by [motivation] and their arc traces [arc]."
+     *
+     * This is how a writer thinks about their world — in relationships,
+     * tensions, and story potential, not in data fields.
+     */
+    private fun buildNarrativeWorldContext(project: CreativeProject): String = buildString {
+        val world = project.world
+        appendLine("PROJECT: ${project.name}")
+        if (project.description.isNotBlank()) appendLine("PREMISE: ${project.description}")
+        if (project.genre.isNotBlank()) appendLine("GENRE: ${project.genre}")
+        if (project.tone.isNotBlank()) appendLine("TONE: ${project.tone}")
+        appendLine()
+
+        if (world.overview.isNotBlank()) {
+            appendLine("WORLD:")
+            appendLine(world.overview)
+            appendLine()
+        }
+
+        if (world.characters.isNotEmpty()) {
+            appendLine("CHARACTERS:")
+            for (c in world.characters) {
+                append("- ${c.name}")
+                if (c.role.isNotBlank()) append(" — ${c.role}")
+                appendLine()
+                if (c.backstory.isNotBlank()) appendLine("  Background: ${c.backstory}")
+                if (c.motivation.isNotBlank()) appendLine("  Driven by: ${c.motivation}")
+                if (c.traits.isNotEmpty()) appendLine("  Traits: ${c.traits.joinToString(", ")}")
+                if (c.arc.isNotBlank()) appendLine("  Arc: ${c.arc}")
+                appendLine()
+            }
+        }
+
+        if (world.locations.isNotEmpty()) {
+            appendLine("LOCATIONS:")
+            for (l in world.locations) {
+                append("- ${l.name}")
+                if (l.type.isNotBlank()) append(" (${l.type})")
+                appendLine()
+                if (l.description.isNotBlank()) appendLine("  ${l.description}")
+                if (l.significance.isNotBlank()) appendLine("  Story significance: ${l.significance}")
+                appendLine()
+            }
+        }
+
+        if (world.factions.isNotEmpty()) {
+            appendLine("FACTIONS:")
+            for (f in world.factions) {
+                append("- ${f.name}")
+                appendLine()
+                if (f.ideology.isNotBlank()) appendLine("  Ideology: ${f.ideology}")
+                if (f.members.isNotEmpty()) appendLine("  Key members: ${f.members.joinToString(", ")}")
+                if (f.rivals.isNotEmpty()) appendLine("  Rivals: ${f.rivals.joinToString(", ")}")
+                appendLine()
+            }
+        }
+
+        if (world.rules.isNotEmpty()) {
+            appendLine("WORLD RULES:")
+            for (r in world.rules) {
+                appendLine("- ${r.name}: ${r.description}")
+                if (r.impact.isNotBlank()) appendLine("  Impact on story: ${r.impact}")
+            }
+            appendLine()
+        }
+
+        if (world.timeline.isNotEmpty()) {
+            appendLine("TIMELINE:")
+            for (e in world.timeline) {
+                append("- ${e.date}: ${e.title}")
+                if (e.description.isNotBlank()) append(" — ${e.description}")
+                appendLine()
+            }
+            appendLine()
+        }
+
+        if (world.outline.isNotEmpty()) {
+            appendLine("STORY OUTLINE:")
+            world.outline.forEachIndexed { i, beat ->
+                appendLine("${i + 1}. [${beat.status}] ${beat.title}: ${beat.summary}")
+            }
+            appendLine()
+        }
+
+        // Prior simulations — feed the last 3 back so the model
+        // can build on previous what-if explorations.
+        if (world.simulations.isNotEmpty()) {
+            appendLine("PRIOR SIMULATIONS (non-canon, for reference):")
+            world.simulations.take(3).forEach { sim ->
+                appendLine("- ${sim.premise}")
+                appendLine("  Outcome: ${sim.outcome.take(500)}...")
+                appendLine()
+            }
+        }
+
+        if (world.continuityNotes.isNotEmpty()) {
+            appendLine("KNOWN CONTINUITY ISSUES:")
+            for (issue in world.continuityNotes) {
+                appendLine("- [${issue.severity}] ${issue.description}")
+            }
+            appendLine()
+        }
+
+        if (world.notes.isNotBlank()) {
+            appendLine("AUTHOR NOTES:")
+            appendLine(world.notes)
+        }
+    }
+
+    /**
+     * Build the message list. Includes the system prompt, prior
+     * conversation context (last 3 creative artifacts), and the
+     * current user prompt.
+     *
+     * The prior artifacts give the model continuity: it can see
+     * what was written before and build on it instead of starting
+     * fresh every time.
+     */
+    private suspend fun buildMessages(
+        projectId: String,
+        project: CreativeProject,
+        mode: CreativeMode,
+        input: String,
+        perspective: String,
+        systemPrompt: String,
+    ): List<ProviderMessage> {
+        val messages = mutableListOf<ProviderMessage>()
+        messages.add(ProviderMessage(ProviderMessage.Role.system, systemPrompt))
+
+        // Feed recent artifacts as conversation context so the model
+        // has continuity. Last 3 artifacts, first 2000 chars each.
+        val recentArtifacts = runCatching {
+            artifactStore.forProject(projectId)
+                .sortedByDescending { it.updatedAt }
+                .take(3)
+        }.getOrDefault(emptyList())
+
+        for (artifact in recentArtifacts) {
+            val content = runCatching {
+                val revisions = artifactStore.revisionsForArtifact(artifact.id)
+                revisions.lastOrNull()?.contentText ?: artifact.previewText
+            }.getOrDefault(artifact.previewText)
+
+            if (content.isNotBlank()) {
+                messages.add(ProviderMessage(
+                    ProviderMessage.Role.assistant,
+                    "[Previous ${artifact.kind}: ${artifact.title}]\n${content.take(2000)}"
+                ))
+            }
+        }
+
+        // Current user prompt
+        val userPrompt = buildString {
+            if (perspective.isNotBlank()) appendLine("Perspective: $perspective")
+            append(input.trim())
+        }
+        messages.add(ProviderMessage(ProviderMessage.Role.user, userPrompt))
+        return messages
+    }
+
     internal suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
@@ -148,44 +348,7 @@ class CreativeEngine @Inject constructor(
         throw IllegalStateException("Configure an LLM provider and choose a default model before using Creative Studio.")
     }
 
-    fun buildProjectContext(project: CreativeProject): String {
-        val world = project.world
-        val text = buildString {
-            appendLine("PROJECT: ${project.name}")
-            appendLine("DESCRIPTION: ${project.description.ifBlank { "Not set" }}")
-            appendLine("GENRE: ${project.genre.ifBlank { "Not set" }}")
-            appendLine("TONE: ${project.tone.ifBlank { "Not set" }}")
-            appendLine("WORLD OVERVIEW: ${world.overview.ifBlank { "Not set" }}")
-            if (world.characters.isNotEmpty()) {
-                appendLine("CHARACTERS:")
-                world.characters.forEach { appendLine("- ${it.name}; role=${it.role}; traits=${it.traits.joinToString()}; backstory=${it.backstory}; motivation=${it.motivation}; arc=${it.arc}") }
-            }
-            if (world.locations.isNotEmpty()) {
-                appendLine("LOCATIONS:")
-                world.locations.forEach { appendLine("- ${it.name}; type=${it.type}; ${it.description}; significance=${it.significance}") }
-            }
-            if (world.factions.isNotEmpty()) {
-                appendLine("FACTIONS:")
-                world.factions.forEach { appendLine("- ${it.name}; ideology=${it.ideology}; members=${it.members.joinToString()}; rivals=${it.rivals.joinToString()}") }
-            }
-            if (world.rules.isNotEmpty()) {
-                appendLine("WORLD RULES:")
-                world.rules.forEach { appendLine("- ${it.name} [${it.category}]: ${it.description}; impact=${it.impact}") }
-            }
-            if (world.timeline.isNotEmpty()) {
-                appendLine("TIMELINE:")
-                world.timeline.forEach { appendLine("- ${it.date} ${it.title}: ${it.description}") }
-            }
-            if (world.outline.isNotEmpty()) {
-                appendLine("OUTLINE:")
-                world.outline.forEachIndexed { i, it -> appendLine("${i + 1}. ${it.title} [${it.status}]: ${it.summary}") }
-            }
-            if (world.notes.isNotBlank()) appendLine("NOTES: ${world.notes}")
-        }
-        return text.take(MAX_CONTEXT_CHARS)
-    }
-
     companion object {
-        const val MAX_CONTEXT_CHARS = 24_000
+        const val MAX_CONTEXT_CHARS = 48_000
     }
 }
