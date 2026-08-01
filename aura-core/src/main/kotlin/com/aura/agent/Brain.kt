@@ -77,9 +77,14 @@ class Brain @Inject constructor(
                     userPreferences.reasoningBudget.first()
                 }.getOrDefault(32000)
                 resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
-                // Ensure maxTokens is high enough for the thinking budget.
-                // Anthropic requires max_tokens >= budget_tokens + 1.
-                val minMaxTokens = budget + 4096
+                // Ensure maxTokens covers BOTH the thinking budget AND a
+                // generous output budget. Anthropic requires max_tokens >=
+                // budget_tokens + 1, but the remaining tokens must also be
+                // enough for the actual response. For long-form creative
+                // generation (12K-16K words ≈ 16K-21K tokens), the output
+                // budget must be at least 24K. We use the larger of the
+                // existing maxTokens and budget + 24K.
+                val minMaxTokens = budget + 24_576
                 if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {
                     resolvedOptions = resolvedOptions.copy(maxTokens = minMaxTokens)
                 }

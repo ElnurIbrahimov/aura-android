@@ -48,12 +48,28 @@ class CreativeEngine @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val userPreferences: UserPreferences,
     private val projectStore: CreativeProjectStore,
+    private val brain: com.aura.agent.Brain,
 ) {
+    /**
+     * Generate creative content for a project.
+     *
+     * The SIMULATE mode is the heavy-lifter: it runs a full what-if
+     * simulation that can produce 12K-16K words in a single round.
+     * To support this, maxTokens is set to 28K (enough for ~21K words
+     * of output) and thinkingBudget is injected by Brain from
+     * UserPreferences (default 32K, on by default).
+     *
+     * The caller can override thinking via [thinkingBudget]:
+     * - null = use global preference (default on, 32K)
+     * - 0 = disable thinking for this call
+     * - N = use N tokens of thinking budget
+     */
     fun generate(
         projectId: String,
         mode: CreativeMode,
         input: String,
         perspective: String = "",
+        thinkingBudget: Int? = null,
     ): Flow<String> = flow {
         require(input.isNotBlank()) { "A writing prompt is required." }
         val project = projectStore.get(projectId)
@@ -72,19 +88,38 @@ class CreativeEngine @Inject constructor(
             if (perspective.isNotBlank()) appendLine("Perspective: $perspective")
             append(input.trim())
         }
+        // maxTokens: SIMULATE and DRAFT need enough room for 12K-16K words
+        // (~16K-21K tokens). Other modes are short (brainstorm, outline,
+        // continuity). We set a generous floor so the model never
+        // truncates mid-sentence.
+        val outputBudget = when (mode) {
+            CreativeMode.SIMULATE, CreativeMode.DRAFT -> 28_672  // 28K tokens ≈ 21K words
+            CreativeMode.REWRITE -> 16_384  // 16K tokens
+            else -> 8_192  // 8K for brainstorm, outline, continuity
+        }
+        val options = ChatOptions(
+            temperature = mode.temperature,
+            maxTokens = outputBudget,
+            thinkingBudget = thinkingBudget,
+        )
         val output = StringBuilder()
-        providerRegistry.chat(
-            model,
-            listOf(
-                ProviderMessage(ProviderMessage.Role.system, systemPrompt),
-                ProviderMessage(ProviderMessage.Role.user, userPrompt),
-            ),
-            ChatOptions(temperature = mode.temperature, maxTokens = 4_096),
-        ).collect { chunk ->
-            chunk.error?.let { throw IllegalStateException(it.message) }
-            chunk.text?.takeIf(String::isNotEmpty)?.let { text ->
-                output.append(text)
-                emit(text)
+        // Route through Brain so thinking budget is injected from
+        // UserPreferences (when thinkingBudget is null). When the
+        // caller explicitly sets thinkingBudget=0, thinking is off
+        // for this call. When non-null and >0, uses that budget.
+        brain.stream(model, listOf(
+            ProviderMessage(ProviderMessage.Role.system, systemPrompt),
+            ProviderMessage(ProviderMessage.Role.user, userPrompt),
+        ), emptyList(), options).collect { chunk ->
+            when (chunk) {
+                is com.aura.agent.BrainChunk.Text -> {
+                    if (chunk.text.isNotEmpty()) {
+                        output.append(chunk.text)
+                        emit(chunk.text)
+                    }
+                }
+                is com.aura.agent.BrainChunk.Error -> throw IllegalStateException(chunk.message)
+                else -> {}
             }
         }
         if (output.isNotBlank()) {

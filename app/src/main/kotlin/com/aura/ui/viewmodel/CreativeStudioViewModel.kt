@@ -34,6 +34,10 @@ data class CreativeStudioUiState(
     val message: String? = null,
     val createdProjectId: String? = null,
     val councilResult: CouncilResult? = null,
+    /** Whether extended thinking is on for the next generate call.
+     * null = use global preference (default on). 0 = off. N = N token budget. */
+    val thinkingBudget: Int? = null,
+    val thinkingEnabled: Boolean = true,
 )
 
 @HiltViewModel
@@ -127,11 +131,15 @@ class CreativeStudioViewModel @Inject constructor(
 
     fun generate(mode: CreativeMode, prompt: String, perspective: String = "") {
         val project = _state.value.selectedProject ?: return
+        // Resolve thinking budget: if the user toggled thinking off in
+        // the UI, pass 0 to disable. If on, pass null to use the global
+        // preference (default 32K). The per-call override takes priority.
+        val thinkingBudget = if (_state.value.thinkingEnabled) _state.value.thinkingBudget else 0
         generationJob?.cancel()
         generationJob = viewModelScope.launch {
             _state.update { it.copy(generating = true, output = "", error = null) }
             runCatching {
-                engine.generate(project.id, mode, prompt, perspective).collect { chunk ->
+                engine.generate(project.id, mode, prompt, perspective, thinkingBudget = thinkingBudget).collect { chunk ->
                     _state.update { it.copy(output = it.output + chunk) }
                 }
             }.onFailure { error ->
@@ -140,6 +148,10 @@ class CreativeStudioViewModel @Inject constructor(
             val refreshed = store.get(project.id)
             _state.update { it.copy(selectedProject = refreshed ?: it.selectedProject, generating = false) }
         }
+    }
+
+    fun toggleThinking() {
+        _state.update { it.copy(thinkingEnabled = !it.thinkingEnabled) }
     }
 
     fun runCouncil(brief: String, roles: List<CouncilRole>) {
