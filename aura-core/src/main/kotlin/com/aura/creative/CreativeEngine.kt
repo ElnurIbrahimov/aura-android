@@ -67,6 +67,7 @@ class CreativeEngine @Inject constructor(
     private val projectStore: CreativeProjectStore,
     private val artifactStore: CreativeArtifactStore,
     private val brain: com.aura.agent.Brain,
+    private val smartCodexInjector: SmartCodexInjector = SmartCodexInjector(),
 ) {
     fun generate(
         projectId: String,
@@ -80,7 +81,7 @@ class CreativeEngine @Inject constructor(
             ?: throw IllegalArgumentException("Creative project not found.")
         val model = resolveModel()
         val template = WritingTemplates.byId(project.templateId)
-        val systemPrompt = buildSystemPrompt(project, mode, template)
+        val systemPrompt = buildSystemPrompt(project, mode, template, input)
         val messages = buildMessages(projectId, project, mode, input, perspective, systemPrompt)
         val outputBudget = when (mode) {
             CreativeMode.SIMULATE, CreativeMode.DRAFT -> 28_672
@@ -136,6 +137,7 @@ class CreativeEngine @Inject constructor(
         project: CreativeProject,
         mode: CreativeMode,
         template: WritingTemplate?,
+        prompt: String = "",
     ): String = buildString {
         appendLine("You are Aura's Creative Studio engine working inside one durable creative project.")
         appendLine("You are not a chatbot. You are a craftsperson. Every word you write should serve the story.")
@@ -170,20 +172,24 @@ class CreativeEngine @Inject constructor(
         appendLine()
         // World bible as narrative
         appendLine("== WORLD BIBLE ==")
-        append(buildNarrativeWorldContext(project))
+        append(buildNarrativeWorldContext(project, prompt))
     }
 
     /**
      * Render the world bible as narrative prose, not key-value data.
-     * Instead of "CHARACTERS: - Name; role=X; traits=[a, b]", write
-     * "The story centers on Name, a [role] shaped by [backstory]. They
-     * are driven by [motivation] and their arc traces [arc]."
      *
-     * This is how a writer thinks about their world — in relationships,
-     * tensions, and story potential, not in data fields.
+     * Uses [SmartCodexInjector] to filter the world bible to only
+     * entries relevant to the current prompt. This reduces context
+     * waste and improves output quality by letting the model focus
+     * on what matters for this scene.
      */
-    private fun buildNarrativeWorldContext(project: CreativeProject): String = buildString {
-        val world = project.world
+    private fun buildNarrativeWorldContext(project: CreativeProject, prompt: String = ""): String = buildString {
+        val world = if (prompt.isNotBlank()) {
+            val filtered = smartCodexInjector.filterRelevant(project.world, prompt)
+            if (smartCodexInjector.hasContent(filtered)) filtered else project.world
+        } else {
+            project.world
+        }
         appendLine("PROJECT: ${project.name}")
         if (project.description.isNotBlank()) appendLine("PREMISE: ${project.description}")
         if (project.genre.isNotBlank()) appendLine("GENRE: ${project.genre}")
