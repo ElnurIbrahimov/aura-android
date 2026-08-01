@@ -39,7 +39,12 @@ class CreativeStudioViewModelTest {
         "novel", 0, 1L, 1L,
     )
 
-    private fun newViewModel() = CreativeStudioViewModel(store, engine, council, providerRegistry, capabilityRouter, modelRoleRouter)
+    private fun newViewModel() = CreativeStudioViewModel(
+        store, engine, council, providerRegistry, capabilityRouter, modelRoleRouter,
+        mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+        mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+        mockk(relaxed = true),
+    )
 
     @Before
     fun setUp() {

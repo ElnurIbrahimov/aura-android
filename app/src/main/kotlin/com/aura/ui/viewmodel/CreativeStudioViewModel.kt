@@ -11,6 +11,12 @@ import com.aura.creative.CreativeEngine
 import com.aura.creative.CreativeMode
 import com.aura.creative.CreativeProject
 import com.aura.creative.CreativeProjectStore
+import com.aura.creative.CreativeArtifactStore
+import com.aura.creative.CreativeBranchStore
+import com.aura.creative.ProseCraftTools
+import com.aura.creative.VoiceCalibration
+import com.aura.creative.TensionAnalyzer
+import com.aura.creative.CharacterProgressionTracker
 import com.aura.creative.WorldBible
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
@@ -34,10 +40,13 @@ data class CreativeStudioUiState(
     val message: String? = null,
     val createdProjectId: String? = null,
     val councilResult: CouncilResult? = null,
-    /** Whether extended thinking is on for the next generate call.
-     * null = use global preference (default on). 0 = off. N = N token budget. */
     val thinkingBudget: Int? = null,
     val thinkingEnabled: Boolean = true,
+    val voiceProfile: String = "",
+    val calibrating: Boolean = false,
+    val tensionReport: String = "",
+    val analyzingTension: Boolean = false,
+    val wordCount: Int = 0,
 )
 
 @HiltViewModel
@@ -48,6 +57,13 @@ class CreativeStudioViewModel @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val capabilityRouter: CapabilityRouter,
     private val modelRoleRouter: com.aura.providers.ModelRoleRouter,
+    private val proseCraftTools: ProseCraftTools,
+    private val voiceCalibration: VoiceCalibration,
+    private val tensionAnalyzer: TensionAnalyzer,
+    private val progressionTracker: CharacterProgressionTracker,
+    private val artifactStore: CreativeArtifactStore,
+    private val branchStore: CreativeBranchStore,
+    private val brain: com.aura.agent.Brain,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -131,22 +147,104 @@ class CreativeStudioViewModel @Inject constructor(
 
     fun generate(mode: CreativeMode, prompt: String, perspective: String = "") {
         val project = _state.value.selectedProject ?: return
-        // Resolve thinking budget: if the user toggled thinking off in
-        // the UI, pass 0 to disable. If on, pass null to use the global
-        // preference (default 32K). The per-call override takes priority.
         val thinkingBudget = if (_state.value.thinkingEnabled) _state.value.thinkingBudget else 0
         generationJob?.cancel()
         generationJob = viewModelScope.launch {
-            _state.update { it.copy(generating = true, output = "", error = null) }
+            _state.update { it.copy(generating = true, output = "", error = null, wordCount = 0) }
             runCatching {
                 engine.generate(project.id, mode, prompt, perspective, thinkingBudget = thinkingBudget).collect { chunk ->
-                    _state.update { it.copy(output = it.output + chunk) }
+                    _state.update { it.copy(output = it.output + chunk, wordCount = it.output.split(Regex("\\s+")).filter { w -> w.isNotBlank() }.size) }
                 }
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message ?: "Creative generation failed.") }
             }
+            // P0 fix: save the output as an artifact so conversation continuity works
+            val output = _state.value.output
+            if (output.isNotBlank() && output.length > 100) {
+                runCatching {
+                    val branch = branchStore.createMainBranch(project.id)
+                    val model = engine.resolveModel()
+                    artifactStore.create(
+                        projectId = project.id,
+                        branchId = branch.id,
+                        kind = mode.name.lowercase(),
+                        title = "${mode.label} — ${prompt.take(60)}",
+                        initialContent = output,
+                        authorKind = "ai",
+                        prompt = prompt,
+                    )
+                }.onFailure { android.util.Log.w("CreativeVM", "artifact save failed: ${it.message}") }
+
+                // P0 fix: auto-extract character progressions after DRAFT/SIMULATE
+                if (mode == CreativeMode.DRAFT || mode == CreativeMode.SIMULATE) {
+                    runCatching {
+                        val progressionOutput = StringBuilder()
+                        progressionTracker.extractFromScene(
+                            sceneText = output.take(8000),
+                            knownCharacters = project.world.characters,
+                            sceneLabel = "${mode.label} turn ${project.turnCount + 1}",
+                        ).collect { chunk -> progressionOutput.append(chunk) }
+                        if (progressionOutput.isNotBlank()) {
+                            _state.update { it.copy(message = "Progression extracted: ${progressionOutput.take(200)}") }
+                        }
+                    }.onFailure { android.util.Log.w("CreativeVM", "progression extract failed: ${it.message}") }
+                }
+            }
             val refreshed = store.get(project.id)
             _state.update { it.copy(selectedProject = refreshed ?: it.selectedProject, generating = false) }
+        }
+    }
+
+    // P0 fix: Prose craft tools — operate on selected text
+    fun applyCraftTool(tool: ProseCraftTools.CraftTool, selectedText: String, context: String = "") {
+        val project = _state.value.selectedProject ?: return
+        generationJob?.cancel()
+        generationJob = viewModelScope.launch {
+            _state.update { it.copy(generating = true, output = "", error = null, wordCount = 0) }
+            runCatching {
+                proseCraftTools.apply(
+                    tool = tool,
+                    selectedText = selectedText,
+                    context = context,
+                    projectId = project.id,
+                    voiceProfile = _state.value.voiceProfile,
+                ).collect { chunk ->
+                    _state.update { it.copy(output = it.output + chunk) }
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Craft tool failed.") }
+            }
+            _state.update { it.copy(generating = false) }
+        }
+    }
+
+    // P0 fix: Voice calibration
+    fun calibrateVoice(sample: String) {
+        generationJob?.cancel()
+        generationJob = viewModelScope.launch {
+            _state.update { it.copy(calibrating = true, error = null) }
+            runCatching {
+                val profile = StringBuilder()
+                voiceCalibration.calibrate(sample).collect { chunk -> profile.append(chunk) }
+                _state.update { it.copy(voiceProfile = profile.toString(), calibrating = false, message = "Voice profile calibrated.") }
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Voice calibration failed.", calibrating = false) }
+            }
+        }
+    }
+
+    // P0 fix: Tension analysis
+    fun analyzeTension(manuscript: String) {
+        generationJob?.cancel()
+        generationJob = viewModelScope.launch {
+            _state.update { it.copy(analyzingTension = true, tensionReport = "", error = null) }
+            runCatching {
+                val report = StringBuilder()
+                tensionAnalyzer.analyze(manuscript).collect { chunk -> report.append(chunk) }
+                _state.update { it.copy(tensionReport = report.toString(), analyzingTension = false) }
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Tension analysis failed.", analyzingTension = false) }
+            }
         }
     }
 
@@ -174,9 +272,15 @@ class CreativeStudioViewModel @Inject constructor(
                         )
                         val start = System.currentTimeMillis()
                         val output = StringBuilder()
-                        providerRegistry.chat(modelId, messages, ChatOptions(maxTokens = 2_048, temperature = 0.7)).collect { chunk ->
-                            chunk.error?.let { throw IllegalStateException(it.message) }
-                            chunk.text?.takeIf(String::isNotEmpty)?.let { output.append(it) }
+                        // P1 fix: route through Brain with thinking + proper maxTokens
+                        brain.stream(modelId, messages, emptyList(), ChatOptions(maxTokens = 8_192, temperature = 0.7)).collect { chunk ->
+                            when (chunk) {
+                                is com.aura.agent.BrainChunk.Text -> {
+                                    if (chunk.text.isNotEmpty()) output.append(chunk.text)
+                                }
+                                is com.aura.agent.BrainChunk.Error -> throw IllegalStateException(chunk.message)
+                                else -> {}
+                            }
                         }
                         com.aura.agents.SubagentResult(
                             taskId = task.id,

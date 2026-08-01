@@ -67,7 +67,7 @@ class CreativeEngine @Inject constructor(
     private val projectStore: CreativeProjectStore,
     private val artifactStore: CreativeArtifactStore,
     private val brain: com.aura.agent.Brain,
-    private val smartCodexInjector: SmartCodexInjector = SmartCodexInjector(),
+    private val smartCodexInjector: SmartCodexInjector,
 ) {
     fun generate(
         projectId: String,
@@ -343,7 +343,7 @@ class CreativeEngine @Inject constructor(
         return messages
     }
 
-    internal suspend fun resolveModel(): String {
+    suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
             val model = runCatching { provider.listModels().firstOrNull() }

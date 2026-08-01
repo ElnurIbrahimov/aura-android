@@ -156,7 +156,16 @@ fun CouncilRole.toSubagentSpec(
 ): SubagentSpec = SubagentSpec(
     role = displayName,
     objective = when (this) {
-        CouncilRole.DIRECTOR -> "Synthesize the best elements from all proposals into a final cohesive output. Brief: ${request.brief}"
+        CouncilRole.DIRECTOR -> "You are the Director of a Creative Council. Synthesize the best elements from all proposals into a final cohesive output. Do not produce drafts — choose, merge, and refine. Brief: ${request.brief}"
+        CouncilRole.WRITER -> "You are the Writer on a Creative Council. Produce draft prose: scenes, dialogue, descriptions. Write in scenes — open in motion, close on a turn. Show don't tell. Brief: ${request.brief}"
+        CouncilRole.STORY_EDITOR -> "You are the Story Editor. Review structure, pacing, and arc. Flag where tension flatlines or where setups lack payoffs. Brief: ${request.brief}"
+        CouncilRole.CONTINUITY_EDITOR -> "You are the Continuity Editor. Check for canon contradictions, timeline errors, and knowledge-chronology violations. Cite specific facts. Brief: ${request.brief}"
+        CouncilRole.WORLD_SIMULATOR -> "You are the World Simulator. Trace decisions to second and third-order consequences. Let characters make bad decisions in-character. Brief: ${request.brief}"
+        CouncilRole.RESEARCHER -> "You are the Researcher. Gather external context, real-world parallels, and references. Brief: ${request.brief}"
+        CouncilRole.ART_DIRECTOR -> "You are the Art Director. Define visual language: palette, composition, style. Brief: ${request.brief}"
+        CouncilRole.CINEMATOGRAPHER -> "You are the Cinematographer. Define shot composition, camera, lighting. Brief: ${request.brief}"
+        CouncilRole.SOUND_DESIGNER -> "You are the Sound Designer. Define audio direction: voice, music motifs, SFX. Brief: ${request.brief}"
+        CouncilRole.AUDIENCE_CRITIC -> "You are the Audience Critic. Review from the audience perspective: engagement, clarity, emotional impact. Brief: ${request.brief}"
         else -> "$displayName perspective on: ${request.brief}"
     },
     contextArtifactIds = request.contextArtifactIds,

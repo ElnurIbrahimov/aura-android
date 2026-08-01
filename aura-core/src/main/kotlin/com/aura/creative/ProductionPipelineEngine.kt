@@ -55,9 +55,7 @@ class ProductionPipelineEngine @Inject constructor(
     private fun stepsFor(pipeline: Pipeline, projectId: String, brief: String): List<StepSpec> {
         val escaped = brief.replace("\\", "\\\\").replace("\"", "\\\"")
             .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-        // Pre-generate UUIDs for all steps so we can reference them in
-        // dependsOn. DagResolver matches by step ID (UUID), not positional
-        // index — positional "[0]", "[1]" would never resolve.
+        // P2 fix: stage-specific prompts instead of the same brief for every stage
         val baseStep = StepSpec(
             id = UUID.randomUUID().toString(),
             toolName = "creative_read_project",
@@ -66,39 +64,39 @@ class ProductionPipelineEngine @Inject constructor(
         )
         val specific = when (pipeline) {
             Pipeline.NOVEL -> listOf(
-                creativeStep("brainstorm", projectId, escaped),
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                creativeStep("continuity", projectId, escaped),
-                creativeStep("rewrite", projectId, escaped),
+                creativeStep("brainstorm", projectId, "Brainstorm 5-8 distinct novel concepts based on this premise. Each should have a different dramatic engine. Premise: $escaped"),
+                creativeStep("outline", projectId, "Create a chapter-by-chapter outline for a novel based on the brainstorm results. Structure as beats with escalation, reversals, and setup/payoff. Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the first full chapter draft. Open in medias res. Write in scenes. Aim for 3000-5000 words. Premise: $escaped"),
+                creativeStep("continuity", projectId, "Check the draft against the project canon. List any contradictions, timeline issues, or unexplained changes. Premise: $escaped"),
+                creativeStep("rewrite", projectId, "Rewrite the draft tightening prose, improving dialogue, and strengthening scene endings. Target 60-70% of original word count without losing meaning. Premise: $escaped"),
             )
             Pipeline.SCREENPLAY -> listOf(
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                creativeStep("continuity", projectId, escaped),
+                creativeStep("outline", projectId, "Create a scene-by-scene screenplay outline. Act 1 (setup), Act 2 (escalation), Act 3 (resolution). Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the first full screenplay scene in proper format (INT/EXT, action lines, dialogue). Premise: $escaped"),
+                creativeStep("continuity", projectId, "Check the screenplay draft for continuity issues against canon. Premise: $escaped"),
             )
             Pipeline.SHORT_FILM -> listOf(
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                mediaStep("image_generate", projectId, "Generate storyboard imagery for: $escaped"),
-                creativeStep("continuity", projectId, escaped),
+                creativeStep("outline", projectId, "Create a beat sheet for a short film. 5-7 scenes maximum. One protagonist, one transformation. Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the short film screenplay. Visual, economical, one turning point. Premise: $escaped"),
+                mediaStep("image_generate", projectId, "Generate storyboard imagery for key scenes: $escaped"),
+                creativeStep("continuity", projectId, "Check the short film for continuity issues. Premise: $escaped"),
             )
             Pipeline.TRAILER -> listOf(
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                mediaStep("tts_speak", projectId, "Narrate trailer voiceover: $escaped"),
+                creativeStep("outline", projectId, "Create a trailer beat sheet: hook, escalation, tone, climax shot. 6-8 beats. Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the trailer script: voiceover, scene descriptions, music cues. Premise: $escaped"),
+                mediaStep("tts_speak", projectId, "Narrate the trailer voiceover with dramatic pacing: $escaped"),
             )
             Pipeline.PODCAST_DRAMA -> listOf(
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                mediaStep("tts_speak", projectId, "Narrate podcast drama: $escaped"),
-                creativeStep("continuity", projectId, escaped),
+                creativeStep("outline", projectId, "Create a podcast drama episode outline. Cold open, 3 acts, cliffhanger. Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the podcast drama script: narrator, dialogue, sound cues. Premise: $escaped"),
+                mediaStep("tts_speak", projectId, "Narrate the podcast drama with character voices: $escaped"),
+                creativeStep("continuity", projectId, "Check the podcast drama for continuity issues. Premise: $escaped"),
             )
             Pipeline.RPG_CAMPAIGN -> listOf(
-                creativeStep("brainstorm", projectId, escaped),
-                creativeStep("outline", projectId, escaped),
-                creativeStep("draft", projectId, escaped),
-                creativeStep("continuity", projectId, escaped),
+                creativeStep("brainstorm", projectId, "Brainstorm 5-8 campaign concepts with different conflict engines. Premise: $escaped"),
+                creativeStep("outline", projectId, "Create a campaign outline: 10-15 sessions, each with a hook, conflict, and consequence. Premise: $escaped"),
+                creativeStep("draft", projectId, "Write the first session: setting introduction, NPC introductions, inciting incident, and 3 encounter hooks. Premise: $escaped"),
+                creativeStep("continuity", projectId, "Check the campaign materials against world canon. Premise: $escaped"),
             )
         }
         // Assign UUIDs to each specific step.
