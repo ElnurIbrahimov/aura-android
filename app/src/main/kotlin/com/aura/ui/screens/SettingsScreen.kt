@@ -31,6 +31,7 @@ import com.aura.ui.settings.sections.DataAndBackupSection
 import com.aura.ui.settings.sections.DreamConsolidationSection
 import com.aura.ui.settings.sections.EmotionDaemonSection
 import com.aura.ui.settings.sections.IntegrationsSection
+import com.aura.ui.settings.sections.ReasoningSection
 import com.aura.ui.settings.sections.EvolutionSettingsSection
 import com.aura.ui.settings.sections.McpServersSection
 import com.aura.ui.settings.sections.ModelRolesSection
@@ -189,6 +190,9 @@ fun SettingsScreen(
 
         // 9b. Integrations — Google + Microsoft
         IntegrationsSection(viewModel = viewModel)
+
+        // 9b2. Reasoning — extended thinking always on
+        ReasoningSection(viewModel = viewModel)
 
         // 9c. Agents — create and manage AI agents
         SettingsClickableRow(

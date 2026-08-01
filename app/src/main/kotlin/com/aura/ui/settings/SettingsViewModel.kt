@@ -1112,6 +1112,30 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { integrationTokenStore.disconnectMicrosoft() }
     }
 
+    // ---- Reasoning / Extended Thinking ----
+
+    private val _reasoningEnabled = MutableStateFlow(true)
+    private val _reasoningBudget = MutableStateFlow(32000)
+    val reasoningEnabled: StateFlow<Boolean> = _reasoningEnabled
+    val reasoningBudget: StateFlow<Int> = _reasoningBudget
+
+    init {
+        viewModelScope.launch {
+            _reasoningEnabled.value = userPreferences.reasoningEnabled.first()
+            _reasoningBudget.value = userPreferences.reasoningBudget.first()
+        }
+    }
+
+    fun setReasoningEnabled(enabled: Boolean) {
+        viewModelScope.launch { userPreferences.setReasoningEnabled(enabled) }
+        _reasoningEnabled.value = enabled
+    }
+
+    fun setReasoningBudget(budget: Int) {
+        viewModelScope.launch { userPreferences.setReasoningBudget(budget) }
+        _reasoningBudget.value = budget
+    }
+
     private fun applyCatalog(catalog: ModelCatalog) {
         val failures = catalog.providers.values
             .filter { provider ->

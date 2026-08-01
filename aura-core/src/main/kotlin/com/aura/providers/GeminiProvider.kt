@@ -316,6 +316,12 @@ class GeminiProvider(
             if (options.stop.isNotEmpty()) {
                 put("stopSequences", JsonArray(options.stop.map { JsonPrimitive(it) }))
             }
+            // Extended thinking: Gemini supports thinkingBudget in generationConfig.
+            options.thinkingBudget?.let { budget ->
+                put("thinkingConfig", buildJsonObject {
+                    put("thinkingBudget", budget)
+                })
+            }
         })
 
         // Tool declarations (Gemini function calling format)

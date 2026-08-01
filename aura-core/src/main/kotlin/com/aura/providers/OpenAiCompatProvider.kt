@@ -219,6 +219,16 @@ open class OpenAiCompatProvider(
             put("temperature", options.temperature)
             put("top_p", options.topP)
             options.maxTokens?.let { put("max_tokens", it) }
+            // Extended thinking: OpenAI o-series uses reasoning_effort.
+            // Map budget to effort level: >=20000 = high, >=8000 = medium, >0 = low.
+            options.thinkingBudget?.let { budget ->
+                val effort = when {
+                    budget >= 20_000 -> "high"
+                    budget >= 8_000 -> "medium"
+                    else -> "low"
+                }
+                put("reasoning_effort", effort)
+            }
             put("messages", JsonArray(messages.map { msg ->
                 buildJsonObject {
                     put("role", msg.role.name)

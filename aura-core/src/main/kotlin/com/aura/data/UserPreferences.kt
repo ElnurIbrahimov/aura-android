@@ -87,6 +87,8 @@ internal val KEY_EMBEDDING_MODEL = stringPreferencesKey("embedding_model")
 
 internal val KEY_GOOGLE_CLIENT_ID = stringPreferencesKey("google_client_id")
 internal val KEY_MICROSOFT_CLIENT_ID = stringPreferencesKey("microsoft_client_id")
+internal val KEY_REASONING_ENABLED = booleanPreferencesKey("reasoning_enabled")
+internal val KEY_REASONING_BUDGET = intPreferencesKey("reasoning_budget")
 
 @Singleton
 class UserPreferences @Inject constructor(
@@ -524,6 +526,22 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setMicrosoftClientId(id: kotlin.String) {
         context.auraPrefs.edit { it[KEY_MICROSOFT_CLIENT_ID] = id.trim() }
+    }
+
+    // ---- Reasoning / Extended Thinking ----
+
+    /** Whether extended thinking is always on. Default: true (maximum reasoning). */
+    val reasoningEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_REASONING_ENABLED] ?: true }
+
+    /** Thinking budget in tokens. Default: 32000 (maximum). */
+    val reasoningBudget: Flow<Int> = context.auraPrefs.data.map { it[KEY_REASONING_BUDGET] ?: 32000 }
+
+    suspend fun setReasoningEnabled(enabled: kotlin.Boolean) {
+        context.auraPrefs.edit { it[KEY_REASONING_ENABLED] = enabled }
+    }
+
+    suspend fun setReasoningBudget(budget: kotlin.Int) {
+        context.auraPrefs.edit { it[KEY_REASONING_BUDGET] = budget.coerceIn(0, 128_000) }
     }
 
     private suspend fun setOptionalModel(key: Preferences.Key<String>, model: kotlin.String?) {

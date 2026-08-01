@@ -64,6 +64,17 @@ class AnthropicProvider(
             put("stream", true)
             put("max_tokens", options.maxTokens ?: 4096)
             put("temperature", options.temperature)
+            // Extended thinking: when budget is set, add the thinking block.
+            // Anthropic requires max_tokens >= budget_tokens + 1, and
+            // temperature must be 1.0 when thinking is enabled.
+            options.thinkingBudget?.let { budget ->
+                put("thinking", buildJsonObject {
+                    put("type", "enabled")
+                    put("budget_tokens", budget)
+                })
+                // Anthropic requires temperature=1 when thinking is enabled.
+                put("temperature", 1.0)
+            }
             systemPrompt?.let { put("system", it) }
             put("messages", kotlinx.serialization.json.JsonArray(anthropicMessages.map { msg ->
                 buildJsonObject {

@@ -93,6 +93,8 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.smtpFrom } returns flowOf("")
         every { userPreferences.googleClientId } returns flowOf("")
         every { userPreferences.microsoftClientId } returns flowOf("")
+        every { userPreferences.reasoningEnabled } returns flowOf(true)
+        every { userPreferences.reasoningBudget } returns flowOf(32000)
         coEvery { userPreferences.setAppLockEnabled(any()) } answers {
             appLockFlow.value = firstArg()
         }

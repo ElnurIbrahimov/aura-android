@@ -5,6 +5,7 @@ import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
 import com.aura.providers.ToolDefinition
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +26,7 @@ class Brain @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val identityStore: IdentityStore,
     private val contextBudgetResolver: ContextBudgetResolver,
+    private val userPreferences: com.aura.data.UserPreferences,
 ) {
     /** Current identity as a cold flow; each subscription resolves DataStore anew. */
     val identity: Flow<String> = flow {
@@ -56,10 +58,32 @@ class Brain @Inject constructor(
     ): Flow<BrainChunk> = flow {
         val resolvedMaxTokens = options.maxTokens
             ?: contextBudgetResolver.maxTokensFor(model)
-        val resolvedOptions = if (resolvedMaxTokens != null) {
+        // Resolve extended thinking budget from user preferences.
+        // When reasoningEnabled is true (default), inject thinkingBudget
+        // into ChatOptions so the provider enables extended thinking.
+        var resolvedOptions = if (resolvedMaxTokens != null) {
             options.copy(maxTokens = resolvedMaxTokens)
         } else {
             options
+        }
+        // Only inject if the caller didn't already set a budget (don't
+        // override explicit per-call decisions).
+        if (resolvedOptions.thinkingBudget == null) {
+            val reasoningEnabled = runCatching {
+                userPreferences.reasoningEnabled.first()
+            }.getOrDefault(true)
+            if (reasoningEnabled) {
+                val budget = runCatching {
+                    userPreferences.reasoningBudget.first()
+                }.getOrDefault(32000)
+                resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
+                // Ensure maxTokens is high enough for the thinking budget.
+                // Anthropic requires max_tokens >= budget_tokens + 1.
+                val minMaxTokens = budget + 4096
+                if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {
+                    resolvedOptions = resolvedOptions.copy(maxTokens = minMaxTokens)
+                }
+            }
         }
         // nameById accumulates tool-call ids to names across the stream so
         // providers that send argument deltas without re-sending the name
