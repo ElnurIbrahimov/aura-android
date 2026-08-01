@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import android.util.Log
 
 /**
  * Rolling conversation compaction. The full immutable [Conversation.turns]
@@ -72,7 +73,7 @@ class ConversationCompactor @Inject constructor(
             }
         }.onFailure {
             android.util.Log.w("ConversationCompactor", "cheap-model resolution failed: ${it.message}")
-        }.getOrDefault(model)
+        }.onFailure { Log.w("Compactor", "op failed: ${it.message}") }.getOrDefault(model)
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
         val unsummarizedTurns = conversation.turns.drop(summarizedThrough)
         // Token estimation: chars / 4 is a rough heuristic for English text.

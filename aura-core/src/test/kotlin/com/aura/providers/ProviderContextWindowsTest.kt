@@ -5,10 +5,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Tests for the per-provider context window fallback.
- * Only Anthropic has a documented platform-wide context window
- * (200K). All other providers return null so the compactor can
- * fall back to its safe 32K default.
+ * Tests for the per-provider context window fallback table.
+ *
+ * SNAPSHOT — last verified 2026-08-01. Values are platform-wide
+ * minimums. When a provider ships a model with a larger context,
+ * listModelsWithContext should return it live and override this
+ * table.
  */
 class ProviderContextWindowsTest {
 
@@ -20,21 +22,58 @@ class ProviderContextWindowsTest {
     }
 
     @Test
-    fun `openai returns null and uses compactor default`() {
-        assertNull(ProviderContextWindows.lookup("openai", "gpt-4o"))
-        assertNull(ProviderContextWindows.lookup("openai", "gpt-4-0613"))
-        assertNull(ProviderContextWindows.lookup("openai", "o1"))
+    fun `openai returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("openai", "gpt-4o"))
+        assertEquals(128_000, ProviderContextWindows.lookup("openai", "gpt-4-0613"))
+        assertEquals(128_000, ProviderContextWindows.lookup("openai", "o1"))
     }
 
     @Test
-    fun `groq returns null and uses compactor default`() {
-        assertNull(ProviderContextWindows.lookup("groq", "llama-3.1-70b-versatile"))
-        assertNull(ProviderContextWindows.lookup("groq", "mixtral-8x7b-instruct"))
+    fun `groq returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("groq", "llama-3.1-70b-versatile"))
+        assertEquals(128_000, ProviderContextWindows.lookup("groq", "mixtral-8x7b-instruct"))
     }
 
     @Test
-    fun `chatgpt returns null and uses compactor default`() {
-        assertNull(ProviderContextWindows.lookup("chatgpt", "gpt-4o"))
+    fun `chatgpt returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("chatgpt", "gpt-4o"))
+    }
+
+    @Test
+    fun `deepseek returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("deepseek", "deepseek-chat"))
+        assertEquals(128_000, ProviderContextWindows.lookup("deepseek", "deepseek-coder"))
+    }
+
+    @Test
+    fun `mistral returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("mistral", "mistral-large-2"))
+    }
+
+    @Test
+    fun `xai returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("xai", "grok-2"))
+    }
+
+    @Test
+    fun `together returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("together", "meta-llama-3.1-405b"))
+    }
+
+    @Test
+    fun `cerebras returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("cerebras", "llama-3.1-70b"))
+    }
+
+    @Test
+    fun `nvidia returns 128K platform default`() {
+        assertEquals(128_000, ProviderContextWindows.lookup("nvidia", "llama-3.1-nemotron-70b"))
+    }
+
+    @Test
+    fun `custom and moa return null by design`() {
+        assertNull(ProviderContextWindows.lookup("custom", "anything"))
+        assertNull(ProviderContextWindows.lookup("moa", "anything"))
     }
 
     @Test

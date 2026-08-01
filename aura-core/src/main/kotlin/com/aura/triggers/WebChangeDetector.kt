@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.security.MessageDigest
+import android.util.Log
 
 /** Fetches a URL (with SSRF guard) and returns a content hash. */
 class WebChangeDetector @javax.inject.Inject constructor(
@@ -26,7 +27,7 @@ class WebChangeDetector @javax.inject.Inject constructor(
             if (!response.isSuccessful) return@withContext null
             val bytes = response.body?.bytes() ?: return@withContext null
             sha256(bytes)
-        }.getOrNull()
+        }.onFailure { Log.w("WebChange", "op failed: ${it.message}") }.getOrNull()
     }
 
     private fun sha256(bytes: ByteArray): String {

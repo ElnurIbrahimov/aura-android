@@ -8,6 +8,7 @@ import com.aura.providers.ProviderRegistry
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Generalized multi-agent council. Extends the CreativeCouncil pattern
@@ -178,7 +179,7 @@ class AgentCouncil @Inject constructor(
                     val firstModel = firstProvider?.listModels()?.firstOrNull()
                     if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
                 }.onFailure { android.util.Log.w("AgentCouncil", "resolveModel failed for ${agent.name}: ${it.message}") }
-                .getOrNull()
+                .onFailure { Log.w("Council", "op failed: ${it.message}") }.getOrNull()
                 ?: return SubagentResult(
                     taskId = "council_${agent.name}",
                     success = false,

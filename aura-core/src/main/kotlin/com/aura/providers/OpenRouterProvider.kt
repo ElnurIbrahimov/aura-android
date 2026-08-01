@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import android.util.Log
 
 /**
  * OpenRouter provider — a thin wrapper around [OpenAiCompatProvider].
@@ -77,7 +78,7 @@ class OpenRouterProvider(
                     if (ctx != null) id to ctx else null
                 }.toMap()
             }
-        }.getOrDefault(emptyMap())
+        }.onFailure { Log.w("OpenRouter", "op failed: ${it.message}") }.getOrDefault(emptyMap())
         names.map { name -> ModelInfo(name = name, contextWindow = ctxByName[name]) }
     }
 }

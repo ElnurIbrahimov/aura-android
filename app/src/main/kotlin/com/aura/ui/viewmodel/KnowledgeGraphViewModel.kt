@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
+import android.util.Log
 
 /** Relation plus the human-readable label of the node at its other end. */
 data class ResolvedKgRelation(
@@ -65,7 +66,7 @@ class KnowledgeGraphViewModel @Inject constructor(
                 val nodes = repository.recent(500)
                 val stats = repository.stats()
                 nodes to stats
-            }.onSuccess { (nodes, stats) ->
+            }.onFailure { Log.w("KGVM", "op failed: ${it.message}") }.onSuccess { (nodes, stats) ->
                 allNodes = nodes
                 _state.update {
                     it.copy(

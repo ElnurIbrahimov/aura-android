@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.util.UUID
+import android.util.Log
 
 /**
  * Handles vision (image), audio (transcription), and document
@@ -134,7 +135,7 @@ class ChatMediaController(
                 )?.use { cursor ->
                     if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
                 }
-            }.getOrNull()
+            }.onFailure { Log.w("ChatMediaCtrl", "op failed: ${it.message}") }.getOrNull()
             if (knownSize != null && knownSize > MAX_TRANSCRIPTION_AUDIO_BYTES) {
                 state.update { it.copy(error = "Audio is larger than the 25 MB limit.") }
                 return@launch

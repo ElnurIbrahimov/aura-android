@@ -20,6 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ensureActive
+import android.util.Log
 
 /**
  * Maximum length of a tool result that gets appended to the
@@ -454,7 +455,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 if (firstProvider != null && cheapest != null) "${firstProvider.prefix}:$cheapest" else null
                             }.onFailure {
                                 android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}")
-                            }.getOrNull()
+                            }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrNull()
                         }
                         val rerankModel = cheapModel
                         val rewriteModel = cheapModel
@@ -522,7 +523,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }.joinToString("\n")
                         "\n\n# Known beliefs:\n$lines"
                     }
-                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.getOrDefault("")
+                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrDefault("")
             } else ""
 
             // Update emotion state from the user's message and include
@@ -1091,7 +1092,7 @@ private suspend fun extractProfileFromText(text: String) {
             com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
         }.onFailure {
             android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}")
-        }.getOrDefault(userModel)
+        }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrDefault(userModel)
     }
 
     /**

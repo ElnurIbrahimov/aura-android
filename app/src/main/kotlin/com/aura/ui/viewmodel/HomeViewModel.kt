@@ -29,6 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.util.Log
 
 /**
  * Memory decayed below this threshold is "fading" and surfaces in the
@@ -328,7 +329,7 @@ class HomeViewModel @Inject constructor(
                         )
                     }
                 }
-            }
+            }.onFailure { Log.w("HomeVM", "op failed: ${it.message}") }
         }
     }
 
@@ -377,7 +378,7 @@ class HomeViewModel @Inject constructor(
                 val name = extractUserName(recentForProfile)
 
                 val loaded = _state.value.copy(
-                    today = calendarResult.getOrDefault(emptyList()),
+                    today = calendarResult.onFailure { Log.w("HomeVM", "op failed: ${it.message}") }.getOrDefault(emptyList()),
                     recentMemories = recent,
                     pendingTasks = tasks,
                     userName = name,

@@ -5,6 +5,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 private val convJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 private const val EMBEDDING_BACKFILL_BATCH_SIZE = 24
@@ -164,7 +165,7 @@ class ConversationStore @Inject constructor(
         val entity = dao.getById(id) ?: return false
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
-        }.getOrElse { emptyMap() }.toMutableMap()
+        }.onFailure { Log.w("ConvStore", "op failed: ${it.message}") }.getOrElse { emptyMap() }.toMutableMap()
         if (project.isNullOrBlank()) metadata.remove("project")
         else metadata["project"] = project
         dao.insert(entity.copy(

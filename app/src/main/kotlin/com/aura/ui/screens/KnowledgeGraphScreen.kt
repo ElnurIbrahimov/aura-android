@@ -67,6 +67,7 @@ import kotlinx.serialization.json.JsonObject
 
 import com.aura.ui.theme.AuraThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.util.Log
 private val graphJson = Json { prettyPrint = true }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -525,7 +526,7 @@ private fun EditGraphNodeDialog(
                     val parsed = runCatching {
                         Json.parseToJsonElement(propertiesText) as? JsonObject
                             ?: error("Properties must be a JSON object")
-                    }
+                    }.onFailure { Log.w("KGScreen", "op failed: ${it.message}") }
                     parsed.onSuccess { properties ->
                         if (label.isBlank()) validationError = "Label cannot be blank"
                         else onSave(label.trim(), type, properties)

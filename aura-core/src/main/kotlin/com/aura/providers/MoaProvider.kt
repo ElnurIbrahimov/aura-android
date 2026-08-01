@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
+import android.util.Log
 
 /**
  * Mixture of Agents virtual provider.
@@ -197,7 +198,7 @@ class MoaProvider(
                 runReference(ref, messages, options.copy(temperature = preset.referenceTemperature))
             }
         }.map { deferred ->
-            runCatching { deferred.await() }.getOrElse { e ->
+            runCatching { deferred.await() }.onFailure { Log.w("MoA", "op failed: ${it.message}") }.getOrElse { e ->
                 if (e is CancellationException) throw e
                 ReferenceOutput(
                     providerPrefix = "error",

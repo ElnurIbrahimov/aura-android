@@ -111,6 +111,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloat
 import dagger.hilt.components.SingletonComponent
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.util.Log
 
 /**
  * MIME types passed to the document picker in the chat composer.
@@ -795,7 +796,7 @@ private fun decodeSharedImage(context: android.content.Context, uri: android.net
                 // Cap at 1024px to avoid OOM on large photos
                 decoder.setTargetSize(1024, 1024)
             }
-        }.getOrNull()
+        }.onFailure { Log.w("ChatRoute", "op failed: ${it.message}") }.getOrNull()
     } else {
         // API 26–27 fallback: decode through the content resolver and downsample.
         runCatching {
@@ -821,6 +822,6 @@ private fun decodeSharedImage(context: android.content.Context, uri: android.net
                 @Suppress("DEPRECATION")
                 android.graphics.BitmapFactory.decodeStream(stream, null, opts)
             }
-        }.getOrNull()
+        }.onFailure { Log.w("ChatRoute", "op failed: ${it.message}") }.getOrNull()
     }
 }

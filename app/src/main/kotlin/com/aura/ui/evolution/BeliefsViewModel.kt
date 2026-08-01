@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
 
 data class BeliefsUiState(
     val beliefs: List<BeliefEntity> = emptyList(),
@@ -60,7 +61,7 @@ class BeliefsViewModel @Inject constructor(
                 beliefDao.history(belief.subject, belief.predicate)
                     .filter { it.status == "superseded" }
                     .sortedByDescending { it.createdAt }
-            }.getOrDefault(emptyList())
+            }.onFailure { Log.w("BeliefsVM", "op failed: ${it.message}") }.getOrDefault(emptyList())
         }
         _state.value = BeliefsUiState(
             beliefs = loaded,

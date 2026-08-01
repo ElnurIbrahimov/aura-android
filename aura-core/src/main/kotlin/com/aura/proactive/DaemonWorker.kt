@@ -99,13 +99,13 @@ class DaemonWorker @AssistedInject constructor(
                 if (events.isNotEmpty()) {
                     "Today's calendar: ${events.joinToString("; ")}"
                 } else ""
-            }.getOrDefault("")
+            }.onFailure { Log.w("Daemon", "op failed: ${it.message}") }.getOrDefault("")
             val memoryContext = runCatching {
                 val decayed = memoryStore.decayedBelow(0.4f, 5)
                 if (decayed.isNotEmpty()) {
                     "Fading memories: ${decayed.joinToString("; ") { it.content.take(80) }}"
                 } else ""
-            }.getOrDefault("")
+            }.onFailure { Log.w("Daemon", "op failed: ${it.message}") }.getOrDefault("")
             val taskContext = runCatching {
                 val today = java.util.Calendar.getInstance().apply {
                     set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
@@ -116,7 +116,7 @@ class DaemonWorker @AssistedInject constructor(
                 if (due.isNotEmpty()) {
                     "Tasks due today: ${due.joinToString("; ") { it.title }}"
                 } else ""
-            }.getOrDefault("")
+            }.onFailure { Log.w("Daemon", "op failed: ${it.message}") }.getOrDefault("")
 
             val contextBlock = listOfNotNull(
                 calendarContext.ifBlank { null },

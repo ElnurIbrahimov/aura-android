@@ -64,6 +64,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 import com.aura.ui.theme.AuraThemeTokens
+import android.util.Log
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun HandEditorDialog(
@@ -468,7 +469,7 @@ private fun parseSteps(raw: String, json: Json): List<HandStep> = runCatching {
         val args = (obj["args"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }.orEmpty()
         HandStep(tool, args)
     }
-}.getOrDefault(emptyList())
+}.onFailure { Log.w("HandEditor", "op failed: ${it.message}") }.getOrDefault(emptyList())
 
 private fun parseVariables(raw: String, json: Json): Map<String, String> = runCatching {
     json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }

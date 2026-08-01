@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
 
 data class DocumentImportUiState(
     val documents: List<DocumentEntity> = emptyList(),
@@ -54,7 +55,7 @@ class DocumentImportViewModel @Inject constructor(
                     sourceUri = extracted.sourceUri,
                     text = extracted.text,
                 )
-            }.onSuccess { result ->
+            }.onFailure { Log.w("DocImportVM", "op failed: ${it.message}") }.onSuccess { result ->
                 _state.update {
                     it.copy(
                         importing = false,

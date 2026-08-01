@@ -71,7 +71,7 @@ class WorldEventProducer @Inject constructor(
             _events.tryEmit(entity)
             id
         }.onFailure { Log.w("WorldEventProducer", "record failed: ${it.message}") }
-            .getOrDefault(id)
+            .onFailure { Log.w("WorldEvent", "op failed: ${it.message}") }.getOrDefault(id)
     }
 
     /**

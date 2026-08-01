@@ -21,6 +21,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * The actual morning-brief build + post. Extracted from
@@ -66,7 +67,7 @@ class MorningBriefBuilder @Inject constructor(
             coroutineScope {
                 val decayedDeferred = async {
                     runCatching { memoryStore.decayedBelow(DECAY_THRESHOLD, 10) }
-                        .getOrDefault(emptyList())
+                        .onFailure { Log.w("MorningBrief", "op failed: ${it.message}") }.getOrDefault(emptyList())
                 }
                 val newMemoriesDeferred = async {
                     runCatching { memoryStore.recentSince(since24h, 10) }

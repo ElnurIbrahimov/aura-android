@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import android.util.Log
 
 data class HandDraft(
     val name: String,
@@ -163,7 +164,7 @@ class HandsViewModel @Inject constructor(
                     variables = variables,
                     trigger = HandRunTrigger.MANUAL.value,
                 )
-            }.getOrElse { ToolResult.Error(it.message ?: "Hand failed", "hand_runtime_error") }
+            }.onFailure { Log.w("HandsVM", "op failed: ${it.message}") }.getOrElse { ToolResult.Error(it.message ?: "Hand failed", "hand_runtime_error") }
             _state.value = _state.value.copy(running = null, lastResult = resultMessage(result))
         }
     }

@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
 
 /**
  * ViewModel for the evolution proposal inbox. Lists open proposals,
@@ -81,7 +82,7 @@ class EvolutionInboxViewModel @Inject constructor(
                                 action = proposal.action,
                                 proposalId = proposal.id,
                             )
-                        }
+                        }.onFailure { Log.w("EvoInboxVM", "op failed: ${it.message}") }
                     }
                     is EvolutionApplySaga.ApplyResult.Error -> {
                         proposalStore.markApplyFailed(id, result.message)

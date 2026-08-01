@@ -17,6 +17,7 @@ import javax.inject.Singleton
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import android.util.Log
 
 /**
  * Background memory consolidator ("Dream Mode").
@@ -428,7 +429,7 @@ class DreamConsolidator @Inject constructor(
             }
         }.onFailure {
             android.util.Log.w("DreamConsolidator", "resolveCheapModel failed: ${it.message}")
-        }.getOrDefault("")
+        }.onFailure { Log.w("Dream", "op failed: ${it.message}") }.getOrDefault("")
     }
 
     /**

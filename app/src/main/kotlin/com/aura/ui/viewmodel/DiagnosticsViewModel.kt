@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.util.Log
 
 data class DiagnosticsUiState(
     val entries: List<CrashLogEntry> = emptyList(),
@@ -73,7 +74,7 @@ class DiagnosticsViewModel @Inject constructor(
                 crashLogger.clear()
                 traceSink.clear()
                 crashLogger.entries()
-            }.onSuccess { entries ->
+            }.onFailure { Log.w("DiagVM", "op failed: ${it.message}") }.onSuccess { entries ->
                 _state.update {
                     it.copy(
                         entries = entries,

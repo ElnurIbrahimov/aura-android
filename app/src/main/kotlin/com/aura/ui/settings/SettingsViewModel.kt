@@ -499,7 +499,7 @@ class SettingsViewModel @Inject constructor(
                 for (domain in com.aura.evolution.EvolutionDomain.entries) {
                     evolutionSettingsStore.setAutoApplyApproved(domain, enabled)
                 }
-            }
+            }.onFailure { Log.w("SettingsVM", "op failed: ${it.message}") }
             _state.update { it.copy(evolutionAutoApply = enabled) }
         }
     }

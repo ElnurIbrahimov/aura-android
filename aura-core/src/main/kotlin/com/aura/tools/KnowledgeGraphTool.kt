@@ -28,6 +28,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Tool that extracts a knowledge graph (nodes + edges) from unstructured text
@@ -132,7 +133,7 @@ class KnowledgeGraphTool @Inject constructor(
         // no Ollama key.
         val flow = runCatching {
             providerRegistry.chat("default", messages, options)
-        }.getOrElse {
+        }.onFailure { Log.w("KGTool", "op failed: ${it.message}") }.getOrElse {
             val fallback = providerRegistry.configured()
                 .firstOrNull()
                 ?.let { p ->

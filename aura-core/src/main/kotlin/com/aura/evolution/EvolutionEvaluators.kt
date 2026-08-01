@@ -132,7 +132,7 @@ class EvolutionEvaluators @Inject constructor(
             }
         }
         builder.toString().trim()
-    }.getOrDefault("")
+    }.onFailure { Log.w("EvoEval", "op failed: ${it.message}") }.getOrDefault("")
 
     companion object {
         private const val JUDGE_TIMEOUT_MS = 5_000L

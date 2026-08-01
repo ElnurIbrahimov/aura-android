@@ -24,8 +24,23 @@ class ContextBudgetResolverTest {
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("ollama:gemma3:4b")
-        // (128_000 - 2_000) * 0.8 = 100_800; capped at 32_768
-        assertEquals(32_768, budget)
+        // (128_000 - 2_000) * 0.8 = 100_800 — no longer capped at 32K
+        assertEquals(100_800, budget)
+    }
+
+    @Test
+    fun `large context model gets full generation budget without 32K cap`() = runTest {
+        val provider = mockk<Provider>(relaxed = true)
+        every { provider.prefix } returns "anthropic"
+        coEvery { provider.listModelsWithContext() } returns listOf(
+            ModelInfo(name = "claude-sonnet-4", contextWindow = 200_000),
+        )
+        val registry = ProviderRegistry(mapOf("anthropic" to provider), mockk(relaxed = true))
+        val resolver = ContextBudgetResolver(registry)
+
+        val budget = resolver.maxTokensFor("anthropic:claude-sonnet-4")
+        // (200_000 - 2_000) * 0.8 = 158_400 — no cap
+        assertEquals(158_400, budget)
     }
 
     @Test
@@ -39,7 +54,52 @@ class ContextBudgetResolverTest {
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("anthropic:claude-sonnet-4-20250514")
-        assertEquals(32_768, budget)
+        // (200_000 - 2_000) * 0.8 = 158_400 — no cap
+        assertEquals(158_400, budget)
+    }
+
+    @Test
+    fun `openai provider uses 128K from context windows table`() = runTest {
+        val provider = mockk<Provider>(relaxed = true)
+        every { provider.prefix } returns "openai"
+        coEvery { provider.listModelsWithContext() } returns listOf(
+            ModelInfo(name = "gpt-4o", contextWindow = null),
+        )
+        val registry = ProviderRegistry(mapOf("openai" to provider), mockk(relaxed = true))
+        val resolver = ContextBudgetResolver(registry)
+
+        val budget = resolver.maxTokensFor("openai:gpt-4o")
+        // (128_000 - 2_000) * 0.8 = 100_800
+        assertEquals(100_800, budget)
+    }
+
+    @Test
+    fun `unknown provider with no context info falls back to 32K default`() = runTest {
+        val provider = mockk<Provider>(relaxed = true)
+        every { provider.prefix } returns "mystery"
+        coEvery { provider.listModelsWithContext() } returns emptyList()
+        coEvery { provider.listModels() } returns listOf("some-model")
+        val registry = ProviderRegistry(mapOf("mystery" to provider), mockk(relaxed = true))
+        val resolver = ContextBudgetResolver(registry)
+
+        val budget = resolver.maxTokensFor("mystery:some-model")
+        // (32_768 - 2_000) * 0.8 = 24_614
+        assertEquals(24_614, budget)
+    }
+
+    @Test
+    fun `minimum budget is 1024 tokens`() = runTest {
+        val provider = mockk<Provider>(relaxed = true)
+        every { provider.prefix } returns "tiny"
+        coEvery { provider.listModelsWithContext() } returns listOf(
+            ModelInfo(name = "mini", contextWindow = 1_000),
+        )
+        val registry = ProviderRegistry(mapOf("tiny" to provider), mockk(relaxed = true))
+        val resolver = ContextBudgetResolver(registry)
+
+        val budget = resolver.maxTokensFor("tiny:mini")
+        // (1_000 - 2_000) would be negative -> coerced to 1_024
+        assertEquals(1_024, budget)
     }
 
     @Test

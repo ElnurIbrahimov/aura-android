@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Delegates a subtask to another agent. The delegated agent runs with
@@ -97,7 +98,7 @@ class DelegateToAgentTool @Inject constructor(
                 val firstProvider = providers.firstOrNull()
                 val firstModel = firstProvider?.listModels()?.firstOrNull()
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-            }.getOrNull()
+            }.onFailure { Log.w("Delegate", "op failed: ${it.message}") }.getOrNull()
             ?: throw IllegalStateException("Agent has no preferred model and no configured provider available")
 
         // Build the agent's system prompt: identity + personality

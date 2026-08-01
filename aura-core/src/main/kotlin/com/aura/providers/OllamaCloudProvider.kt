@@ -9,6 +9,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import android.util.Log
 
 /**
  * OpenAI-compatible chat completions client for Ollama Cloud.
@@ -65,7 +66,7 @@ class OllamaCloudProvider(
                         }?.jsonObject?.get("context_length")
                         ?.jsonPrimitive?.content?.toIntOrNull()
                 }
-            }.getOrNull()
+            }.onFailure { Log.w("OllamaCloud", "op failed: ${it.message}") }.getOrNull()
             ModelInfo(name = name, contextWindow = contextWindow)
         }
     }

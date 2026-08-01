@@ -12,8 +12,14 @@ import javax.inject.Singleton
  * The budget is derived from the provider's advertised context window
  * (live API when available, hardcoded table otherwise). We reserve 2K
  * tokens for the system prompt + tools so a long system persona does not
- * silently steal generation headroom, and cap the generation budget at
+ * silently steal generation headroom, and set the generation budget at
  * 80% of the total context window.
+ *
+ * There is no hard cap on the generation budget: a model with 200K
+ * context gets up to ~159K tokens of generation headroom. The previous
+ * 32K cap was a safety net from when the table only covered Anthropic;
+ * now that all major providers have entries, the real context window
+ * IS the cap.
  *
  * Mirrors the per-provider context-window work landed in ConversationCompactor
  * and propagates the same budget to every model call in the app.
@@ -52,6 +58,5 @@ class ContextBudgetResolver @Inject constructor(
             ?: DEFAULT_CONTEXT_WINDOW
         return ((contextWindow - RESERVED_TOKENS) * GENERATION_FRACTION).toInt()
             .coerceAtLeast(1_024)
-            .coerceAtMost(32_768)
     }
 }
