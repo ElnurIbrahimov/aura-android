@@ -8,28 +8,36 @@ This is my personal copy.
 
 ## Status
 
-**v0.46.0** (versionCode 55).
+**v0.46.1** (versionCode 56).
 
 - 69 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive)
-- Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes)
+- Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
+- Prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite — operate on selected text)
+- Voice calibration (learn user's prose style, mirror in generated content)
+- Tension analyzer (per-scene tension scoring, pacing diagnosis, recommendations)
+- Character progression tracker (auto-extract how characters change scene by scene)
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
-- Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign)
+- Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign — stage-specific prompts)
 - Skills (installable skill cards, skill-backed tool dispatch)
-- Memory stack (Room + 384-dim cloud embeddings + 6-signal RRF retrieval + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate)
-- Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn)
+- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + BM25 + cross-encoder reranking + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
+- Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
-- Agentic loop (ReAct-style, 10 steps max, streams text + tool calls, abort-safe, parallel tool execution, 4k char tool-result truncation budget)
+- Agentic loop (ReAct-style, 10 steps max, streams text + tool calls, abort-safe, parallel tool execution, 4k char tool-result truncation budget, reflection after failures, StrategyBandit Thompson Sampling over reasoning strategies)
+- Extended thinking always on (Anthropic thinking block, OpenAI reasoning_effort=high, Gemini thinkingConfig — 32K default budget, configurable in Settings)
 - Optional pre-answer planning pass (off by default — costs an extra model call per message; enable in Settings → AI & Models for tool-heavy work)
 - 17 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Mixture-of-Agents, Mistral, xAI Grok, Together AI, Cerebras, NVIDIA NIM, Meta Llama, Agnes AI, ChatGPT subscription, Custom OpenAI-compatible endpoint)
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
+- Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
+- Consciousness layer (NarrativeSelf evolving identity, IntrinsicMotivation 4 drives, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence emotional continuity)
 - 4-tab bottom nav (Home, Chat, Memory, Settings) + 21 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
-- Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode)
+- Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode, voice call UI)
 - Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service) + daemon thinking worker (every ~15 min, background model)
 - Emotional state engine (4 dimensions: tension, connection, energy, focus — with inertia, decay, and heuristic signal detection)
 - Adaptive response profiles (tone adapts based on emotional state)
+- Affinity tracker (5-level relationship progression, injected into system prompt)
 - Share receiver (`text/plain` + `image/*` from Android share sheet)
-- User profile (learned from conversations via regex, editable in Settings)
+- User profile (learned from conversations via regex + LLM fallback, editable in Settings)
 - Specialist and persona identity customization (Settings)
 - Onboarding wizard (paste API key + verify connectivity)
 - Biometric gate for sensitive tools and app lock (BIOMETRIC_STRONG)
@@ -37,17 +45,17 @@ This is my personal copy.
 - Evolution system (self-improvement proposals, 19 EvolutionAction handlers, approve/reject from inbox, apply saga, rollback manager, safety guard, shadow evaluator)
 - Agent runs (durable, resumable, DAG-resolved step execution via WorkManager, checkpoint/resume, approval flow)
 - World model (beliefs, evidence, events, opportunities in separate Room tables, surfaced in system prompt)
-- Taste engine (preference signal recording, style profiling, model routing)
+- Taste engine (preference signal recording, style profiling, model routing, prompt enhancer)
 - Capability router (Exa search, Jina reader, Stability image, Kling video, WorldLabs 3D, ElevenLabs TTS — each requires its own API key)
 - Tool policy engine (layered precedence: built-in risk -> incognito gate -> user policy -> per-run approval, configurable per tool)
-- Agent trace + observability (20 event types via TraceSink)
+- Agent trace + observability (20 event types via TraceSink, surfaced in Diagnostics screen)
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v14)
-- 299 unit test files, 1,559 tests, 0 failures
+- Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
+- In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v15, 11 Room databases)
+- 299 unit test files, 1,589 tests, 0 failures
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
-- 6 daily-use UX round-1 fixes (regenerate, edit-resend, share, export, clear, code copy, friendly errors, draft persistence)
-- 4 daily-use UX round-2 fixes (offline indicator, image paste, TTS state mirror + stop pill, response duration footer)
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
 Note: the app uses **cloud providers only** — there is no on-device model.
@@ -149,7 +157,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.
 
-## Tool catalog (61)
+## Tool catalog (69)
 
 ### Web & research
 | Tool | What it does | Risk |
@@ -173,9 +181,12 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 ### Knowledge & memory
 | Tool | What it does | Risk |
 |---|---|---|
-| `remember` | Store a fact in memory (WriteGate-gated) | WRITE_LOCAL |
-| `recall` | Search memory by semantic + text query | READ_ONLY |
-| `knowledge_graph_extract` | Extract entities/edges from text | WRITE_LOCAL |
+| `remember` | Store a memory (heuristic + LLM WriteGate) | WRITE_LOCAL |
+| `recall` | Retrieve memories (BM25 + RRF + cross-encoder reranking) | READ_ONLY |
+| `query_world_model` | Query beliefs, events, opportunities | READ_ONLY |
+| `canon_query` | Ask questions about a creative project's canon | READ_ONLY |
+| `kg_add` | Add knowledge graph node/edge | WRITE_LOCAL |
+| `code_interpreter` | Execute JavaScript in a sandboxed WebView | REMOTE_COST |
 | `kg_query` | Query the knowledge graph | READ_ONLY |
 | `query_world_model` | Query beliefs/events/opportunities | READ_ONLY |
 | `query_taste` | Query taste profile + routing outcomes | READ_ONLY |
@@ -223,6 +234,16 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 | `send_email_background` | Background email send (cc/bcc supported) | WRITE_REMOTE |
 | `sms_send` | Send SMS | WRITE_REMOTE |
 | `tts_speak` | Android TextToSpeech | WRITE_LOCAL |
+
+### Integrations (Google + Microsoft)
+| Tool | What it does | Risk |
+|---|---|---|
+| `gmail` | List, read, search, send via Gmail API | REMOTE_COST |
+| `google_calendar` | List, create, delete via Google Calendar API | REMOTE_COST |
+| `google_drive` | List, search files via Google Drive API | REMOTE_COST |
+| `outlook_mail` | List, read, search, send via Microsoft Graph | REMOTE_COST |
+| `outlook_calendar` | List, create via Microsoft Graph | REMOTE_COST |
+| `onedrive` | List, search files via Microsoft Graph | REMOTE_COST |
 
 ### Media generation (capability-backed)
 | Tool | What it does | Risk |
@@ -289,24 +310,25 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 - `MorningBriefWorker` — daily at user-configured time (default 7am). Pulls last 10 memories, asks the configured provider for a 3-5 line brief, posts as a notification.
 - `DecayWorker` — every 6h. Runs a memory decay pass via `MemoryStore.runDecayPass`.
 - `CalendarMonitorService` — 5-min foreground service. Polls upcoming events, surfaces to `ProactiveEventBus`.
-- `DaemonWorker` — every 8 min. Reviews recent conversation, if the background model generates something substantive, posts as a proactive event. Respects `daemonEnabled` preference.
+- `DaemonWorker` — every ~15 min. Reviews recent conversation, if the background model generates something substantive, posts as a proactive event. Respects `daemonEnabled` preference.
 - `ReminderWorker` — fires per `set_reminder` request.
 - `EvolutionWorker` — runs self-improvement cycle when triggered. Respects `evolutionEnabled` preference.
 
-## Room databases (10)
+## Room databases (11)
 
 | Database | Version | Contents |
 |---|---|---|
 | MemoryDatabase | v14 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v5 | Proactive events with structured payload |
-| TaskDatabase | v4 | Tasks + reminders |
+| TaskDatabase | v5 | Tasks + reminders |
 | EvolutionDatabase | v3 | Proposals, skill revisions, metrics |
-| DreamConsolidationDatabase | v2 | Dream summaries, routines, contradictions, KG edge proposals |
+| DreamConsolidationDatabase | v3 | Dream summaries, routines, contradictions, KG edge proposals |
 | HandDatabase | v2 | User-defined automation macros |
 | UserProfileDatabase | v2 | User profile (name, traits, facts) |
 | AgentDatabase | v1 | Agent definitions and personality profiles |
 | AgentRunDatabase | v1 | Agent runs, goals, steps, events, approvals, checkpoints |
+| StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`).
 
@@ -352,13 +374,13 @@ aura-android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 61 tool implementations + ToolsModule
+│       ├── tools/        # 69 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
 │       ├── proactive/    # MorningBrief + Decay + CalendarMonitor + DaemonWorker + ProactiveEventBus + ProactiveScheduler
 │       ├── emotion/      # EmotionEngine (4-dimension state) + ResponseProfile
 │       ├── profile/      # UserProfile (learned from conversations)
 │       ├── evolution/    # EvolutionCoordinator + ApplySaga + RollbackManager + SafetyGuard + ShadowEvaluator + 19 EvolutionAction handlers
-│       ├── creative/     # CreativeEngine + CreativeCouncil (10 roles) + ProductionPipelineEngine + WorldBible + stores
+│       ├── creative/     # CreativeEngine + CreativeCouncil (10 roles) + ProductionPipelineEngine + WorldBible + ProseCraftTools + VoiceCalibration + TensionAnalyzer + CharacterProgressionTracker + SmartCodexInjector + GenreCraftPrompts + stores
 │       ├── pipeline/     # ProductionPipeline (6 pipeline types)
 │       ├── capabilities/ # CapabilityRouter + Exa/Jina/Stability/Kling/WorldLabs/ElevenLabs providers
 │       ├── mcp/          # MCP client (JSON-RPC, tool bridge, server persistence)
@@ -367,7 +389,8 @@ aura-android/
 │       ├── skills/       # Skill definitions + SkillsStore
 │       ├── documents/    # Document chunking + repository
 │       ├── security/     # SecureDataStore, KeyManager, BiometricActivityHolder, ScreenCaptureHolder
-│       ├── backup/       | BackupManager + AuraBackup
+│       ├── integrations/ # Google Workspace + Microsoft Graph (OAuth, token store, tools)
+│       ├── backup/       # BackupManager + AuraBackup
 │       ├── data/         # RoomConfig (centralized DB config) + UserPreferences
 │       └── usage/        # UsageTracker
 └── docs/                 # architecture.md, design, ANDROID_TEST_PLAN.md
@@ -378,7 +401,7 @@ aura-android/
 - Kotlin 1.9.24, AGP 8.2.2, JVM target 17
 - Jetpack Compose (BOM 2024.10.01), Material 3, Navigation Compose
 - Hilt 2.51 (DI) + Hilt Work (for WorkManager injection)
-- Room 2.6.1 (10 databases, 48 entities, 30 migrations, schema export)
+- Room 2.6.1 (11 databases, 49 entities, 35 migrations, schema export)
 - WorkManager 2.9.1 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.6.3, kotlinx-coroutines 1.9.0
@@ -390,7 +413,7 @@ aura-android/
 
 ## Changelog
 
-`git log --oneline` is the changelog. 521 commits across the full development history.
+`git log --oneline` is the changelog. 665 commits across the full development history.
 
 ## Engineering history
 
