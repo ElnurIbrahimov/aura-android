@@ -11,6 +11,7 @@ import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
@@ -61,7 +62,7 @@ class GoogleDriveTool @Inject constructor(
         execute = { call, _ ->
             val action = call.arguments["action"] as? String
                 ?: return@Tool ToolResult.Error("missing 'action'", "bad_args")
-            val clientId = userPreferences.googleClientIdSync()
+            val clientId = userPreferences.googleClientId.first()
             if (clientId.isNullOrBlank()) return@Tool ToolResult.Error("Google not connected", "not_connected")
             val token = tokenStore.getValidGoogleAccessToken { refreshToken ->
                 oauthFlow.refreshGoogleToken(refreshToken, clientId)

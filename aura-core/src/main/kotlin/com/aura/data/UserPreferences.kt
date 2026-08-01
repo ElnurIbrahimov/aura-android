@@ -511,15 +511,6 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     val googleClientId: Flow<String> = context.auraPrefs.data.map { it[KEY_GOOGLE_CLIENT_ID] ?: "" }
     val microsoftClientId: Flow<String> = context.auraPrefs.data.map { it[KEY_MICROSOFT_CLIENT_ID] ?: "" }
 
-    /** Synchronous-ish accessor for use in tool execute blocks (not a @Composable). */
-    fun googleClientIdSync(): kotlin.String? = runCatching {
-        kotlinx.coroutines.runBlocking { googleClientId.first() }
-    }.getOrNull()?.takeIf { it.isNotBlank() }
-
-    fun microsoftClientIdSync(): kotlin.String? = runCatching {
-        kotlinx.coroutines.runBlocking { microsoftClientId.first() }
-    }.getOrNull()?.takeIf { it.isNotBlank() }
-
     suspend fun setGoogleClientId(id: kotlin.String) {
         context.auraPrefs.edit { it[KEY_GOOGLE_CLIENT_ID] = id.trim() }
     }

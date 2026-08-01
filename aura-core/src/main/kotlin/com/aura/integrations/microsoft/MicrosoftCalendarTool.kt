@@ -11,6 +11,7 @@ import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -64,7 +65,7 @@ class MicrosoftCalendarTool @Inject constructor(
         execute = { call, _ ->
             val action = call.arguments["action"] as? String
                 ?: return@Tool ToolResult.Error("missing 'action'", "bad_args")
-            val clientId = userPreferences.microsoftClientIdSync()
+            val clientId = userPreferences.microsoftClientId.first()
             if (clientId.isNullOrBlank()) return@Tool ToolResult.Error("Microsoft not connected", "not_connected")
             val token = tokenStore.getValidMicrosoftAccessToken { refreshToken ->
                 oauthFlow.refreshMicrosoftToken(refreshToken, clientId)
