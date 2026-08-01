@@ -113,6 +113,7 @@ class AnthropicProvider(
                 }
             }
             try {
+            kotlinx.coroutines.withTimeout(STREAM_READ_TIMEOUT_MS) {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {
                     emit(ProviderChunk(error = ProviderError("http_${resp.code}", resp.message, retryable = resp.code == 429 || resp.code in 500..599)))
@@ -208,6 +209,7 @@ class AnthropicProvider(
                     }
                 }
             }
+            } // withTimeout
             } finally {
                 cancellationGuard.cancelAndJoin()
                 if (activeCall === call) activeCall = null
@@ -296,5 +298,9 @@ class AnthropicProvider(
         val sys = messages.filter { it.role == ProviderMessage.Role.system }.joinToString("\n\n") { it.content }
         val rest = messages.filter { it.role != ProviderMessage.Role.system }
         return sys.ifBlank { null } to rest
+    }
+
+    companion object {
+        private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
     }
 }

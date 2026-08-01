@@ -6,7 +6,7 @@ import okhttp3.OkHttpClient
  * Groq provider — a thin wrapper around [OpenAiCompatProvider].
  *
  * Base URL: https://api.groq.com/openai/v1/
- * Default models: llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it
+ * Models: discovered live via /v1/models endpoint (no hardcoded defaults).
  *
  * The API key is read from [ProviderKeys] on every [chat] call, not at
  * construction time, so changes the user makes in the Settings UI take

@@ -89,6 +89,7 @@ class GeminiProvider(
                 }
             }
             try {
+            kotlinx.coroutines.withTimeout(STREAM_READ_TIMEOUT_MS) {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {
                     // Try to read error detail from body
@@ -160,6 +161,7 @@ class GeminiProvider(
                     emit(ProviderChunk(finishReason = FinishReason.stop))
                 }
             }
+            } // withTimeout
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -377,5 +379,9 @@ class GeminiProvider(
         } catch (_: Exception) {
             null
         }
+    }
+
+    companion object {
+        private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
     }
 }

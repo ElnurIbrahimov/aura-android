@@ -461,6 +461,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         userPreferences.setDaemonEnabled(backup.preferences.daemonEnabled)
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
+        // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
+        restoreStrategyBandit(backup)
         // Restore custom agents. Builtins are re-seeded on startup
         // so we only insert non-builtin entries from the backup.
         val customAgents = agentRows.filter { !it.isBuiltin }
@@ -626,6 +628,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         evolutionCandidateDao?.deleteAll()
         proactiveInteractionDao?.deleteAll()
         routingOutcomeDao?.deleteAll()
+        // P0 fix: purge strategy bandit weights
+        strategyBanditDao?.clear()
     }
 
     /**

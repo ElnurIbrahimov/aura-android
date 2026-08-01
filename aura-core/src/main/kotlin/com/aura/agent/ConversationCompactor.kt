@@ -207,7 +207,8 @@ class ConversationCompactor @Inject constructor(
             }
             if (lines.isEmpty()) ""
             else "Known facts: ${lines.joinToString(", ")}"
-        }.getOrDefault("")
+        }.onFailure { android.util.Log.w("Compactor", "KG entity snapshot failed: ${it.message}") }
+            .getOrDefault("")
     }
 
     companion object {

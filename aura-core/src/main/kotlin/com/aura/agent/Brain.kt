@@ -71,11 +71,13 @@ class Brain @Inject constructor(
         if (resolvedOptions.thinkingBudget == null) {
             val reasoningEnabled = runCatching {
                 userPreferences.reasoningEnabled.first()
-            }.getOrDefault(true)
+            }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}") }
+                .getOrDefault(true)
             if (reasoningEnabled) {
                 val budget = runCatching {
                     userPreferences.reasoningBudget.first()
-                }.getOrDefault(32000)
+                }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}") }
+                    .getOrDefault(32000)
                 resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
                 // Ensure maxTokens covers BOTH the thinking budget AND a
                 // generous output budget. Anthropic requires max_tokens >=
