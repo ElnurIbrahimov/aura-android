@@ -494,13 +494,13 @@ internal fun CreativeRevisionBackup.toEntity() = com.aura.creative.CreativeRevis
 internal fun com.aura.creative.CreativeBranchEntity.toBackup() = CreativeBranchBackup(
     id = id, projectId = projectId, name = name,
     baseRevisionId = baseRevisionId, headRevisionId = headRevisionId,
-    status = status, createdAt = createdAt,
+    status = status, createdAt = createdAt, updatedAt = updatedAt,
 )
 
 internal fun CreativeBranchBackup.toEntity() = com.aura.creative.CreativeBranchEntity(
     id = id, projectId = projectId, name = name,
     baseRevisionId = baseRevisionId, headRevisionId = headRevisionId,
-    status = status, createdAt = createdAt,
+    status = status, createdAt = createdAt, updatedAt = updatedAt,
 )
 
 internal fun CanonFactBackup.toEntity() = com.aura.creative.CanonFactEntity(

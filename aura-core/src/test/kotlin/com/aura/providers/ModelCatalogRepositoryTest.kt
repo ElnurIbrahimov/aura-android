@@ -34,7 +34,7 @@ class ModelCatalogRepositoryTest {
 
     @Test
     fun `initial catalog has no providers and no models`() = runTest {
-        val registry = ProviderRegistry(emptyMap())
+        val registry = ProviderRegistry(emptyMap(), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -49,7 +49,7 @@ class ModelCatalogRepositoryTest {
 
     @Test
     fun `refresh with empty registry keeps catalog empty`() = runTest {
-        val registry = ProviderRegistry(emptyMap())
+        val registry = ProviderRegistry(emptyMap(), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -71,7 +71,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } returns listOf("model-a", "model-b")
         }
-        val registry = ProviderRegistry(mapOf("ollama" to provider))
+        val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -104,7 +104,7 @@ class ModelCatalogRepositoryTest {
             every { prefix } returns "ollama"
             every { isConfigured() } returns false
         }
-        val registry = ProviderRegistry(mapOf("ollama" to provider))
+        val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -136,6 +136,8 @@ class ModelCatalogRepositoryTest {
         }
         val registry = ProviderRegistry(
             linkedMapOf("prov-a" to providerA, "prov-b" to providerB),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
         )
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
@@ -172,6 +174,8 @@ class ModelCatalogRepositoryTest {
         }
         val registry1 = ProviderRegistry(
             linkedMapOf("prov-a" to providerA, "prov-b" to providerB),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
         )
         val repo1 = ModelCatalogRepository(
             providerRegistry = registry1,
@@ -192,6 +196,8 @@ class ModelCatalogRepositoryTest {
         }
         val registry2 = ProviderRegistry(
             linkedMapOf("prov-a" to providerA, "prov-b" to providerBFail),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
         )
         val repo2 = ModelCatalogRepository(
             providerRegistry = registry2,
@@ -230,7 +236,7 @@ class ModelCatalogRepositoryTest {
                 listOf("slow-model")
             }
         }
-        val registry = ProviderRegistry(mapOf("slow" to provider))
+        val registry = ProviderRegistry(mapOf("slow" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -273,7 +279,7 @@ class ModelCatalogRepositoryTest {
                 listOf("model")
             }
         }
-        val registry = ProviderRegistry(mapOf("timeout-prov" to provider))
+        val registry = ProviderRegistry(mapOf("timeout-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = cache,
@@ -305,7 +311,7 @@ class ModelCatalogRepositoryTest {
                 listOf("model")
             }
         }
-        val registry = ProviderRegistry(mapOf("timeout-prov" to provider))
+        val registry = ProviderRegistry(mapOf("timeout-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -335,7 +341,7 @@ class ModelCatalogRepositoryTest {
                 message = "Unable to resolve host: api.example.com",
             )
         }
-        val registry = ProviderRegistry(mapOf("net-prov" to provider))
+        val registry = ProviderRegistry(mapOf("net-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -360,7 +366,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } throws ProviderCatalogException.AuthenticationException()
         }
-        val registry = ProviderRegistry(mapOf("auth-prov" to provider))
+        val registry = ProviderRegistry(mapOf("auth-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -384,7 +390,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } throws ProviderCatalogException.RateLimitedException()
         }
-        val registry = ProviderRegistry(mapOf("rate-prov" to provider))
+        val registry = ProviderRegistry(mapOf("rate-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -408,7 +414,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } returns emptyList()
         }
-        val registry = ProviderRegistry(mapOf("empty-prov" to provider))
+        val registry = ProviderRegistry(mapOf("empty-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -436,7 +442,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } returns listOf("m1")
         }
-        val registry1 = ProviderRegistry(mapOf("prov" to provider))
+        val registry1 = ProviderRegistry(mapOf("prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo1 = ModelCatalogRepository(
             providerRegistry = registry1,
             cache = cache,
@@ -453,7 +459,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } throws ProviderCatalogException.NetworkException()
         }
-        val registry2 = ProviderRegistry(mapOf("prov" to providerFail))
+        val registry2 = ProviderRegistry(mapOf("prov" to providerFail), mockk(relaxed = true), mockk(relaxed = true))
         val repo2 = ModelCatalogRepository(
             providerRegistry = registry2,
             cache = cache,
@@ -481,7 +487,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } returns listOf("model-x")
         }
-        val registry = ProviderRegistry(mapOf("ollama" to provider))
+        val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -509,7 +515,7 @@ class ModelCatalogRepositoryTest {
                 listOf("m1")
             }
         }
-        val registry = ProviderRegistry(mapOf("slow" to provider))
+        val registry = ProviderRegistry(mapOf("slow" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -538,7 +544,7 @@ class ModelCatalogRepositoryTest {
             coEvery { listModels() } returns listOf("default")
         }
 
-        val registry = ProviderRegistry(mapOf("moa" to moaProvider))
+        val registry = ProviderRegistry(mapOf("moa" to moaProvider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -560,7 +566,7 @@ class ModelCatalogRepositoryTest {
             every { prefix } returns "moa"
             every { isConfigured() } returns false
         }
-        val registry = ProviderRegistry(mapOf("moa" to moaProvider))
+        val registry = ProviderRegistry(mapOf("moa" to moaProvider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -601,7 +607,7 @@ class ModelCatalogRepositoryTest {
                 "Unexpected response format",
             )
         }
-        val registry = ProviderRegistry(mapOf("bad-prov" to provider))
+        val registry = ProviderRegistry(mapOf("bad-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
             cache = InMemoryModelCatalogCache(),
@@ -637,6 +643,8 @@ class ModelCatalogRepositoryTest {
         }
         val registry = ProviderRegistry(
             linkedMapOf("fast" to fastProvider, "slow" to slowProvider),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
         )
         val repo = ModelCatalogRepository(
             providerRegistry = registry,
@@ -674,7 +682,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } returns listOf("m1")
         }
-        val registry1 = ProviderRegistry(mapOf("prov" to providerOk))
+        val registry1 = ProviderRegistry(mapOf("prov" to providerOk), mockk(relaxed = true), mockk(relaxed = true))
         val repo1 = ModelCatalogRepository(
             providerRegistry = registry1,
             cache = cache,
@@ -693,7 +701,7 @@ class ModelCatalogRepositoryTest {
             every { isConfigured() } returns true
             coEvery { listModels() } throws ProviderCatalogException.NetworkException()
         }
-        val registry2 = ProviderRegistry(mapOf("prov" to providerFail))
+        val registry2 = ProviderRegistry(mapOf("prov" to providerFail), mockk(relaxed = true), mockk(relaxed = true))
         val repo2 = ModelCatalogRepository(
             providerRegistry = registry2,
             cache = cache,

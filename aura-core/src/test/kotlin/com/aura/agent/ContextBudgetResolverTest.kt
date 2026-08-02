@@ -20,7 +20,7 @@ class ContextBudgetResolverTest {
         coEvery { provider.listModelsWithContext() } returns listOf(
             ModelInfo(name = "gemma3:4b", contextWindow = 128_000),
         )
-        val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("ollama:gemma3:4b")
@@ -35,7 +35,7 @@ class ContextBudgetResolverTest {
         coEvery { provider.listModelsWithContext() } returns listOf(
             ModelInfo(name = "claude-sonnet-4", contextWindow = 200_000),
         )
-        val registry = ProviderRegistry(mapOf("anthropic" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("anthropic" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("anthropic:claude-sonnet-4")
@@ -50,7 +50,7 @@ class ContextBudgetResolverTest {
         coEvery { provider.listModelsWithContext() } returns listOf(
             ModelInfo(name = "claude-sonnet-4-20250514", contextWindow = null),
         )
-        val registry = ProviderRegistry(mapOf("anthropic" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("anthropic" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("anthropic:claude-sonnet-4-20250514")
@@ -65,7 +65,7 @@ class ContextBudgetResolverTest {
         coEvery { provider.listModelsWithContext() } returns listOf(
             ModelInfo(name = "gpt-4o", contextWindow = null),
         )
-        val registry = ProviderRegistry(mapOf("openai" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("openai" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("openai:gpt-4o")
@@ -79,7 +79,7 @@ class ContextBudgetResolverTest {
         every { provider.prefix } returns "mystery"
         coEvery { provider.listModelsWithContext() } returns emptyList()
         coEvery { provider.listModels() } returns listOf("some-model")
-        val registry = ProviderRegistry(mapOf("mystery" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("mystery" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("mystery:some-model")
@@ -94,7 +94,7 @@ class ContextBudgetResolverTest {
         coEvery { provider.listModelsWithContext() } returns listOf(
             ModelInfo(name = "mini", contextWindow = 1_000),
         )
-        val registry = ProviderRegistry(mapOf("tiny" to provider), mockk(relaxed = true))
+        val registry = ProviderRegistry(mapOf("tiny" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         val budget = resolver.maxTokensFor("tiny:mini")
@@ -104,7 +104,7 @@ class ContextBudgetResolverTest {
 
     @Test
     fun `returns null for unresolvable model id`() = runTest {
-        val registry = ProviderRegistry(emptyMap(), mockk(relaxed = true))
+        val registry = ProviderRegistry(emptyMap(), mockk(relaxed = true), mockk(relaxed = true))
         val resolver = ContextBudgetResolver(registry)
 
         assertNull(resolver.maxTokensFor("not_a_model"))

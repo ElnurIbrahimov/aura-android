@@ -16,8 +16,7 @@ object AgentModule {
     @Provides
     @Singleton
     fun provideAgentDatabase(@ApplicationContext context: Context): AgentDatabase =
-        Room.databaseBuilder(context, AgentDatabase::class.java, "agents.db")
-            .fallbackToDestructiveMigrationOnDowngrade()
+        com.aura.data.RoomConfig.builder(context, AgentDatabase::class.java, "agents.db", arrayOf())
             .build()
 
     @Provides

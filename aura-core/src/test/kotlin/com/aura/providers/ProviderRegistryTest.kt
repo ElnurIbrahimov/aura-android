@@ -24,7 +24,7 @@ class ProviderRegistryTest {
     @Test
     fun `parse splits on colon`() = runTest {
         val p = mockk<Provider>(relaxed = true)
-        val registry = ProviderRegistry(mapOf("foo" to p))
+        val registry = ProviderRegistry(mapOf("foo" to p), mockk(relaxed = true), mockk(relaxed = true))
         val (prov, model) = registry.parse("foo:bar")
         assertEquals(p, prov)
         assertEquals("bar", model)
@@ -35,7 +35,7 @@ class ProviderRegistryTest {
         val p = mockk<Provider>(relaxed = true) {
             every { prefix } returns "foo"
         }
-        val registry = ProviderRegistry(mapOf("foo" to p))
+        val registry = ProviderRegistry(mapOf("foo" to p), mockk(relaxed = true), mockk(relaxed = true))
 
         assertFailsWith<IllegalArgumentException> { registry.parse("default") }
         coVerify(exactly = 0) { p.listModels() }
@@ -44,7 +44,7 @@ class ProviderRegistryTest {
     @Test
     fun `parse throws on unknown prefix`() = runTest {
         val p = mockk<Provider>(relaxed = true)
-        val registry = ProviderRegistry(mapOf("foo" to p))
+        val registry = ProviderRegistry(mapOf("foo" to p), mockk(relaxed = true), mockk(relaxed = true))
         assertFailsWith<IllegalArgumentException> { registry.parse("bar:baz") }
     }
 
@@ -61,7 +61,7 @@ class ProviderRegistryTest {
             )
         }
         val tracker = UsageTracker()
-        val registry = ProviderRegistry(mapOf("foo" to provider), tracker)
+        val registry = ProviderRegistry(mapOf("foo" to provider), mockk(relaxed = true), tracker)
 
         registry.chat(
             "foo:model",
@@ -82,7 +82,7 @@ class ProviderRegistryTest {
                 emit(ProviderChunk(text = Thread.currentThread().name))
             }
         }
-        val registry = ProviderRegistry(mapOf("foo" to provider))
+        val registry = ProviderRegistry(mapOf("foo" to provider), mockk(relaxed = true), mockk(relaxed = true))
         val caller = Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "ui-caller")
         }.asCoroutineDispatcher()

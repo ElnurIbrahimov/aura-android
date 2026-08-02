@@ -333,6 +333,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * @return the count of rows written per table.
      */
     suspend fun restore(backup: AuraBackup): RestoreCounts = withContext(Dispatchers.IO) {
+        // Build ALL entity rows first (no DB calls) so a mapping
+        // failure can't leave the DB half-imported.
         val memRows = backup.memories.map { it.toEntity() }
         val editRows = backup.memoryEdits.map { it.toEntity() }
         val documentRows = backup.documents.map { it.toEntity() }
@@ -383,6 +385,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val proactiveInteractionRows = backup.proactiveInteractions.map { it.toEntity() }
         val routingOutcomeRows = backup.routingOutcomes.map { it.toEntity() }
 
+        // All DB writes are wrapped in a try block. If ANY insert fails
+        // mid-restore, we call purgeAll() so the DB is never left
+        // half-imported and inconsistent. The user can then re-attempt
+        // the restore from the backup file. Without this guard, a crash
+        // mid-restore leaves memories in but KG nodes missing, breaking
+        // FK relationships at next startup.
+        try {
         if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
         if (documentRows.isNotEmpty()) documentDao.insertAll(documentRows)
@@ -441,6 +450,14 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         } else {
             userProfileDao.deleteAll()
         }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("BackupManager", "restore failed, purging partial data: ${e.message}", e)
+            try { purgeAll() } catch (_: Exception) { /* best-effort cleanup */ }
+            throw e
+        }
+
         backup.preferences.defaultModel?.let { userPreferences.setDefaultModel(it) }
         userPreferences.setAppLockEnabled(backup.preferences.appLockEnabled)
         userPreferences.setFirstRunComplete(backup.preferences.firstRunComplete)

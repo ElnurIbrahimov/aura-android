@@ -2,6 +2,7 @@ package com.aura.kg
 
 import com.aura.providers.ProviderRegistry
 import com.aura.tools.KnowledgeGraphTool
+import io.mockk.mockk
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -28,7 +29,7 @@ class KgIdUserNodeTest {
     // if the prompt rule in KnowledgeGraphTool.callLlm and this constant ever
     // drift apart, these are the tests that catch it.
 
-    private val tool = KnowledgeGraphTool(ProviderRegistry(emptyMap()))
+    private val tool = KnowledgeGraphTool(ProviderRegistry(emptyMap(), mockk(relaxed = true), mockk(relaxed = true)))
 
     @Test
     fun `parseResponse assigns USER_NODE_ID to a node labelled user`() {

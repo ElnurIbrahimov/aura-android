@@ -15,6 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class ProviderRegistry @Inject constructor(
     private val providers: Map<String, @JvmSuppressWildcards Provider>,
+    private val providerKeys: ProviderKeys,
     private val usageTracker: UsageTracker = UsageTracker(),
 ) {
     private val byPrefix: Map<String, Provider> = providers.mapKeys { (key, _) -> "$key:" }
@@ -45,6 +46,13 @@ class ProviderRegistry @Inject constructor(
         options: ChatOptions = ChatOptions(),
         tools: List<ToolDefinition> = emptyList(),
     ): Flow<ProviderChunk> {
+        // Ensure the async DataStore key load has completed before
+        // dispatching. On cold start, the first chat can race the init
+        // load — keyFor() returns null, the provider sends a blank
+        // Bearer token, and the user gets a 401. awaitLoaded() suspends
+        // (does NOT block) until the load finishes, which takes
+        // 5-100ms on a warm start and ~200ms on a cold start.
+        providerKeys.awaitLoaded()
         val (provider, model) = parse(modelId)
         val upstream = provider.chat(model, messages, options, tools)
         // MoA dispatches its reference and aggregator calls back through this

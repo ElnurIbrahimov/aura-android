@@ -554,11 +554,10 @@ data class CreativeBranchBackup(
     val projectId: String,
     val name: String,
     val baseRevisionId: String? = null,
-    val parentBranchId: String? = null,
     val headRevisionId: String? = null,
-    val headArtifactId: String? = null,
     val status: String = "active",
     val createdAt: Long,
+    val updatedAt: Long = createdAt,
 )
 
 @Serializable

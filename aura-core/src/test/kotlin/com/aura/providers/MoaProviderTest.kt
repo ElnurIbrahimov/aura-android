@@ -56,7 +56,7 @@ class MoaProviderTest {
                 every { chat("deepseek-v4-pro:cloud", any(), any(), any()) } returns flowOf()
             },
         )
-        val registry = ProviderRegistry(providers)
+        val registry = ProviderRegistry(providers, mockk(relaxed = true))
         val moa = MoaProvider(registry = mockk { every { get() } returns registry }, presets = testPresets)
 
         val job = launch {
@@ -90,7 +90,7 @@ class MoaProviderTest {
             },
             "deepseek" to aggregator,
         )
-        val registry = ProviderRegistry(providers)
+        val registry = ProviderRegistry(providers, mockk(relaxed = true))
         val moa = MoaProvider(registry = mockk { every { get() } returns registry }, presets = testPresets)
 
         val job = launch {
@@ -123,7 +123,7 @@ class MoaProviderTest {
                 every { chat(any(), any(), any(), any()) } returns flowOf()
             },
         )
-        val registry = ProviderRegistry(providers)
+        val registry = ProviderRegistry(providers, mockk(relaxed = true))
         val moa = MoaProvider(registry = mockk { every { get() } returns registry }, presets = testPresets)
 
         val first = launch { moa.chat("default", emptyList(), ChatOptions(), emptyList()).collect {} }
@@ -167,7 +167,7 @@ class MoaProviderTest {
                 )
             },
         )
-        val registry = ProviderRegistry(providers)
+        val registry = ProviderRegistry(providers, mockk(relaxed = true))
         val moa = MoaProvider(registry = mockk { every { get() } returns registry }, presets = testPresets)
 
         moa.chat(
@@ -196,7 +196,7 @@ class MoaProviderTest {
             "ref-two" to configuredProvider("ref-two"),
             "agg" to configuredProvider("agg"),
         )
-        val registry = ProviderRegistry(providers)
+        val registry = ProviderRegistry(providers, mockk(relaxed = true))
         val moa = MoaProvider(
             registry = mockk { every { get() } returns registry },
             userPreferences = preferences,
@@ -211,7 +211,7 @@ class MoaProviderTest {
 
     @Test
     fun `missing presets disable MoA and return a typed error`() = runTest {
-        val registry = ProviderRegistry(emptyMap())
+        val registry = ProviderRegistry(emptyMap(), mockk(relaxed = true), mockk(relaxed = true))
         val moa = MoaProvider(
             registry = mockk { every { get() } returns registry },
             presets = emptyMap(),

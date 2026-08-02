@@ -84,11 +84,20 @@ class Brain @Inject constructor(
                 // budget_tokens + 1, but the remaining tokens must also be
                 // enough for the actual response. For long-form creative
                 // generation (12K-16K words ≈ 16K-21K tokens), the output
-                // budget must be at least 24K. We use the larger of the
-                // existing maxTokens and budget + 24K.
-                val minMaxTokens = budget + 24_576
-                if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {
-                    resolvedOptions = resolvedOptions.copy(maxTokens = minMaxTokens)
+                // budget must be at least 24K.
+                //
+                // CRITICAL: only inflate when the caller did NOT set an
+                // explicit maxTokens. Auxiliary callers (ReflectionEngine,
+                // planning step, LlmWriteGate, LlmProfileExtractor) pass
+                // small maxTokens values (150-200) for short auxiliary
+                // calls. Without this guard, a 150-token reflection call
+                // gets inflated to 56K tokens — a 375x cost inflation.
+                val callerSetMaxTokens = options.maxTokens != null
+                if (!callerSetMaxTokens) {
+                    val minMaxTokens = budget + 24_576
+                    if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {
+                        resolvedOptions = resolvedOptions.copy(maxTokens = minMaxTokens)
+                    }
                 }
             }
         }

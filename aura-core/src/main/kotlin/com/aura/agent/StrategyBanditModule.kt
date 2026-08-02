@@ -15,8 +15,7 @@ object StrategyBanditModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): StrategyBanditDatabase =
-        Room.databaseBuilder(context, StrategyBanditDatabase::class.java, "strategy_bandit.db")
-            .fallbackToDestructiveMigrationOnDowngrade()
+        com.aura.data.RoomConfig.builder(context, StrategyBanditDatabase::class.java, "strategy_bandit.db", arrayOf())
             .build()
 
     @Provides
