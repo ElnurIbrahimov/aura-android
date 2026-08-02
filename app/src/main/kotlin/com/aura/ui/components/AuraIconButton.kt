@@ -10,21 +10,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraThemeTokens
 
-/** A 48dp semantic hit target containing a compact 40dp visual control. */
+/**
+ * A 48dp semantic hit target containing a compact 40dp visual control.
+ *
+ * When [contentDescription] is non-null, it is applied to the outer
+ * Box so TalkBack announces the button's purpose. The Icon inside
+ * should NOT set its own contentDescription when this is used (double
+ * announcement). If [contentDescription] is null, the content lambda
+ * is responsible for providing accessibility info.
+ */
 @Composable
 fun AuraIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     containerColor: Color = Color.Transparent,
+    contentDescription: String? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = AuraThemeTokens.colors
+    val baseModifier = if (contentDescription != null) {
+        modifier.semantics { this.contentDescription = contentDescription }
+    } else {
+        modifier
+    }
     Box(
-        modifier = modifier
+        modifier = baseModifier
             .size(AuraDimensions.minimumTouchTarget)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,

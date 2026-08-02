@@ -44,6 +44,8 @@ import com.aura.voice.SpeechToText
 
 import com.aura.ui.theme.AuraThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 @Composable
 fun VoiceOverlay(
     viewModel: VoiceViewModel = hiltViewModel(),

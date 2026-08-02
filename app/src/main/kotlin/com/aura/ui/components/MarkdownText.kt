@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import kotlin.text.Regex
 
 import com.aura.ui.theme.AuraThemeTokens
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 /**
  * Lightweight markdown renderer. Handles the 80% case with regex
  * — no external library.
@@ -654,7 +656,7 @@ private fun CodeBlock(language: String, code: String) {
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                             copied = true
                         },
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(24.dp).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
@@ -678,7 +680,7 @@ private fun CodeBlock(language: String, code: String) {
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                             copied = true
                         },
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(24.dp).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
