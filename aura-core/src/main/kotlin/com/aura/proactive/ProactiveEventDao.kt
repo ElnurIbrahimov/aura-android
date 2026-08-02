@@ -65,6 +65,9 @@ interface ProactiveInteractionDao {
     @Query("SELECT * FROM proactive_interactions ORDER BY timestamp ASC")
     suspend fun allForBackup(): List<ProactiveInteractionEntity>
 
+    @Query("SELECT * FROM proactive_interactions ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 20): List<ProactiveInteractionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(interactions: List<ProactiveInteractionEntity>)
 
