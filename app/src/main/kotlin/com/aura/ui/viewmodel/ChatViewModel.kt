@@ -358,6 +358,15 @@ class ChatViewModel @Inject constructor(
         cancelSend = ::cancel,
     )
 
+    /**
+     * Model catalog controller — owns model list refresh and
+     * model selection state resolution. Extracted from ChatViewModel
+     * to isolate catalog logic from the send pipeline.
+     */
+    private val modelController: ChatModelController? = modelCatalogRepository?.let {
+        ChatModelController(_state, it)
+    }
+
     /** Reactive list of installed skills, exposed for the composer attachment sheet. */
     val skills: StateFlow<List<Skill>> = skillsStore?.skills ?: MutableStateFlow(emptyList())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -561,8 +570,8 @@ class ChatViewModel @Inject constructor(
      */
 
     fun refreshModels() {
-        val repository = modelCatalogRepository
-        if (repository == null) {
+        val controller = modelController
+        if (controller == null) {
             _state.update {
                 it.copy(
                     modelSelection = ModelSelectionState.Failed(
@@ -575,45 +584,24 @@ class ChatViewModel @Inject constructor(
             }
             return
         }
-        val current = _state.value
-        _state.update {
-            it.copy(
-                modelsLoading = true,
-                modelsError = null,
-                modelSelection = ModelSelectionState.Loading(
-                    current.activeModel.takeIf(String::isNotBlank),
-                    current.availableModels,
-                ),
-            )
-        }
-        repository.refresh(force = true)
+        controller.refreshModels()
     }
 
     private fun applyModelCatalog(catalog: ModelCatalog?) {
-        val current = _state.value
-        if (catalog == null) {
-            val selection = if (current.activeModel.isBlank()) {
-                ModelSelectionState.Missing
-            } else {
-                ModelSelectionState.Failed(
-                    current.activeModel,
-                    current.availableModels,
-                    "Model catalog is unavailable.",
-                )
+        modelController?.applyModelCatalog(catalog) ?: run {
+            val current = _state.value
+            if (catalog == null) {
+                val selection = if (current.activeModel.isBlank()) {
+                    ModelSelectionState.Missing
+                } else {
+                    ModelSelectionState.Failed(
+                        current.activeModel,
+                        current.availableModels,
+                        "Model catalog is unavailable.",
+                    )
+                }
+                _state.update { it.copy(modelSelection = selection) }
             }
-            _state.update { it.copy(modelSelection = selection) }
-            return
-        }
-
-        val models = catalog.allModels.map { it.id }.distinct().sorted()
-        val selection = resolveModelSelection(current.activeModel, catalog)
-        _state.update {
-            it.copy(
-                availableModels = models,
-                modelsLoading = selection is ModelSelectionState.Loading,
-                modelsError = (selection as? ModelSelectionState.Failed)?.message,
-                modelSelection = selection,
-            )
         }
     }
 
