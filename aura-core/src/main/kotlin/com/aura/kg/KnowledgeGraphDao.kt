@@ -27,9 +27,9 @@ interface KnowledgeGraphDao {
 
     @Query("""
         SELECT * FROM kg_nodes
-        WHERE label LIKE '%' || :queryEscaped || '%' ESCAPE '\'
-           OR type LIKE '%' || :queryEscaped || '%' ESCAPE '\'
-           OR properties LIKE '%' || :queryEscaped || '%' ESCAPE '\'
+        WHERE label LIKE '%' || :queryEscaped || '%' ESCAPE '\\'
+           OR type LIKE '%' || :queryEscaped || '%' ESCAPE '\\'
+           OR properties LIKE '%' || :queryEscaped || '%' ESCAPE '\\'
         ORDER BY accessCount DESC, updatedAt DESC
         LIMIT :limit
     """)
