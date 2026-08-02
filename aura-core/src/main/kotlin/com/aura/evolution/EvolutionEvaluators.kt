@@ -46,12 +46,12 @@ class EvolutionEvaluators @Inject constructor(
     ): kotlin.Float? {
         val consistency = runCatching {
             evaluateSelfConsistency(userMessage, model)
-        }.onFailure { Log.w("EvolutionEvaluators", "self-consistency failed: ${it.message}") }
+        }.onFailure { Log.w("EvolutionEvaluators", "self-consistency failed: ${it.message}", it) }
             .getOrNull()
 
         val judge = runCatching {
             evaluateJudge(userMessage, response, model)
-        }.onFailure { Log.w("EvolutionEvaluators", "judge failed: ${it.message}") }
+        }.onFailure { Log.w("EvolutionEvaluators", "judge failed: ${it.message}", it) }
             .getOrNull()
 
         return when {
@@ -132,7 +132,7 @@ class EvolutionEvaluators @Inject constructor(
             }
         }
         builder.toString().trim()
-    }.onFailure { Log.w("EvoEval", "op failed: ${it.message}") }.getOrDefault("")
+    }.onFailure { Log.w("EvoEval", "op failed: ${it.message}", it) }.getOrDefault("")
 
     companion object {
         private const val JUDGE_TIMEOUT_MS = 5_000L

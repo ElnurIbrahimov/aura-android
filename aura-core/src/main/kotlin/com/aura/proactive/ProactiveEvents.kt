@@ -92,7 +92,7 @@ class ProactiveEvents(
             scope.launch {
                 combined.collect { lastSeenAt ->
                     countFlow.value = runCatching { dao.countSince(lastSeenAt) }
-                        .onFailure { android.util.Log.w("ProactiveEvents", "unreadCount query failed: ${it.message}") }
+                        .onFailure { android.util.Log.w("ProactiveEvents", "unreadCount query failed: ${it.message}", it) }
                         .getOrDefault(0)
                 }
             }

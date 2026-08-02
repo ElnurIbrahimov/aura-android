@@ -74,7 +74,7 @@ class DiagnosticsViewModel @Inject constructor(
                 crashLogger.clear()
                 traceSink.clear()
                 crashLogger.entries()
-            }.onFailure { Log.w("DiagVM", "op failed: ${it.message}") }.onSuccess { entries ->
+            }.onFailure { Log.w("DiagVM", "op failed: ${it.message}", it) }.onSuccess { entries ->
                 _state.update {
                     it.copy(
                         entries = entries,

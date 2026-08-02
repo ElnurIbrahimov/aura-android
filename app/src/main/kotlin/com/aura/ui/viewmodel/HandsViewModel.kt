@@ -164,7 +164,7 @@ class HandsViewModel @Inject constructor(
                     variables = variables,
                     trigger = HandRunTrigger.MANUAL.value,
                 )
-            }.onFailure { Log.w("HandsVM", "op failed: ${it.message}") }.getOrElse { ToolResult.Error(it.message ?: "Hand failed", "hand_runtime_error") }
+            }.onFailure { Log.w("HandsVM", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error(it.message ?: "Hand failed", "hand_runtime_error") }
             _state.value = _state.value.copy(running = null, lastResult = resultMessage(result))
         }
     }

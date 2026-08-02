@@ -80,7 +80,7 @@ class KnowledgeGraphRepository @Inject constructor(
         // single indexed lookup per predicate, no model call. Best-effort:
         // never fail a KG save because revision had a problem.
         runCatching { beliefConflictProbe?.check(edges.map { it.toEntity() }) }
-            .onFailure { android.util.Log.w("KgRepository", "belief probe failed: ${it.message}") }
+            .onFailure { android.util.Log.w("KgRepository", "belief probe failed: ${it.message}", it) }
     }
 
     suspend fun search(query: String): List<KgNode> =

@@ -464,7 +464,7 @@ class ChatSendController(
                             consecutiveFailures++
                             // Record strategy bandit outcome: failure on max_steps_exceeded
                             if (strategy != null && event.code == "max_steps_exceeded") {
-                                runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}") }
+                                runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             val typed = event.typedError
                             val display = typed?.formatUserMessage() ?: "${event.code}: ${event.message}"
@@ -488,7 +488,7 @@ class ChatSendController(
                             consecutiveFailures = 0
                             // Record strategy bandit outcome: success
                             if (strategy != null) {
-                                runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}") }
+                                runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             // Record wall-clock duration for the response footer.
                             if (runStartTimeMs > 0) {

@@ -66,7 +66,7 @@ class MotivationAccumulator @Inject constructor(
         val baseThreshold = 0.5f
         val recentInteractions = runCatching {
             proactiveInteractionDao.recent(20)
-        }.onFailure { Log.w("Motivation", "interactions read failed: ${it.message}") }
+        }.onFailure { Log.w("Motivation", "interactions read failed: ${it.message}", it) }
             .getOrDefault(emptyList())
 
         if (recentInteractions.isEmpty()) return baseThreshold

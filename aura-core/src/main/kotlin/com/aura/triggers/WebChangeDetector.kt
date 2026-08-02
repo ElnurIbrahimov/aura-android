@@ -27,7 +27,7 @@ class WebChangeDetector @javax.inject.Inject constructor(
             if (!response.isSuccessful) return@withContext null
             val bytes = response.body?.bytes() ?: return@withContext null
             sha256(bytes)
-        }.onFailure { Log.w("WebChange", "op failed: ${it.message}") }.getOrNull()
+        }.onFailure { Log.w("WebChange", "op failed: ${it.message}", it) }.getOrNull()
     }
 
     private fun sha256(bytes: ByteArray): String {

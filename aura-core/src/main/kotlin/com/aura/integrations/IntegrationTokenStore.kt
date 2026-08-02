@@ -101,7 +101,7 @@ class IntegrationTokenStore @Inject constructor(
         // Token expired — try to refresh
         val refreshToken = secureDataStore.getString(refreshKey) ?: return@withContext null
         val refreshResult = runCatching { refreshFn(refreshToken) }
-            .onFailure { Log.w(TAG, "token refresh failed: ${it.message}") }
+            .onFailure { Log.w(TAG, "token refresh failed: ${it.message}", it) }
             .getOrNull() ?: return@withContext null
 
         if (refreshResult == null) return@withContext null

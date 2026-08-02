@@ -73,11 +73,11 @@ class ProactiveBootstrap @Inject constructor(
     fun start() {
         // Load persisted emotion state so it survives cold starts.
         emotionEngine?.let { engine ->
-            scope.launch { runCatching { engine.load() }.onFailure { Log.w("Bootstrap", "emotion load failed: ${it.message}") } }
+            scope.launch { runCatching { engine.load() }.onFailure { Log.w("Bootstrap", "emotion load failed: ${it.message}", it) } }
         }
         // Load persisted narrative self so it survives cold starts.
         narrativeSelf?.let { ns ->
-            scope.launch { runCatching { ns.load() }.onFailure { Log.w("Bootstrap", "narrative load failed: ${it.message}") } }
+            scope.launch { runCatching { ns.load() }.onFailure { Log.w("Bootstrap", "narrative load failed: ${it.message}", it) } }
         }
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }

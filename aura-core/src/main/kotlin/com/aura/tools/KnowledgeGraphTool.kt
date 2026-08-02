@@ -133,7 +133,7 @@ class KnowledgeGraphTool @Inject constructor(
         // no Ollama key.
         val flow = runCatching {
             providerRegistry.chat("default", messages, options)
-        }.onFailure { Log.w("KGTool", "op failed: ${it.message}") }.getOrElse {
+        }.onFailure { Log.w("KGTool", "op failed: ${it.message}", it) }.getOrElse {
             val fallback = providerRegistry.configured()
                 .firstOrNull()
                 ?.let { p ->

@@ -272,7 +272,7 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     val triggers: Flow<List<com.aura.triggers.Trigger>> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_TRIGGERS_JSON]?.let { json ->
             runCatching { kotlinx.serialization.json.Json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()), json) }
-                .onFailure { android.util.Log.w("UserPreferences", "failed to decode triggers: ${it.message}") }
+                .onFailure { android.util.Log.w("UserPreferences", "failed to decode triggers: ${it.message}", it) }
                 .getOrDefault(emptyList())
         } ?: emptyList()
     }

@@ -71,12 +71,12 @@ class Brain @Inject constructor(
         if (resolvedOptions.thinkingBudget == null) {
             val reasoningEnabled = runCatching {
                 userPreferences.reasoningEnabled.first()
-            }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}", it) }
                 .getOrDefault(true)
             if (reasoningEnabled) {
                 val budget = runCatching {
                     userPreferences.reasoningBudget.first()
-                }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}") }
+                }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}", it) }
                     .getOrDefault(32000)
                 resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
                 // Ensure maxTokens covers BOTH the thinking budget AND a

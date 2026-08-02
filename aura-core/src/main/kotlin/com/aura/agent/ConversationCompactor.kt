@@ -72,8 +72,8 @@ class ConversationCompactor @Inject constructor(
                 com.aura.providers.CheapModelHeuristic.pick(candidates) ?: model
             }
         }.onFailure {
-            android.util.Log.w("ConversationCompactor", "cheap-model resolution failed: ${it.message}")
-        }.onFailure { Log.w("Compactor", "op failed: ${it.message}") }.getOrDefault(model)
+            android.util.Log.w("ConversationCompactor", "cheap-model resolution failed: ${it.message}", it)
+        }.onFailure { Log.w("Compactor", "op failed: ${it.message}", it) }.getOrDefault(model)
         val summarizedThrough = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size)
         val unsummarizedTurns = conversation.turns.drop(summarizedThrough)
         // Token estimation: chars / 4 is a rough heuristic for English text.
@@ -171,7 +171,7 @@ class ConversationCompactor @Inject constructor(
         return runCatching {
             val (provider, modelName) = providerRegistry.parse(model)
             cachedModelsWithContext(provider).firstOrNull { it.name == modelName }?.contextWindow
-        }.onFailure { android.util.Log.w("ConversationCompactor", "lookupContextWindow failed for $model: ${it.message}") }
+        }.onFailure { android.util.Log.w("ConversationCompactor", "lookupContextWindow failed for $model: ${it.message}", it) }
         .getOrNull()
     }
 
@@ -207,7 +207,7 @@ class ConversationCompactor @Inject constructor(
             }
             if (lines.isEmpty()) ""
             else "Known facts: ${lines.joinToString(", ")}"
-        }.onFailure { android.util.Log.w("Compactor", "KG entity snapshot failed: ${it.message}") }
+        }.onFailure { android.util.Log.w("Compactor", "KG entity snapshot failed: ${it.message}", it) }
             .getOrDefault("")
     }
 

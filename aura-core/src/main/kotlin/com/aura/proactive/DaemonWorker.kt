@@ -64,13 +64,13 @@ class DaemonWorker @AssistedInject constructor(
         return try {
             // 1. Awareness checks (8 heuristic checks, no LLM cost)
             val findings = runCatching { awarenessEngine?.runAll().orEmpty() }
-                .onFailure { Log.w(TAG, "awareness: ${it.message}") }
+                .onFailure { Log.w(TAG, "awareness: ${it.message}", it) }
                 .getOrDefault(emptyList())
 
             // 2. Salience filter — only high-salience findings pass
             val salient = if (salienceFilter != null && findings.isNotEmpty()) {
                 runCatching { salienceFilter!!.filter(findings) }
-                    .onFailure { Log.w(TAG, "salience: ${it.message}") }
+                    .onFailure { Log.w(TAG, "salience: ${it.message}", it) }
                     .getOrDefault(findings.map { SalienceFilter.FilteredFinding(it, 1f, true) })
                     .filter { it.passed }
                     .map { it.finding }
@@ -90,7 +90,7 @@ class DaemonWorker @AssistedInject constructor(
                         userReceptivity = if (isGoodTime) 0.7f else 0.3f,
                     )
                     val score = runCatching { motivationAccumulator!!.evaluate(message) }
-                        .onFailure { Log.w(TAG, "motivation: ${it.message}") }
+                        .onFailure { Log.w(TAG, "motivation: ${it.message}", it) }
                         .getOrNull()
                     if (score?.shouldDeliver == true) {
                         postFinding(finding)
@@ -130,11 +130,11 @@ class DaemonWorker @AssistedInject constructor(
                         ))
                     }
                 }
-            }.onFailure { Log.w(TAG, "curiosity: ${it.message}") }
+            }.onFailure { Log.w(TAG, "curiosity: ${it.message}", it) }
 
             // 6. Idle-time preparation — predict next question, pre-research
             runCatching { idleTimePreparationEngine?.prepare() }
-                .onFailure { Log.w(TAG, "idle prep: ${it.message}") }
+                .onFailure { Log.w(TAG, "idle prep: ${it.message}", it) }
 
             // 7. Proactive outreach — varied messages with rationale
             if (agentPresence != null && proactiveMessageStore != null) {
@@ -154,7 +154,7 @@ class DaemonWorker @AssistedInject constructor(
                             proactiveMessageStore?.setMessage(outreach)
                         }
                     }
-                }.onFailure { Log.w(TAG, "outreach: ${it.message}") }
+                }.onFailure { Log.w(TAG, "outreach: ${it.message}", it) }
             }
 
             // 8. LLM insight — review conversation + context
@@ -267,7 +267,7 @@ class DaemonWorker @AssistedInject constructor(
                 ))
                 Log.d(TAG, "posted insight: ${insight.take(80)}")
             }
-        }.onFailure { Log.w(TAG, "LLM insight: ${it.message}") }
+        }.onFailure { Log.w(TAG, "LLM insight: ${it.message}", it) }
     }
 
     companion object {

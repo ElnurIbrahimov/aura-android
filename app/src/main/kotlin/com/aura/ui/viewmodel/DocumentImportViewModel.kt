@@ -55,7 +55,7 @@ class DocumentImportViewModel @Inject constructor(
                     sourceUri = extracted.sourceUri,
                     text = extracted.text,
                 )
-            }.onFailure { Log.w("DocImportVM", "op failed: ${it.message}") }.onSuccess { result ->
+            }.onFailure { Log.w("DocImportVM", "op failed: ${it.message}", it) }.onSuccess { result ->
                 _state.update {
                     it.copy(
                         importing = false,

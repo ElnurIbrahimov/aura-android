@@ -82,7 +82,7 @@ class EvolutionInboxViewModel @Inject constructor(
                                 action = proposal.action,
                                 proposalId = proposal.id,
                             )
-                        }.onFailure { Log.w("EvoInboxVM", "op failed: ${it.message}") }
+                        }.onFailure { Log.w("EvoInboxVM", "op failed: ${it.message}", it) }
                     }
                     is EvolutionApplySaga.ApplyResult.Error -> {
                         proposalStore.markApplyFailed(id, result.message)

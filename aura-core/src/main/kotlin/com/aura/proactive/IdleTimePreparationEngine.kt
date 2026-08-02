@@ -108,7 +108,7 @@ class IdleTimePreparationEngine @Inject constructor(
             )
             _prepared.value = prepared
             prepared
-        }.onFailure { Log.w("IdlePrep", "prepare failed: ${it.message}") }.getOrNull()
+        }.onFailure { Log.w("IdlePrep", "prepare failed: ${it.message}", it) }.getOrNull()
     }
 
     fun consume(): PreparedAnswer? {

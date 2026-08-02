@@ -31,13 +31,13 @@ class CuriosityScanner @Inject constructor(
     suspend fun scan(): List<CuriosityTarget> {
         val targets = mutableListOf<CuriosityTarget>()
         runCatching { targets.addAll(findIsolatedNodes()) }
-            .onFailure { Log.w("Curiosity", "isolated scan failed: ${it.message}") }
+            .onFailure { Log.w("Curiosity", "isolated scan failed: ${it.message}", it) }
         runCatching { targets.addAll(findContextlessMentions()) }
-            .onFailure { Log.w("Curiosity", "contextless scan failed: ${it.message}") }
+            .onFailure { Log.w("Curiosity", "contextless scan failed: ${it.message}", it) }
         runCatching { targets.addAll(findStaleTopics()) }
-            .onFailure { Log.w("Curiosity", "stale scan failed: ${it.message}") }
+            .onFailure { Log.w("Curiosity", "stale scan failed: ${it.message}", it) }
         runCatching { targets.addAll(findShallowKnowledge()) }
-            .onFailure { Log.w("Curiosity", "shallow scan failed: ${it.message}") }
+            .onFailure { Log.w("Curiosity", "shallow scan failed: ${it.message}", it) }
         return targets.distinctBy { it.entityName to it.gapType }
             .sortedByDescending { it.urgency }
             .take(5)

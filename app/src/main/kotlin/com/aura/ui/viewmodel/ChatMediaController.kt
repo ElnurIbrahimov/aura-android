@@ -135,7 +135,7 @@ class ChatMediaController(
                 )?.use { cursor ->
                     if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
                 }
-            }.onFailure { Log.w("ChatMediaCtrl", "op failed: ${it.message}") }.getOrNull()
+            }.onFailure { Log.w("ChatMediaCtrl", "op failed: ${it.message}", it) }.getOrNull()
             if (knownSize != null && knownSize > MAX_TRANSCRIPTION_AUDIO_BYTES) {
                 state.update { it.copy(error = "Audio is larger than the 25 MB limit.") }
                 return@launch

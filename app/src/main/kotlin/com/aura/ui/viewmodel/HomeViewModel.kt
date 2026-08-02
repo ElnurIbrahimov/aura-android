@@ -329,7 +329,7 @@ class HomeViewModel @Inject constructor(
                         )
                     }
                 }
-            }.onFailure { Log.w("HomeVM", "op failed: ${it.message}") }
+            }.onFailure { Log.w("HomeVM", "op failed: ${it.message}", it) }
         }
     }
 
@@ -378,7 +378,7 @@ class HomeViewModel @Inject constructor(
                 val name = extractUserName(recentForProfile)
 
                 val loaded = _state.value.copy(
-                    today = calendarResult.onFailure { Log.w("HomeVM", "op failed: ${it.message}") }.getOrDefault(emptyList()),
+                    today = calendarResult.onFailure { Log.w("HomeVM", "op failed: ${it.message}", it) }.getOrDefault(emptyList()),
                     recentMemories = recent,
                     pendingTasks = tasks,
                     userName = name,

@@ -428,8 +428,8 @@ class DreamConsolidator @Inject constructor(
                 ""
             }
         }.onFailure {
-            android.util.Log.w("DreamConsolidator", "resolveCheapModel failed: ${it.message}")
-        }.onFailure { Log.w("Dream", "op failed: ${it.message}") }.getOrDefault("")
+            android.util.Log.w("DreamConsolidator", "resolveCheapModel failed: ${it.message}", it)
+        }.onFailure { Log.w("Dream", "op failed: ${it.message}", it) }.getOrDefault("")
     }
 
     /**
@@ -516,7 +516,7 @@ class DreamConsolidator @Inject constructor(
         val conversationStore = conversationStoreProvider.get()
         val conversations = runCatching {
             conversationStore.recent(conversationLimit)
-        }.onFailure { android.util.Log.w("DreamConsolidator", "extractRoutines: conversationStore.recent failed: ${it.message}") }
+        }.onFailure { android.util.Log.w("DreamConsolidator", "extractRoutines: conversationStore.recent failed: ${it.message}", it) }
         .getOrNull() ?: return 0 to 0
         if (conversations.isEmpty()) return 0 to 0
 
@@ -653,7 +653,7 @@ class DreamConsolidator @Inject constructor(
             // Always bump the timestamp so the UI reflects the cycle.
             store.update()
             true
-        }.onFailure { android.util.Log.w("DreamConsolidator", "updateProfile: ${it.message}") }
+        }.onFailure { android.util.Log.w("DreamConsolidator", "updateProfile: ${it.message}", it) }
         .getOrDefault(false)
     }
 
@@ -687,7 +687,7 @@ class DreamConsolidator @Inject constructor(
                 memoryStore.updateDecayScore(entity.id, 0f)
                 archived++
             }.onFailure {
-                android.util.Log.w("DreamConsolidator", "prune update failed for ${entity.id}: ${it.message}")
+                android.util.Log.w("DreamConsolidator", "prune update failed for ${entity.id}: ${it.message}", it)
             }
         }
         return archived
@@ -783,11 +783,11 @@ class DreamConsolidator @Inject constructor(
     internal suspend fun densifyGraph(): Int {
         val kg = knowledgeGraphRepositoryProvider.get()
         val nodes = runCatching { kg.recent(50) }
-            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.recent failed: ${it.message}") }
+            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.recent failed: ${it.message}", it) }
             .getOrNull() ?: return 0
         if (nodes.size < 2) return 0
         val existingEdges = runCatching { kg.allEdges() }
-            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.allEdges failed: ${it.message}") }
+            .onFailure { android.util.Log.w("DreamConsolidator", "densifyGraph: kg.allEdges failed: ${it.message}", it) }
             .getOrNull().orEmpty()
         val connectedPairs = existingEdges.map { it.sourceId to it.targetId }.toHashSet()
         val proposals = mutableListOf<KgEdgeProposalEntity>()

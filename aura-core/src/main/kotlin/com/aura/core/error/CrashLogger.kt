@@ -156,7 +156,7 @@ class CrashLogger @Inject constructor(
                 flushLegacy()
                 runCatching { json.decodeFromString<CrashLogEntry>(line) }
                     .onFailure {
-                        android.util.Log.w("CrashLogger", "failed to parse crash log line: ${it.message}")
+                        android.util.Log.w("CrashLogger", "failed to parse crash log line: ${it.message}", it)
                     }
                     .getOrNull()
                     ?.let(parsed::add)

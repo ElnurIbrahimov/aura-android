@@ -178,8 +178,8 @@ class AgentCouncil @Inject constructor(
                     val firstProvider = providers.firstOrNull()
                     val firstModel = firstProvider?.listModels()?.firstOrNull()
                     if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-                }.onFailure { android.util.Log.w("AgentCouncil", "resolveModel failed for ${agent.name}: ${it.message}") }
-                .onFailure { Log.w("Council", "op failed: ${it.message}") }.getOrNull()
+                }.onFailure { android.util.Log.w("AgentCouncil", "resolveModel failed for ${agent.name}: ${it.message}", it) }
+                .onFailure { Log.w("Council", "op failed: ${it.message}", it) }.getOrNull()
                 ?: return SubagentResult(
                     taskId = "council_${agent.name}",
                     success = false,

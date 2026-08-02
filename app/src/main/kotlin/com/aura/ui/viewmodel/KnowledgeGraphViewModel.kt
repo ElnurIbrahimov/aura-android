@@ -66,7 +66,7 @@ class KnowledgeGraphViewModel @Inject constructor(
                 val nodes = repository.recent(500)
                 val stats = repository.stats()
                 nodes to stats
-            }.onFailure { Log.w("KGVM", "op failed: ${it.message}") }.onSuccess { (nodes, stats) ->
+            }.onFailure { Log.w("KGVM", "op failed: ${it.message}", it) }.onSuccess { (nodes, stats) ->
                 allNodes = nodes
                 _state.update {
                     it.copy(

@@ -360,7 +360,7 @@ class MemoryViewModel @Inject constructor(
                     category = category,
                     importance = importance,
                 )
-            }.onFailure { Log.w("MemVM", "op failed: ${it.message}") }
+            }.onFailure { Log.w("MemVM", "op failed: ${it.message}", it) }
             refresh()
         }
     }

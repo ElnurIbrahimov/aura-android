@@ -148,7 +148,7 @@ class StrategyBandit @Inject constructor(
     suspend fun recordOutcome(category: ProblemCategory, strategy: ReasoningStrategy, success: Boolean) {
         runCatching {
             store.recordOutcome(category, strategy, success)
-        }.onFailure { Log.w("StrategyBandit", "recordOutcome failed: ${it.message}") }
+        }.onFailure { Log.w("StrategyBandit", "recordOutcome failed: ${it.message}", it) }
     }
 
     /**

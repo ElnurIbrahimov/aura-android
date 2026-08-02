@@ -78,7 +78,7 @@ class OpenRouterProvider(
                     if (ctx != null) id to ctx else null
                 }.toMap()
             }
-        }.onFailure { Log.w("OpenRouter", "op failed: ${it.message}") }.getOrDefault(emptyMap())
+        }.onFailure { Log.w("OpenRouter", "op failed: ${it.message}", it) }.getOrDefault(emptyMap())
         names.map { name -> ModelInfo(name = name, contextWindow = ctxByName[name]) }
     }
 }

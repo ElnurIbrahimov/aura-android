@@ -50,7 +50,7 @@ class MediaCapabilityTools @Inject constructor(
             runCatching {
                 val result = provider.speak(TtsRequest(text = text, voice = voice))
                 ToolResult.Ok("TTS audio generated (${result.audio.size} bytes, ${result.extension}).")
-            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}") }.getOrElse { ToolResult.Error("TTS failed: ${it.message}", "generation_error") }
+            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error("TTS failed: ${it.message}", "generation_error") }
         },
         category = "media",
     )
@@ -77,7 +77,7 @@ class MediaCapabilityTools @Inject constructor(
             runCatching {
                 val result = provider.generate(VideoRequest(prompt = prompt, durationSeconds = duration, aspectRatio = aspectRatio))
                 ToolResult.Ok(result.videoUrl?.let { "Video: $it" } ?: "Video generated (${result.bytes?.size ?: 0} bytes).")
-            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}") }.getOrElse { ToolResult.Error("Video generation failed: ${it.message}", "generation_error") }
+            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error("Video generation failed: ${it.message}", "generation_error") }
         },
         category = "media",
     )
@@ -98,7 +98,7 @@ class MediaCapabilityTools @Inject constructor(
             runCatching {
                 val result = provider.generateWorld(prompt)
                 ToolResult.Ok(result.worldUrl?.let { "3D world: $it" } ?: "3D world generated (operation ${result.operationId}).")
-            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}") }.getOrElse { ToolResult.Error("3D generation failed: ${it.message}", "generation_error") }
+            }.onFailure { Log.w("MediaCap", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error("3D generation failed: ${it.message}", "generation_error") }
         },
         category = "media",
     )

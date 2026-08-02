@@ -54,7 +54,7 @@ class NarrativeSelf @Inject constructor(
                 val text = file.readText()
                 state = json.decodeFromString(NarrativeState.serializer(), text)
             }
-        }.onFailure { Log.w("NarrativeSelf", "load failed: ${it.message}") }
+        }.onFailure { Log.w("NarrativeSelf", "load failed: ${it.message}", it) }
     }
 
     /**
@@ -63,7 +63,7 @@ class NarrativeSelf @Inject constructor(
     suspend fun save() = withContext(Dispatchers.IO) {
         runCatching {
             file.writeText(json.encodeToString(NarrativeState.serializer(), state))
-        }.onFailure { Log.w("NarrativeSelf", "save failed: ${it.message}") }
+        }.onFailure { Log.w("NarrativeSelf", "save failed: ${it.message}", it) }
     }
 
     /**

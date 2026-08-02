@@ -149,7 +149,7 @@ class OAuthFlow @Inject constructor(
 
         val response = runCatching {
             httpClient.newCall(Request.Builder().url(GOOGLE_TOKEN_URL).post(body).build()).execute()
-        }.onFailure { Log.w(TAG, "google token exchange failed: ${it.message}") }
+        }.onFailure { Log.w(TAG, "google token exchange failed: ${it.message}", it) }
             .getOrNull() ?: return@withContext
 
         response.use { resp ->
@@ -178,7 +178,7 @@ class OAuthFlow @Inject constructor(
 
         val response = runCatching {
             httpClient.newCall(Request.Builder().url(MS_TOKEN_URL).post(body).build()).execute()
-        }.onFailure { Log.w(TAG, "microsoft token exchange failed: ${it.message}") }
+        }.onFailure { Log.w(TAG, "microsoft token exchange failed: ${it.message}", it) }
             .getOrNull() ?: return@withContext
 
         response.use { resp ->

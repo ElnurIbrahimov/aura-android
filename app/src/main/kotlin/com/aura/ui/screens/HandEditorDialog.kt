@@ -469,7 +469,7 @@ private fun parseSteps(raw: String, json: Json): List<HandStep> = runCatching {
         val args = (obj["args"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }.orEmpty()
         HandStep(tool, args)
     }
-}.onFailure { Log.w("HandEditor", "op failed: ${it.message}") }.getOrDefault(emptyList())
+}.onFailure { Log.w("HandEditor", "op failed: ${it.message}", it) }.getOrDefault(emptyList())
 
 private fun parseVariables(raw: String, json: Json): Map<String, String> = runCatching {
     json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }

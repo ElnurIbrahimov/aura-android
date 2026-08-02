@@ -347,7 +347,7 @@ class CreativeEngine @Inject constructor(
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
             val model = runCatching { provider.listModels().firstOrNull() }
-                .onFailure { android.util.Log.w("CreativeEngine", "listModels failed for ${provider.prefix}: ${it.message}") }
+                .onFailure { android.util.Log.w("CreativeEngine", "listModels failed for ${provider.prefix}: ${it.message}", it) }
                 .getOrNull()
             if (!model.isNullOrBlank()) return "${provider.prefix}:$model"
         }

@@ -33,7 +33,7 @@ class ToolPolicyStore @Inject constructor(
             runCatching {
                 json.decodeFromString<Map<kotlin.String, ToolPolicy>>(raw)
             }.onFailure {
-                android.util.Log.w("ToolPolicyStore", "failed to decode policies: ${it.message}")
+                android.util.Log.w("ToolPolicyStore", "failed to decode policies: ${it.message}", it)
             }.getOrDefault(emptyMap())
         } ?: emptyMap()
     }
@@ -49,7 +49,7 @@ class ToolPolicyStore @Inject constructor(
                 runCatching {
                     json.decodeFromString<Map<kotlin.String, ToolPolicy>>(raw)
                 }.onFailure {
-                    android.util.Log.w("ToolPolicyStore", "failed to decode policies for set: ${it.message}")
+                    android.util.Log.w("ToolPolicyStore", "failed to decode policies for set: ${it.message}", it)
                 }.getOrDefault(emptyMap())
             } ?: emptyMap()
             val updated = current + (toolName to policy)
@@ -63,7 +63,7 @@ class ToolPolicyStore @Inject constructor(
                 runCatching {
                     json.decodeFromString<Map<kotlin.String, ToolPolicy>>(raw)
                 }.onFailure {
-                    android.util.Log.w("ToolPolicyStore", "failed to decode policies for remove: ${it.message}")
+                    android.util.Log.w("ToolPolicyStore", "failed to decode policies for remove: ${it.message}", it)
                 }.getOrDefault(emptyMap())
             } ?: emptyMap()
             val updated = current - toolName

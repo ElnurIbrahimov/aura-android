@@ -61,7 +61,7 @@ class BeliefsViewModel @Inject constructor(
                 beliefDao.history(belief.subject, belief.predicate)
                     .filter { it.status == "superseded" }
                     .sortedByDescending { it.createdAt }
-            }.onFailure { Log.w("BeliefsVM", "op failed: ${it.message}") }.getOrDefault(emptyList())
+            }.onFailure { Log.w("BeliefsVM", "op failed: ${it.message}", it) }.getOrDefault(emptyList())
         }
         _state.value = BeliefsUiState(
             beliefs = loaded,
@@ -89,7 +89,7 @@ class BeliefsViewModel @Inject constructor(
             runCatching {
                 val now = System.currentTimeMillis()
                 beliefDao.supersede(id, "retired", "", now)
-            }.onFailure { android.util.Log.w("BeliefsVM", "retire failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("BeliefsVM", "retire failed: ${it.message}", it) }
             _selected.value = beliefDao.getById(id)
             load()
         }
@@ -102,7 +102,7 @@ class BeliefsViewModel @Inject constructor(
                 val belief = beliefDao.getById(id) ?: return@launch
                 val now = System.currentTimeMillis()
                 beliefDao.verify(id, confidence ?: belief.confidence, now)
-            }.onFailure { android.util.Log.w("BeliefsVM", "verify failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("BeliefsVM", "verify failed: ${it.message}", it) }
             _selected.value = beliefDao.getById(id)
             load()
         }

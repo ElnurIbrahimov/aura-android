@@ -98,7 +98,7 @@ class DelegateToAgentTool @Inject constructor(
                 val firstProvider = providers.firstOrNull()
                 val firstModel = firstProvider?.listModels()?.firstOrNull()
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else null
-            }.onFailure { Log.w("Delegate", "op failed: ${it.message}") }.getOrNull()
+            }.onFailure { Log.w("Delegate", "op failed: ${it.message}", it) }.getOrNull()
             ?: throw IllegalStateException("Agent has no preferred model and no configured provider available")
 
         // Build the agent's system prompt: identity + personality
@@ -268,7 +268,7 @@ class DelegateToAgentTool @Inject constructor(
                 source = "delegate_to_agent",
                 scope = agent.memoryScope,
             )
-        }.onFailure { android.util.Log.w("DelegateToAgentTool", "failed to store delegation memory: ${it.message}") }
+        }.onFailure { android.util.Log.w("DelegateToAgentTool", "failed to store delegation memory: ${it.message}", it) }
 
         finalResponse
     }

@@ -125,7 +125,7 @@ class SendEmailBackgroundTool @Inject constructor(
             }
             Transport.send(message)
         }.onFailure {
-            Log.w("SendEmailBackground", "SMTP send failed: ${it.message}")
+            Log.w("SendEmailBackground", "SMTP send failed: ${it.message}", it)
         }
     }
 }

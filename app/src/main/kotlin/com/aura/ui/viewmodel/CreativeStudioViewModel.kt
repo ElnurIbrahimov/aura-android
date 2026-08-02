@@ -173,7 +173,7 @@ class CreativeStudioViewModel @Inject constructor(
                         authorKind = "ai",
                         prompt = prompt,
                     )
-                }.onFailure { android.util.Log.w("CreativeVM", "artifact save failed: ${it.message}") }
+                }.onFailure { android.util.Log.w("CreativeVM", "artifact save failed: ${it.message}", it) }
 
                 // P0 fix: auto-extract character progressions after DRAFT/SIMULATE
                 if (mode == CreativeMode.DRAFT || mode == CreativeMode.SIMULATE) {
@@ -187,7 +187,7 @@ class CreativeStudioViewModel @Inject constructor(
                         if (progressionOutput.isNotBlank()) {
                             _state.update { it.copy(message = "Progression extracted: ${progressionOutput.take(200)}") }
                         }
-                    }.onFailure { android.util.Log.w("CreativeVM", "progression extract failed: ${it.message}") }
+                    }.onFailure { android.util.Log.w("CreativeVM", "progression extract failed: ${it.message}", it) }
                 }
             }
             val refreshed = store.get(project.id)

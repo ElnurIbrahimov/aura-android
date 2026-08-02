@@ -61,7 +61,7 @@ class EvolutionRollbackManager @Inject constructor(
     }
 
     private suspend fun restoreArtifact(proposal: EvolutionProposalEntity): RollbackResult {
-        val action = runCatching { EvolutionAction.valueOf(proposal.action) }.onFailure { android.util.Log.w(TAG, "rollback: parse action failed: ${it.message}") }.getOrNull()
+        val action = runCatching { EvolutionAction.valueOf(proposal.action) }.onFailure { android.util.Log.w(TAG, "rollback: parse action failed: ${it.message}", it) }.getOrNull()
             ?: return RollbackResult.Error("unknown action ${proposal.action}")
         return when (action) {
             EvolutionAction.CREATE_SKILL -> {
@@ -71,7 +71,7 @@ class EvolutionRollbackManager @Inject constructor(
             EvolutionAction.PATCH_SKILL, EvolutionAction.REWRITE_SKILL -> {
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot")
-                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode Skill snapshot failed: ${it.message}") }.getOrNull()
+                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode Skill snapshot failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid Skill")
                 skillsStore?.update(skill) ?: return RollbackResult.Error("SkillsStore not available")
                 RollbackResult.Ok("restored skill ${skill.name}")
@@ -79,7 +79,7 @@ class EvolutionRollbackManager @Inject constructor(
             EvolutionAction.RETIRE_SKILL -> {
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot")
-                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode retired Skill snapshot failed: ${it.message}") }.getOrNull()
+                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode retired Skill snapshot failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid Skill")
                 skillsStore?.add(skill) ?: return RollbackResult.Error("SkillsStore not available")
                 RollbackResult.Ok("restored retired skill ${skill.name}")
@@ -96,7 +96,7 @@ class EvolutionRollbackManager @Inject constructor(
             EvolutionAction.FORGET_MEMORY -> {
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                 if (snapshot != null) {
-                    val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode forgotten MemoryEntity snapshot failed: ${it.message}") }.getOrNull()
+                    val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode forgotten MemoryEntity snapshot failed: ${it.message}", it) }.getOrNull()
                     if (mem != null) memoryStore?.restore(mem)
                 }
                 RollbackResult.Ok("restored forgotten memory")
@@ -113,7 +113,7 @@ class EvolutionRollbackManager @Inject constructor(
                 // limitation; the user can manually re-create the source.
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot (source skill cannot be restored)")
-                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode merged Skill snapshot failed: ${it.message}") }.getOrNull()
+                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode merged Skill snapshot failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid Skill")
                 skillsStore?.update(skill) ?: return RollbackResult.Error("SkillsStore not available")
                 RollbackResult.Ok("restored target skill ${skill.name} (source skill was deleted and cannot be auto-restored)")
@@ -152,7 +152,7 @@ class EvolutionRollbackManager @Inject constructor(
                 // Restore the skill from the pre-modification snapshot.
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot")
-                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode example-added Skill snapshot failed: ${it.message}") }.getOrNull()
+                val skill = runCatching { json.decodeFromString<com.aura.skills.Skill>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode example-added Skill snapshot failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid Skill")
                 skillsStore?.update(skill) ?: return RollbackResult.Error("SkillsStore not available")
                 RollbackResult.Ok("restored skill ${skill.name} (removed added example)")
@@ -188,7 +188,7 @@ class EvolutionRollbackManager @Inject constructor(
                 // Restore target from snapshot. Source cannot be auto-restored.
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot (source memory cannot be restored)")
-                val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode merged MemoryEntity snapshot failed: ${it.message}") }.getOrNull()
+                val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.onFailure { android.util.Log.w(TAG, "rollback: decode merged MemoryEntity snapshot failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid MemoryEntity")
                 memoryStore?.update(mem.id, mem.content, mem.category, mem.importance, mem.tags)
                     ?: return RollbackResult.Error("MemoryStore not available")
@@ -221,7 +221,7 @@ class EvolutionRollbackManager @Inject constructor(
                 // valueJson, confidence, status.
                 val snap = runCatching {
                     json.decodeFromString<Map<String, String>>(snapshot)
-                }.onFailure { android.util.Log.w(TAG, "rollback: decode belief snapshot failed: ${it.message}") }.getOrNull() ?: return RollbackResult.Error("snapshot is not a valid belief JSON")
+                }.onFailure { android.util.Log.w(TAG, "rollback: decode belief snapshot failed: ${it.message}", it) }.getOrNull() ?: return RollbackResult.Error("snapshot is not a valid belief JSON")
                 val beliefId = snap["id"] ?: return RollbackResult.Error("snapshot missing belief id")
                 val existing = beliefDao.getById(beliefId)
                 if (existing != null) {
@@ -241,7 +241,7 @@ class EvolutionRollbackManager @Inject constructor(
                     ?: return RollbackResult.Error("no rollback snapshot")
                 val snap = runCatching {
                     json.decodeFromString<Map<String, String>>(snapshot)
-                }.onFailure { android.util.Log.w(TAG, "rollback: decode retired belief snapshot failed: ${it.message}") }.getOrNull() ?: return RollbackResult.Error("snapshot is not a valid belief JSON")
+                }.onFailure { android.util.Log.w(TAG, "rollback: decode retired belief snapshot failed: ${it.message}", it) }.getOrNull() ?: return RollbackResult.Error("snapshot is not a valid belief JSON")
                 val beliefId = snap["id"] ?: return RollbackResult.Error("snapshot missing belief id")
                 val existing = beliefDao.getById(beliefId)
                 if (existing != null) {

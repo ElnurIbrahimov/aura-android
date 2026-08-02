@@ -65,12 +65,12 @@ class GlobalSearchRepository @Inject constructor(
             // and tap them to resume — sidestepping the soft-delete/undo
             // workflow. Same fix as ConversationStore.search() at the
             // DAO level; this is the only caller of the un-filtered variant.
-            val conversations = async { runCatching { conversationDao.searchVisible(escaped, limit) }.onFailure { android.util.Log.w("GlobalSearch", "conversation search failed: ${it.message}") }.getOrDefault(emptyList()) }
-            val memories = async { runCatching { memoryDao.searchByText("%$escaped%", limit) }.onFailure { android.util.Log.w("GlobalSearch", "memory search failed: ${it.message}") }.getOrDefault(emptyList()) }
-            val tasks = async { runCatching { taskDao.all() }.onFailure { android.util.Log.w("GlobalSearch", "task search failed: ${it.message}") }.getOrDefault(emptyList()) }
-            val hands = async { runCatching { handDao.getAll() }.onFailure { android.util.Log.w("GlobalSearch", "hand search failed: ${it.message}") }.getOrDefault(emptyList()) }
-            val skills = async { runCatching { skillsStore?.skills?.value ?: emptyList() }.onFailure { android.util.Log.w("GlobalSearch", "skills search failed: ${it.message}") }.getOrDefault(emptyList()) }
-            val kgNodes = async { runCatching { kgDao.searchNodes(escaped, limit) }.onFailure { android.util.Log.w("GlobalSearch", "KG search failed: ${it.message}") }.getOrDefault(emptyList()) }
+            val conversations = async { runCatching { conversationDao.searchVisible(escaped, limit) }.onFailure { android.util.Log.w("GlobalSearch", "conversation search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
+            val memories = async { runCatching { memoryDao.searchByText("%$escaped%", limit) }.onFailure { android.util.Log.w("GlobalSearch", "memory search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
+            val tasks = async { runCatching { taskDao.all() }.onFailure { android.util.Log.w("GlobalSearch", "task search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
+            val hands = async { runCatching { handDao.getAll() }.onFailure { android.util.Log.w("GlobalSearch", "hand search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
+            val skills = async { runCatching { skillsStore?.skills?.value ?: emptyList() }.onFailure { android.util.Log.w("GlobalSearch", "skills search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
+            val kgNodes = async { runCatching { kgDao.searchNodes(escaped, limit) }.onFailure { android.util.Log.w("GlobalSearch", "KG search failed: ${it.message}", it) }.getOrDefault(emptyList()) }
 
             val results = mutableListOf<GlobalSearchResult>()
 

@@ -44,7 +44,7 @@ class TriggerWorker @AssistedInject constructor(
         // world events from tool execution are processed into opportunities
         // without waiting for the daily dream cycle.
         runCatching { opportunityEngine?.runCycle() }
-            .onFailure { Log.w("TriggerWorker", "opportunityEngine: ${it.message}") }
+            .onFailure { Log.w("TriggerWorker", "opportunityEngine: ${it.message}", it) }
         return Result.success()
     }
 

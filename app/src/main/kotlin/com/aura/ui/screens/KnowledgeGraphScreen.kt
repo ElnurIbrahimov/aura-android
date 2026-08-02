@@ -526,7 +526,7 @@ private fun EditGraphNodeDialog(
                     val parsed = runCatching {
                         Json.parseToJsonElement(propertiesText) as? JsonObject
                             ?: error("Properties must be a JSON object")
-                    }.onFailure { Log.w("KGScreen", "op failed: ${it.message}") }
+                    }.onFailure { Log.w("KGScreen", "op failed: ${it.message}", it) }
                     parsed.onSuccess { properties ->
                         if (label.isBlank()) validationError = "Label cannot be blank"
                         else onSave(label.trim(), type, properties)

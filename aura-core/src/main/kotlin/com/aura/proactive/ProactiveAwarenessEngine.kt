@@ -49,21 +49,21 @@ class ProactiveAwarenessEngine @Inject constructor(
     suspend fun runAll(): List<ProactiveFinding> {
         val findings = mutableListOf<ProactiveFinding>()
         runCatching { findings.addAll(checkStaleMemories()) }
-            .onFailure { Log.w("ProactiveAwareness", "staleness check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "staleness check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkStuckTasks()) }
-            .onFailure { Log.w("ProactiveAwareness", "goal-blocker check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "goal-blocker check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkRelationshipGap()) }
-            .onFailure { Log.w("ProactiveAwareness", "relationship gap check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "relationship gap check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkDeadlineApproaching()) }
-            .onFailure { Log.w("ProactiveAwareness", "deadline check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "deadline check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkContradictions()) }
-            .onFailure { Log.w("ProactiveAwareness", "contradiction check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "contradiction check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkStressCorrelation()) }
-            .onFailure { Log.w("ProactiveAwareness", "stress check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "stress check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkConversationPattern()) }
-            .onFailure { Log.w("ProactiveAwareness", "pattern check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "pattern check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkPriorityShift()) }
-            .onFailure { Log.w("ProactiveAwareness", "priority check failed: ${it.message}") }
+            .onFailure { Log.w("ProactiveAwareness", "priority check failed: ${it.message}", it) }
         return findings.sortedByDescending { it.urgency }
     }
 

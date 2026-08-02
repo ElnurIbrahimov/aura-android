@@ -17,7 +17,7 @@ class ConversationStore @Inject constructor(
 ) {
     suspend fun save(conversation: Conversation) {
         val previous = runCatching { dao.getById(conversation.id) }
-            .onFailure { android.util.Log.w("ConversationStore", "save: getById failed for ${conversation.id}: ${it.message}") }
+            .onFailure { android.util.Log.w("ConversationStore", "save: getById failed for ${conversation.id}: ${it.message}", it) }
             .getOrNull()
         val searchText = conversationSearchText(conversation)
         val previousSearchText = previous?.let(::entitySearchText)
@@ -26,7 +26,7 @@ class ConversationStore @Inject constructor(
             previous?.embedding != null && previousSearchText == searchText -> previous.embedding
             else -> runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(searchText))
-            }.onFailure { android.util.Log.w("ConversationStore", "save: embed failed for ${conversation.id}: ${it.message}") }
+            }.onFailure { android.util.Log.w("ConversationStore", "save: embed failed for ${conversation.id}: ${it.message}", it) }
                 .getOrNull()
         }
         val entity = ConversationEntity(
@@ -138,7 +138,7 @@ class ConversationStore @Inject constructor(
         val entity = dao.getById(id) ?: return false
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
-        }.onFailure { android.util.Log.w("ConversationStore", "setPinned: corrupt metadataJson for ${entity.id}: ${it.message}") }
+        }.onFailure { android.util.Log.w("ConversationStore", "setPinned: corrupt metadataJson for ${entity.id}: ${it.message}", it) }
             .getOrElse { emptyMap() }
         val updated = metadata.toMutableMap().apply {
             if (pinned) put("pinned", "true") else remove("pinned")
@@ -165,7 +165,7 @@ class ConversationStore @Inject constructor(
         val entity = dao.getById(id) ?: return false
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
-        }.onFailure { Log.w("ConvStore", "op failed: ${it.message}") }.getOrElse { emptyMap() }.toMutableMap()
+        }.onFailure { Log.w("ConvStore", "op failed: ${it.message}", it) }.getOrElse { emptyMap() }.toMutableMap()
         if (project.isNullOrBlank()) metadata.remove("project")
         else metadata["project"] = project
         dao.insert(entity.copy(
@@ -213,7 +213,7 @@ class ConversationStore @Inject constructor(
 
         backfillMissingEmbeddings()
         val existing = runCatching { dao.allWithEmbeddings() }
-            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: allWithEmbeddings failed: ${it.message}") }
+            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: allWithEmbeddings failed: ${it.message}", it) }
             .getOrDefault(emptyList())
         if (existing.isEmpty()) {
             // No embeddings yet — fall back to LIKE search.
@@ -221,7 +221,7 @@ class ConversationStore @Inject constructor(
         }
 
         val queryEmbedding = runCatching { embedder.embed(trimmed) }
-            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: embed failed: ${it.message}") }
+            .onFailure { android.util.Log.w("ConversationStore", "semanticSearch: embed failed: ${it.message}", it) }
             .getOrNull()
             ?: return search(trimmed, limit)
 
@@ -263,11 +263,11 @@ class ConversationStore @Inject constructor(
         val original = dao.getById(id) ?: return null
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(original.metadataJson)
-        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt metadataJson for ${original.id}: ${it.message}") }
+        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt metadataJson for ${original.id}: ${it.message}", it) }
             .getOrElse { emptyMap() }
         val allTurns = runCatching {
             convJson.decodeFromString<List<Turn>>(original.turnsJson)
-        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt turnsJson for ${original.id}: ${it.message}") }
+        }.onFailure { android.util.Log.w("ConversationStore", "fork: corrupt turnsJson for ${original.id}: ${it.message}", it) }
             .getOrElse { emptyList() }
         if (fromTurnIndex !in allTurns.indices) return null
         val forkedTurns = allTurns.take(fromTurnIndex + 1)
@@ -277,7 +277,7 @@ class ConversationStore @Inject constructor(
         val forkEmbedding = searchText(forkedTurns, forkTitle).takeIf { it.isNotBlank() }?.let { text ->
             runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(text))
-            }.onFailure { android.util.Log.w("ConversationStore", "fork: embed failed for $forkId: ${it.message}") }
+            }.onFailure { android.util.Log.w("ConversationStore", "fork: embed failed for $forkId: ${it.message}", it) }
                 .getOrNull()
         }
         val canReuseSummary = original.contextSummary.isNotBlank() &&
@@ -300,7 +300,7 @@ class ConversationStore @Inject constructor(
 
     private suspend fun backfillMissingEmbeddings(limit: Int = EMBEDDING_BACKFILL_BATCH_SIZE): Int {
         val pending = runCatching { dao.missingEmbeddings(limit) }
-            .onFailure { android.util.Log.w("ConversationStore", "backfill: missingEmbeddings query failed: ${it.message}") }
+            .onFailure { android.util.Log.w("ConversationStore", "backfill: missingEmbeddings query failed: ${it.message}", it) }
             .getOrDefault(emptyList())
         var rebuilt = 0
         for (entity in pending) {
@@ -308,10 +308,10 @@ class ConversationStore @Inject constructor(
             if (text.isBlank()) continue
             val bytes = runCatching {
                 com.aura.memory.Embedder.toBytes(embedder.embed(text))
-            }.onFailure { android.util.Log.w("ConversationStore", "backfill: embed failed for ${entity.id}: ${it.message}") }
+            }.onFailure { android.util.Log.w("ConversationStore", "backfill: embed failed for ${entity.id}: ${it.message}", it) }
                 .getOrNull() ?: continue
             if (runCatching { dao.updateEmbedding(entity.id, bytes) }
-                .onFailure { android.util.Log.w("ConversationStore", "backfill: updateEmbedding failed for ${entity.id}: ${it.message}") }
+                .onFailure { android.util.Log.w("ConversationStore", "backfill: updateEmbedding failed for ${entity.id}: ${it.message}", it) }
                 .isSuccess) {
                 rebuilt += 1
             }
@@ -325,7 +325,7 @@ class ConversationStore @Inject constructor(
     private fun entitySearchText(entity: ConversationEntity): String {
         val turns = runCatching {
             convJson.decodeFromString<List<Turn>>(entity.turnsJson)
-        }.onFailure { android.util.Log.w("ConversationStore", "entitySearchText: corrupt turnsJson for ${entity.id}: ${it.message}") }
+        }.onFailure { android.util.Log.w("ConversationStore", "entitySearchText: corrupt turnsJson for ${entity.id}: ${it.message}", it) }
             .getOrDefault(emptyList())
         return searchText(turns, entity.title)
     }
@@ -346,14 +346,14 @@ class ConversationStore @Inject constructor(
         val metadata: Map<String, String> = runCatching {
             convJson.decodeFromString<Map<String, String>>(e.metadataJson)
         }.getOrElse {
-            android.util.Log.w("ConversationStore", "corrupt metadataJson for conv ${e.id}: ${it.message}")
+            android.util.Log.w("ConversationStore", "corrupt metadataJson for conv ${e.id}: ${it.message}", it)
             emptyMap()
         }
 
         val turns: List<Turn> = runCatching {
             convJson.decodeFromString<List<Turn>>(e.turnsJson)
         }.getOrElse {
-            android.util.Log.w("ConversationStore", "corrupt turnsJson for conv ${e.id}: ${it.message}")
+            android.util.Log.w("ConversationStore", "corrupt turnsJson for conv ${e.id}: ${it.message}", it)
             emptyList()
         }
 

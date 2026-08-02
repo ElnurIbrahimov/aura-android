@@ -454,7 +454,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 val cheapest = com.aura.providers.CheapModelHeuristic.pick(models)
                                 if (firstProvider != null && cheapest != null) "${firstProvider.prefix}:$cheapest" else null
                             }.onFailure {
-                                android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}")
+                                android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}", it)
                             }.getOrNull()
                         }
                         val rerankModel = cheapModel
@@ -523,7 +523,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }.joinToString("\n")
                         "\n\n# Known beliefs:\n$lines"
                     }
-                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.getOrDefault("")
+                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}", it) }.getOrDefault("")
             } else ""
 
             // Update emotion state from the user's message and include
@@ -542,7 +542,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     emotionEngine.decay()
                     // Consciousness: update user mental model from message
                     runCatching { theoryOfMind?.updateFromMessage(lastUserMessage) }
-                        .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}") }
+                        .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}", it) }
                     // Intrinsic motivation: assess drives from observable signals.
                     // Uses lightweight heuristics — no LLM, no DB queries.
                     runCatching {
@@ -555,7 +555,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             hoursSinceLastInteraction = hoursSince,
                             contradictionCount = 0,
                         )
-                    }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}") }
+                    }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}", it) }
                 }
                 val mood = emotionEngine.moodString()
                 val profile = emotionEngine.profile()
@@ -568,7 +568,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // TasteEngine is configured or no signals exist yet.
             val tasteContext = if (step == 1 && tasteEngine != null) {
                 val tasteScopes = if (agentId != null) listOf("general", "agent:$agentId") else listOf("general")
-                val rawTaste = runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}") }.getOrDefault("")
+                val rawTaste = runCatching { tasteEngine.getTasteContext(tasteScopes) }.onFailure { android.util.Log.w("AgenticLoop", "taste context failed: ${it.message}", it) }.getOrDefault("")
                 // Enhance on step 1 so the FIRST step's system prompt
                 // gets the explicit instructions, not just step 2+.
                 val enhancedTaste = if (tastePromptEnhancer != null && rawTaste.isNotBlank()) {
@@ -587,7 +587,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             if (cachedPersonality == null && agentId != null) {
                 cachedPersonality = runCatching {
                     agentStore?.byId(agentId)?.personality()?.toPromptDirective()
-                }.onFailure { android.util.Log.w("AgenticLoop", "personality resolution failed: ${it.message}") }.getOrNull() ?: ""
+                }.onFailure { android.util.Log.w("AgenticLoop", "personality resolution failed: ${it.message}", it) }.getOrNull() ?: ""
             }
             val personalityDirective = cachedPersonality ?: ""
 
@@ -605,7 +605,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             } else ""
             val messages = buildList {
                 val sys = listOfNotNull(
-                    if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}") }.getOrNull() else null,
+                    if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}", it) }.getOrNull() else null,
                     specialist?.systemPrompt,
                     personalityDirective.ifBlank { null },
                     currentConversation.systemPrompt,
@@ -665,7 +665,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }
                         val raw = planBuilder.toString().trim()
                         if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""
-                    }.onFailure { android.util.Log.w("AgenticLoop", "planning step failed: ${it.message}") }.getOrDefault("")
+                    }.onFailure { android.util.Log.w("AgenticLoop", "planning step failed: ${it.message}", it) }.getOrDefault("")
                 } else ""
 
                 val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
@@ -868,7 +868,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                     resultSummary = result.output,
                                     agentScope = if (agentId != null) "agent:$agentId" else "general",
                                 )
-                            }.onFailure { android.util.Log.w("AgenticLoop", "world event record failed: ${it.message}") }
+                            }.onFailure { android.util.Log.w("AgenticLoop", "world event record failed: ${it.message}", it) }
                         }
                         result.output
                     }
@@ -951,7 +951,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         scope = storeScope,
                     )
                 }
-            }.onFailure { android.util.Log.w("AgenticLoop", "memory auto-store failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("AgenticLoop", "memory auto-store failed: ${it.message}", it) }
         }
 
         // 5) Extract user profile from the conversation.
@@ -962,7 +962,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         if (memoryEnabled && lastUserMessage.isNotBlank()) {
             // First pass: fast regex extraction (name, location, job, preferences).
             val regexFound = runCatching { extractProfileFromText(lastUserMessage) }
-                .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (user) failed: ${it.message}") }
+                .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (user) failed: ${it.message}", it) }
                 .isSuccess
             // Second pass: LLM extraction for things regex misses
             // ("I use Vim", "I'm allergic to peanuts", "my wife's name is Sarah").
@@ -977,7 +977,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         if (extraction.traits.isNotEmpty()) userProfileStore.mergeTraits(extraction.traits)
                         if (extraction.facts.isNotEmpty()) userProfileStore.mergeFacts(extraction.facts)
                     }
-                }.onFailure { android.util.Log.w("AgenticLoop", "LLM profile extraction failed: ${it.message}") }
+                }.onFailure { android.util.Log.w("AgenticLoop", "LLM profile extraction failed: ${it.message}", it) }
             }
         }
         // Only the user's own text is a reliable source for profile facts.
@@ -988,7 +988,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // val lastAssistant = currentConversation.turns.lastOrNull()?.assistant
         // if (memoryEnabled && !lastAssistant.isNullOrBlank()) {
         //     runCatching { extractProfileFromText(lastAssistant) }
-        //         .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (assistant) failed: ${it.message}") }
+        //         .onFailure { android.util.Log.w("AgenticLoop", "profile extraction (assistant) failed: ${it.message}", it) }
         // }
 
         if (!finished) {
@@ -1013,7 +1013,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             metadata = currentConversation.metadata + ("lastReflection" to reflection),
                         )
                     }
-                }.onFailure { android.util.Log.w("AgenticLoop", "reflection generation failed: ${it.message}") }
+                }.onFailure { android.util.Log.w("AgenticLoop", "reflection generation failed: ${it.message}", it) }
             }
         } else {
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED)
@@ -1030,7 +1030,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // Persist emotion state after each turn so it survives cold starts.
         if (memoryEnabled && emotionEngine != null) {
             runCatching { emotionEngine.save() }
-                .onFailure { android.util.Log.w("AgenticLoop", "emotion save failed: ${it.message}") }
+                .onFailure { android.util.Log.w("AgenticLoop", "emotion save failed: ${it.message}", it) }
         }
         // Consciousness: update narrative self from the completed interaction.
         if (memoryEnabled) {
@@ -1038,14 +1038,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val assistantText = currentConversation.turns.lastOrNull()?.assistant.orEmpty()
                 narrativeSelf?.updateFromInteraction(lastUserMessage, assistantText)
                 narrativeSelf?.save()
-            }.onFailure { android.util.Log.w("AgenticLoop", "narrative self update failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("AgenticLoop", "narrative self update failed: ${it.message}", it) }
             // Record affinity: increase score per turn.
             runCatching { affinityTracker?.recordTurn() }
-                .onFailure { android.util.Log.w("AgenticLoop", "affinity record failed: ${it.message}") }
+                .onFailure { android.util.Log.w("AgenticLoop", "affinity record failed: ${it.message}", it) }
             // Intrinsic motivation: if tools were called this turn, curiosity was satisfied.
             if (currentConversation.turns.lastOrNull()?.toolTurns?.isNotEmpty() == true) {
                 runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.CURIOSITY) }
-                    .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}") }
+                    .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
             }
         }
 
@@ -1067,7 +1067,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 outcomeType = "loop_completed",
                 agentScope = agentId?.let { "agent:$it" } ?: "general",
             )
-        }.onFailure { android.util.Log.w("AgenticLoop", "routing outcome failed: ${it.message}") }
+        }.onFailure { android.util.Log.w("AgenticLoop", "routing outcome failed: ${it.message}", it) }
         emit(AgentEvent.Result(finalConv, lastRecall))
         emit(AgentEvent.Done)
     }
@@ -1109,7 +1109,7 @@ private suspend fun extractProfileFromText(text: String) {
             }.filter { it != userModel && !it.startsWith("moa:") }
             com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
         }.onFailure {
-            android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}")
+            android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}", it)
         }.getOrDefault(userModel)
     }
 

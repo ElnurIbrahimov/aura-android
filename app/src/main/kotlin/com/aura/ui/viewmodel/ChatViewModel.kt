@@ -915,7 +915,7 @@ class ChatViewModel @Inject constructor(
                 if (!msg.isNullOrBlank()) {
                     _state.update { it.copy(proactiveMessage = msg) }
                 }
-            }.onFailure { android.util.Log.w("ChatViewModel", "proactive load: ${it.message}") }
+            }.onFailure { android.util.Log.w("ChatViewModel", "proactive load: ${it.message}", it) }
         }
     }
 
@@ -924,7 +924,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 memoryStore.store(content, source = "canvas", category = "canvas", importance = 0.7f)
-            }.onFailure { android.util.Log.w("ChatViewModel", "canvas save failed: ${it.message}") }
+            }.onFailure { android.util.Log.w("ChatViewModel", "canvas save failed: ${it.message}", it) }
         }
         dismissCanvas()
     }

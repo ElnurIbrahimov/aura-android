@@ -140,7 +140,7 @@ class AgentRunStore @Inject constructor(
         val checkpoint = checkpointDao.latestForRun(runId) ?: return emptyList()
         val state = runCatching { json.decodeFromString<CheckpointState>(checkpoint.stateJson) }
             .onFailure {
-                android.util.Log.w("AgentRunStore", "failed to decode checkpoint for $runId: ${it.message}")
+                android.util.Log.w("AgentRunStore", "failed to decode checkpoint for $runId: ${it.message}", it)
             }
             .getOrNull()
             ?: return emptyList()

@@ -39,7 +39,7 @@ class EvolutionCoordinator @Inject constructor(
                     if (score != null) {
                         candidateDao.setStatus(candidate.id, candidate.status, "evaluator_score: $score")
                     }
-                }.onFailure { android.util.Log.w("EvolutionCoordinator", "evaluator failed for ${candidate.id}: ${it.message}") }
+                }.onFailure { android.util.Log.w("EvolutionCoordinator", "evaluator failed for ${candidate.id}: ${it.message}", it) }
             }
         }
         val reflected = reflectAndPromote(candidates)
@@ -49,7 +49,7 @@ class EvolutionCoordinator @Inject constructor(
         // implementation would track usage counts per skill/memory/rule.
         runCatching {
             recordPendingOutcomes()
-        }.onFailure { android.util.Log.w("EvolutionCoordinator", "outcome recording failed: ${it.message}") }
+        }.onFailure { android.util.Log.w("EvolutionCoordinator", "outcome recording failed: ${it.message}", it) }
         val duration = System.currentTimeMillis() - start
         metrics.recordRun(candidates.size, duration)
         return RunResult(candidates.size, reflected, duration)
@@ -70,7 +70,7 @@ class EvolutionCoordinator @Inject constructor(
         val domainOutcomes = mutableMapOf<String, Float>()
         for (domain in EvolutionDomain.entries) {
             val outcomes = runCatching { proposalStore.pastOutcomes(domain.name) }
-                .onFailure { android.util.Log.w("EvolutionCoordinator", "pastOutcomes fetch failed for ${domain.name}: ${it.message}") }
+                .onFailure { android.util.Log.w("EvolutionCoordinator", "pastOutcomes fetch failed for ${domain.name}: ${it.message}", it) }
                 .getOrDefault(emptyList())
             if (outcomes.isNotEmpty()) {
                 domainOutcomes[domain.name] = outcomes.map { it.score }.average().toFloat()
@@ -129,7 +129,7 @@ class EvolutionCoordinator @Inject constructor(
                                 } else {
                                     candidateDao.setStatus(candidate.id, CandidateStatus.PROMOTED.name, "auto-apply failed, pending review: ${verdict.reason}")
                                 }
-                            }.onFailure { android.util.Log.w("EvolutionCoordinator", "auto-apply threw for ${proposal.id}: ${it.message}") }
+                            }.onFailure { android.util.Log.w("EvolutionCoordinator", "auto-apply threw for ${proposal.id}: ${it.message}", it) }
                         }
                         promoted++
                     }
@@ -197,7 +197,7 @@ reason: one sentence
             val signal = "survived_${daysSinceApply}d_without_rollback"
             runCatching {
                 proposalStore.recordOutcome(proposal.id, score, signal, daysSinceApply)
-            }.onFailure { android.util.Log.w("EvolutionCoordinator", "recordOutcome failed for ${proposal.id}: ${it.message}") }
+            }.onFailure { android.util.Log.w("EvolutionCoordinator", "recordOutcome failed for ${proposal.id}: ${it.message}", it) }
         }
     }
 

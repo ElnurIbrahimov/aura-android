@@ -198,7 +198,7 @@ class MoaProvider(
                 runReference(ref, messages, options.copy(temperature = preset.referenceTemperature))
             }
         }.map { deferred ->
-            runCatching { deferred.await() }.onFailure { Log.w("MoA", "op failed: ${it.message}") }.getOrElse { e ->
+            runCatching { deferred.await() }.onFailure { Log.w("MoA", "op failed: ${it.message}", it) }.getOrElse { e ->
                 if (e is CancellationException) throw e
                 ReferenceOutput(
                     providerPrefix = "error",

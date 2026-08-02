@@ -432,7 +432,7 @@ class MemoryStore @Inject constructor(
             val ok = runCatching {
                 val vec = embedder.embed(mem.content)
                 dao.update(mem.copy(embedding = Embedder.toBytes(vec)))
-            }.onFailure { Log.w("MemStore", "op failed: ${it.message}") }
+            }.onFailure { Log.w("MemStore", "op failed: ${it.message}", it) }
                 .onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
                 .isSuccess
             if (ok) rebuilt += 1

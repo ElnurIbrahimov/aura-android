@@ -113,7 +113,7 @@ class OllamaCloudProvider(
                         }?.jsonObject?.get("context_length")
                         ?.jsonPrimitive?.content?.toIntOrNull()
                 }
-            }.onFailure { Log.w("OllamaCloud", "op failed: ${it.message}") }.getOrNull()
+            }.onFailure { Log.w("OllamaCloud", "op failed: ${it.message}", it) }.getOrNull()
             ModelInfo(name = name, contextWindow = contextWindow)
         }
     }

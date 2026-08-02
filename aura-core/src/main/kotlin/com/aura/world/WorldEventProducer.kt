@@ -70,8 +70,8 @@ class WorldEventProducer @Inject constructor(
             worldEventDao.insert(entity)
             _events.tryEmit(entity)
             id
-        }.onFailure { Log.w("WorldEventProducer", "record failed: ${it.message}") }
-            .onFailure { Log.w("WorldEvent", "op failed: ${it.message}") }.getOrDefault(id)
+        }.onFailure { Log.w("WorldEventProducer", "record failed: ${it.message}", it) }
+            .onFailure { Log.w("WorldEvent", "op failed: ${it.message}", it) }.getOrDefault(id)
     }
 
     /**
@@ -145,6 +145,6 @@ class WorldEventProducer @Inject constructor(
             for (event in pending) {
                 worldEventDao.markConsumed(event.id)
             }
-        }.onFailure { Log.w("WorldEventProducer", "markAllConsumed failed: ${it.message}") }
+        }.onFailure { Log.w("WorldEventProducer", "markAllConsumed failed: ${it.message}", it) }
     }
 }
