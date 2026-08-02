@@ -14,8 +14,8 @@ android {
         applicationId = "com.aura"
         minSdk = 26
         targetSdk = 35
-        versionCode = 60
-        versionName = "0.50.0"
+        versionCode = 61
+        versionName = "0.51.0"
         testInstrumentationRunner = "com.aura.testing.HiltTestRunner"
         vectorDrawables { useSupportLibrary = true }
     }

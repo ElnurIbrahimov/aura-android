@@ -53,6 +53,59 @@ class EvolutionProposalStore @Inject constructor(
         proposalDao.resolve(id, ProposalStatus.APPLIED.name, note)
     }
 
+    /**
+     * Post-apply evaluation feedback loop.
+     *
+     * After a proposal is applied, the system can record whether the
+     * change was effective — did the user use the new skill? Was the
+     * memory consolidation useful? Was the proactive rule helpful?
+     *
+     * The outcome is stored in the proposal's outcomeNote field as
+     * a JSON string: {"score": 0.8, "signal": "skill_used_3x", "daysAfter": 7}
+     *
+     * This closes the evolution loop: proposals are created → evaluated →
+     * approved → applied → outcome recorded → future proposals informed
+     * by past outcomes.
+     */
+    suspend fun recordOutcome(
+        id: kotlin.String,
+        score: Float,           // 0.0 = harmful, 0.5 = neutral, 1.0 = helpful
+        signal: kotlin.String,  // what evidence triggered the evaluation
+        daysAfter: Int = 0,     // how many days after apply
+    ) {
+        val proposal = proposalDao.getById(id) ?: return
+        val outcomeJson = """{"score":$score,"signal":"$signal","daysAfter":$daysAfter,"timestamp":${System.currentTimeMillis()}}"""
+        proposalDao.upsert(proposal.copy(
+            outcomeNote = outcomeJson,
+            updatedAt = System.currentTimeMillis(),
+        ))
+    }
+
+    /**
+     * Read past outcomes for proposals in a given domain.
+     * Used by the coordinator to inform future proposals —
+     * domains with high outcome scores get more candidates,
+     * domains with low scores get fewer.
+     */
+    suspend fun pastOutcomes(domain: kotlin.String): List<ProposalOutcome> {
+        return proposalDao.byDomain(domain)
+            .filter { it.status == ProposalStatus.APPLIED.name }
+            .mapNotNull { proposal ->
+                val note = proposal.outcomeNote
+                if (note.isBlank() || !note.startsWith("{")) return@mapNotNull null
+                val score = Regex("\"score\":([\\d.]+)").find(note)?.groupValues?.get(1)?.toFloatOrNull() ?: 0.5f
+                val signal = Regex("\"signal\":\"([^\"]+)\"").find(note)?.groupValues?.get(1) ?: ""
+                ProposalOutcome(proposal.id, score, signal, proposal.resolvedAt ?: 0L)
+            }
+    }
+
+    data class ProposalOutcome(
+        val proposalId: kotlin.String,
+        val score: Float,
+        val signal: kotlin.String,
+        val resolvedAt: kotlin.Long,
+    )
+
     suspend fun markApplyFailed(id: kotlin.String, reason: kotlin.String) {
         proposalDao.setStatus(id, ProposalStatus.APPLY_FAILED.name, reason)
     }
