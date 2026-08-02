@@ -1,6 +1,6 @@
 # Aura Android — Architecture
 
-**Version:** 0.39.1 (versionCode 48)
+**Version:** 0.51.0 (versionCode 61)
 **Branch:** feat/tier-1-friction
 
 ## Overview

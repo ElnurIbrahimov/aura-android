@@ -29,6 +29,11 @@ data class Conversation(
     /** Number of leading [turns] represented by [contextSummary]. */
     val summaryThroughTurn: Int = 0,
     val metadata: Map<String, String> = emptyMap(),
+    /** Storage-layer agent association. Set from ChatUiState.activeAgentId so
+     *  ConversationStore.save() persists the CURRENT agent, not the previous row's.
+     *  Without this field, switching agents mid-conversation silently keeps the
+     *  old agent's id in the DB, breaking history-by-agent filtering. */
+    val agentId: String? = null,
 ) {
 
     /**

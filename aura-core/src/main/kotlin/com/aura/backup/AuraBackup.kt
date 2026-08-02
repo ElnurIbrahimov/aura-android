@@ -169,6 +169,10 @@ data class MemoryBackup(
     val metadata: String,
     val sourceConversationId: String = "",
     val sourceTurnTimestamp: Long = 0L,
+    /** Which embedding model produced the embedding. Null = no embedding or pre-field. */
+    val embeddingModel: String? = null,
+    /** Schema version of the embedding vector. 0 = pre-field. */
+    val embeddingVersion: Int = 0,
 )
 
 @Serializable

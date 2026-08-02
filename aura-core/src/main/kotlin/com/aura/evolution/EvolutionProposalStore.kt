@@ -99,7 +99,21 @@ class EvolutionProposalStore @Inject constructor(
             }
     }
 
-    data class ProposalOutcome(
+    /**
+     * Find applied proposals that have no outcome recorded yet.
+     * Used by the coordinator's post-apply outcome recording loop.
+     */
+    suspend fun appliedWithoutOutcomes(): List<EvolutionProposalEntity> {
+        val all = mutableListOf<EvolutionProposalEntity>()
+        for (domain in EvolutionDomain.entries) {
+            all += proposalDao.byDomain(domain.name)
+        }
+        return all.filter {
+            it.status == ProposalStatus.APPLIED.name && it.outcomeNote.isBlank()
+        }
+    }
+
+        data class ProposalOutcome(
         val proposalId: kotlin.String,
         val score: Float,
         val signal: kotlin.String,

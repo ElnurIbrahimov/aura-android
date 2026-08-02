@@ -808,6 +808,8 @@ private fun MemoryBackup.toEntity() = MemoryEntity(
     metadata = metadata,
     sourceConversationId = sourceConversationId,
     sourceTurnTimestamp = sourceTurnTimestamp,
+    embeddingModel = embeddingModel,
+    embeddingVersion = embeddingVersion,
 )
 
 private fun MemoryEditEntity.toBackup() = MemoryEditBackup(

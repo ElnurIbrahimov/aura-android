@@ -455,7 +455,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 if (firstProvider != null && cheapest != null) "${firstProvider.prefix}:$cheapest" else null
                             }.onFailure {
                                 android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}")
-                            }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrNull()
+                            }.getOrNull()
                         }
                         val rerankModel = cheapModel
                         val rewriteModel = cheapModel
@@ -523,7 +523,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         }.joinToString("\n")
                         "\n\n# Known beliefs:\n$lines"
                     }
-                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrDefault("")
+                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}") }.getOrDefault("")
             } else ""
 
             // Update emotion state from the user's message and include
@@ -543,6 +543,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     // Consciousness: update user mental model from message
                     runCatching { theoryOfMind?.updateFromMessage(lastUserMessage) }
                         .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}") }
+                    // Intrinsic motivation: assess drives from observable signals.
+                    // Uses lightweight heuristics — no LLM, no DB queries.
+                    runCatching {
+                        val hoursSince = if (currentConversation.turns.isNotEmpty()) {
+                            ((System.currentTimeMillis() - currentConversation.turns.last().timestamp) / (1000f * 60 * 60)).coerceAtLeast(0f)
+                        } else 0f
+                        intrinsicMotivation?.assess(
+                            kgGapCount = 0,
+                            lowConfidenceSkillCount = 0,
+                            hoursSinceLastInteraction = hoursSince,
+                            contradictionCount = 0,
+                        )
+                    }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}") }
                 }
                 val mood = emotionEngine.moodString()
                 val profile = emotionEngine.profile()
@@ -658,7 +671,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
                 if (resolvedSys.isNotBlank()) add(ProviderMessage(role = Role.system, content = resolvedSys))
 
-                addAll(currentConversation.toMessages(includeSystemPrompt = false))
+                addAll(currentConversation.toMessages(includeSystemPrompt = false, maxToolResultChars = MAX_TOOL_RESULT_CHARS))
             }
 
             // 3) Stream the model step
@@ -1029,6 +1042,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // Record affinity: increase score per turn.
             runCatching { affinityTracker?.recordTurn() }
                 .onFailure { android.util.Log.w("AgenticLoop", "affinity record failed: ${it.message}") }
+            // Intrinsic motivation: if tools were called this turn, curiosity was satisfied.
+            if (currentConversation.turns.lastOrNull()?.toolTurns?.isNotEmpty() == true) {
+                runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.CURIOSITY) }
+                    .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}") }
+            }
         }
 
         // Persist the recall summary on the conversation's last
@@ -1092,7 +1110,7 @@ private suspend fun extractProfileFromText(text: String) {
             com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
         }.onFailure {
             android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}")
-        }.onFailure { Log.w("AgenticLoop", "op failed: ${it.message}") }.getOrDefault(userModel)
+        }.getOrDefault(userModel)
     }
 
     /**

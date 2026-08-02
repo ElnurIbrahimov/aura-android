@@ -8,7 +8,7 @@ This is my personal copy.
 
 ## Status
 
-**v0.46.1** (versionCode 56).
+**v0.51.0** (versionCode 61).
 
 - 69 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
@@ -54,7 +54,7 @@ This is my personal copy.
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v15, 11 Room databases)
-- 299 unit test files, 1,589 tests, 0 failures
+- 281 unit test files, 1,613 tests, 0 failures
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 

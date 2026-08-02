@@ -47,7 +47,7 @@ class ConversationStore @Inject constructor(
             // would be silently lost on every save. The previous row
             // was already fetched above for the embedding cache check,
             // so we use it here too.
-            agentId = previous?.agentId,
+            agentId = conversation.agentId ?: previous?.agentId,
             // Same reasoning for the soft-delete tombstone: a save() must
             // never resurrect a deleted conversation. If the previous
             // row was soft-deleted, preserve that state — only an

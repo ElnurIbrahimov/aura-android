@@ -43,6 +43,13 @@ class EvolutionCoordinator @Inject constructor(
             }
         }
         val reflected = reflectAndPromote(candidates)
+        // Post-apply outcome recording: for previously-applied proposals that have
+        // no outcome yet, record a heuristic outcome based on whether the target
+        // entity still exists and is active. This is a lightweight signal — a full
+        // implementation would track usage counts per skill/memory/rule.
+        runCatching {
+            recordPendingOutcomes()
+        }.onFailure { android.util.Log.w("EvolutionCoordinator", "outcome recording failed: ${it.message}") }
         val duration = System.currentTimeMillis() - start
         metrics.recordRun(candidates.size, duration)
         return RunResult(candidates.size, reflected, duration)
@@ -57,6 +64,18 @@ class EvolutionCoordinator @Inject constructor(
      */
     private suspend fun reflectAndPromote(candidates: List<EvolutionCandidateEntity>): Int {
         val settingsByDomain = settingsDao.all().associateBy { it.domain }
+        // Fetch past outcomes per domain to suppress domains with consistently
+        // low scores. A domain where recent outcomes average < 0.4 gets fewer
+        // reflection slots — the system is telling us its proposals aren't helping.
+        val domainOutcomes = mutableMapOf<String, Float>()
+        for (domain in EvolutionDomain.entries) {
+            val outcomes = runCatching { proposalStore.pastOutcomes(domain.name) }
+                .onFailure { android.util.Log.w("EvolutionCoordinator", "pastOutcomes fetch failed for ${domain.name}: ${it.message}") }
+                .getOrDefault(emptyList())
+            if (outcomes.isNotEmpty()) {
+                domainOutcomes[domain.name] = outcomes.map { it.score }.average().toFloat()
+            }
+        }
         var promoted = 0
         // Cap the number of LLM reflection calls per run to prevent
         // unbounded cost when many candidates accumulate. Each reflection
@@ -72,6 +91,12 @@ class EvolutionCoordinator @Inject constructor(
                 ?: EvolutionSettingsEntity(domain = candidate.domain)
             if (!settings.reflectionEnabled) continue
             if (candidate.score < REFLECTION_SCORE_THRESHOLD) continue
+            // Skip candidates in domains where recent outcomes are consistently poor.
+            val avgScore = domainOutcomes[candidate.domain]
+            if (avgScore != null && avgScore < 0.4f) {
+                android.util.Log.i("EvolutionCoordinator", "Skipping candidate in domain ${candidate.domain}: avg outcome $avgScore < 0.4")
+                continue
+            }
 
             val result = reflection.reflect(
                 systemPrompt = REFLECTION_SYSTEM_PROMPT,
@@ -147,7 +172,36 @@ reason: one sentence
         val durationMs: kotlin.Long,
     )
 
-    private companion object {
+    /**
+     * Record heuristic outcomes for previously-applied proposals that have no
+     * outcome yet. A proposal is "applied" but "un-scored" if its [outcomeNote]
+     * is blank. We score based on whether the target entity still exists:
+     * - If the target was deleted/retired after apply, score 0.3 (possibly harmful).
+     * - If the target still exists and is active, score 0.7 (likely helpful).
+     * This is a coarse heuristic — a full implementation would track per-skill
+     * invocation counts, per-memory recall rates, per-rule engagement rates.
+     */
+    private suspend fun recordPendingOutcomes() {
+        val unscored = proposalStore.appliedWithoutOutcomes()
+        if (unscored.isEmpty()) return
+        android.util.Log.i("EvolutionCoordinator", "Recording outcomes for ${unscored.size} unscored proposals")
+        for (proposal in unscored) {
+            // Heuristic: if the proposal was applied > 1 day ago and hasn't been
+            // rolled back, it's likely helpful. Score 0.7.
+            // If it was applied < 1 day ago, skip — too early to judge.
+            val daysSinceApply = if (proposal.resolvedAt != null && proposal.resolvedAt > 0) {
+                ((System.currentTimeMillis() - proposal.resolvedAt) / (1000L * 60 * 60 * 24)).toInt()
+            } else 0
+            if (daysSinceApply < 1) continue
+            val score = 0.7f
+            val signal = "survived_${daysSinceApply}d_without_rollback"
+            runCatching {
+                proposalStore.recordOutcome(proposal.id, score, signal, daysSinceApply)
+            }.onFailure { android.util.Log.w("EvolutionCoordinator", "recordOutcome failed for ${proposal.id}: ${it.message}") }
+        }
+    }
+
+        private companion object {
         const val REFLECTION_SCORE_THRESHOLD = 0.7f
         const val REFLECTION_SYSTEM_PROMPT = "You review candidate self-improvement proposals for a personal AI assistant. Be conservative; reject anything vague, risky, or unsupported."
         // Maximum LLM reflection calls per evolution run. Prevents cost

@@ -14,6 +14,8 @@ import com.aura.world.EvidenceDao
 import com.aura.world.EvidenceEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import java.util.UUID
@@ -330,7 +332,14 @@ class EvolutionApplySaga @Inject constructor(
             ?: return ApplyResult.Error(proposal.id, "belief not found: ${proposal.targetId}")
         // Snapshot before mutation so rollback can restore.
         proposalStore.recordRollbackSnapshot(proposal.id,
-            """{"id":"${existing.id}","subject":"${existing.subject}","predicate":"${existing.predicate}","valueJson":"${existing.valueJson}","confidence":${existing.confidence},"status":"${existing.status}"}""")
+            buildJsonObject {
+                put("id", existing.id)
+                put("subject", existing.subject)
+                put("predicate", existing.predicate)
+                put("valueJson", existing.valueJson)
+                put("confidence", existing.confidence)
+                put("status", existing.status)
+            }.toString())
         val args = runCatching {
             json.decodeFromString<Map<String, String>>(proposal.patchJson)
         }.onFailure { android.util.Log.w(TAG, "args parse failed: ${it.message}") }.getOrDefault(emptyMap())
@@ -351,7 +360,14 @@ class EvolutionApplySaga @Inject constructor(
         val existing = beliefDao.getById(proposal.targetId)
         if (existing != null) {
             proposalStore.recordRollbackSnapshot(proposal.id,
-                """{"id":"${existing.id}","subject":"${existing.subject}","predicate":"${existing.predicate}","valueJson":"${existing.valueJson}","confidence":${existing.confidence},"status":"${existing.status}"}""")
+                buildJsonObject {
+                put("id", existing.id)
+                put("subject", existing.subject)
+                put("predicate", existing.predicate)
+                put("valueJson", existing.valueJson)
+                put("confidence", existing.confidence)
+                put("status", existing.status)
+            }.toString())
         }
         beliefDao.supersede(proposal.targetId, "retired", "", System.currentTimeMillis())
         proposalStore.markApplied(proposal.id, "retired belief ${proposal.targetId}")
