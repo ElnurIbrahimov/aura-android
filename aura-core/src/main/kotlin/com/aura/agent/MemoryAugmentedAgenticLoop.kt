@@ -200,7 +200,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         val resumedResult = runCatching {
             toolExecutor.execute(held.toolName, held.args, resumedCtx)
         }.onFailure { e ->
-            android.util.Log.w("AgenticLoop", "resumed tool ${held.toolName} threw: ${e.message}")
+            android.util.Log.w("AgenticLoop", "resumed tool ${held.toolName} threw: ${e.message}", e)
         }.getOrElse { e ->
             ToolResult.Error("resumed tool threw: ${e.message ?: e::class.java.simpleName}", "exception")
         }

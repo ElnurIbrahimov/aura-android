@@ -82,7 +82,13 @@ class ProactiveBootstrap @Inject constructor(
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }
         // Check Google/Microsoft integration connection state.
-        scope.launch { runCatching { integrationTokenStore?.checkConnectionState() } }
+        scope.launch {
+            runCatching { integrationTokenStore?.checkConnectionState() }
+                .onFailure { e ->
+                    try { android.util.Log.w("ProactiveBootstrap", "integration token state check failed: ${e.message}", e) }
+                    catch (_: RuntimeException) {}
+                }
+        }
         // Soft-delete sweep on app start: hard-purges tombstones older
         // than the retention window. Cheap (indexed), no UI impact, no
         // need for a separate Worker.
@@ -147,6 +153,7 @@ class ProactiveBootstrap @Inject constructor(
                             android.util.Log.w(
                                 "ProactiveBootstrap",
                                 "startup decay pass failed: ${error.message}",
+                                error,
                             )
                         } catch (_: RuntimeException) {
                             // android.util.Log is unavailable in pure JVM tests.
@@ -172,6 +179,7 @@ class ProactiveBootstrap @Inject constructor(
                         android.util.Log.w(
                             "ProactiveBootstrap",
                             "MCP reconnect failed: ${error.message}",
+                            error,
                         )
                     } catch (_: RuntimeException) {}
                 }

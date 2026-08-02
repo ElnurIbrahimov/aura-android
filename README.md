@@ -8,7 +8,7 @@ This is my personal copy.
 
 ## Status
 
-**v0.51.0** (versionCode 61).
+**v0.51.2** (versionCode 62).
 
 - 69 tools (web search x4, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive)
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
@@ -54,7 +54,7 @@ This is my personal copy.
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v15, 11 Room databases)
-- 281 unit test files, 1,613 tests, 0 failures
+- 291 unit test files, 1,673 tests, 0 failures
 - 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -110,7 +110,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +------------v-------------------------------+
 | :aura-core  (logic library, no Compose)    |
 |   MemoryAugmentedAgenticLoop -> Brain      |
-|   ToolRegistry (61) -> ToolExecutor        |
+|   ToolRegistry (69) -> ToolExecutor        |
 |     -> PolicyEngine (layered precedence)   |
 |   ProviderRegistry (17 providers)          |
 |   Memory (Room + RRF + FadeMem + WriteGate)|
@@ -330,15 +330,14 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | AgentRunDatabase | v1 | Agent runs, goals, steps, events, approvals, checkpoints |
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
-All databases have schema export enabled (`room.schemaLocation`).
+All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
+schema exports span versions 1-15, all committed — migration tests cover
+the full chain.
 
-Known gap: `MemoryDatabase` schema exports jump from `6.json` to `11.json` — versions 7
-through 10 were never committed, so migration tests cannot verify that range. See
-[ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §3.
-
-Ten separate databases means no cross-database transactions or joins, ten independent
-migration chains, and a backup path that has to coordinate ten schemas. That is the main
-reason `BackupManager.kt` is the largest file in the project.
+Eleven separate databases means no cross-database transactions or joins,
+eleven independent migration chains, and a backup path that has to
+coordinate eleven schemas. That is the main reason `BackupManager.kt` is
+the largest file in the project.
 
 ## Build
 
@@ -401,7 +400,7 @@ aura-android/
 - Kotlin 1.9.24, AGP 8.2.2, JVM target 17
 - Jetpack Compose (BOM 2024.10.01), Material 3, Navigation Compose
 - Hilt 2.51 (DI) + Hilt Work (for WorkManager injection)
-- Room 2.6.1 (11 databases, 49 entities, 35 migrations, schema export)
+- Room 2.6.1 (11 databases, 49 entities, 33 migrations, schema export)
 - WorkManager 2.9.1 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.6.3, kotlinx-coroutines 1.9.0

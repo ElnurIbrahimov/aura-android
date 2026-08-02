@@ -1,6 +1,6 @@
 # Aura Android — Architecture
 
-**Version:** 0.51.0 (versionCode 61)
+**Version:** 0.51.2 (versionCode 62)
 **Branch:** feat/tier-1-friction
 
 ## Overview
@@ -84,7 +84,7 @@ aura-android-clean/
 - AgentDB v1, DreamConsolidationDB v1, CreativeProjectDB v1
 - Backup SCHEMA_VERSION 15
 
-### Tools (63)
+### Tools (69)
 - Web search (4: DDG, Brave, Tavily, capability-backed)
 - Deep research (parallel fetch, multi-step gap detection, 20K context budget)
 - Vision, image gen (2: DALL-E, capability-backed), code interpreter (JS sandbox)
@@ -110,5 +110,5 @@ aura-android-clean/
 ## Build Configuration
 - Kotlin 1.9.24, AGP 8.2.2, Compose BOM 2024.10.01
 - Hilt 2.51, Room 2.6.1, minSdk 26, target/compileSdk 35
-- 1,559 unit tests, 0 failures
-- 63 registered tools, 17 LLM providers, 7 builtin agents
+- 1,673 unit tests, 0 failures
+- 69 registered tools, 17 LLM providers, 7 builtin agents
