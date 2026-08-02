@@ -1,6 +1,10 @@
 package com.aura.memory
 
 import com.aura.provenance.ConversationProvenance
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -428,14 +432,20 @@ class MemoryStore @Inject constructor(
         val pending = dao.allForExport().filter { it.embedding == null }
         if (pending.isEmpty()) return 0
         var rebuilt = 0
-        for (mem in pending) {
-            val ok = runCatching {
-                val vec = embedder.embed(mem.content)
-                dao.update(mem.copy(embedding = Embedder.toBytes(vec)))
-            }.onFailure { Log.w("MemStore", "op failed: ${it.message}", it) }
-                .onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
-                .isSuccess
-            if (ok) rebuilt += 1
+        // Batch in groups of 5 with parallel async to avoid sequential
+        // cloud round-trips. Each embedding is an independent API call.
+        pending.chunked(5).forEach { batch ->
+            coroutineScope {
+                batch.map { mem ->
+                    async(Dispatchers.IO) {
+                        runCatching {
+                            val vec = embedder.embed(mem.content)
+                            dao.update(mem.copy(embedding = Embedder.toBytes(vec)))
+                        }.onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
+                            .isSuccess
+                    }
+                }.awaitAll().forEach { ok -> if (ok) rebuilt += 1 }
+            }
         }
         return rebuilt
     }

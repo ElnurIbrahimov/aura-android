@@ -42,6 +42,8 @@ internal class McpConnection(
     fun isConnected(): kotlin.Boolean = _health.state == McpConnectionState.CONNECTED
 
     companion object {
+        /** Client version sent in the MCP initialize handshake. */
+        const val CLIENT_VERSION = "0.51.2"
         /** Timeout for the initialize handshake. */
         private const val INIT_TIMEOUT_MS = 15_000L
         /** Max response body size for initialize/listTools/listResources. */
@@ -55,7 +57,7 @@ internal class McpConnection(
                 putJsonObject("capabilities") { }
                 put("clientInfo", buildJsonObject {
                     put("name", "aura-android")
-                    put("version", "0.39.1")
+                    put("version", CLIENT_VERSION)
                 })
             })
             val response = withTimeoutOrNull(INIT_TIMEOUT_MS) {

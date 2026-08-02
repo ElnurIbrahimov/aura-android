@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Entity(
     tableName = "memories",
-    indices = [Index("createdAt"), Index("source"), Index("category"), Index("sourceConversationId")]
+    indices = [Index("createdAt"), Index("source"), Index("category"), Index("sourceConversationId"), Index("scope")]
 )
 data class MemoryEntity(
     @PrimaryKey val id: String,
