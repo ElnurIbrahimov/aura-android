@@ -219,16 +219,11 @@ open class OpenAiCompatProvider(
             put("temperature", options.temperature)
             put("top_p", options.topP)
             options.maxTokens?.let { put("max_tokens", it) }
-            // Extended thinking: OpenAI o-series uses reasoning_effort.
-            // Map budget to effort level: >=20000 = high, >=8000 = medium, >0 = low.
-            options.thinkingBudget?.let { budget ->
-                val effort = when {
-                    budget >= 20_000 -> "high"
-                    budget >= 8_000 -> "medium"
-                    else -> "low"
-                }
-                put("reasoning_effort", effort)
-            }
+            // Extended thinking — provider-specific injection.
+            // OpenAI o-series uses reasoning_effort. DeepSeek uses both
+            // reasoning_effort and thinking:{type:enabled}. Ollama uses
+            // think:true/high. Subclasses can override injectThinking().
+            injectThinking(this, options.thinkingBudget)
             put("messages", JsonArray(messages.map { msg ->
                 buildJsonObject {
                     put("role", msg.role.name)
@@ -254,6 +249,25 @@ open class OpenAiCompatProvider(
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
+    }
+
+    /**
+     * Inject provider-specific extended thinking / reasoning parameters
+     * into the request body. Subclasses override this to use their
+     * provider's native thinking API.
+     *
+     * Default: OpenAI o-series `reasoning_effort` (low/medium/high).
+     * Override in [OllamaCloudProvider] for Ollama's `think` parameter.
+     * Override in DeepSeek subclasses for `thinking:{type:enabled}`.
+     */
+    protected open fun injectThinking(body: kotlinx.serialization.json.JsonObjectBuilder, budget: Int?) {
+        if (budget == null) return
+        val effort = when {
+            budget >= 20_000 -> "high"
+            budget >= 8_000 -> "medium"
+            else -> "low"
+        }
+        body.put("reasoning_effort", effort)
     }
 
     companion object {

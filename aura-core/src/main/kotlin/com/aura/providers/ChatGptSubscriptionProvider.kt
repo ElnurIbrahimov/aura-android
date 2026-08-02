@@ -68,6 +68,15 @@ class ChatGptSubscriptionProvider(
             put("temperature", options.temperature)
             put("top_p", options.topP)
             options.maxTokens?.let { put("max_tokens", it) }
+            // ChatGPT Responses API supports reasoning_effort
+            options.thinkingBudget?.let { budget ->
+                val effort = when {
+                    budget >= 20_000 -> "high"
+                    budget >= 8_000 -> "medium"
+                    else -> "low"
+                }
+                put("reasoning_effort", effort)
+            }
             put("input", JsonArray(messages.map { msg ->
                 buildJsonObject {
                     put("role", msg.role.name)

@@ -3,8 +3,13 @@ package com.aura.providers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,6 +44,48 @@ class OllamaCloudProvider(
     httpClient = httpClient,
 ) {
     private val showJson = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Ollama Cloud providers use different thinking APIs depending on the
+     * underlying service:
+     * - Ollama (prefix="ollama"): `think: true` or `think: "high"`
+     * - DeepSeek (prefix="deepseek"): `reasoning_effort: "high"` + `thinking: { type: "enabled" }`
+     * - Others (OpenAI, xAI, Mistral, etc.): inherit OpenAI's `reasoning_effort`
+     */
+    override fun injectThinking(body: kotlinx.serialization.json.JsonObjectBuilder, budget: Int?) {
+        if (budget == null) return
+        when (prefix) {
+            "ollama" -> {
+                if (budget >= 20_000) {
+                    body.put("think", "high")
+                } else {
+                    body.put("think", true)
+                }
+            }
+            "deepseek" -> {
+                // DeepSeek V4 supports both reasoning_effort and thinking:{type:enabled}
+                val effort = when {
+                    budget >= 20_000 -> "high"
+                    budget >= 8_000 -> "medium"
+                    else -> "low"
+                }
+                body.put("reasoning_effort", effort)
+                body.put("thinking", kotlinx.serialization.json.buildJsonObject {
+                    put("type", "enabled")
+                })
+            }
+            else -> {
+                // OpenAI, xAI, Mistral, Together, Cerebras, NVIDIA, etc.
+                // All use OpenAI-compatible reasoning_effort
+                val effort = when {
+                    budget >= 20_000 -> "high"
+                    budget >= 8_000 -> "medium"
+                    else -> "low"
+                }
+                body.put("reasoning_effort", effort)
+            }
+        }
+    }
 
     override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
         val names = listModels()
