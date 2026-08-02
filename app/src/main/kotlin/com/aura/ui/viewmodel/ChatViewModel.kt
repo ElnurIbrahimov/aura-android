@@ -833,6 +833,18 @@ class ChatViewModel @Inject constructor(
         sendController.runSend(viewModelScope, retryUserText = newText)
     }
 
+    fun togglePinTurn(turnIndex: Int) {
+        val conv = _state.value.conversation
+        if (turnIndex < 0 || turnIndex >= conv.turns.size) return
+        viewModelScope.launch {
+            conversationStore.toggleTurnPin(conv.id, turnIndex)
+            // Update local state immediately
+            val updatedTurns = conv.turns.toMutableList()
+            updatedTurns[turnIndex] = updatedTurns[turnIndex].copy(pinned = !updatedTurns[turnIndex].pinned)
+            _state.update { it.copy(conversation = conv.copy(turns = updatedTurns)) }
+        }
+    }
+
     /**
      * Delete the current conversation from the store and start a
      * fresh one. The deleted conversation is gone for good — no

@@ -243,7 +243,23 @@ class ConversationStore @Inject constructor(
      * "{original title} (fork)" and it inherits the system prompt +
      * model. Used by the "Fork from here" action in ChatScreen.
      */
-    suspend fun fork(id: String, fromTurnIndex: Int): String? {
+    /**
+     * Toggle the pinned state of a specific turn within a conversation.
+     * Pinned turns are highlighted in the UI for quick reference.
+     */
+    suspend fun toggleTurnPin(id: kotlin.String, turnIndex: Int): Boolean {
+        val entity = dao.getById(id) ?: return false
+        val turns = runCatching {
+            convJson.decodeFromString<List<Turn>>(entity.turnsJson)
+        }.getOrElse { return false }
+        if (turnIndex !in turns.indices) return false
+        val updated = turns.toMutableList()
+        updated[turnIndex] = updated[turnIndex].copy(pinned = !updated[turnIndex].pinned)
+        dao.updateTurns(id, convJson.encodeToString(updated), System.currentTimeMillis())
+        return true
+    }
+
+    suspend fun fork(id: String, fromTurnIndex: Int): kotlin.String? {
         val original = dao.getById(id) ?: return null
         val metadata = runCatching {
             convJson.decodeFromString<Map<String, String>>(original.metadataJson)

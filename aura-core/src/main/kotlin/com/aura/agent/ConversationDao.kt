@@ -15,6 +15,9 @@ interface ConversationDao {
     @Update
     suspend fun update(conv: ConversationEntity)
 
+    @Query("UPDATE conversations SET turnsJson = :turnsJson, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateTurns(id: kotlin.String, turnsJson: kotlin.String, updatedAt: Long)
+
     @Query("SELECT * FROM conversations WHERE id = :id")
     suspend fun getById(id: String): ConversationEntity?
 

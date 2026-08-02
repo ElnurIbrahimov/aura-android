@@ -191,6 +191,8 @@ data class Turn(
      * and the rating is only used locally for self-review.
      */
     val reaction: Reaction? = null,
+    /** Whether this turn is pinned by the user for quick reference. */
+    val pinned: Boolean = false,
 )
 
 /**
