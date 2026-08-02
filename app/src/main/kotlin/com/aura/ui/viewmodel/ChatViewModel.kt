@@ -433,6 +433,22 @@ class ChatViewModel @Inject constructor(
         )
     }
 
+    /**
+     * UI-interaction controller — owns permission/approval/dismissal
+     * state mutations and canvas/proactive-message I/O.
+     * Extracted from ChatViewModel to reduce the method count.
+     */
+    private val interactionController: ChatInteractionController by lazy {
+        ChatInteractionController(
+            state = _state,
+            memoryStore = memoryStore,
+            proactiveMessageStore = proactiveMessageStore,
+            scope = viewModelScope,
+            reSend = { sendController.runSend(viewModelScope) },
+        )
+    }
+
+
     private fun saveConversation() = conversationController.saveConversation()
 
 
@@ -842,9 +858,7 @@ class ChatViewModel @Inject constructor(
 
     fun deleteCurrentConversation() = conversationController.deleteCurrentConversation()
 
-    fun dismissPermission() {
-        _state.update { it.copy(pendingPermission = null, permissionRationale = null, pendingToolRetry = null) }
-    }
+    fun dismissPermission() = interactionController.dismissPermission()
 
     /**
      * User approved a REMOTE_COST tool. Add it to the per-conversation
@@ -852,70 +866,33 @@ class ChatViewModel @Inject constructor(
      * with the approved set in ToolContext.
      */
 
-    fun approveRemoteCost() {
-        val pending = _state.value.pendingApproval ?: return
-        val toolName = pending.first
-        _state.update {
-            it.copy(
-                pendingApproval = null,
-                approvedRemoteCostTools = it.approvedRemoteCostTools + toolName,
-            )
-        }
-        sendController.runSend(viewModelScope)
-    }
+    fun approveRemoteCost() = interactionController.approveRemoteCost()
 
     /**
      * User confirmed an IMPLICIT/BIOMETRIC tool. Dismiss the dialog and
      * re-engage so the tool executes with the user's confirmation in context.
      */
 
-    fun confirmTool(toolName: String) {
-        _state.update { it.copy(pendingApproval = null) }
-        sendController.runSend(viewModelScope)
-    }
+    fun confirmTool(toolName: String) = interactionController.confirmTool(toolName)
 
     /** User dismissed the REMOTE_COST approval dialog. */
 
-    fun dismissApproval() {
-        _state.update { it.copy(pendingApproval = null) }
-    }
+    fun dismissApproval() = interactionController.dismissApproval()
 
     /** Clear the pending browser URL (user closed the in-app browser). */
-    fun dismissBrowser() {
-        _state.update { it.copy(pendingBrowserUrl = null) }
-    }
+    fun dismissBrowser() = interactionController.dismissBrowser()
 
     /** Clear the pending canvas (user closed the canvas sheet). */
-    fun dismissCanvas() {
-        _state.update { it.copy(pendingCanvas = null) }
-    }
+    fun dismissCanvas() = interactionController.dismissCanvas()
 
     /** Clear the proactive message from UI state. The store was already consumed in loadProactiveMessage(). */
-    fun dismissProactiveMessage() {
-        _state.update { it.copy(proactiveMessage = null) }
-    }
+    fun dismissProactiveMessage() = interactionController.dismissProactiveMessage()
 
     /** Load proactive message if one is waiting. Called on chat open. */
-    fun loadProactiveMessage() {
-        viewModelScope.launch {
-            runCatching {
-                val msg = proactiveMessageStore?.consumeMessage()
-                if (!msg.isNullOrBlank()) {
-                    _state.update { it.copy(proactiveMessage = msg) }
-                }
-            }.onFailure { android.util.Log.w("ChatViewModel", "proactive load: ${it.message}", it) }
-        }
-    }
+    fun loadProactiveMessage() = interactionController.loadProactiveMessage()
 
     /** Save canvas content as a memory. */
-    fun saveCanvasToMemory(content: String) {
-        viewModelScope.launch {
-            runCatching {
-                memoryStore.store(content, source = "canvas", category = "canvas", importance = 0.7f)
-            }.onFailure { android.util.Log.w("ChatViewModel", "canvas save failed: ${it.message}", it) }
-        }
-        dismissCanvas()
-    }
+    fun saveCanvasToMemory(content: String) = interactionController.saveCanvasToMemory(content)
 
     /**
      * Set or clear the user's thumbs-up/thumbs-down reaction on a

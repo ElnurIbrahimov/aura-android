@@ -232,6 +232,16 @@ class SettingsViewModel @Inject constructor(
         }
 
     private val _state = MutableStateFlow(SettingsUiState())
+
+    private val configController: SettingsConfigController by lazy {
+        SettingsConfigController(
+            state = _state,
+            userPreferences = userPreferences,
+            integrationTokenStore = integrationTokenStore,
+            scope = viewModelScope,
+        )
+    }
+
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
@@ -1023,49 +1033,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateSmtpHost(value: String) {
-        _state.update { it.copy(smtpHost = value, smtpResult = null) }
-    }
+    fun updateSmtpHost(value: String) = configController.updateSmtpHost(value)
 
-    fun updateSmtpPort(value: String) {
-        _state.update { it.copy(smtpPort = value.toIntOrNull() ?: 587, smtpResult = null) }
-    }
+    fun updateSmtpPort(value: String) = configController.updateSmtpPort(value)
 
-    fun updateSmtpUsername(value: String) {
-        _state.update { it.copy(smtpUsername = value, smtpResult = null) }
-    }
+    fun updateSmtpUsername(value: String) = configController.updateSmtpUsername(value)
 
-    fun updateSmtpPassword(value: kotlin.String) {
-        _state.update { it.copy(smtpPassword = value, smtpResult = null) }
-    }
+    fun updateSmtpPassword(value: kotlin.String) = configController.updateSmtpPassword(value)
 
-    fun updateSmtpFrom(value: String) {
-        _state.update { it.copy(smtpFrom = value, smtpResult = null) }
-    }
+    fun updateSmtpFrom(value: String) = configController.updateSmtpFrom(value)
 
-    fun saveSmtpConfig() {
-        if (_state.value.smtpTesting) return
-        _state.update { it.copy(smtpTesting = true, smtpResult = "Saving…") }
-        viewModelScope.launch {
-            try {
-                userPreferences.setSmtpConfig(
-                    _state.value.smtpHost,
-                    _state.value.smtpPort,
-                    _state.value.smtpUsername,
-                    _state.value.smtpPassword,
-                    _state.value.smtpFrom,
-                )
-                _state.update {
-                    it.copy(
-                        smtpTesting = false,
-                        smtpResult = "✓ SMTP saved",
-                    )
-                }
-            } catch (e: Exception) {
-                _state.update { it.copy(smtpTesting = false, smtpResult = "✗ ${e.message}") }
-            }
-        }
-    }
+    fun saveSmtpConfig() = configController.saveSmtpConfig()
 
     // ---- Google / Microsoft Integrations ----
 
@@ -1099,18 +1077,14 @@ class SettingsViewModel @Inject constructor(
         oauthFlow.launchGoogleAuth(cid)
     }
 
-    fun disconnectGoogle() {
-        viewModelScope.launch { integrationTokenStore.disconnectGoogle() }
-    }
+    fun disconnectGoogle() = configController.disconnectGoogle()
 
     fun connectMicrosoft() {
         val cid = _microsoftClientId.value.takeIf { it.isNotBlank() } ?: return
         oauthFlow.launchMicrosoftAuth(cid)
     }
 
-    fun disconnectMicrosoft() {
-        viewModelScope.launch { integrationTokenStore.disconnectMicrosoft() }
-    }
+    fun disconnectMicrosoft() = configController.disconnectMicrosoft()
 
     // ---- Reasoning / Extended Thinking ----
 
@@ -1127,12 +1101,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setReasoningEnabled(enabled: Boolean) {
-        viewModelScope.launch { userPreferences.setReasoningEnabled(enabled) }
+        configController.setReasoningEnabled(enabled)
         _reasoningEnabled.value = enabled
     }
 
     fun setReasoningBudget(budget: Int) {
-        viewModelScope.launch { userPreferences.setReasoningBudget(budget) }
+        configController.setReasoningBudget(budget)
         _reasoningBudget.value = budget
     }
 
