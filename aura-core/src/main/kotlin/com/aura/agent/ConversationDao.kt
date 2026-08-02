@@ -54,8 +54,8 @@ interface ConversationDao {
     @Query(
         """
         SELECT * FROM conversations
-        WHERE title LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
-           OR turnsJson LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
+        WHERE title LIKE '%' || :escapedQuery || '%' ESCAPE '\'
+           OR turnsJson LIKE '%' || :escapedQuery || '%' ESCAPE '\'
         ORDER BY updatedAt DESC
         LIMIT :limit
         """
@@ -67,8 +67,8 @@ interface ConversationDao {
         """
         SELECT * FROM conversations
         WHERE deletedAt IS NULL
-          AND (title LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
-            OR turnsJson LIKE '%' || :escapedQuery || '%' ESCAPE '\\')
+          AND (title LIKE '%' || :escapedQuery || '%' ESCAPE '\'
+            OR turnsJson LIKE '%' || :escapedQuery || '%' ESCAPE '\')
         ORDER BY updatedAt DESC
         LIMIT :limit
         """
