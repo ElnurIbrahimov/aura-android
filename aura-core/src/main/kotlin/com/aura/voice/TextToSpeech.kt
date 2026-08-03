@@ -100,6 +100,46 @@ class TextToSpeech @Inject constructor(
         _state.value = State.Ready
     }
 
+    /**
+     * Stream text to TTS as it arrives from the model. Splits on sentence
+     * boundaries and speaks each complete sentence immediately, so the user
+     * hears the first sentence while the model is still generating the rest.
+     *
+     * Call this from a coroutine that collects the model's text delta flow.
+     * Each call to [feed] appends text; sentences are dispatched as they
+     * complete. Call [flush] when the stream ends to speak any remaining
+     * buffered text.
+     */
+    private val streamBuffer = StringBuilder()
+    private val streamSentenceEnd = Regex("[.!?]\\s+|\n")
+
+    fun feed(text: String) {
+        if (_state.value !is State.Ready && _state.value !is State.Speaking) return
+        streamBuffer.append(text)
+        // Find and dispatch complete sentences
+        var lastEnd = 0
+        while (true) {
+            val match = streamSentenceEnd.find(streamBuffer, lastEnd)
+            if (match == null) break
+            val sentence = streamBuffer.substring(0, match.range.last + 1).trim()
+            if (sentence.isNotEmpty()) {
+                val id = "stream-${System.currentTimeMillis()}-${sentence.hashCode()}"
+                tts?.speak(sentence, TextToSpeech.QUEUE_ADD, null, id)
+            }
+            streamBuffer.delete(0, match.range.last + 1)
+            lastEnd = 0
+        }
+    }
+
+    fun flushStream() {
+        val remaining = streamBuffer.toString().trim()
+        if (remaining.isNotEmpty()) {
+            val id = "stream-final-${System.currentTimeMillis()}"
+            tts?.speak(remaining, TextToSpeech.QUEUE_ADD, null, id)
+        }
+        streamBuffer.clear()
+    }
+
     fun shutdown() {
         tts?.stop()
         tts?.shutdown()
