@@ -39,7 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -54,6 +53,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.proactive.ProactiveEventBus
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.util.toSummary
 import com.aura.ui.viewmodel.ProactiveHistoryViewModel
 import java.text.SimpleDateFormat
@@ -92,27 +93,12 @@ fun ProactiveHistoryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.HistoryToggleOff,
-                            contentDescription = null,
-                            tint = AuraThemeTokens.colors.actionPrimary,
-                            modifier = Modifier.size(22.dp),
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(stringResource(R.string.proactive_history))
-                    }
-                },
-            )
-        },
+    AuraScreenShell(
+        title = stringResource(R.string.proactive_history),
+        subtitle = "Proactive events and interactions",
     ) { padding ->
         val status by viewModel.status.collectAsStateWithLifecycle()
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md), horizontalArrangement = Arrangement.End) {
             androidx.compose.material3.IconButton(onClick = { viewModel.fireCalendarCheck() }) {
                 Icon(
                     imageVector = androidx.compose.material.icons.Icons.Filled.Refresh,
@@ -124,7 +110,7 @@ fun ProactiveHistoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             val reversed = state.events.reversed()

@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.ProfileEvent
 import com.aura.ui.viewmodel.ProfileViewModel
 
@@ -51,32 +53,26 @@ fun ProfileScreen(
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.profile)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { showClearDialog = true }) {
-                        Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
-                    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        AuraScreenShell(
+            title = stringResource(R.string.profile),
+            subtitle = "User profile and facts",
+            action = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                 }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+                TextButton(onClick = { showClearDialog = true }) {
+                    Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
+                }
+            },
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = AuraSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+            ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -214,6 +210,11 @@ fun ProfileScreen(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 
     if (showClearDialog) {

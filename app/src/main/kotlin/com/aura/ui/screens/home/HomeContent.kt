@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.CalendarMonth
 
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 
 import androidx.compose.ui.platform.testTag
 
@@ -695,54 +698,66 @@ private fun HomeAtAGlance(state: HomeUiState) {
 
     val colors = AuraThemeTokens.colors
 
-    val lines = buildList {
+    data class GlanceItem(val icon: ImageVector, val title: String, val subtitle: String)
 
-        state.pendingTasks.drop(1).take(2).forEach { add("Task · $it") }
-
-        state.upcomingReminders.drop(if (state.pendingTasks.isEmpty()) 1 else 0).take(1)
-
-            .forEach { add("Reminder · $it") }
-
-        state.today.drop(if (state.pendingTasks.isEmpty() && state.upcomingReminders.isEmpty()) 1 else 0).take(1)
-
-            .forEach { add("Calendar · $it") }
-
+    val items = buildList {
+        state.pendingTasks.drop(1).take(2).forEach {
+            add(GlanceItem(Icons.Filled.TaskAlt, it, "Task"))
+        }
+        state.upcomingReminders.drop(if (state.pendingTasks.isEmpty()) 1 else 0).take(1).forEach {
+            add(GlanceItem(Icons.Filled.NotificationsActive, it, "Reminder"))
+        }
+        state.today.drop(if (state.pendingTasks.isEmpty() && state.upcomingReminders.isEmpty()) 1 else 0).take(1).forEach {
+            add(GlanceItem(Icons.Filled.CalendarMonth, it, "Calendar"))
+        }
     }.take(3)
 
-    if (lines.isEmpty()) return
+    if (items.isEmpty()) return
 
     Column(
-
         modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.sm),
-
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
-
     ) {
-
         Text(
-
             text = stringResource(R.string.at_a_glance),
-
             style = MaterialTheme.typography.labelLarge,
-
             color = colors.textSecondary,
-
         )
-
-        lines.forEach { line ->
-
-            Text(
-
-                text = line,
-
-                style = MaterialTheme.typography.bodyMedium,
-
-                color = colors.textPrimary,
-
-            )
-
+        items.forEach { item ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = colors.surface1,
+                shape = MaterialTheme.shapes.small,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = null,
+                        tint = colors.actionPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = item.subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textTertiary,
+                        )
+                    }
+                }
+            }
         }
-
     }
 
 }

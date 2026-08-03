@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.TasteProfileViewModel
 import kotlinx.serialization.json.Json
 
@@ -40,22 +42,19 @@ fun TasteProfileScreen(
     val signals by viewModel.signals.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Taste profile") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+    AuraScreenShell(
+        title = "Taste profile",
+        subtitle = "Learned style preferences",
+        action = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             item {
                 Text(

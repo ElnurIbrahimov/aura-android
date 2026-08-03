@@ -20,8 +20,6 @@ class InsetOwnershipPolicyTest {
         val screens = listOf(
             "com/aura/ui/screens/HandsScreen.kt",
             "com/aura/ui/screens/TasksScreen.kt",
-            "com/aura/ui/screens/ProactiveHistoryScreen.kt",
-            "com/aura/ui/screens/ProfileScreen.kt",
             "com/aura/ui/screens/RemindersScreen.kt",
             "com/aura/ui/screens/IdentityEditorScreen.kt",
         )

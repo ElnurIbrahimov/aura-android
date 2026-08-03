@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aura.tasks.TaskEntity
 import com.aura.tasks.ReminderEntity
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.ScheduleViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -47,14 +49,11 @@ fun ScheduleScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Schedule", style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back") }
-                },
-            )
+    AuraScreenShell(
+        title = "Schedule",
+        subtitle = "Triggers and scheduled actions",
+        action = {
+            TextButton(onClick = onBack) { Text("Back") }
         },
     ) { padding ->
         Column(

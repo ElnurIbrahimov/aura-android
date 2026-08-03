@@ -43,6 +43,8 @@ import com.aura.dream.KgEdgeProposalEntity
 import com.aura.dream.RoutineDao
 import com.aura.dream.RoutineEntity
 import com.aura.kg.KnowledgeGraphRepository
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -117,22 +119,19 @@ fun DreamsScreen(
     val contradictions by viewModel.contradictions.collectAsStateWithLifecycle()
     val kgProposals by viewModel.kgProposals.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.dream_summaries)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+    AuraScreenShell(
+        title = stringResource(R.string.dream_summaries),
+        subtitle = "Memory consolidation summaries",
+        action = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             if (summaries.isNotEmpty()) {
                 item {

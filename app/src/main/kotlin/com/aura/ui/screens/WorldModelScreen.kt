@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aura.ui.viewmodel.WorldModelViewModel
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,22 +43,19 @@ fun WorldModelScreen(
     val opportunities by viewModel.opportunities.collectAsStateWithLifecycle()
     val contradictions by viewModel.contradictions.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("World model") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+    AuraScreenShell(
+        title = "World model",
+        subtitle = "Beliefs, events, and opportunities",
+        action = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             if (beliefs.isNotEmpty()) {
                 item {

@@ -46,6 +46,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.agent.AgentCouncil
 import com.aura.agent.AgentEntity
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.viewmodel.CouncilViewModel
@@ -59,23 +61,20 @@ fun CouncilScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Agent Council", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
+    AuraScreenShell(
+        title = "Agent Council",
+        subtitle = "Multi-agent council results",
+        action = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
         },
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = AuraSpacing.md)
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(12.dp))

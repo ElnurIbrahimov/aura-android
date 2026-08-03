@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.skills.Skill
+import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.SkillsViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -60,39 +62,39 @@ fun SkillsScreen(
     var showNew by remember { mutableStateOf(false) }
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.skills)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showNew = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add skill")
+    Box(modifier = Modifier.fillMaxSize()) {
+        AuraScreenShell(
+            title = stringResource(R.string.skills),
+            subtitle = "Saved skill definitions",
+            action = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+        ) { padding ->
+            if (skills.isEmpty()) {
+                EmptyState(padding = padding)
+            } else if (selected == null) {
+                SkillList(
+                    padding = padding,
+                    skills = skills,
+                    onClick = { vm.select(it.id) },
+                )
+            } else {
+                SkillDetail(
+                    padding = padding,
+                    skill = selected,
+                    onBack = { vm.select(null) },
+                    onSave = { vm.update(it) },
+                    onDelete = { confirmDeleteId = it.id },
+                )
             }
-        },
-    ) { padding ->
-        if (skills.isEmpty()) {
-            EmptyState(padding = padding)
-        } else if (selected == null) {
-            SkillList(
-                padding = padding,
-                skills = skills,
-                onClick = { vm.select(it.id) },
-            )
-        } else {
-            SkillDetail(
-                padding = padding,
-                skill = selected,
-                onBack = { vm.select(null) },
-                onSave = { vm.update(it) },
-                onDelete = { confirmDeleteId = it.id },
-            )
+        }
+        FloatingActionButton(
+            onClick = { showNew = true },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(AuraSpacing.md),
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add skill")
         }
     }
 
