@@ -54,6 +54,8 @@ import com.aura.ui.screens.ProfileScreen
 import com.aura.ui.screens.SettingsScreen
 import com.aura.ui.screens.AgentEditorScreen
 import com.aura.ui.screens.council.CouncilScreen
+import com.aura.ui.screens.council.DreamLogScreen
+import com.aura.ui.screens.council.AgentProfileScreen
 import com.aura.ui.screens.schedule.ScheduleScreen
 import com.aura.ui.viewmodel.ScheduleViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -367,7 +369,17 @@ fun NavGraph(
                 BeliefsScreen()
             }
             composable("council") {
-                CouncilScreen(onBack = { navController.popBackStack() })
+                CouncilScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDreamLog = { navController.navigate("dream_log") },
+                    onOpenAgentProfiles = { navController.navigate("agent_profiles") },
+                )
+            }
+            composable("dream_log") {
+                DreamLogScreen(onBack = { navController.popBackStack() })
+            }
+            composable("agent_profiles") {
+                AgentProfileScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = "evolution/rollback/{proposalId}",

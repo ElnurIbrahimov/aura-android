@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.HowToVote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +38,8 @@ import com.aura.ui.theme.AuraThemeTokens
 @Composable
 fun CouncilScreen(
     onBack: () -> Unit,
+    onOpenDreamLog: () -> Unit = {},
+    onOpenAgentProfiles: () -> Unit = {},
     viewModel: CouncilViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -44,8 +48,16 @@ fun CouncilScreen(
         title = "Council",
         subtitle = "Agent society decisions",
         action = {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Filled.Close, contentDescription = "Back")
+            Row {
+                IconButton(onClick = onOpenDreamLog) {
+                    Icon(Icons.Filled.Bedtime, contentDescription = "Dream Log")
+                }
+                IconButton(onClick = onOpenAgentProfiles) {
+                    Icon(Icons.Filled.Person, contentDescription = "Agent Profiles")
+                }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.Close, contentDescription = "Back")
+                }
             }
         },
     ) { paddingValues ->
