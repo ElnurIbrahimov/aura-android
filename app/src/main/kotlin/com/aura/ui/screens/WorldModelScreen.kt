@@ -65,7 +65,13 @@ fun WorldModelScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
-                items(beliefs, key = { it.id }) { BeliefCard(it) }
+                items(beliefs, key = { it.id }) { belief ->
+                    BeliefCard(
+                        belief = belief,
+                        onVerify = { viewModel.verifyBelief(belief.id) },
+                        onRetire = { viewModel.retireBelief(belief.id) },
+                    )
+                }
             }
             if (events.isNotEmpty()) {
                 item {
@@ -115,7 +121,11 @@ fun WorldModelScreen(
 }
 
 @Composable
-private fun BeliefCard(belief: com.aura.world.BeliefEntity) {
+private fun BeliefCard(
+    belief: com.aura.world.BeliefEntity,
+    onVerify: () -> Unit,
+    onRetire: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -136,6 +146,22 @@ private fun BeliefCard(belief: com.aura.world.BeliefEntity) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                TextButton(onClick = onVerify) {
+                    Text("Verify")
+                }
+                TextButton(
+                    onClick = onRetire,
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text("Retire")
+                }
+            }
         }
     }
 }

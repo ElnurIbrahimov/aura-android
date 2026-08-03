@@ -403,6 +403,13 @@ data class PreferencesBackup(
     val evolutionModel: String? = null,
     val dreamLastRunAt: Long = 0L,
     val dreamLastRunStats: String = "",
+    // Schema v16: previously-lost toggles and settings.
+    val dreamEnabled: Boolean = true,
+    val decayEnabled: Boolean = true,
+    val triggersEnabled: Boolean = true,
+    val triggersJson: String = "[]",
+    val planningEnabled: Boolean = false,
+    val defaultAgentId: String = "",
 )
 
 @Serializable

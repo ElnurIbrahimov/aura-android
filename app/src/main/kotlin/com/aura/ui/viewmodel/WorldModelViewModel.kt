@@ -29,10 +29,6 @@ class WorldModelViewModel @Inject constructor(
     private val contradictionDao: ContradictionDao,
 ) : ViewModel() {
 
-    val beliefs: StateFlow<List<BeliefEntity>> =
-        kotlinx.coroutines.flow.flow { emit(beliefDao.allActiveInScopes(listOf("general"), 200)) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
-
     val worldEvents: StateFlow<List<WorldEventEntity>> = worldEventDao.observeRecent(50)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
@@ -47,4 +43,28 @@ class WorldModelViewModel @Inject constructor(
             opportunityDao.resolve(id, if (approve) "approved" else "dismissed", System.currentTimeMillis())
         }
     }
+
+    fun verifyBelief(id: String) {
+        viewModelScope.launch {
+            beliefDao.verify(id, 1.0f, System.currentTimeMillis())
+            refreshBeliefs()
+        }
+    }
+
+    fun retireBelief(id: String) {
+        viewModelScope.launch {
+            beliefDao.supersede(id, "retired", "", System.currentTimeMillis())
+            refreshBeliefs()
+        }
+    }
+
+    private suspend fun refreshBeliefs() {
+        _beliefs.emit(beliefDao.allActiveInScopes(listOf("general"), 200))
+    }
+
+    private val _beliefs = kotlinx.coroutines.flow.MutableStateFlow<List<BeliefEntity>>(emptyList())
+    val beliefs: StateFlow<List<BeliefEntity>> = _beliefs
+        .also {
+            viewModelScope.launch { refreshBeliefs() }
+        }
 }

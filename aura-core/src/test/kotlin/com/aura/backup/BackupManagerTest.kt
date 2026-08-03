@@ -123,6 +123,14 @@ class BackupManagerTest {
         every { userPreferences.microsoftClientId } returns flowOf("")
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(24)
+        every { userPreferences.dreamEnabled } returns flowOf(true)
+        every { userPreferences.decayEnabled } returns flowOf(true)
+        every { userPreferences.triggersEnabled } returns flowOf(true)
+        every { userPreferences.triggers } returns flowOf(emptyList())
+        every { userPreferences.planningEnabled } returns flowOf(false)
+        every { userPreferences.agentId } returns flowOf(null)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
@@ -607,6 +615,14 @@ class BackupManagerTest {
         every { userPreferences.microsoftClientId } returns flowOf("")
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(24)
+        every { userPreferences.dreamEnabled } returns flowOf(true)
+        every { userPreferences.decayEnabled } returns flowOf(true)
+        every { userPreferences.triggersEnabled } returns flowOf(true)
+        every { userPreferences.triggers } returns flowOf(emptyList())
+        every { userPreferences.planningEnabled } returns flowOf(false)
+        every { userPreferences.agentId } returns flowOf(null)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
@@ -793,6 +809,14 @@ class BackupManagerTest {
         every { userPreferences.microsoftClientId } returns flowOf("")
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(24)
+        every { userPreferences.dreamEnabled } returns flowOf(true)
+        every { userPreferences.decayEnabled } returns flowOf(true)
+        every { userPreferences.triggersEnabled } returns flowOf(true)
+        every { userPreferences.triggers } returns flowOf(emptyList())
+        every { userPreferences.planningEnabled } returns flowOf(false)
+        every { userPreferences.agentId } returns flowOf(null)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns ""
 

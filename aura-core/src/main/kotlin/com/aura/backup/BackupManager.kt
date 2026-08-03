@@ -128,6 +128,14 @@ class BackupManager @Inject constructor(
     private val strategyBanditDao: StrategyBanditDao? = null,
 ) {
 
+    private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
+        val triggers = userPreferences.triggers.first()
+        kotlinx.serialization.json.Json.encodeToString(
+            kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()),
+            triggers,
+        )
+    }.getOrDefault("[]")
+
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
     id = id,
     domain = domain,
@@ -182,6 +190,54 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * conversations, memories, tasks, profile facts, and preferences
      * (but NOT API keys or embeddings). Treat the file as sensitive.
      */
+        private suspend fun snapshotPreferences(userPreferences: UserPreferences): PreferencesBackup = PreferencesBackup(
+                defaultModel = userPreferences.defaultModel.first()?.takeIf { it.isNotBlank() },
+                firstRunComplete = userPreferences.firstRunComplete.first(),
+                appLockEnabled = userPreferences.appLockEnabled.first(),
+                embeddingModel = providerKeys.embeddingModel.takeIf { it.isNotBlank() },
+                lastSeenProactiveAt = userPreferences.lastSeenProactiveAt.first(),
+                morningBriefEnabled = userPreferences.morningBriefEnabled.first(),
+                calendarMonitorEnabled = userPreferences.calendarMonitorEnabled.first(),
+                ttsEnabled = userPreferences.ttsEnabled.first(),
+                incognitoDefault = userPreferences.incognitoDefault.first(),
+                themeMode = userPreferences.themeMode.first(),
+                customIdentity = userPreferences.customIdentity.first(),
+                specialistOverrides = userPreferences.specialistOverrides.first(),
+                morningBriefHour = userPreferences.morningBriefHour.first(),
+                specialistToolOverrides = userPreferences.specialistToolOverrides.first(),
+                evolutionEnabled = userPreferences.evolutionEnabled.first(),
+                evolutionIntervalHours = userPreferences.evolutionIntervalHours.first(),
+                visionModel = userPreferences.visionModel.first(),
+                backgroundModel = userPreferences.backgroundModel.first(),
+                deepModeModel = userPreferences.deepModeModel.first(),
+                moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
+                moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
+                imageModel = userPreferences.imageModel.first().takeIf { it.isNotBlank() },
+                mcpServersJson = userPreferences.mcpServersJson.first(),
+                evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
+                evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
+                daemonEnabled = userPreferences.daemonEnabled.first(),
+                reasoningEnabled = userPreferences.reasoningEnabled.first(),
+                reasoningBudget = userPreferences.reasoningBudget.first(),
+                googleClientId = userPreferences.googleClientId.first(),
+                microsoftClientId = userPreferences.microsoftClientId.first(),
+                fastModel = userPreferences.forRole(com.aura.providers.ModelRole.FAST).first(),
+                reasoningModel = userPreferences.forRole(com.aura.providers.ModelRole.REASONING).first(),
+                creativeDraftModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_DRAFT).first(),
+                creativeCriticModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_CRITIC).first(),
+                plannerModel = userPreferences.forRole(com.aura.providers.ModelRole.PLANNER).first(),
+                verifierModel = userPreferences.forRole(com.aura.providers.ModelRole.VERIFIER).first(),
+                evolutionModel = userPreferences.forRole(com.aura.providers.ModelRole.EVOLUTION).first(),
+                dreamLastRunAt = userPreferences.dreamLastRunAt.first(),
+                dreamLastRunStats = userPreferences.dreamLastRunStats.first(),
+                dreamEnabled = userPreferences.dreamEnabled.first(),
+                decayEnabled = userPreferences.decayEnabled.first(),
+                triggersEnabled = userPreferences.triggersEnabled.first(),
+                triggersJson = encodeTriggersJson(userPreferences),
+                planningEnabled = userPreferences.planningEnabled.first(),
+                defaultAgentId = userPreferences.agentId.first().orEmpty(),
+            )
+
     suspend fun snapshot(
         appVersionName: String,
     ): AuraBackup = withContext(Dispatchers.IO) {
@@ -204,56 +260,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             reminders = reminderDao.allForBackup().map { it.toBackup() },
             proactiveEvents = proactiveEventDao.allForBackup().map { it.toBackup() },
             userProfile = userProfileDao.get()?.toBackup(),
-            preferences = PreferencesBackup(
-                defaultModel = userPreferences.defaultModel.first()?.takeIf { it.isNotBlank() },
-                firstRunComplete = userPreferences.firstRunComplete.first(),
-                appLockEnabled = userPreferences.appLockEnabled.first(),
-                embeddingModel = providerKeys.embeddingModel.takeIf { it.isNotBlank() },
-                lastSeenProactiveAt = userPreferences.lastSeenProactiveAt.first(),
-                morningBriefEnabled = userPreferences.morningBriefEnabled.first(),
-                calendarMonitorEnabled = userPreferences.calendarMonitorEnabled.first(),
-                ttsEnabled = userPreferences.ttsEnabled.first(),
-                incognitoDefault = userPreferences.incognitoDefault.first(),
-                themeMode = userPreferences.themeMode.first(),
-                customIdentity = userPreferences.customIdentity.first(),
-                specialistOverrides = userPreferences.specialistOverrides.first(),
-                morningBriefHour = userPreferences.morningBriefHour.first(),
-                specialistToolOverrides = userPreferences.specialistToolOverrides.first(),
-                // Schema v8 additions — previously lost on backup/restore.
-                visionModel = userPreferences.visionModel.first(),
-                backgroundModel = userPreferences.backgroundModel.first(),
-                deepModeModel = userPreferences.deepModeModel.first(),
-                moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
-                moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
-                imageModel = userPreferences.imageModel.first().takeIf { it.isNotBlank() },
-                // P1-SEC-F2: SMTP host/port/username/from are no longer
-                // snapshotted. Round-tripping them put the user's mailbox
-                // identity (and the SMTP relay they can be impersonated
-                // through) in plaintext in every backup file. The user
-                // re-enters them after restore, just like the password.
-                smtpHost = null,
-                smtpPort = 0,
-                smtpUsername = null,
-                smtpFrom = null,
-                mcpServersJson = userPreferences.mcpServersJson.first(),
-                evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
-                evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
-                daemonEnabled = userPreferences.daemonEnabled.first(),
-                // Schema v15: reasoning, integrations, per-role models, dream stats
-                reasoningEnabled = userPreferences.reasoningEnabled.first(),
-                reasoningBudget = userPreferences.reasoningBudget.first(),
-                googleClientId = userPreferences.googleClientId.first(),
-                microsoftClientId = userPreferences.microsoftClientId.first(),
-                fastModel = userPreferences.forRole(com.aura.providers.ModelRole.FAST).first(),
-                reasoningModel = userPreferences.forRole(com.aura.providers.ModelRole.REASONING).first(),
-                creativeDraftModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_DRAFT).first(),
-                creativeCriticModel = userPreferences.forRole(com.aura.providers.ModelRole.CREATIVE_CRITIC).first(),
-                plannerModel = userPreferences.forRole(com.aura.providers.ModelRole.PLANNER).first(),
-                verifierModel = userPreferences.forRole(com.aura.providers.ModelRole.VERIFIER).first(),
-                evolutionModel = userPreferences.forRole(com.aura.providers.ModelRole.EVOLUTION).first(),
-                dreamLastRunAt = userPreferences.dreamLastRunAt.first(),
-                dreamLastRunStats = userPreferences.dreamLastRunStats.first(),
-            ),
+            preferences = snapshotPreferences(userPreferences),
             usage = usageTracker.snapshot.value,
             agents = agentDao.allOnce().map { it.toBackup() },
             // Schema v10: world model, creative artifacts, taste.
@@ -458,54 +465,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             throw e
         }
 
-        backup.preferences.defaultModel?.let { userPreferences.setDefaultModel(it) }
-        userPreferences.setAppLockEnabled(backup.preferences.appLockEnabled)
-        userPreferences.setFirstRunComplete(backup.preferences.firstRunComplete)
-        backup.preferences.embeddingModel?.let { providerKeys.setEmbeddingModel(it) }
-        userPreferences.setLastSeenProactiveAt(backup.preferences.lastSeenProactiveAt)
-        userPreferences.setMorningBriefEnabled(backup.preferences.morningBriefEnabled)
-        userPreferences.setCalendarMonitorEnabled(backup.preferences.calendarMonitorEnabled)
-        userPreferences.setTtsEnabled(backup.preferences.ttsEnabled)
-        userPreferences.setIncognitoDefault(backup.preferences.incognitoDefault)
-        userPreferences.setThemeMode(backup.preferences.themeMode)
-        userPreferences.setCustomIdentity(backup.preferences.customIdentity)
-        userPreferences.setSpecialistOverrides(backup.preferences.specialistOverrides)
-        userPreferences.setMorningBriefHour(backup.preferences.morningBriefHour)
-        userPreferences.setSpecialistToolOverrides(backup.preferences.specialistToolOverrides)
-        // Schema v8 additions — restore previously-lost prefs.
-        backup.preferences.visionModel?.let { userPreferences.setVisionModel(it) }
-        backup.preferences.backgroundModel?.let { userPreferences.setBackgroundModel(it) }
-        backup.preferences.deepModeModel?.let { userPreferences.setDeepModeModel(it) }
-        if (backup.preferences.moaReferenceModels.isNotBlank()) {
-            userPreferences.setMoaReferenceModels(backup.preferences.moaReferenceModels.split(",").filter { it.isNotBlank() })
-        }
-        backup.preferences.moaAggregatorModel?.let { userPreferences.setMoaAggregatorModel(it) }
-        backup.preferences.imageModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setImageModel(it) }
-        // P1-SEC-F2: SMTP host/port/username/from are intentionally NOT
-        // restored from the backup. The user has to re-paste them just like
-        // the password. The live SMTP config (if any) is left untouched.
-        if (backup.preferences.mcpServersJson.isNotBlank() && backup.preferences.mcpServersJson != "[]") {
-            userPreferences.setMcpServersJson(backup.preferences.mcpServersJson)
-        }
-        userPreferences.setEvolutionShadowEnabled(backup.preferences.evolutionShadowEnabled)
-        userPreferences.setEvolutionOnboardingShown(backup.preferences.evolutionOnboardingShown)
-        userPreferences.setDaemonEnabled(backup.preferences.daemonEnabled)
-        // Schema v15: restore reasoning, integrations, per-role models, dream stats
-        userPreferences.setReasoningEnabled(backup.preferences.reasoningEnabled)
-        userPreferences.setReasoningBudget(backup.preferences.reasoningBudget)
-        if (backup.preferences.googleClientId.isNotBlank()) {
-            userPreferences.setGoogleClientId(backup.preferences.googleClientId)
-        }
-        if (backup.preferences.microsoftClientId.isNotBlank()) {
-            userPreferences.setMicrosoftClientId(backup.preferences.microsoftClientId)
-        }
-        backup.preferences.fastModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.FAST, it) }
-        backup.preferences.reasoningModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.REASONING, it) }
-        backup.preferences.creativeDraftModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_DRAFT, it) }
-        backup.preferences.creativeCriticModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_CRITIC, it) }
-        backup.preferences.plannerModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.PLANNER, it) }
-        backup.preferences.verifierModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.VERIFIER, it) }
-        backup.preferences.evolutionModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.EVOLUTION, it) }
+        restorePreferences(backup.preferences)
         usageTracker.restore(backup.usage)
         restoreEvolution(backup)
         // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
@@ -570,7 +530,63 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         )
     }
 
-    private suspend fun restoreEvolution(backup: AuraBackup) {
+    private suspend fun restorePreferences(p: PreferencesBackup) {
+        p.defaultModel?.let { userPreferences.setDefaultModel(it) }
+        userPreferences.setAppLockEnabled(p.appLockEnabled)
+        userPreferences.setFirstRunComplete(p.firstRunComplete)
+        p.embeddingModel?.let { providerKeys.setEmbeddingModel(it) }
+        userPreferences.setLastSeenProactiveAt(p.lastSeenProactiveAt)
+        userPreferences.setMorningBriefEnabled(p.morningBriefEnabled)
+        userPreferences.setCalendarMonitorEnabled(p.calendarMonitorEnabled)
+        userPreferences.setTtsEnabled(p.ttsEnabled)
+        userPreferences.setIncognitoDefault(p.incognitoDefault)
+        userPreferences.setThemeMode(p.themeMode)
+        userPreferences.setCustomIdentity(p.customIdentity)
+        userPreferences.setSpecialistOverrides(p.specialistOverrides)
+        userPreferences.setMorningBriefHour(p.morningBriefHour)
+        userPreferences.setSpecialistToolOverrides(p.specialistToolOverrides)
+        p.visionModel?.let { userPreferences.setVisionModel(it) }
+        p.backgroundModel?.let { userPreferences.setBackgroundModel(it) }
+        p.deepModeModel?.let { userPreferences.setDeepModeModel(it) }
+        if (p.moaReferenceModels.isNotBlank()) {
+            userPreferences.setMoaReferenceModels(p.moaReferenceModels.split(",").filter { it.isNotBlank() })
+        }
+        p.moaAggregatorModel?.let { userPreferences.setMoaAggregatorModel(it) }
+        p.imageModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setImageModel(it) }
+        if (p.mcpServersJson.isNotBlank() && p.mcpServersJson != "[]") {
+            userPreferences.setMcpServersJson(p.mcpServersJson)
+        }
+        userPreferences.setEvolutionShadowEnabled(p.evolutionShadowEnabled)
+        userPreferences.setEvolutionOnboardingShown(p.evolutionOnboardingShown)
+        userPreferences.setDaemonEnabled(p.daemonEnabled)
+        userPreferences.setReasoningEnabled(p.reasoningEnabled)
+        userPreferences.setReasoningBudget(p.reasoningBudget)
+        if (p.googleClientId.isNotBlank()) userPreferences.setGoogleClientId(p.googleClientId)
+        if (p.microsoftClientId.isNotBlank()) userPreferences.setMicrosoftClientId(p.microsoftClientId)
+        p.fastModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.FAST, it) }
+        p.reasoningModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.REASONING, it) }
+        p.creativeDraftModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_DRAFT, it) }
+        p.creativeCriticModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.CREATIVE_CRITIC, it) }
+        p.plannerModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.PLANNER, it) }
+        p.verifierModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.VERIFIER, it) }
+        p.evolutionModel?.let { userPreferences.setRoleModel(com.aura.providers.ModelRole.EVOLUTION, it) }
+        userPreferences.setDreamEnabled(p.dreamEnabled)
+        userPreferences.setDecayEnabled(p.decayEnabled)
+        userPreferences.setTriggersEnabled(p.triggersEnabled)
+        if (p.triggersJson.isNotBlank() && p.triggersJson != "[]") {
+            runCatching {
+                val triggers = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()),
+                    p.triggersJson,
+                )
+                userPreferences.setTriggers(triggers)
+            }.onFailure { android.util.Log.w("BackupManager", "failed to restore triggers: ${it.message}", it) }
+        }
+        userPreferences.setPlanningEnabled(p.planningEnabled)
+        if (p.defaultAgentId.isNotBlank()) userPreferences.setAgentId(p.defaultAgentId)
+    }
+
+private suspend fun restoreEvolution(backup: AuraBackup) {
         backup.evolutionProposals.map { it.toEntity() }.let { rows ->
             if (rows.isNotEmpty()) evolutionProposalDao.insertAll(rows)
         }
@@ -777,5 +793,4 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             strategyBanditDao?.insertAll(rows)
         }
     }
-
 }
