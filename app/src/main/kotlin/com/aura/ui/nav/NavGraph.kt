@@ -240,6 +240,7 @@ fun NavGraph(
                     onNavigateProfile = { navController.navigate("profile") },
                     onNavigateIdentity = { navController.navigate("identity_editor") },
                     onNavigateDiagnostics = { navController.navigate("diagnostics") },
+                    onNavigateCrashLogs = { navController.navigate("crash_logs") },
                     onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
                     onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
                     onNavigateAgentEditor = { navController.navigate("agent_editor") },
@@ -249,6 +250,9 @@ fun NavGraph(
             }
             composable("diagnostics") {
                 DiagnosticsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("crash_logs") {
+                com.aura.ui.screens.CrashLogScreen(onBack = { navController.popBackStack() })
             }
             composable("identity_editor") {
                 com.aura.ui.screens.IdentityEditorScreen(

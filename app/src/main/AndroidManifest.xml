@@ -158,5 +158,16 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_ask_aura_info" />
         </receiver>
+
+        <receiver
+            android:name=".widget.ReminderWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_reminders_info" />
+        </receiver>
     </application>
 </manifest>

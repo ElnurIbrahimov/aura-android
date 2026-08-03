@@ -3,4 +3,8 @@
     <color name="widget_background">#F5F5F5</color>
     <color name="widget_button_background">#0D47A1</color>
     <color name="widget_text_primary">#1A1A1A</color>
+    <color name="widget_bg">#0A0A0B</color>
+    <color name="widget_row_bg">#15151A</color>
+    <color name="widget_text_secondary">#888888</color>
+    <color name="widget_accent">#2DD4BF</color>
 </resources>

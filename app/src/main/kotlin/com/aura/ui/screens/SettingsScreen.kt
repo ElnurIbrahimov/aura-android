@@ -49,6 +49,7 @@ fun SettingsScreen(
     onNavigateProfile: () -> Unit,
     onNavigateIdentity: () -> Unit = {},
     onNavigateDiagnostics: () -> Unit = {},
+    onNavigateCrashLogs: () -> Unit = {},
     onNavigateEvolutionInbox: () -> Unit = {},
     onNavigateBeliefs: () -> Unit = {},
     onNavigateAgentEditor: () -> Unit = {},
@@ -240,6 +241,7 @@ fun SettingsScreen(
             onCancelImport = backupViewModel::cancelImport,
             onClearResult = backupViewModel::clearResult,
             onNavigateDiagnostics = onNavigateDiagnostics,
+            onNavigateCrashLogs = onNavigateCrashLogs,
         )
 
         // 12. Memory consolidation (Dream)

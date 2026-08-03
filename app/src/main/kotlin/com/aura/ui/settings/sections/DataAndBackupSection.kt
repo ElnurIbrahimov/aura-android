@@ -34,6 +34,7 @@ fun DataAndBackupSection(
     onCancelImport: () -> Unit,
     onClearResult: () -> Unit,
     onNavigateDiagnostics: () -> Unit,
+    onNavigateCrashLogs: () -> Unit = {},
 ) {
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -55,6 +56,18 @@ fun DataAndBackupSection(
                 )
             }
             TextButton(onClick = onNavigateDiagnostics) { Text(stringResource(R.string.open)) }
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Crash logs", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "View crash history without ADB",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            TextButton(onClick = onNavigateCrashLogs) { Text(stringResource(R.string.open)) }
         }
         Spacer(Modifier.height(8.dp))
 
