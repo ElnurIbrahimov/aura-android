@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import android.util.Log
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class AgentStore @Inject constructor(
     private val dao: AgentDao,
+    private val stateStore: com.aura.agent.state.AgentStateStore? = null,
 ) {
     private val seedMutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -70,7 +72,14 @@ class AgentStore @Inject constructor(
             )
         }
         dao.insertAll(agents)
+        // Seed initial state for each agent so the Council has mood/energy from day one.
+        stateStore?.let { store ->
+            agents.forEach { agent ->
+                runCatching { store.ensureState(agent.id) }
+                    .onFailure { Log.w("AgentStore", "seedState ${agent.id}: ${it.message}", it) }
+            }
         }
+        } // end seedMutex.withLock
     }
 
     /**

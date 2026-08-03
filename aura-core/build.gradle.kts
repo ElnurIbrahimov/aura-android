@@ -43,6 +43,7 @@ android {
     sourceSets {
         // Adds exported Room schemas to the test assets for migration tests.
         getByName("androidTest").assets.srcDir("schemas")
+        getByName("test").assets.srcDir("schemas")
     }
     testOptions {
         // Robolectric tests verify packaged configuration assets (for example,
