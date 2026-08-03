@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.theme.AuraThemeTokens
 
 import android.content.Intent
 import androidx.compose.foundation.clickable
@@ -93,7 +94,7 @@ fun CrashLogScreen(
             Text(
                 "No crash logs. The app has been stable.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
                 modifier = Modifier.padding(padding).padding(16.dp),
             )
         } else {
@@ -119,13 +120,13 @@ fun CrashLogScreen(
                                     entry.fileName,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = AuraThemeTokens.colors.actionPrimary,
                                 )
                                 Text(
                                     java.text.DateFormat.getDateTimeInstance()
                                         .format(java.util.Date(entry.timestamp)),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = AuraThemeTokens.colors.textSecondary,
                                 )
                             }
                             if (expandedFile == entry.fileName) {

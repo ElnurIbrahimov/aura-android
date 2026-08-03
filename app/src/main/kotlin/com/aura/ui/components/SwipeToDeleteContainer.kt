@@ -1,4 +1,5 @@
 package com.aura.ui.components
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -53,14 +54,14 @@ fun SwipeToDeleteContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = alpha * 0.5f))
+                    .background(AuraThemeTokens.colors.error.copy(alpha = alpha * 0.5f))
                     .padding(horizontal = 24.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = AuraThemeTokens.colors.error,
                 )
             }
         },

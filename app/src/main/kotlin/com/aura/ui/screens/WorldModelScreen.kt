@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -111,7 +112,7 @@ fun WorldModelScreen(
                     Text(
                         "No world-model data yet. Beliefs, events, and opportunities are created as the system learns.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                         modifier = Modifier.padding(top = 32.dp),
                     )
                 }
@@ -134,7 +135,7 @@ private fun BeliefCard(
             Text(
                 "${belief.subject} · ${belief.predicate}",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = AuraThemeTokens.colors.actionPrimary,
             )
             Text(
                 belief.valueJson.trim('"'),
@@ -144,7 +145,7 @@ private fun BeliefCard(
             Text(
                 "Confidence ${"%.0f".format(belief.confidence * 100)}% · ${belief.status}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -156,7 +157,7 @@ private fun BeliefCard(
                 TextButton(
                     onClick = onRetire,
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
+                        contentColor = AuraThemeTokens.colors.error,
                     ),
                 ) {
                     Text("Retire")
@@ -176,7 +177,7 @@ private fun WorldEventCard(event: com.aura.world.WorldEventEntity) {
             Text(
                 "${event.eventType} · ${event.source}",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = AuraThemeTokens.colors.actionPrimary,
             )
             Text(
                 event.summary,
@@ -186,7 +187,7 @@ private fun WorldEventCard(event: com.aura.world.WorldEventEntity) {
                 Text(
                     event.payloadJson,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
         }
@@ -211,12 +212,12 @@ private fun OpportunityCard(
             Text(
                 opportunity.description,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
             Text(
                 "Urgency ${"%.0f".format(opportunity.urgency * 100)}% · Benefit ${"%.0f".format(opportunity.benefit * 100)}% · ${opportunity.kind}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -245,7 +246,7 @@ private fun ContradictionCard(contradiction: com.aura.dream.ContradictionEntity)
                 Text(
                     contradiction.newerText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
         }

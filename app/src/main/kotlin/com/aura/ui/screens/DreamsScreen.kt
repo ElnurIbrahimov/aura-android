@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
 import androidx.compose.ui.res.stringResource
@@ -197,7 +198,7 @@ fun DreamsScreen(
                     Text(
                         "No dream summaries yet. Run a dream consolidation cycle from Settings to generate routines and detect contradictions.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                         modifier = Modifier.padding(top = 32.dp),
                     )
                 }
@@ -221,13 +222,13 @@ private fun SummaryCard(summary: DreamSummaryEntity) {
                 Text(
                     summary.dominantTags.split(",").joinToString("  ") { "#${it.trim()}" },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = AuraThemeTokens.colors.actionPrimary,
                 )
             }
             Text(
                 "${summary.sourceCount} sources · ${summary.modelUsed}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
         }
     }
@@ -252,20 +253,20 @@ private fun RoutineCard(routine: RoutineEntity) {
                 Text(
                     "${routine.occurrenceCount}x",
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = AuraThemeTokens.colors.actionPrimary,
                 )
             }
             if (routine.description.isNotBlank()) {
                 Text(
                     routine.description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
             Text(
                 "Seen in ${routine.distinctConversations} conversations",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
         }
     }
@@ -295,21 +296,21 @@ private fun ContradictionCard(
                     Icons.Filled.Warning,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = AuraThemeTokens.colors.error,
                 )
             }
             if (contradiction.newerText.isNotBlank()) {
                 Text(
                     contradiction.newerText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
             if (contradiction.olderText.isNotBlank()) {
                 Text(
                     "Earlier: ${contradiction.olderText}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
             Row(
@@ -342,7 +343,7 @@ private fun KgProposalCard(
             Text(
                 "Similarity ${"%.0f".format(proposal.similarity * 100)}% · ${proposal.proposedEdge}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = AuraThemeTokens.colors.textSecondary,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),

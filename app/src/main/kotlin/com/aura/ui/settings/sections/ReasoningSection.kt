@@ -1,4 +1,5 @@
 package com.aura.ui.settings.sections
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -26,7 +27,7 @@ fun ReasoningSection(
     Text(
         "Extended thinking lets the model reason internally before responding. When on, every response uses maximum reasoning depth. This costs more tokens but produces significantly better answers for complex questions, code, math, and analysis.",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = AuraThemeTokens.colors.textSecondary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     )
 
@@ -41,7 +42,7 @@ fun ReasoningSection(
             Text(
                 if (reasoningEnabled) "ON — maximum reasoning (32K token budget)" else "OFF — faster, cheaper responses",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (reasoningEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (reasoningEnabled) AuraThemeTokens.colors.actionPrimary else AuraThemeTokens.colors.textSecondary,
             )
         }
         Switch(
@@ -54,7 +55,7 @@ fun ReasoningSection(
         Text(
             "Budget: ${reasoningBudget} tokens",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = AuraThemeTokens.colors.textSecondary,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Row(
@@ -76,7 +77,7 @@ fun ReasoningSection(
         Text(
             "Supported by: Anthropic (thinking budget), OpenAI o-series (reasoning effort), Gemini (thinking config). Other providers ignore the budget and respond normally.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = AuraThemeTokens.colors.textSecondary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
     }

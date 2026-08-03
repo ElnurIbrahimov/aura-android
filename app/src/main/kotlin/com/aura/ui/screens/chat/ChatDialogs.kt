@@ -217,7 +217,7 @@ fun ConfirmationDialog(
                     Text(
                         "Type a new message with \"yes\" to confirm.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
                 }
             }

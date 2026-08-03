@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.aura.ui.screens.schedule
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -103,12 +104,12 @@ private fun TaskList(
                     Text(
                         task.dueAt?.let { SimpleDateFormat("MMM d, HH:mm", Locale.US).format(Date(it)) } ?: "No due date",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
                 }
                 Text(
                     if (task.status == "done") "✓ Done" else "Pending",
-                    color = if (task.status == "done") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (task.status == "done") AuraThemeTokens.colors.actionPrimary else AuraThemeTokens.colors.textSecondary,
                 )
             }
             HorizontalDivider()
@@ -144,7 +145,7 @@ private fun ReminderList(
                     Text(
                         SimpleDateFormat("MMM d, HH:mm", Locale.US).format(Date(reminder.triggerAt)),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
                     Text(reminder.recurrence, style = MaterialTheme.typography.labelSmall)
                 }

@@ -1,4 +1,5 @@
 package com.aura.ui.screens.production
+import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
 import androidx.compose.ui.res.stringResource
@@ -175,7 +176,7 @@ fun ProductionPipelineScreen(
         state.error?.let { error ->
             Text(
                 text = error,
-                color = MaterialTheme.colorScheme.error,
+                color = AuraThemeTokens.colors.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedButton(onClick = { viewModel.dismissResult() }, modifier = Modifier.fillMaxWidth()) {
@@ -185,7 +186,7 @@ fun ProductionPipelineScreen(
 
         state.scheduledRunId?.let { runId ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Check, contentDescription = null, tint = AuraThemeTokens.colors.actionPrimary)
                 Text("Scheduled run: $runId")
             }
             Button(onClick = onOpenAgentRuns, modifier = Modifier.fillMaxWidth()) {

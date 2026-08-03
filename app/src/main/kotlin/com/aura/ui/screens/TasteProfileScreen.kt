@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,7 +94,7 @@ fun TasteProfileScreen(
                     Text(
                         "No taste signals yet. Reactions, edits, and accepted suggestions will build your taste profile.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                         modifier = Modifier.padding(top = 32.dp),
                     )
                 }
@@ -113,7 +114,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                 Text(
                     "No profile computed yet.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             } else {
                 val attrs = runCatching {
@@ -123,7 +124,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                     Text(
                         "Profile is empty. Add reactions or edit generated outputs to populate it.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
                 } else {
                     for ((category, values) in attrs) {
@@ -132,7 +133,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                                 category,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = AuraThemeTokens.colors.actionPrimary,
                             )
                             // Visual bar chart: top 3 values as colored bars
                             val top3 = values.entries.sortedByDescending { it.value }.take(3)
@@ -155,13 +156,13 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                                         modifier = Modifier
                                             .weight(0.5f)
                                             .padding(vertical = 2.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        color = AuraThemeTokens.colors.actionPrimary,
+                                        trackColor = AuraThemeTokens.colors.surface2,
                                     )
                                     Text(
                                         "${pct}%",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = AuraThemeTokens.colors.textSecondary,
                                         modifier = Modifier.weight(0.2f),
                                     )
                                 }
@@ -172,7 +173,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                 Text(
                     "${profile.signalCount} signals · Updated ${java.text.DateFormat.getDateTimeInstance().format(profile.updatedAt)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
         }
@@ -201,13 +202,13 @@ private fun SignalCard(
                     Text(
                         "Artifact ${signal.artifactId}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
                 }
                 Text(
                     "Weight ${"%.1f".format(signal.weight)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
             TextButton(onClick = { onDelete(signal.id) }) { Text("Delete") }

@@ -1,4 +1,5 @@
 package com.aura.ui.settings.sections
+import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -28,7 +29,7 @@ fun IntegrationsSection(
     Text(
         "Connect Google and Microsoft accounts to let Aura read/send email, manage calendar, and browse files via official APIs.",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = AuraThemeTokens.colors.textSecondary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     )
 
@@ -44,7 +45,7 @@ fun IntegrationsSection(
             Text(
                 if (googleConnected) "Connected — Gmail, Calendar, Drive" else "Not connected",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (googleConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (googleConnected) AuraThemeTokens.colors.actionPrimary else AuraThemeTokens.colors.textSecondary,
             )
         }
         if (googleConnected) {
@@ -68,7 +69,7 @@ fun IntegrationsSection(
         Text(
             "Create an OAuth client at console.cloud.google.com → APIs & Services → Credentials. Set the redirect URI to aura://oauth/google",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = AuraThemeTokens.colors.textSecondary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
     }
@@ -87,7 +88,7 @@ fun IntegrationsSection(
             Text(
                 if (microsoftConnected) "Connected — Outlook, Calendar, OneDrive" else "Not connected",
                 style = MaterialTheme.typography.bodySmall,
-                color = if (microsoftConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (microsoftConnected) AuraThemeTokens.colors.actionPrimary else AuraThemeTokens.colors.textSecondary,
             )
         }
         if (microsoftConnected) {
@@ -111,7 +112,7 @@ fun IntegrationsSection(
         Text(
             "Register an app at portal.azure.com → App registrations. Set redirect URI to aura://oauth/microsoft",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = AuraThemeTokens.colors.textSecondary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
     }

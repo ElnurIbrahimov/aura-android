@@ -1,4 +1,5 @@
 package com.aura.ui.settings
+import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
 import androidx.compose.ui.res.stringResource
@@ -45,7 +46,7 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
             Text(
                 "When enabled, evolution proposals that pass evaluation are applied automatically without requiring manual approval from the inbox.",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
