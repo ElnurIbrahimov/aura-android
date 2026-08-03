@@ -86,6 +86,6 @@ These are features that earlier architecture plans mentioned but were never buil
 
 ## Version
 
-`BuildConfig.VERSION_NAME` from `app/build.gradle.kts` (currently `0.57.1`, versionCode 70).
+`BuildConfig.VERSION_NAME` from `app/build.gradle.kts` (currently `0.58.0`, versionCode 71).
 
 Source of truth: `.hermes/plans/2026-07-14-audit-remediation.md` (complete; 15 prior plans archived in git history).
