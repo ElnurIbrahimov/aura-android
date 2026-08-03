@@ -134,17 +134,38 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
-                            val top = values.entries
-                                .sortedByDescending { it.value }
-                                .take(3)
-                                .joinToString(", ") { (bucket, score) ->
-                                    val parts = bucket.split(":", limit = 2)
-                                    if (parts.size == 2) "${parts[0]}: ${parts[1]} (${"%.0f".format(score * 100)}%)" else bucket
+                            // Visual bar chart: top 3 values as colored bars
+                            val top3 = values.entries.sortedByDescending { it.value }.take(3)
+                            for ((bucket, score) in top3) {
+                                val parts = bucket.split(":", limit = 2)
+                                val label = if (parts.size == 2) parts[1] else bucket
+                                val pct = (score * 100).toInt().coerceIn(0, 100)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        label.take(15),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(0.3f),
+                                    )
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { score.coerceIn(0f, 1f) },
+                                        modifier = Modifier
+                                            .weight(0.5f)
+                                            .padding(vertical = 2.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    )
+                                    Text(
+                                        "${pct}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(0.2f),
+                                    )
                                 }
-                            Text(
-                                top,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
+                            }
                         }
                     }
                 }

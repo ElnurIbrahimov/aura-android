@@ -180,6 +180,7 @@ fun NavGraph(
                     onOpenAgentRuns = { navController.navigate("agent_runs") },
                     onOpenProduction = { navController.navigate("production") },
                     onOpenCapabilities = { navController.navigate("capabilities") },
+                    onOpenEvolution = { navController.navigate("evolution/inbox") },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")

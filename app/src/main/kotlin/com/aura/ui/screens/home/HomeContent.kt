@@ -123,6 +123,7 @@ fun HomeContent(
 
     onOpenProduction: () -> Unit = {},
     onOpenCapabilities: () -> Unit = {},
+    onOpenEvolution: () -> Unit = {},
 
     modifier: Modifier = Modifier,
 
@@ -385,6 +386,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
     onOpenCapabilities: () -> Unit = {},
+    onOpenEvolution: () -> Unit = {},
 ) {
     val priority = selectHomePriority(state)
 
@@ -486,7 +488,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
             onOpenProduction = onOpenProduction,
             onOpenCapabilities = onOpenCapabilities,
-
+            onOpenEvolution = onOpenEvolution,
         )
 
     }

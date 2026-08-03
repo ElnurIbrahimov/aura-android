@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Lightbulb
@@ -70,6 +71,7 @@ fun HomeSecondaryActions(
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},
     onOpenCapabilities: () -> Unit = {},
+    onOpenEvolution: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val destinations = listOfNotNull(
@@ -132,6 +134,12 @@ fun HomeSecondaryActions(
             "Connected services",
             Icons.Filled.SettingsInputComponent,
             onOpenCapabilities,
+        ),
+        HomeDestination(
+            "Evolution",
+            "Self-improvement & proposals",
+            Icons.Filled.AutoAwesome,
+            onOpenEvolution,
         ),
         HomeDestination(
             "Tools",
