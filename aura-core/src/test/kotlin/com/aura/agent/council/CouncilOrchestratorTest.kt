@@ -21,10 +21,16 @@ class CouncilOrchestratorTest {
     private val stateStore: AgentStateStore = mockk(relaxed = true)
     private val forumEngine: ForumEngine = mockk(relaxed = true)
     private val debateUseCase: DebateRoundUseCase = mockk(relaxed = true)
+    private val moodEngine: AgentMoodEngine = mockk(relaxed = true)
 
     @Before
     fun setUp() {
-        orchestrator = CouncilOrchestrator(agentStore, stateStore, forumEngine, debateUseCase)
+        orchestrator = CouncilOrchestrator(agentStore, stateStore, forumEngine, debateUseCase, moodEngine)
+
+        // Mock moodEngine to allow all agents
+        coEvery { moodEngine.canParticipate(any()) } returns true
+        coEvery { moodEngine.filterAvailable(any()) } returnsArgument(0)
+        coEvery { moodEngine.decayAll(any(), any()) } returns Unit
 
         // Mock agent store to return agents
         coEvery { agentStore.allOnce() } returns listOf(

@@ -37,6 +37,7 @@ class CouncilOrchestrator @Inject constructor(
     private val stateStore: AgentStateStore,
     private val forumEngine: ForumEngine,
     private val debateUseCase: DebateRoundUseCase,
+    private val moodEngine: AgentMoodEngine? = null,
 ) {
 
     /**
@@ -98,7 +99,23 @@ class CouncilOrchestrator @Inject constructor(
         context: kotlin.String = "",
     ): CouncilResult {
         val threadId = "council_${System.currentTimeMillis()}_${topic.hashCode().toUInt()}"
-        val availableAgents = lifeCouncilAgentIds.shuffled().take(maxAgentsPerSession)
+        var availableAgents = lifeCouncilAgentIds.shuffled().take(maxAgentsPerSession)
+
+        // Apply mood decay and filter out exhausted agents
+        if (moodEngine != null) {
+            val now = System.currentTimeMillis()
+            moodEngine.decayAll(availableAgents, now)
+            availableAgents = moodEngine.filterAvailable(availableAgents)
+            if (availableAgents.isEmpty()) {
+                // All agents burned out — return empty result
+                return CouncilResult(
+                    threadId = threadId,
+                    topic = topic,
+                    debateEntries = emptyList(),
+                    quorumReached = false,
+                )
+            }
+        }
 
         // Record participation
         availableAgents.forEach { agentId ->
@@ -268,17 +285,21 @@ class CouncilOrchestrator @Inject constructor(
 
     /**
      * Record relationship shifts: agents that voted together gain affinity,
-     * agents that voted against each other lose affinity.
+     * agents that voted against each other lose affinity. Agents that
+     * co-sponsor (vote together on 3+ proposals) gain an extra bond.
      */
     private suspend fun recordRelationshipShifts(
         forVoters: List<kotlin.String>,
         againstVoters: List<kotlin.String>,
     ) {
-        // Co-voters gain +5 affinity
+        // Co-voters gain +5 affinity, +2 extra if they're already allies (>30 affinity)
         for (i in forVoters.indices) {
             for (j in i + 1 until forVoters.size) {
-                runCatching { stateStore.recordInteraction(forVoters[i], forVoters[j], 5f) }
-                    .onFailure { android.util.Log.w("CouncilOrchestrator", "relShift for: ${it.message}", it) }
+                runCatching {
+                    val existing = stateStore.getRelationship(forVoters[i], forVoters[j])
+                    val bonus = if (existing != null && existing.affinity > 30f) 2f else 0f
+                    stateStore.recordInteraction(forVoters[i], forVoters[j], 5f + bonus)
+                }.onFailure { android.util.Log.w("CouncilOrchestrator", "relShift for: ${it.message}", it) }
             }
         }
         // Opposing voters lose -5 affinity
@@ -288,7 +309,7 @@ class CouncilOrchestrator @Inject constructor(
                     .onFailure { android.util.Log.w("CouncilOrchestrator", "relShift against: ${it.message}", it) }
             }
         }
-        // Among against-voters, they also share a bond (mutual disagreement with proposal)
+        // Among against-voters, they share a bond (mutual disagreement with proposal)
         for (i in againstVoters.indices) {
             for (j in i + 1 until againstVoters.size) {
                 runCatching { stateStore.recordInteraction(againstVoters[i], againstVoters[j], 2f) }
