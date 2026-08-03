@@ -14,6 +14,9 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import android.util.Log
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,37 +63,107 @@ class OAuthFlow @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    private val secureRandom = SecureRandom()
+
+    /**
+     * CSRF protection: a random state token generated per launch and
+     * validated when the redirect comes back. Without it, any party
+     * that can deliver a crafted redirect URI (malicious app, stray
+     * browser tab, link injection) can bind the user's account to an
+     * attacker-chosen OAuth session. The state proves the code belongs
+     * to the launch we initiated.
+     */
+    @Volatile
+    private var pendingState: String? = null
+
+    /**
+     * PKCE S256 verifier for this launch. A custom-scheme redirect is
+     * not a private channel, so the code exchange MUST be bound to the
+     * original authorization request. The verifier is random per launch
+     * and never leaves the device; only its SHA-256 challenge goes to
+     * the authorization server.
+     */
+    @Volatile
+    private var pendingVerifier: String? = null
+
+    private fun newState(): String {
+        val bytes = ByteArray(32)
+        secureRandom.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun newCodeVerifier(): String {
+        // 32 random bytes -> 43-char base64url string: within the
+        // RFC 7636 allowed charset (A-Z a-z 0-9 - . _) and length range.
+        val bytes = ByteArray(32)
+        secureRandom.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun pkceChallenge(verifier: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
+
     /**
      * Launch the Google OAuth consent flow in a browser tab.
      * After consent, the browser redirects to [GOOGLE_REDIRECT],
      * which is caught by [handleRedirect].
      */
     fun launchGoogleAuth(clientId: String) {
-        val url = Uri.parse(GOOGLE_AUTH_URL).buildUpon()
+        launchBrowser(buildGoogleAuthUrl(clientId))
+    }
+
+    /**
+     * Build the Google authorization URL with per-launch CSRF state
+     * and PKCE S256 challenge. Extracted for testability.
+     */
+    internal fun buildGoogleAuthUrl(clientId: String): String {
+        val state = newState()
+        val verifier = newCodeVerifier()
+        pendingState = state
+        pendingVerifier = verifier
+        return Uri.parse(GOOGLE_AUTH_URL).buildUpon()
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", GOOGLE_REDIRECT)
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("scope", GOOGLE_SCOPE)
             .appendQueryParameter("access_type", "offline")
             .appendQueryParameter("prompt", "consent")
+            .appendQueryParameter("state", state)
+            .appendQueryParameter("code_challenge", pkceChallenge(verifier))
+            .appendQueryParameter("code_challenge_method", "S256")
             .build()
             .toString()
-        launchBrowser(url)
     }
 
     /**
      * Launch the Microsoft OAuth consent flow.
      */
     fun launchMicrosoftAuth(clientId: String) {
-        val url = Uri.parse(MS_AUTH_URL).buildUpon()
+        launchBrowser(buildMicrosoftAuthUrl(clientId))
+    }
+
+    /**
+     * Build the Microsoft authorization URL with per-launch CSRF state
+     * and PKCE S256 challenge. Extracted for testability.
+     */
+    internal fun buildMicrosoftAuthUrl(clientId: String): String {
+        val state = newState()
+        val verifier = newCodeVerifier()
+        pendingState = state
+        pendingVerifier = verifier
+        return Uri.parse(MS_AUTH_URL).buildUpon()
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", MS_REDIRECT)
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("scope", MS_SCOPE)
             .appendQueryParameter("response_mode", "query")
+            .appendQueryParameter("state", state)
+            .appendQueryParameter("code_challenge", pkceChallenge(verifier))
+            .appendQueryParameter("code_challenge_method", "S256")
             .build()
             .toString()
-        launchBrowser(url)
     }
 
     private fun launchBrowser(url: String) {
@@ -108,6 +181,12 @@ class OAuthFlow @Inject constructor(
      * Extracts the authorization code and exchanges it for tokens.
      * Returns true if the redirect was handled (code was present),
      * false if it was for a different path or had an error.
+     *
+     * CSRF guard: the code is only exchanged when the redirect carries
+     * the exact state token issued by [launchGoogleAuth] /
+     * [launchMicrosoftAuth]. A redirect without a matching state is
+     * logged and rejected — this is the login-CSRF / account-binding
+     * protection.
      */
     suspend fun handleRedirect(uri: Uri, googleClientId: String?, microsoftClientId: String?): Boolean {
         val code = uri.getQueryParameter("code")
@@ -119,18 +198,36 @@ class OAuthFlow @Inject constructor(
         }
         if (code.isNullOrBlank()) return false
 
+        // Reject any redirect that does not carry the exact state we
+        // issued for the pending launch. This makes the flow immune to
+        // crafted redirects: an attacker cannot inject an authorization
+        // code that the app will exchange.
+        val expectedState = pendingState
+        val redirectState = uri.getQueryParameter("state")
+        if (expectedState == null || redirectState != expectedState) {
+            Log.w(TAG, "OAuth state mismatch — rejecting redirect (possible login CSRF)")
+            return true
+        }
+        val verifier = pendingVerifier
+        pendingState = null
+        pendingVerifier = null
+        if (verifier == null) {
+            Log.w(TAG, "OAuth verifier missing — rejecting redirect")
+            return true
+        }
+
         when (uri.host) {
             "oauth" -> {
                 val provider = uri.lastPathSegment // "google" or "microsoft"
                 when (provider) {
                     "google" -> {
                         val cid = googleClientId ?: return false
-                        exchangeGoogleCode(code, cid)
+                        exchangeGoogleCode(code, verifier, cid)
                         return true
                     }
                     "microsoft" -> {
                         val cid = microsoftClientId ?: return false
-                        exchangeMicrosoftCode(code, cid)
+                        exchangeMicrosoftCode(code, verifier, cid)
                         return true
                     }
                 }
@@ -139,12 +236,13 @@ class OAuthFlow @Inject constructor(
         return false
     }
 
-    private suspend fun exchangeGoogleCode(code: String, clientId: String) = withContext(Dispatchers.IO) {
+    private suspend fun exchangeGoogleCode(code: String, verifier: String, clientId: String) = withContext(Dispatchers.IO) {
         val body = FormBody.Builder()
             .add("grant_type", "authorization_code")
             .add("code", code)
             .add("redirect_uri", GOOGLE_REDIRECT)
             .add("client_id", clientId)
+            .add("code_verifier", verifier)
             .build()
 
         val response = runCatching {
@@ -167,13 +265,14 @@ class OAuthFlow @Inject constructor(
         }
     }
 
-    private suspend fun exchangeMicrosoftCode(code: String, clientId: String) = withContext(Dispatchers.IO) {
+    private suspend fun exchangeMicrosoftCode(code: String, verifier: String, clientId: String) = withContext(Dispatchers.IO) {
         val body = FormBody.Builder()
             .add("grant_type", "authorization_code")
             .add("code", code)
             .add("redirect_uri", MS_REDIRECT)
             .add("client_id", clientId)
             .add("scope", MS_SCOPE)
+            .add("code_verifier", verifier)
             .build()
 
         val response = runCatching {
