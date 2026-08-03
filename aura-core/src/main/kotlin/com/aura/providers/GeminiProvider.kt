@@ -125,7 +125,12 @@ class GeminiProvider(
                             val partObj = part as? JsonObject ?: continue
                             // Text part
                             val text = partObj["text"]?.jsonPrimitive?.content
-                            if (text != null) emit(ProviderChunk(text = text))
+                            if (text != null) {
+                                // Gemini thinking parts have thought=true
+                                val isThought = partObj["thought"]?.jsonPrimitive?.content?.toBoolean() == true
+                                if (isThought) emit(ProviderChunk(thinking = text))
+                                else emit(ProviderChunk(text = text))
+                            }
                             // Function call part (Gemini tool calling)
                             val fnCall = partObj["functionCall"]?.jsonObject
                             if (fnCall != null) {

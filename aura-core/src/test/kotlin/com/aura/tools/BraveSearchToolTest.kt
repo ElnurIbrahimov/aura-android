@@ -2,6 +2,7 @@ package com.aura.tools
 
 import com.aura.agent.ToolResult
 import com.aura.providers.ProviderKeys
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -30,7 +31,7 @@ class BraveSearchToolTest {
     @Test
     fun `brave API with valid key returns formatted results`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns "test-key-123"
+            coEvery { keyForAwaiting("brave") } returns "test-key-123"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",
@@ -52,7 +53,7 @@ class BraveSearchToolTest {
     @Test
     fun `brave API returns error on non-200`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns "test-key-123"
+            coEvery { keyForAwaiting("brave") } returns "test-key-123"
         }
         val httpClient = mockHttpClient(statusCode = 401, contentType = "text/plain", body = "Unauthorized")
         val tool = BraveSearchTool(httpClient, providerKeys).tool
@@ -71,7 +72,7 @@ class BraveSearchToolTest {
     @Test
     fun `fallback to DuckDuckGo when key is blank`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns null
+            coEvery { keyForAwaiting("brave") } returns null
         }
         val httpClient = mockHttpClient(
             contentType = "text/html; charset=UTF-8",
@@ -92,7 +93,7 @@ class BraveSearchToolTest {
     @Test
     fun `fallback returns error on HTTP failure`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns null
+            coEvery { keyForAwaiting("brave") } returns null
         }
         val httpClient = mockHttpClient(statusCode = 503, contentType = "text/plain", body = "Service Unavailable")
         val tool = BraveSearchTool(httpClient, providerKeys).tool
@@ -110,7 +111,7 @@ class BraveSearchToolTest {
     @Test
     fun `missing query returns error`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns null
+            coEvery { keyForAwaiting("brave") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
         val tool = BraveSearchTool(httpClient, providerKeys).tool
@@ -122,7 +123,7 @@ class BraveSearchToolTest {
     @Test
     fun `empty Brave JSON response returns no results`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns "key"
+            coEvery { keyForAwaiting("brave") } returns "key"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",
@@ -141,7 +142,7 @@ class BraveSearchToolTest {
     @Test
     fun `default count is used when count omitted`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("brave") } returns "key"
+            coEvery { keyForAwaiting("brave") } returns "key"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",

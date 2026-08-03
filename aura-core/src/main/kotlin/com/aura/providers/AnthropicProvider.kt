@@ -165,6 +165,10 @@ class AnthropicProvider(
                                     val text = (delta["text"] as? JsonPrimitive)?.content
                                     if (text != null) emit(ProviderChunk(text = text))
                                 }
+                                "thinking_delta" -> {
+                                    val thinking = (delta["thinking"] as? JsonPrimitive)?.content
+                                    if (thinking != null) emit(ProviderChunk(thinking = thinking))
+                                }
                                 "input_json_delta" -> {
                                     val partial = (delta["partial_json"] as? JsonPrimitive)?.content
                                     if (partial != null) {

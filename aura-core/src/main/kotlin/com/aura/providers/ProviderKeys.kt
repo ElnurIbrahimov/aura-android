@@ -168,6 +168,12 @@ class ProviderKeys @Inject constructor(
      */
     fun keyFor(prefix: String): String? = _state.value[prefix]?.takeIf { it.isNotBlank() }
 
+    /** Suspend version of [keyFor] that waits for the initial DataStore load. */
+    suspend fun keyForAwaiting(prefix: String): String? {
+        awaitLoaded()
+        return keyFor(prefix)
+    }
+
     /** True if the user has set a non-blank key for the given prefix. */
     fun isConfigured(prefix: String): Boolean = !keyFor(prefix).isNullOrBlank()
 

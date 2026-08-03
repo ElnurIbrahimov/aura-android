@@ -64,6 +64,11 @@ internal class OpenAiSseParser {
         val text = (delta["content"] as? JsonPrimitive)?.content
         val textChunk = if (text != null) ProviderChunk(text = text) else null
 
+        // Thinking / reasoning content (DeepSeek: reasoning_content, OpenAI o-series: reasoning)
+        val reasoning = (delta["reasoning_content"] as? JsonPrimitive)?.content
+            ?: (delta["reasoning"] as? JsonPrimitive)?.content
+        val thinkingChunk = if (reasoning != null) ProviderChunk(thinking = reasoning) else null
+
         // Finish reason
         val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
         val finishChunk = if (finish != null) {
@@ -78,8 +83,8 @@ internal class OpenAiSseParser {
 
         // Order: tool calls first (so Brain captures the start), then
         // finish (so a finishing event cannot swallow a queued tool
-        // chunk), then text. Empty list when nothing worth emitting.
-        return toolChunks + listOfNotNull(finishChunk, textChunk)
+        // chunk), then thinking, then text.
+        return toolChunks + listOfNotNull(finishChunk, thinkingChunk, textChunk)
     }
 
     /**

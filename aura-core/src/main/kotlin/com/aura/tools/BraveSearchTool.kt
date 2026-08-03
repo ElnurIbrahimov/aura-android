@@ -68,8 +68,8 @@ class BraveSearchTool @Inject constructor(
     /**
      * Try Brave API first; fall back to DuckDuckGo HTML scrape if no key.
      */
-    private fun search(query: String, maxResults: Int): List<Result> {
-        val braveKey = providerKeys.keyFor("brave")
+    private suspend fun search(query: String, maxResults: Int): List<Result> {
+        val braveKey = providerKeys.keyForAwaiting("brave")
         return if (!braveKey.isNullOrBlank()) {
             searchBraveApi(query, maxResults, braveKey)
         } else {

@@ -154,6 +154,7 @@ class Brain @Inject constructor(
 
 sealed class BrainChunk {
     data class Text(val text: String) : BrainChunk()
+    data class Thinking(val text: String) : BrainChunk()
     data class ToolCallStart(val id: String, val name: String) : BrainChunk()
     data class ToolCallDelta(val id: String, val argumentsDelta: String) : BrainChunk()
     data class ToolCallEnd(val id: String, val name: String, val arguments: String) : BrainChunk()
@@ -225,6 +226,7 @@ sealed class BrainChunk {
                 val id = nameById.keys.lastOrNull() ?: return Text("")
                 return ToolCallDelta(id, tc.arguments)
             }
+            p.thinking?.let { return Thinking(it) }
             p.text?.let { return Text(it) }
             return Text("")
         }

@@ -2,6 +2,7 @@ package com.aura.tools
 
 import com.aura.agent.ToolResult
 import com.aura.providers.ProviderKeys
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -30,7 +31,7 @@ class TavilySearchToolTest {
     @Test
     fun `tavily API with valid key returns formatted results with answer`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "test-key-123"
+            coEvery { keyForAwaiting("tavily") } returns "test-key-123"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",
@@ -53,7 +54,7 @@ class TavilySearchToolTest {
     @Test
     fun `tavily API without answer skips answer section`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "test-key-123"
+            coEvery { keyForAwaiting("tavily") } returns "test-key-123"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",
@@ -75,7 +76,7 @@ class TavilySearchToolTest {
     @Test
     fun `tavily API returns error on non-200`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "test-key-123"
+            coEvery { keyForAwaiting("tavily") } returns "test-key-123"
         }
         val httpClient = mockHttpClient(statusCode = 401, contentType = "text/plain", body = "Unauthorized")
         val tool = TavilySearchTool(httpClient, providerKeys).tool
@@ -94,7 +95,7 @@ class TavilySearchToolTest {
     @Test
     fun `missing API key returns error`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns null
+            coEvery { keyForAwaiting("tavily") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
         val tool = TavilySearchTool(httpClient, providerKeys).tool
@@ -113,7 +114,7 @@ class TavilySearchToolTest {
     @Test
     fun `missing query returns error`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "key"
+            coEvery { keyForAwaiting("tavily") } returns "key"
         }
         val httpClient = mockk<OkHttpClient>()
         val tool = TavilySearchTool(httpClient, providerKeys).tool
@@ -125,7 +126,7 @@ class TavilySearchToolTest {
     @Test
     fun `invalid search_depth returns error`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "key"
+            coEvery { keyForAwaiting("tavily") } returns "key"
         }
         val httpClient = mockk<OkHttpClient>()
         val tool = TavilySearchTool(httpClient, providerKeys).tool
@@ -140,7 +141,7 @@ class TavilySearchToolTest {
     @Test
     fun `empty results returns no results message`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "key"
+            coEvery { keyForAwaiting("tavily") } returns "key"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",
@@ -159,7 +160,7 @@ class TavilySearchToolTest {
     @Test
     fun `default parameters are used when omitted`() = runTest {
         val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("tavily") } returns "key"
+            coEvery { keyForAwaiting("tavily") } returns "key"
         }
         val httpClient = mockHttpClient(
             contentType = "application/json",

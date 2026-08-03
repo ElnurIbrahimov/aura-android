@@ -213,6 +213,7 @@ data class ChatUiState(
     val conversation: com.aura.agent.Conversation = com.aura.agent.Conversation(),
     val conversationLoading: Boolean = false,
     val streaming: Boolean = false,
+    val streamingThinking: String = "",
     val draft: String = "",
     val error: String? = null,
     val errorTyped: AuraError? = null,

@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ProviderChunk(
     val text: String? = null,
+    val thinking: String? = null,
     val toolCall: ToolCall? = null,
     val finishReason: FinishReason? = null,
     val usage: Usage? = null,

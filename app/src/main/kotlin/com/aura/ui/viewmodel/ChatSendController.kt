@@ -223,7 +223,7 @@ class ChatSendController(
         // as agent-authored turns. Skip the main loop for this message.
         val mentions = text.extractAgentMentions(current.availableAgents)
         if (mentions.isNotEmpty()) {
-            state.update { it.copy(streaming = true, inFlightToolCalls = emptyList()) }
+            state.update { it.copy(streaming = true, inFlightToolCalls = emptyList(), streamingThinking = "") }
             runJob = scope.launch {
                 try {
                     val conversationId = state.value.conversation.id
@@ -329,6 +329,11 @@ class ChatSendController(
                     recentTopics = recentTopics?.invoke() ?: "",
                 ).collect { event ->
                     when (event) {
+                        is AgentEvent.ThinkingDelta -> {
+                            state.update { old ->
+                                old.copy(streamingThinking = old.streamingThinking + event.text)
+                            }
+                        }
                         is AgentEvent.TextDelta -> {
                             responseBuffer.append(event.text)
                             state.update { old ->
@@ -526,7 +531,7 @@ class ChatSendController(
             } catch (e: Exception) {
                 onError(e.message ?: "unknown error")
             } finally {
-                state.update { it.copy(streaming = false, deepModeActive = false) }
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
             }
         }
     }

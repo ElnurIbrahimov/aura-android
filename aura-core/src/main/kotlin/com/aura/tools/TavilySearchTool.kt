@@ -80,7 +80,7 @@ class TavilySearchTool @Inject constructor(
                 )
             }
 
-            val apiKey = providerKeys.keyFor("tavily")
+            val apiKey = providerKeys.keyForAwaiting("tavily")
             if (apiKey.isNullOrBlank()) {
                 return@Tool ToolResult.Error(
                     "Tavily API key is not configured. Set it in Settings.",

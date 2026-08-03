@@ -679,6 +679,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val toolCallStarts = mutableMapOf<String, String>()
             val toolCallArgs = mutableMapOf<String, StringBuilder>()
             val accumulatedText = StringBuilder()
+            val accumulatedThinking = StringBuilder()
             var finishReason: String? = null
             var stepError: String? = null
 
@@ -697,6 +698,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 triedModels.add(currentModel)
                 stepError = null
                 accumulatedText.clear()
+                accumulatedThinking.clear()
                 toolCalls.clear()
                 toolCallStarts.clear()
                 toolCallArgs.clear()
@@ -705,6 +707,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 try {
                     brain.stream(currentModel, messages, tools, options).collect { chunk ->
                         when (chunk) {
+                            is BrainChunk.Thinking -> {
+                                accumulatedThinking.append(chunk.text)
+                                emit(AgentEvent.ThinkingDelta(chunk.text))
+                            }
                             is BrainChunk.Text -> {
                                 accumulatedText.append(chunk.text)
                                 emit(AgentEvent.TextDelta(chunk.text))
@@ -1124,10 +1130,10 @@ private suspend fun extractProfileFromText(text: String) {
      * - brave_search: hidden unless Brave key is configured
      * - MCP-prefixed tools: always visible (user explicitly connected the server)
      */
-    private fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> {
+    private suspend fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> {
         if (providerKeys == null) return tools
-        val tavilyConfigured = !providerKeys.keyFor("tavily").isNullOrBlank()
-        val braveConfigured = !providerKeys.keyFor("brave").isNullOrBlank()
+        val tavilyConfigured = !providerKeys.keyForAwaiting("tavily").isNullOrBlank()
+        val braveConfigured = !providerKeys.keyForAwaiting("brave").isNullOrBlank()
         return tools.filter { def ->
             when (def.name) {
                 "tavily_search" -> tavilyConfigured
@@ -1166,6 +1172,7 @@ private suspend fun extractProfileFromText(text: String) {
 
 sealed class AgentEvent {
     data class TextDelta(val text: String) : AgentEvent()
+    data class ThinkingDelta(val text: String) : AgentEvent()
     data class ToolCallStart(val id: String, val name: String) : AgentEvent()
     data class ToolCallEnd(val id: String, val name: String, val arguments: String) : AgentEvent()
     data class ToolExecuting(val id: String, val name: String, val arguments: String = "") : AgentEvent()

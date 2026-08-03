@@ -27,8 +27,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,7 +143,10 @@ fun ChatContent(
             }
 
             if (state.deepModeActive) {
-                MoaThinkingIndicator(Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                MoaThinkingIndicator(Modifier.padding(horizontal = AuraSpacing.md, vertical = 6.dp))
+            }
+            if (state.streamingThinking.isNotBlank()) {
+                ThinkingBlock(text = state.streamingThinking)
             }
             if (state.incognitoMode) IncognitoBanner()
             if (state.ttsState is com.aura.voice.TextToSpeech.State.Speaking) {
@@ -384,6 +396,66 @@ private fun ModelSelectionBanner(message: String, onChooseModel: () -> Unit) {
                 color = AuraThemeTokens.colors.textPrimary,
             )
             TextButton(onClick = onChooseModel) { Text(stringResource(R.string.choose_model)) }
+        }
+    }
+}
+
+@Composable
+private fun ThinkingBlock(text: String) {
+    var expanded by remember(text.isNotEmpty()) { mutableStateOf(false) }
+    val colors = AuraThemeTokens.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.small)
+                .clickable { expanded = !expanded }
+                .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Psychology,
+                contentDescription = null,
+                tint = colors.assistantAccent,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = if (expanded) "Thinking" else "Thinking\u2026",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textSecondary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = colors.textTertiary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (expanded) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.xxs),
+                color = colors.surface0,
+                shape = MaterialTheme.shapes.small,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = text,
+                        modifier = Modifier.padding(AuraSpacing.sm),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textTertiary,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                        lineHeight = 18.sp,
+                    )
+                }
+            }
         }
     }
 }
