@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,7 @@ import com.aura.ui.settings.sections.ToolPermissionsSection
 import com.aura.ui.settings.sections.TriggersSection
 import com.aura.ui.settings.sections.UsageSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -89,7 +91,9 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // 1. AI & Models
+        // ── AI & MODELS ──────────────────────────────────────────
+        SettingsGroupHeader("AI & Models")
+
         AiAndModelsSection(
             state = state,
             onCustomBaseUrlChange = viewModel::updateCustomBaseUrl,
@@ -115,41 +119,16 @@ fun SettingsScreen(
             onRefreshModels = viewModel::refreshModels,
         )
 
-        // 2. Usage
-        UsageSection(
-            usage = usage,
-            onReset = usageViewModel::reset,
-        )
-
-        // 3. Appearance
-        AppearanceSection(
-            themeMode = state.themeMode,
-            onSetThemeMode = viewModel::setThemeMode,
-        )
-
-        // 4. Persona
-        PersonaSection(
-            identityCustomized = state.identityCustomized,
-            specialistOverrides = state.specialistOverrides,
-            onNavigateIdentity = onNavigateIdentity,
-            onSetSpecialistOverrides = viewModel::setSpecialistOverrides,
-        )
-
-        // 5. Tool Permissions
-        ToolPermissionsSection(
-            toolPolicies = state.toolPolicies,
-            onSetToolEnabled = viewModel::setToolEnabled,
-            onSetToolConfirmation = viewModel::setToolConfirmation,
-        )
-
-        // 6. Model Roles
         ModelRolesSection(
             roleModels = state.roleModels,
             availableModels = state.availableModels,
             onSetRoleModel = viewModel::setRoleModel,
         )
 
-        // 7. MCP Servers
+        ReasoningSection(viewModel = viewModel)
+
+        IntegrationsSection(viewModel = viewModel)
+
         McpServersSection(
             mcpServers = state.mcpServers,
             mcpDiscoveredTools = state.mcpDiscoveredTools,
@@ -157,7 +136,44 @@ fun SettingsScreen(
             onDisconnect = viewModel::disconnectMcpServer,
         )
 
-        // 8. Privacy
+        // ── MEMORY & KNOWLEDGE ───────────────────────────────────
+        SettingsGroupHeader("Memory & Knowledge")
+
+        PersonaSection(
+            identityCustomized = state.identityCustomized,
+            specialistOverrides = state.specialistOverrides,
+            onNavigateIdentity = onNavigateIdentity,
+            onSetSpecialistOverrides = viewModel::setSpecialistOverrides,
+        )
+
+        DreamConsolidationSection(
+            enabled = state.dreamEnabled,
+            lastRunAt = state.dreamLastRunAt,
+            lastRunStats = state.dreamLastRunStats,
+            totalSummaries = state.dreamTotalSummaries,
+            isRunning = state.dreamRunning,
+            onSetEnabled = viewModel::setDreamEnabled,
+            onRunNow = viewModel::runDreamNow,
+        )
+
+        EmotionDaemonSection(
+            emotionSnapshot = emotionSnapshot,
+            daemonEnabled = state.daemonEnabled,
+            daemonThoughtsCount = daemonThoughtsCount,
+            onSetDaemonEnabled = viewModel::setDaemonEnabled,
+        )
+
+        TriggersSection(
+            triggersEnabled = state.triggersEnabled,
+            triggers = state.triggers,
+            onSetEnabled = viewModel::setTriggersEnabled,
+            onSave = viewModel::saveTrigger,
+            onRemove = viewModel::removeTrigger,
+        )
+
+        // ── PRIVACY & DATA ──────────────────────────────────────
+        SettingsGroupHeader("Privacy & Data")
+
         PrivacySection(
             appLockEnabled = state.appLockEnabled,
             morningBriefEnabled = state.morningBriefEnabled,
@@ -172,45 +188,12 @@ fun SettingsScreen(
             onNavigateProfile = onNavigateProfile,
         )
 
-        // 8b. Triggers
-        TriggersSection(
-            triggersEnabled = state.triggersEnabled,
-            triggers = state.triggers,
-            onSetEnabled = viewModel::setTriggersEnabled,
-            onSave = viewModel::saveTrigger,
-            onRemove = viewModel::removeTrigger,
+        ToolPermissionsSection(
+            toolPolicies = state.toolPolicies,
+            onSetToolEnabled = viewModel::setToolEnabled,
+            onSetToolConfirmation = viewModel::setToolConfirmation,
         )
 
-        // 9. Emotion & Daemon
-        EmotionDaemonSection(
-            emotionSnapshot = emotionSnapshot,
-            daemonEnabled = state.daemonEnabled,
-            daemonThoughtsCount = daemonThoughtsCount,
-            onSetDaemonEnabled = viewModel::setDaemonEnabled,
-        )
-
-        // 9b. Integrations — Google + Microsoft
-        IntegrationsSection(viewModel = viewModel)
-
-        // 9b2. Reasoning — extended thinking always on
-        ReasoningSection(viewModel = viewModel)
-
-        // 9c. Agents — create and manage AI agents
-        SettingsClickableRow(
-            title = "Agents",
-            subtitle = "Create custom AI agents with their own personality, tools, and memory",
-            onClick = onNavigateAgentEditor,
-        )
-
-        // 10. Evolution
-        EvolutionSettingsSection(
-            onNavigateEvolutionInbox = onNavigateEvolutionInbox,
-            onNavigateBeliefs = onNavigateBeliefs,
-            onNavigateWorldModel = onNavigateWorldModel,
-            onNavigateTasteProfile = onNavigateTasteProfile,
-        )
-
-        // 11. Data & Backup
         val context = androidx.compose.ui.platform.LocalContext.current
         val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
         DataAndBackupSection(
@@ -244,18 +227,30 @@ fun SettingsScreen(
             onNavigateCrashLogs = onNavigateCrashLogs,
         )
 
-        // 12. Memory consolidation (Dream)
-        // Lives next to Data & Backup because dream operates on
-        // the same memory data. The section is collapsed by default
-        // so it doesn't take vertical space on first open.
-        DreamConsolidationSection(
-            enabled = state.dreamEnabled,
-            lastRunAt = state.dreamLastRunAt,
-            lastRunStats = state.dreamLastRunStats,
-            totalSummaries = state.dreamTotalSummaries,
-            isRunning = state.dreamRunning,
-            onSetEnabled = viewModel::setDreamEnabled,
-            onRunNow = viewModel::runDreamNow,
+        AppearanceSection(
+            themeMode = state.themeMode,
+            onSetThemeMode = viewModel::setThemeMode,
+        )
+
+        // ── SYSTEM ───────────────────────────────────────────────
+        SettingsGroupHeader("System")
+
+        SettingsClickableRow(
+            title = "Agents",
+            subtitle = "Create custom AI agents with their own personality, tools, and memory",
+            onClick = onNavigateAgentEditor,
+        )
+
+        EvolutionSettingsSection(
+            onNavigateEvolutionInbox = onNavigateEvolutionInbox,
+            onNavigateBeliefs = onNavigateBeliefs,
+            onNavigateWorldModel = onNavigateWorldModel,
+            onNavigateTasteProfile = onNavigateTasteProfile,
+        )
+
+        UsageSection(
+            usage = usage,
+            onReset = usageViewModel::reset,
         )
 
         // Footer
@@ -291,4 +286,17 @@ fun SettingsScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+@Composable
+private fun SettingsGroupHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = AuraThemeTokens.colors.textTertiary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = AuraSpacing.lg, bottom = AuraSpacing.xs),
+    )
 }
