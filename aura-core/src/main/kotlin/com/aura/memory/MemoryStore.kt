@@ -219,9 +219,12 @@ class MemoryStore @Inject constructor(
             // memory in the scoped set. But the query might still be
             // semantically similar to a memory (e.g. query "programming
             // languages I enjoy" vs stored "I love Kotlin" — zero shared
-            // words, but vectors are close). Scan all scoped memories with
-            // embeddings and rank by cosine similarity.
-            val all = dao.allByScopes(scopes).filter { it.embedding != null }
+            // words, but vectors are close). Scan a bounded set of the most
+            // active scoped memories with embeddings and rank by cosine
+            // similarity. The bound (M1 fix) caps heap churn: loading the
+            // full table and decoding every embedding costs O(N) float
+            // allocations per fallback recall.
+            val all = dao.vectorScanCandidates(scopes, VECTOR_FALLBACK_SCAN_LIMIT)
             if (all.isEmpty()) return emptyList()
             val scored = all.map { mem ->
                 val embedding = Embedder.fromBytes(mem.embedding!!)
@@ -314,6 +317,12 @@ class MemoryStore @Inject constructor(
         const val RERANK_POOL_SIZE = 20
         /** Minimum candidates to justify reranker LLM calls. */
         const val RERANK_MIN_CANDIDATES = 5
+        /**
+         * Cap for the vector-fallback scan. Most-active memories first
+         * (accessCount, decayScore); bounds heap churn on recalls that
+         * miss lexical overlap.
+         */
+        const val VECTOR_FALLBACK_SCAN_LIMIT = 2000
     }
 
     /**

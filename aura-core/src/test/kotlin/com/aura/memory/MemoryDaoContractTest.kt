@@ -143,6 +143,33 @@ class MemoryDaoContractTest {
     }
 
     @Test
+    fun `vectorScanCandidates is bounded, activity-ordered, embedding-only`() = runBlocking {
+        fun scanMemory(content: String, accessCount: Int = 0, decayScore: Float = 1.0f, embedding: ByteArray? = FloatArray(4) { 0.5f }.let { java.nio.ByteBuffer.allocate(16).putFloat(0.5f).putFloat(0.5f).putFloat(0.5f).putFloat(0.5f).array() }, scope: String = "general") =
+            MemoryEntity(
+                id = "m_${content.hashCode()}_${System.nanoTime()}",
+                content = content,
+                source = "user",
+                category = "fact",
+                scope = scope,
+                importance = 0.5f,
+                decayScore = decayScore,
+                accessCount = accessCount,
+                embedding = embedding,
+            )
+        dao.insert(scanMemory("no embedding", accessCount = 99, embedding = null))
+        dao.insert(scanMemory("hot", accessCount = 10, decayScore = 0.9f))
+        dao.insert(scanMemory("warm", accessCount = 5, decayScore = 0.9f))
+        dao.insert(scanMemory("cold", accessCount = 1, decayScore = 0.1f))
+        dao.insert(scanMemory("other scope", accessCount = 50, scope = "agent:agent_1"))
+
+        val hits = dao.vectorScanCandidates(listOf("general"), limit = 2)
+
+        assertEquals("limit must cap the scan", 2, hits.size)
+        assertEquals("most active first", "hot", hits[0].content)
+        assertEquals("second most active", "warm", hits[1].content)
+    }
+
+    @Test
     fun `withinScope matches general plus prefix`() = runBlocking {
         dao.insert(memory("general fact"))
         dao.insert(memory("project fact", scope = "project:p1"))

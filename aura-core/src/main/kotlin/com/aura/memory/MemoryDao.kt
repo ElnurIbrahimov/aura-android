@@ -78,6 +78,18 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC")
     suspend fun allByScopes(scopes: List<String>): List<MemoryEntity>
 
+    /**
+     * Bounded candidate set for the vector-fallback scan. Orders by
+     * activity (accessCount then decayScore) so the recall scan is
+     * capped at [limit] rows instead of loading the entire scoped
+     * table and decoding every embedding into memory.
+     */
+    @Query(
+        "SELECT * FROM memories WHERE scope IN (:scopes) AND embedding IS NOT NULL " +
+            "ORDER BY accessCount DESC, decayScore DESC LIMIT :limit"
+    )
+    suspend fun vectorScanCandidates(scopes: List<String>, limit: Int): List<MemoryEntity>
+
     @Query("SELECT * FROM memories WHERE content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
     suspend fun searchByText(query: String, limit: Int = 50): List<MemoryEntity>
 

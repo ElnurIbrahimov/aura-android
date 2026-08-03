@@ -74,7 +74,7 @@ class MemoryStoreTouchTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         coEvery { dao.searchByWordsInScopes(any(), any(), any(), any(), any(), any(), any(), any()) } returns emptyList()
         coEvery { dao.searchByTextInScopes(any(), any(), any()) } returns emptyList()
-        coEvery { dao.allByScopes(any()) } returns emptyList()
+        coEvery { dao.vectorScanCandidates(any(), any()) } returns emptyList()
         val embedder = mockk<Embedder>(relaxed = true)
         coEvery { embedder.embed(any()) } returns FloatArray(384) { 0f }
         val store = MemoryStore(
