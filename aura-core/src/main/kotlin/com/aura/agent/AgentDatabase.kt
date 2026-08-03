@@ -4,6 +4,10 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.aura.agent.forum.ForumPostEntity
+import com.aura.agent.forum.ForumVoteEntity
+import com.aura.agent.forum.ForumPostDao
+import com.aura.agent.forum.ForumVoteDao
 import com.aura.agent.state.AgentObservationEntity
 import com.aura.agent.state.AgentRelationshipEntity
 import com.aura.agent.state.AgentStateDao
@@ -17,8 +21,10 @@ import com.aura.agent.state.AgentStateEntity
         AgentStateEntity::class,
         AgentRelationshipEntity::class,
         AgentObservationEntity::class,
+        ForumPostEntity::class,
+        ForumVoteEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AgentDatabase : RoomDatabase() {
@@ -26,14 +32,12 @@ abstract class AgentDatabase : RoomDatabase() {
     abstract fun agentStateDao(): AgentStateDao
     abstract fun agentRelationshipDao(): AgentRelationshipDao
     abstract fun agentObservationDao(): AgentObservationDao
+    abstract fun forumPostDao(): ForumPostDao
+    abstract fun forumVoteDao(): ForumVoteDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Agent state: persistent mood, energy, goal, stance.
-                // No DEFAULT clauses — Room entity defaults are handled in Kotlin,
-                // not in the SQL schema. NOT NULL columns without defaults are
-                // fine because Room always supplies values on INSERT.
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS agent_state (
@@ -53,7 +57,6 @@ abstract class AgentDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_agent_state_agentId ON agent_state(agentId)")
 
-                // Agent relationships: affinity between pairs of agents.
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS agent_relationships (
@@ -71,7 +74,6 @@ abstract class AgentDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_agent_relationships_agentAId_agentBId ON agent_relationships(agentAId, agentBId)")
 
-                // Agent observations: private notes agents keep about user/agents/self.
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS agent_observations (
@@ -93,6 +95,49 @@ abstract class AgentDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2)
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Forum posts: agent-to-agent messages, debates, proposals, interventions.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS forum_posts (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        threadId TEXT NOT NULL,
+                        agentId TEXT NOT NULL,
+                        replyToId INTEGER,
+                        type TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        sentiment REAL NOT NULL,
+                        status TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY (agentId) REFERENCES agents(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_forum_posts_agentId ON forum_posts(agentId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_forum_posts_threadId ON forum_posts(threadId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_forum_posts_status ON forum_posts(status)")
+
+                // Forum votes: agent votes on proposals.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS forum_votes (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        postId INTEGER NOT NULL,
+                        agentId TEXT NOT NULL,
+                        vote TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY (postId) REFERENCES forum_posts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY (agentId) REFERENCES agents(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_forum_votes_postId_agentId ON forum_votes(postId, agentId)")
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

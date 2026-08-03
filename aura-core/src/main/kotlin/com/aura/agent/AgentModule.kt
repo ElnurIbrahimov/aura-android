@@ -1,7 +1,6 @@
 package com.aura.agent
 
 import android.content.Context
-import androidx.room.Room
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -50,4 +49,22 @@ object AgentModule {
         obsDao: com.aura.agent.state.AgentObservationDao,
     ): com.aura.agent.state.AgentStateStore =
         com.aura.agent.state.AgentStateStore(stateDao, relDao, obsDao)
+
+    @Provides
+    @Singleton
+    fun provideForumPostDao(db: AgentDatabase): com.aura.agent.forum.ForumPostDao =
+        db.forumPostDao()
+
+    @Provides
+    @Singleton
+    fun provideForumVoteDao(db: AgentDatabase): com.aura.agent.forum.ForumVoteDao =
+        db.forumVoteDao()
+
+    @Provides
+    @Singleton
+    fun provideForumEngine(
+        postDao: com.aura.agent.forum.ForumPostDao,
+        voteDao: com.aura.agent.forum.ForumVoteDao,
+    ): com.aura.agent.forum.ForumEngine =
+        com.aura.agent.forum.ForumEngine(postDao, voteDao)
 }

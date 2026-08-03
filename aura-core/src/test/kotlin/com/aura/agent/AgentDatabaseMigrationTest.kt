@@ -49,4 +49,31 @@ class AgentDatabaseMigrationTest {
         assertTrue("agent_observations table should exist", tables.contains("agent_observations"))
         migrated.close()
     }
+
+    @Test
+    fun migrate2To3_createsForumTables() {
+        // Start at v2 (create with v1 first, migrate to v2, then migrate to v3)
+        val db = helper.createDatabase("agents", 1)
+        db.execSQL("INSERT INTO agents (id, name, icon, description, identity, toolsAllowed, memoryScope, personalityJson, isBuiltin, isDefault, createdAt, updatedAt, color) VALUES ('test', 'test', 'test', 'desc', 'identity', '', 'shared', '{}', 1, 0, 0, 0, 0)")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            "agents",
+            3,
+            true,
+            AgentDatabase.MIGRATION_1_2,
+            AgentDatabase.MIGRATION_2_3,
+        )
+
+        val cursor = migrated.query("SELECT name FROM sqlite_master WHERE type='table'")
+        val tables = mutableListOf<kotlin.String>()
+        cursor.use {
+            while (it.moveToNext()) {
+                tables.add(it.getString(0))
+            }
+        }
+        assertTrue("forum_posts table should exist", tables.contains("forum_posts"))
+        assertTrue("forum_votes table should exist", tables.contains("forum_votes"))
+        migrated.close()
+    }
 }
