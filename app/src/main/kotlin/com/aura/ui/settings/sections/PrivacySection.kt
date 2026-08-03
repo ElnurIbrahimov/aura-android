@@ -30,6 +30,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +58,7 @@ fun PrivacySection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         val notificationContext = LocalContext.current
         var notificationAccessEnabled by remember {
@@ -87,7 +88,7 @@ fun PrivacySection(
             }) { Text(if (notificationAccessEnabled) "Manage" else "Enable") }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -102,7 +103,7 @@ fun PrivacySection(
             Switch(checked = appLockEnabled, onCheckedChange = onSetAppLock)
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.profile), style = MaterialTheme.typography.bodyLarge)
@@ -115,7 +116,7 @@ fun PrivacySection(
             TextButton(onClick = onNavigateProfile) { Text(stringResource(R.string.edit)) }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.morning_brief), style = MaterialTheme.typography.bodyLarge)
@@ -129,10 +130,10 @@ fun PrivacySection(
             Switch(checked = morningBriefEnabled, onCheckedChange = onSetMorningBrief)
         }
         if (morningBriefEnabled) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(stringResource(R.string.brief_at), style = MaterialTheme.typography.bodySmall)
@@ -160,7 +161,7 @@ fun PrivacySection(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.calendar_monitor), style = MaterialTheme.typography.bodyLarge)
@@ -173,7 +174,7 @@ fun PrivacySection(
             }
             Switch(checked = calendarMonitorEnabled, onCheckedChange = onSetCalendarMonitor)
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.memory_decay), style = MaterialTheme.typography.bodyLarge)

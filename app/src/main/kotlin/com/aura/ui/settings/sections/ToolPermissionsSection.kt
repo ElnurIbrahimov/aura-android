@@ -27,6 +27,7 @@ import com.aura.agent.policy.ConfirmationLevel
 import com.aura.agent.policy.ToolPolicy
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ToolPermissionsSection(
@@ -48,12 +49,12 @@ fun ToolPermissionsSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         val tools = toolPolicies.entries.sortedBy { it.key }
         val visibleTools = if (showAll) tools else tools.take(8)
         for ((toolName, policy) in visibleTools) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -79,7 +80,7 @@ fun ToolPermissionsSection(
                 text = "+ ${toolPolicies.size - 8} more tools",
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.padding(start = 16.dp),
+                modifier = Modifier.padding(start = AuraSpacing.md),
             )
         }
 
@@ -92,16 +93,16 @@ fun ToolPermissionsSection(
                 text = {
                     Column {
                         Text(stringResource(R.string.choose_the_confirmation_level), style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         for (level in ConfirmationLevel.entries) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 RadioButton(selected = selectedLevel == level, onClick = { selectedLevel = level })
                                 Text(
                                     text = level.name.lowercase().replaceFirstChar { it.uppercase() },
-                                    modifier = Modifier.padding(start = 8.dp),
+                                    modifier = Modifier.padding(start = AuraSpacing.xs),
                                 )
                             }
                         }

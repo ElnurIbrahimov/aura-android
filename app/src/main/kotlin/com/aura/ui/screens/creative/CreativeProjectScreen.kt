@@ -181,7 +181,7 @@ private fun CouncilRoom(
             label = { Text(stringResource(R.string.brief)) },
             placeholder = { Text(stringResource(R.string.ask_the_council_to_design_the)) },
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             items(CouncilRole.entries) { role ->
                 val included = role in selectedRoles
                 FilterChip(
@@ -193,7 +193,7 @@ private fun CouncilRoom(
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) {
                 OutlinedButton(onClick = onCancel) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
@@ -225,7 +225,7 @@ private fun WritingRoom(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             items(CreativeMode.entries.filter { it != CreativeMode.SIMULATE }) { item ->
                 FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item.label) })
             }
@@ -238,7 +238,7 @@ private fun WritingRoom(
             label = { Text(promptLabel(mode)) },
             supportingText = { Text(mode.instruction) },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) {
                 OutlinedButton(onClick = onCancel) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
@@ -273,7 +273,7 @@ private fun CraftRoom(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             items(ProseCraftTools.CraftTool.entries) { tool ->
                 FilterChip(
                     selected = selectedTool == tool,
@@ -297,7 +297,7 @@ private fun CraftRoom(
             label = { Text("Surrounding context (optional)") },
             supportingText = { Text("Paste the paragraph before/after for reference") },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) {
                 OutlinedButton(onClick = onCancel) {
                     Icon(Icons.Filled.Stop, contentDescription = null)
@@ -355,7 +355,7 @@ private fun ToolsRoom(
                 }
             }
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = AuraSpacing.xs))
         // Tension Analysis
         Text("Tension Analysis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
@@ -424,7 +424,7 @@ private fun SimulationRoom(
             singleLine = true,
             label = { Text(stringResource(R.string.perspective_character_optional)) },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) OutlinedButton(onClick = onCancel) { Text(stringResource(R.string.stop)) }
             Button(enabled = premise.isNotBlank() && !generating, onClick = { onGenerate(CreativeMode.SIMULATE, premise, perspective) }) {
                 Text(stringResource(R.string.run_scenario))
@@ -499,10 +499,10 @@ private fun ProjectMetadataDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.project_details)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.name)) }, singleLine = true)
                 OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                     OutlinedTextField(genre, { genre = it }, label = { Text(stringResource(R.string.genre)) }, modifier = Modifier.weight(1f))
                     OutlinedTextField(tone, { tone = it }, label = { Text(stringResource(R.string.tone)) }, modifier = Modifier.weight(1f))
                 }

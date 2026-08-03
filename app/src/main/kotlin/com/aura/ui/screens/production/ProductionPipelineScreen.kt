@@ -42,6 +42,7 @@ import com.aura.creative.ProductionPipelineEngine
 import com.aura.ui.components.AuraEmptyState
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.viewmodel.ProductionPipelineViewModel
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,8 +81,8 @@ fun ProductionPipelineScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
         // Project picker
         var projectExpanded by remember { mutableStateOf(false) }
@@ -185,7 +186,7 @@ fun ProductionPipelineScreen(
         }
 
         state.scheduledRunId?.let { runId ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 Icon(Icons.Filled.Check, contentDescription = null, tint = AuraThemeTokens.colors.actionPrimary)
                 Text("Scheduled run: $runId")
             }

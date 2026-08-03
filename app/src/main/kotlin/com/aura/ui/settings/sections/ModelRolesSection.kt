@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.providers.ModelRole
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ModelRolesSection(
@@ -45,11 +46,11 @@ fun ModelRolesSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         for (role in ModelRole.configurable) {
             val selected = roleModels[role].orEmpty()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -81,7 +82,7 @@ fun ModelRolesSection(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         Text(
                             text = "Available models: ${availableModels.take(6).joinToString(", ")}",
                             style = MaterialTheme.typography.bodySmall,

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.providers.ProviderCredentialState
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 @Composable
 fun ProviderKeyField(
     label: String,
@@ -89,7 +90,7 @@ fun ProviderKeyField(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -125,10 +126,10 @@ fun ProviderKeyField(
             )
         }
         if (onVerify != null && enabled) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 TextButton(
                     onClick = onVerify,
@@ -136,7 +137,7 @@ fun ProviderKeyField(
                     modifier = Modifier.testTag("provider-test-$testId"),
                 ) {
                     if (verifying) {
-                        CircularProgressIndicator(modifier = Modifier.height(16.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = 2.dp)
                     } else {
                         Text(actionLabel)
                     }

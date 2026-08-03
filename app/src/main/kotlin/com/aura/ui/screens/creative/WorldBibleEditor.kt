@@ -213,7 +213,7 @@ private fun AddWorldItemDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add ${type.label.lowercase()}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.name_title)) }, singleLine = true)
                 OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.description)) }, minLines = 3)
                 OutlinedTextField(details, { details = it }, label = { Text(type.detailLabel) }, singleLine = true)

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.text.Regex
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 /**
@@ -492,7 +493,7 @@ fun MarkdownColumn(
                 }
                 is MarkdownBlock.Text -> {
                     ClickableMarkdownBlock(text = block.content, colors = colors, style = style)
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AuraSpacing.xxs))
                 }
             }
         }
@@ -629,7 +630,7 @@ private fun CodeBlock(language: String, code: String) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                        .padding(bottom = AuraSpacing.xs),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -671,7 +672,7 @@ private fun CodeBlock(language: String, code: String) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                        .padding(bottom = AuraSpacing.xs),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     androidx.compose.material3.IconButton(
@@ -732,7 +733,7 @@ private fun TableBlock(headers: List<String>, rows: List<List<String>>) {
                         text = h,
                         modifier = Modifier
                             .weight(1f)
-                            .padding(8.dp),
+                            .padding(AuraSpacing.xs),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -751,7 +752,7 @@ private fun TableBlock(headers: List<String>, rows: List<List<String>>) {
                             text = cell,
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(8.dp),
+                                .padding(AuraSpacing.xs),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }

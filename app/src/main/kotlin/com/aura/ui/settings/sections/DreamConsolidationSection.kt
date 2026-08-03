@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Settings card for the dream-consolidator worker. Surfaces the
@@ -69,18 +70,18 @@ fun DreamConsolidationSection(
                     color = AuraThemeTokens.colors.textSecondary,
                 )
             }
-            Spacer(modifier = Modifier.padding(8.dp))
+            Spacer(modifier = Modifier.padding(AuraSpacing.xs))
             Switch(
                 checked = enabled,
                 onCheckedChange = onSetEnabled,
             )
         }
         if (enabled) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
+                    .padding(horizontal = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -96,27 +97,27 @@ fun DreamConsolidationSection(
                 )
             }
             if (lastRunStats.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 Text(
                     text = lastRunStats,
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textSecondary,
-                    modifier = Modifier.padding(horizontal = 4.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.xxs),
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Text(
                 text = "Total dream summaries: $totalSummaries",
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textSecondary,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xxs),
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
             OutlinedButton(
                 onClick = onRunNow,
                 enabled = !isRunning,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xxs),
             ) {
                 Text(if (isRunning) "Running…" else "Run now")
             }

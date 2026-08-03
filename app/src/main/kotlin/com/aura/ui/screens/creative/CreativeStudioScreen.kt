@@ -207,7 +207,7 @@ private fun CreativeProjectCard(
                 color = colors.actionPrimary.copy(alpha = 0.12f),
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Text(template?.icon ?: "✍️", modifier = Modifier.padding(12.dp))
+                Text(template?.icon ?: "✍️", modifier = Modifier.padding(AuraSpacing.sm))
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -223,7 +223,7 @@ private fun CreativeProjectCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Text(
                     "${world.characters.size} characters · ${world.locations.size} places · ${world.rules.size} rules · ${project.turnCount} turns",
                     style = MaterialTheme.typography.labelSmall,
@@ -254,7 +254,7 @@ private fun NewCreativeProjectDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.project_name)) }, singleLine = true)
                 OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                     OutlinedTextField(genre, { genre = it }, label = { Text(stringResource(R.string.genre)) }, modifier = Modifier.weight(1f), singleLine = true)
                     OutlinedTextField(tone, { tone = it }, label = { Text(stringResource(R.string.tone)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.settings.SettingsViewModel
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun IntegrationsSection(
@@ -74,7 +75,7 @@ fun IntegrationsSection(
         )
     }
 
-    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    HorizontalDivider(modifier = Modifier.padding(vertical = AuraSpacing.xxs))
 
     // Microsoft
     Row(
@@ -117,5 +118,5 @@ fun IntegrationsSection(
         )
     }
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(AuraSpacing.md))
 }

@@ -24,6 +24,7 @@ import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
 import com.aura.usage.UsageSnapshot
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun UsageSection(
@@ -46,7 +47,7 @@ fun UsageSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.65f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         if (usage.models.isEmpty()) {
             Text(
                 "No model calls recorded yet.",
@@ -72,7 +73,7 @@ fun UsageSection(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Text(
             text = stringResource(R.string.marks_estimated_tokens_cost_is_not),
             style = MaterialTheme.typography.bodySmall,

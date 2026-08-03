@@ -134,7 +134,7 @@ private fun AgentRunsList(
                 Text(stringResource(R.string.run_a_hand_or_production_pipeline), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = AuraSpacing.md)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs), contentPadding = PaddingValues(vertical = AuraSpacing.md)) {
                 items(runs, key = { it.id }) { run ->
                     AgentRunRow(run, onClick = { onSelect(run.id) })
                 }
@@ -209,7 +209,7 @@ private fun AgentRunDetail(
                 StepRow(step)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (run.status == "RUNNING" || run.status == "PAUSED") {
                 OutlinedButton(onClick = { onCancel(run.id) }) { Text(stringResource(R.string.cancel)) }
                 Button(onClick = { onResume(run.id) }) { Text(stringResource(R.string.resume)) }
@@ -257,7 +257,7 @@ private fun ApprovalCard(
                     color = colors.textSecondary,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
                 OutlinedButton(onClick = onDeny) { Text(stringResource(R.string.deny)) }
                 Button(
                     onClick = {

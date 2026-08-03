@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.GlobalSearchViewModel
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Cross-type search over conversations, memories, tasks, hands, skills, and
@@ -64,7 +65,7 @@ fun GlobalSearchSheet(
         sheetState = sheetState,
         containerColor = colors.surface1,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(AuraSpacing.md)) {
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
@@ -80,8 +81,8 @@ fun GlobalSearchSheet(
             // Rendering them over an empty result set would be dead chrome.
             if (state.availableCategories.size > 1) {
                 Row(
-                    modifier = Modifier.padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     FilterChip(
                         selected = state.categoryFilter == null,
@@ -109,7 +110,7 @@ fun GlobalSearchSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 32.dp),
+                            .padding(top = AuraSpacing.xl),
                         horizontalArrangement = Arrangement.Center,
                     ) {
                         CircularProgressIndicator()
@@ -117,7 +118,7 @@ fun GlobalSearchSheet(
                 }
 
                 state.visibleResults.isNotEmpty() -> {
-                    LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
+                    LazyColumn(modifier = Modifier.padding(top = AuraSpacing.xs)) {
                         items(
                             state.visibleResults,
                             key = { "${it.category}_${it.id}" },
@@ -130,7 +131,7 @@ fun GlobalSearchSheet(
                                         onDismiss()
                                         onNavigate(result.route)
                                     }
-                                    .padding(vertical = 12.dp),
+                                    .padding(vertical = AuraSpacing.sm),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -155,7 +156,7 @@ fun GlobalSearchSheet(
                         text = "No results for \"${state.query}\"",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary,
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.lg),
                     )
                 }
 
@@ -166,7 +167,7 @@ fun GlobalSearchSheet(
                         text = stringResource(R.string.search_across_your_chats_memories_tasks),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary,
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.lg),
                     )
                 }
             }

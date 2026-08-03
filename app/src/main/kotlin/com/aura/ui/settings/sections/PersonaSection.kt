@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -55,7 +56,7 @@ fun PersonaSection(
                 .clickable(onClick = onNavigateIdentity),
         ) {
             Row(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(AuraSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -77,7 +78,7 @@ fun PersonaSection(
             }
         }
         // ── Specialist prompt overrides ──
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
         Text(
             text = stringResource(R.string.specialist_prompts),
             style = MaterialTheme.typography.titleSmall,
@@ -88,7 +89,7 @@ fun PersonaSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         val overridesMap = remember(specialistOverrides) {
             try { Json.decodeFromString<Map<String, String>>(specialistOverrides) }
@@ -99,7 +100,7 @@ fun PersonaSection(
         for (specialist in com.aura.agent.Specialist.ALL) {
             val hasOverride = overridesMap.containsKey(specialist.name) && !overridesMap[specialist.name].isNullOrBlank()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

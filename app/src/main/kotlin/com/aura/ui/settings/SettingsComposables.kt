@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun SettingsSection(
@@ -82,7 +83,7 @@ fun SettingsSection(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "Collapse" else "Expand",
                     tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(start = 4.dp),
+                    modifier = Modifier.padding(start = AuraSpacing.xxs),
                 )
             }
 
@@ -116,11 +117,11 @@ fun SettingsClickableRow(
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = AuraSpacing.xxs)
             .clickable(onClick = onClick),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -141,7 +142,7 @@ fun RoleModelRow(
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

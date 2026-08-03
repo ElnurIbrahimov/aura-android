@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aura.tools.Citation
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun StopStreamingDialog(
@@ -88,15 +89,15 @@ fun SourcesSheet(citations: List<Citation>, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
             LazyColumn {
                 items(citations, key = { it.url ?: it.title ?: it.hashCode().toString() }) { citation ->
                     Surface(
                         color = AuraThemeTokens.colors.surface1,
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(AuraSpacing.sm)) {
                             Text(
                                 text = citation.title ?: citation.url ?: "Source",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -211,7 +212,7 @@ fun ConfirmationDialog(
         onDismissRequest = onDismiss,
         title = { Text(toolName.replace("_", " ").replaceFirstChar { it.uppercase() }) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 Text(rationale)
                 if (level == "EXPLICIT") {
                     Text(

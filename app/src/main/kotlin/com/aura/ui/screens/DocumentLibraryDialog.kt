@@ -40,6 +40,7 @@ import com.aura.documents.DocumentEntity
 import com.aura.ui.viewmodel.DocumentImportUiState
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 @Composable
 internal fun DocumentLibraryDialog(
     state: DocumentImportUiState,
@@ -55,7 +56,7 @@ internal fun DocumentLibraryDialog(
         icon = { Icon(Icons.Filled.Description, contentDescription = null) },
         title = { Text(stringResource(R.string.document_memory)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 Text(
                     "Import local documents into Aura's searchable memory. Text stays on-device except embeddings sent through your configured embedding provider.",
                     style = MaterialTheme.typography.bodySmall,
@@ -81,12 +82,12 @@ internal fun DocumentLibraryDialog(
                     Text(
                         "No documents imported yet.",
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp),
+                        modifier = Modifier.padding(vertical = AuraSpacing.sm),
                     )
                 } else {
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 380.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                     ) {
                         items(state.documents, key = { it.id }) { document ->
                             Surface(

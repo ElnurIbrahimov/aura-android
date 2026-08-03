@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -79,7 +80,7 @@ fun InlineImage(
         modifier = modifier
             .fillMaxWidth()
             .height(200.dp)
-            .padding(vertical = 4.dp)
+            .padding(vertical = AuraSpacing.xxs)
             .clip(RoundedCornerShape(12.dp))
             .background(colors.surface2)
             .clickable { fullScreen = true },
@@ -89,7 +90,7 @@ fun InlineImage(
             CircularProgressIndicator(
                 color = colors.actionPrimary,
                 strokeWidth = 2.dp,
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(AuraSpacing.md),
             )
         } else if (bitmap != null) {
             Image(
@@ -126,7 +127,7 @@ fun InlineImage(
                 contentDescription = "Generated image (full screen)",
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .padding(AuraSpacing.md)
                     .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Fit,
             )

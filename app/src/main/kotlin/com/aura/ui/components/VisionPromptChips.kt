@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Quick-prompt chips for a captured image. Shown above the input
  * bar right after the user captures or picks a photo. The chips
@@ -52,7 +53,7 @@ fun VisionPromptChips(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         for ((label, prompt) in prompts) {
             Surface(

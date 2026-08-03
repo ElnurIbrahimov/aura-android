@@ -89,6 +89,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HandsScreen(
@@ -140,7 +141,7 @@ fun HandsScreen(
             androidx.compose.material3.OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.xs),
                 placeholder = { Text(stringResource(R.string.search_hands_by_name_or_trigger)) },
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
@@ -152,7 +153,7 @@ fun HandsScreen(
                     }
                 },
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             HandsStatusFilterChips(
                 selected = state.statusFilter,
                 onSelect = { viewModel.setStatusFilter(it) },
@@ -305,7 +306,7 @@ private fun HandCard(
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.14f),
@@ -331,7 +332,7 @@ private fun HandCard(
                 }
                 Switch(checked = hand.enabled, onCheckedChange = { onToggle() })
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 MetadataPill(Icons.Filled.Schedule, scheduleLabel(hand))
                 MetadataPill(null, "${jsonArrayCount(hand.steps)} steps")
                 val variableCount = jsonObjectCount(hand.variables)
@@ -362,7 +363,7 @@ private fun MetadataPill(icon: androidx.compose.ui.graphics.vector.ImageVector?,
         Row(
             Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp))
             Text(text, style = MaterialTheme.typography.labelSmall)
@@ -400,7 +401,7 @@ private fun RunHistory(
         }
         else -> runs
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("all" to "All", "success" to "Success", "failed" to "Failed").forEach { (value, label) ->
                 FilterChip(
@@ -417,7 +418,7 @@ private fun RunHistory(
                 Text("No $filter runs", color = AuraThemeTokens.colors.textPrimary)
             }
         } else {
-            LazyColumn(contentPadding = PaddingValues(bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(contentPadding = PaddingValues(bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 items(filteredRuns, key = { it.id }) { run ->
                     RunHistoryCard(
                         run = run,
@@ -491,7 +492,7 @@ private fun RunHandDialog(hand: Hand, onDismiss: () -> Unit, onRun: (Map<String,
         onDismissRequest = onDismiss,
         title = { Text("Run ${hand.name}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 if (defaults.isEmpty()) {
                     Text(stringResource(R.string.this_hand_has_no_runtime_variables))
                 } else {
@@ -593,10 +594,10 @@ private fun HandsStatusFilterChips(
         "disabled" to "Disabled",
     )
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = AuraSpacing.sm),
     ) {
         filters.forEach { (key, label) ->
             FilterChip(

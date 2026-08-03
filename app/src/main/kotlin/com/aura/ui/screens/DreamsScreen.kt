@@ -151,7 +151,7 @@ fun DreamsScreen(
                         "Routines (${routines.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(routines, key = { it.id }) { routine ->
@@ -164,7 +164,7 @@ fun DreamsScreen(
                         "Contradictions (${contradictions.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(contradictions, key = { it.id }) { contradiction ->
@@ -181,7 +181,7 @@ fun DreamsScreen(
                         "Graph proposals (${kgProposals.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(kgProposals, key = { it.id }) { proposal ->
@@ -198,7 +198,7 @@ fun DreamsScreen(
                         "No dream summaries yet. Run a dream consolidation cycle from Settings to generate routines and detect contradictions.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = 32.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.xl),
                     )
                 }
             }
@@ -210,8 +210,8 @@ fun DreamsScreen(
 private fun SummaryCard(summary: DreamSummaryEntity) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 summary.compressedText,
@@ -237,8 +237,8 @@ private fun SummaryCard(summary: DreamSummaryEntity) {
 private fun RoutineCard(routine: RoutineEntity) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -279,8 +279,8 @@ private fun ContradictionCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -331,8 +331,8 @@ private fun KgProposalCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 "${proposal.fromLabel}  →  ${proposal.toLabel}",

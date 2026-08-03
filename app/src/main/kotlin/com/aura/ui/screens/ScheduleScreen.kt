@@ -95,7 +95,7 @@ private fun TaskList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onToggle(task.id) }
-                    .padding(16.dp),
+                    .padding(AuraSpacing.md),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -136,7 +136,7 @@ private fun ReminderList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(AuraSpacing.md),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {

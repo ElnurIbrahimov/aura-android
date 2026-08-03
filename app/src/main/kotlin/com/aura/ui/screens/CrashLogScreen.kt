@@ -98,7 +98,7 @@ fun CrashLogScreen(
             LazyColumn(
                 modifier = Modifier.padding(padding),
                 contentPadding = PaddingValues(AuraSpacing.md),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 items(crashes, key = { it.fileName }) { entry ->
                     Card(
@@ -108,7 +108,7 @@ fun CrashLogScreen(
                                 expandedFile = if (expandedFile == entry.fileName) null else entry.fileName
                             },
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(AuraSpacing.sm)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -131,7 +131,7 @@ fun CrashLogScreen(
                                     entry.content,
                                     style = MaterialTheme.typography.bodySmall,
                                     fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.padding(top = 8.dp),
+                                    modifier = Modifier.padding(top = AuraSpacing.xs),
                                 )
                                 TextButton(onClick = {
                                     val file = File(context.cacheDir, "crash_logs/${entry.fileName}")

@@ -74,7 +74,7 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
                 Text(
                     text = stringResource(R.string.name),
                     style = MaterialTheme.typography.titleMedium,
@@ -90,7 +90,7 @@ fun ProfileScreen(
                 Button(
                     onClick = { viewModel.setName(name) },
                     enabled = name != state.name,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.xxs),
                 ) {
                     Text(stringResource(R.string.save_name))
                 }
@@ -108,9 +108,9 @@ fun ProfileScreen(
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                 )
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                    modifier = Modifier.padding(top = AuraSpacing.xs),
                 ) {
                     state.traits.forEach { trait ->
                         InputChip(
@@ -127,7 +127,7 @@ fun ProfileScreen(
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.xs),
                 ) {
                     OutlinedTextField(
                         value = traitInput,
@@ -160,7 +160,7 @@ fun ProfileScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                     state.facts.forEach { fact ->
                         Surface(
                             color = AuraThemeTokens.colors.surface1,
@@ -168,7 +168,7 @@ fun ProfileScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(AuraSpacing.sm),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
@@ -185,7 +185,7 @@ fun ProfileScreen(
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.xs),
                 ) {
                     OutlinedTextField(
                         value = factInput,
@@ -208,7 +208,7 @@ fun ProfileScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { Spacer(modifier = Modifier.height(AuraSpacing.lg)) }
         }
     }
         SnackbarHost(

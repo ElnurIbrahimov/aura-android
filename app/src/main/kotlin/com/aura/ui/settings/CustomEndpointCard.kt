@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Card for the "Custom Endpoint" provider. The user supplies a base URL
  * (e.g. https://api.example.com/v1) and an API key; the card persists
@@ -68,7 +69,7 @@ fun CustomEndpointCard(
             .padding(vertical = 6.dp)
             .testTag("custom-endpoint-card"),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(AuraSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.custom_endpoint),
@@ -101,7 +102,7 @@ fun CustomEndpointCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = onBaseUrlChange,
@@ -113,7 +114,7 @@ fun CustomEndpointCard(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = onApiKeyChange,
@@ -134,10 +135,10 @@ fun CustomEndpointCard(
                     }
                 },
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 TextButton(
                     onClick = onTest,
@@ -145,7 +146,7 @@ fun CustomEndpointCard(
                     modifier = Modifier.testTag("custom-endpoint-test"),
                 ) {
                     if (testing) {
-                        CircularProgressIndicator(modifier = Modifier.height(16.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = 2.dp)
                     } else {
                         Text(stringResource(R.string.save_test))
                     }

@@ -77,7 +77,7 @@ fun CouncilScreen(
                 .padding(horizontal = AuraSpacing.md)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AuraSpacing.sm))
             Text(
                 text = "Ask multiple agents, then let one synthesize the best answer.",
                 color = AuraThemeTokens.colors.textSecondary,
@@ -85,7 +85,7 @@ fun CouncilScreen(
                 fontSize = 14.sp,
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AuraSpacing.md))
 
             OutlinedTextField(
                 value = state.task,
@@ -103,7 +103,7 @@ fun CouncilScreen(
                 },
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AuraSpacing.md))
 
             Text(
                 text = "Agents",
@@ -112,7 +112,7 @@ fun CouncilScreen(
                 fontSize = 14.sp,
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
 
             AgentMultiSelect(
                 agents = state.availableAgents,
@@ -120,7 +120,7 @@ fun CouncilScreen(
                 onToggle = viewModel::toggleAgent,
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AuraSpacing.lg))
 
             if (state.running) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -131,12 +131,12 @@ fun CouncilScreen(
             }
 
             state.error?.let {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Text(it, color = AuraThemeTokens.colors.error, fontSize = 14.sp)
             }
 
             state.result?.let { result ->
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AuraSpacing.md))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -151,7 +151,7 @@ fun CouncilScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = AuraThemeTokens.colors.surface1,
@@ -159,7 +159,7 @@ fun CouncilScreen(
                 ) {
                     Text(
                         text = result.directorOutput,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(AuraSpacing.md),
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
                     )
@@ -167,16 +167,16 @@ fun CouncilScreen(
             }
 
             if (state.progress.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(AuraSpacing.lg))
                 Text("Progress", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 state.progress.forEach { progress ->
                     ProgressCard(progress)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AuraSpacing.xs))
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AuraSpacing.lg))
         }
     }
 }
@@ -189,7 +189,7 @@ private fun AgentMultiSelect(
 ) {
     LazyColumn(
         modifier = Modifier.heightIn(max = 320.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         contentPadding = PaddingValues(vertical = 4.dp),
     ) {
         items(agents, key = { it.id }) { agent ->
@@ -259,7 +259,7 @@ private fun ProgressCard(progress: AgentCouncil.Progress) {
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(icon, contentDescription = null, tint = AuraThemeTokens.colors.actionPrimary, modifier = Modifier.size(18.dp))

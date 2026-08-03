@@ -25,6 +25,7 @@ import com.aura.triggers.Trigger
 import com.aura.triggers.TriggerAction
 import com.aura.triggers.TriggerCondition
 import com.aura.ui.settings.SettingsSection
+import com.aura.ui.theme.AuraSpacing
 import java.util.UUID
 
 @Composable
@@ -49,7 +50,7 @@ fun TriggersSection(
                 Switch(checked = triggersEnabled, onCheckedChange = onSetEnabled)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
             Text("Existing: ${triggers.size}", style = MaterialTheme.typography.bodyMedium)
             triggers.forEach { trigger ->
                 val summary = when (val c = trigger.condition) {
@@ -73,9 +74,9 @@ fun TriggersSection(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
             HorizontalDivider()
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.sm))
             Text("Add schedule trigger", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(
                 value = label,
@@ -84,7 +85,7 @@ fun TriggersSection(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             OutlinedTextField(
                 value = cron,
                 onValueChange = { cron = it },
@@ -93,8 +94,8 @@ fun TriggersSection(
                 singleLine = true,
             )
             // Quick preset buttons
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(AuraSpacing.xxs)) {
                 listOf(
                     "Daily @9am" to "daily@09:00",
                     "Hourly" to "hourly",
@@ -106,7 +107,7 @@ fun TriggersSection(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },
@@ -114,7 +115,7 @@ fun TriggersSection(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Button(
                 onClick = {
                     if (label.isNotBlank() && cron.isNotBlank() && prompt.isNotBlank()) {

@@ -78,6 +78,7 @@ import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun TasksScreen(
@@ -102,7 +103,7 @@ fun TasksScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(AuraSpacing.md)
                 .padding(padding),
         ) {
             val doneCount = state.tasks.count { it.status == "done" }
@@ -110,7 +111,7 @@ fun TasksScreen(
                 title = "Tasks",
                 subtitle = "${state.tasks.size} task${if (state.tasks.size == 1) "" else "s"}",
                 action = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
                         TextButton(onClick = onOpenSchedule) { Text("Schedule") }
                         if (doneCount > 0 && state.statusFilter != "pending") {
                             TextButton(onClick = { showClearConfirm = true }) {
@@ -122,7 +123,7 @@ fun TasksScreen(
             )
 
             // Search bar
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
@@ -142,7 +143,7 @@ fun TasksScreen(
                     }
                 },
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
             // Status filter chips
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -168,14 +169,14 @@ fun TasksScreen(
                     else AssistChipDefaults.assistChipColors(),
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
             if (state.loading) {
                 TasksSkeletonLoading()
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     if (state.reminders.isNotEmpty() && state.statusFilter != "done") {
                         item { RemindersHeader(onAddReminder = { showAddReminder = true }) }
@@ -186,7 +187,7 @@ fun TasksScreen(
                                 onCancel = { viewModel.cancelReminder(reminder.id) },
                             )
                         }
-                        item { Spacer(Modifier.height(8.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp)) }
+                        item { Spacer(Modifier.height(AuraSpacing.xs)); HorizontalDivider(); Spacer(Modifier.height(AuraSpacing.xs)) }
                     } else if (state.statusFilter != "done") {
                         item {
                             Row(
@@ -206,7 +207,7 @@ fun TasksScreen(
 
                     if (state.tasks.isEmpty()) {
                         item {
-                            Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xl), contentAlignment = Alignment.Center) {
                                 Text(
                                     when {
                                         state.searchQuery.isNotBlank() -> "No tasks match \"${state.searchQuery}\""
@@ -323,7 +324,7 @@ private fun TasksSkeletonLoading() {
 
     LazyColumn(
         contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
             SkeletonTaskCard(alpha = pulseAlpha)
@@ -339,7 +340,7 @@ private fun SkeletonTaskCard(alpha: Float) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -353,7 +354,7 @@ private fun SkeletonTaskCard(alpha: Float) {
                             shape = RoundedCornerShape(4.dp),
                         ),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 // Description line
                 Box(
                     modifier = Modifier
@@ -406,7 +407,7 @@ private fun SkeletonTaskCard(alpha: Float) {
 @Composable
 private fun RemindersHeader(onAddReminder: () -> Unit = {}) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -437,7 +438,7 @@ private fun ReminderRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -486,7 +487,7 @@ private fun TaskRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -506,7 +507,7 @@ private fun TaskRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (task.dueAt != null) {
                         val due = task.dueAt!!
@@ -565,7 +566,7 @@ private fun PriorityChip(priority: Int) {
         selected = false,
         onClick = { },
         label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        modifier = Modifier.height(24.dp),
+        modifier = Modifier.height(AuraSpacing.lg),
     )
 }
 
@@ -658,7 +659,7 @@ private fun TaskEditFields(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 OutlinedTextField(
                     value = descriptionState,
                     onValueChange = { descriptionState = it },
@@ -667,22 +668,22 @@ private fun TaskEditFields(
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 OutlinedButton(
                     onClick = { showDatePicker = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(dateText)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Text(stringResource(R.string.priority), style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                     PriorityOption(label = "None", selected = priorityState == 0) { priorityState = 0 }
                     PriorityOption(label = "Low", selected = priorityState == 1) { priorityState = 1 }
                     PriorityOption(label = "Medium", selected = priorityState == 2) { priorityState = 2 }
                     PriorityOption(label = "High", selected = priorityState == 3) { priorityState = 3 }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 OutlinedTextField(
                     value = tagsState,
                     onValueChange = { tagsState = it },
@@ -775,7 +776,7 @@ private fun AddReminderDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_reminder)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it },
@@ -784,7 +785,7 @@ private fun AddReminderDialog(
                     singleLine = true,
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedButton(

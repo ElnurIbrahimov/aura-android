@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.emotion.EmotionEngine
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun EmotionDaemonSection(
@@ -42,7 +43,7 @@ fun EmotionDaemonSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         // Emotional state display
         Text(
@@ -54,14 +55,14 @@ fun EmotionDaemonSection(
 
         if (emotionSnapshot != null) {
             EmotionBar("Tension", emotionSnapshot.tension, "Calm", "Stressed")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             EmotionBar("Connection", emotionSnapshot.connection, "Distant", "Warm")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             EmotionBar("Energy", emotionSnapshot.energy, "Slow", "Energetic")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             EmotionBar("Focus", emotionSnapshot.focus, "Casual", "Focused")
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Text(
                 text = "Updated ${formatRelativeTimeLong(emotionSnapshot.updatedAt)}",
                 style = MaterialTheme.typography.labelSmall,
@@ -72,11 +73,11 @@ fun EmotionDaemonSection(
                 text = stringResource(R.string.no_emotional_data_yet_start_a),
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = AuraSpacing.xs),
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
 
         // Daemon toggle
         Surface(
@@ -85,7 +86,7 @@ fun EmotionDaemonSection(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(AuraSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -102,7 +103,7 @@ fun EmotionDaemonSection(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                     )
                     if (daemonEnabled && daemonThoughtsCount > 0) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                         Text(
                             text = "$daemonThoughtsCount daemon thoughts recorded. See Proactive History for the full list.",
                             style = MaterialTheme.typography.labelSmall,

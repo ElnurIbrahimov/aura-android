@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.settings.SettingsViewModel
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ReasoningSection(
@@ -56,7 +57,7 @@ fun ReasoningSection(
             "Budget: ${reasoningBudget} tokens",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.md),
         )
         Row(
             modifier = Modifier
@@ -70,7 +71,7 @@ fun ReasoningSection(
                 onValueChange = { viewModel.setReasoningBudget(it.toInt()) },
                 valueRange = 2000f..64000f,
                 steps = 14,
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = AuraSpacing.xs),
             )
             Text("64K", style = MaterialTheme.typography.bodySmall)
         }
@@ -82,5 +83,5 @@ fun ReasoningSection(
         )
     }
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(AuraSpacing.md))
 }

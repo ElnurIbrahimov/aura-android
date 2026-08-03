@@ -64,6 +64,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import android.util.Log
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -106,7 +107,7 @@ internal fun HandEditorDialog(
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
             ) {
                 OutlinedTextField(
                     value = name,
@@ -155,7 +156,7 @@ internal fun HandEditorDialog(
                             }
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = newVariableName,
                             onValueChange = { newVariableName = it.filter { char -> char.isLetterOrDigit() || char == '_' } },
@@ -234,7 +235,7 @@ internal fun HandEditorDialog(
                 }
 
                 EditorSection("Schedule", "WorkManager runs the next local-time occurrence") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                         HandScheduleType.entries.forEach { type ->
                             FilterChip(
                                 selected = scheduleType == type.value,
@@ -244,7 +245,7 @@ internal fun HandEditorDialog(
                         }
                     }
                     if (scheduleType != HandScheduleType.NONE.value) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                             OutlinedTextField(
                                 value = scheduleHour,
                                 onValueChange = { scheduleHour = it.filter(Char::isDigit).take(2) },
@@ -296,7 +297,7 @@ internal fun HandEditorDialog(
 @Composable
 private fun EditorSection(title: String, subtitle: String, content: @Composable () -> Unit) {
     HorizontalDivider()
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
         Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
         content()

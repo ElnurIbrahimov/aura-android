@@ -79,7 +79,7 @@ fun WorldModelScreen(
                         "World events (${events.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(events, key = { it.id }) { WorldEventCard(it) }
@@ -90,7 +90,7 @@ fun WorldModelScreen(
                         "Opportunities (${opportunities.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(opportunities, key = { it.id }) { OpportunityCard(it, viewModel::resolveOpportunity) }
@@ -101,7 +101,7 @@ fun WorldModelScreen(
                         "Contradictions (${contradictions.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(contradictions, key = { it.id }) { ContradictionCard(it) }
@@ -112,7 +112,7 @@ fun WorldModelScreen(
                         "No world-model data yet. Beliefs, events, and opportunities are created as the system learns.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = 32.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.xl),
                     )
                 }
             }
@@ -128,8 +128,8 @@ private fun BeliefCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 "${belief.subject} · ${belief.predicate}",
@@ -147,8 +147,8 @@ private fun BeliefCard(
                 color = AuraThemeTokens.colors.textSecondary,
             )
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                modifier = Modifier.padding(top = AuraSpacing.xxs),
             ) {
                 TextButton(onClick = onVerify) {
                     Text("Verify")
@@ -170,8 +170,8 @@ private fun BeliefCard(
 private fun WorldEventCard(event: com.aura.world.WorldEventEntity) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 "${event.eventType} · ${event.source}",
@@ -200,8 +200,8 @@ private fun OpportunityCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 opportunity.title,
@@ -233,8 +233,8 @@ private fun OpportunityCard(
 private fun ContradictionCard(contradiction: com.aura.dream.ContradictionEntity) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
                 contradiction.triggerPhrase,

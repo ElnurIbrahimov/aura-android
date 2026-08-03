@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -59,11 +60,11 @@ fun AppearanceSection(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         // Theme preview: a mini mock showing how the selected theme
         // looks on a message bubble + input bar.
         ThemePreview(themeMode)
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
     }
 }
 
@@ -76,9 +77,9 @@ private fun ThemePreview(themeMode: String) {
         shape = MaterialTheme.shapes.medium,
         border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(AuraSpacing.sm), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             // Mock assistant message
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 androidx.compose.material3.Icon(
                     Icons.Filled.Psychology,
                     contentDescription = null,
@@ -124,7 +125,7 @@ private fun ThemePreview(themeMode: String) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     Text(
                         "Ask Aura…",

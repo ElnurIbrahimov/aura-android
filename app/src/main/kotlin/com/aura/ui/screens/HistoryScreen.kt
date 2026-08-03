@@ -66,6 +66,7 @@ import com.aura.ui.components.AuraScreenHeader
 import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.HistoryViewModel
+import com.aura.ui.theme.AuraSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -213,9 +214,9 @@ fun HistoryScreen(
 
         // Project filter chips
         if (state.availableProjects.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AuraSpacing.xxs))
             LazyRow(
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(AuraSpacing.xxs),
             ) {
                 item {
                     androidx.compose.material3.FilterChip(
@@ -232,12 +233,12 @@ fun HistoryScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AuraSpacing.xxs))
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         HorizontalDivider()
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         if (state.loading) {
             HistorySkeletonLoading()
@@ -252,10 +253,10 @@ fun HistoryScreen(
                         modifier = Modifier.size(64.dp),
                         tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.25f),
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AuraSpacing.xs))
                     Text(emptyMessage, style = MaterialTheme.typography.titleMedium)
                     if (state.query.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AuraSpacing.xxs))
                         Text(
                             "Aura searches exact words and related meaning across titles and messages.",
                             style = MaterialTheme.typography.bodySmall,
@@ -265,7 +266,7 @@ fun HistoryScreen(
                 }
             }
         } else {
-            LazyColumn(contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 items(state.conversations, key = { it.id }) { conv ->
                     if (state.selectMode) {
                         HistoryRow(
@@ -315,7 +316,7 @@ fun HistoryScreen(
         hostState = snackbarHostState,
         modifier = Modifier
             .align(androidx.compose.ui.Alignment.BottomCenter)
-            .padding(16.dp),
+            .padding(AuraSpacing.md),
     )
     }
 }
@@ -391,7 +392,7 @@ private fun HistoryRow(
                 )
             },
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(AuraSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
             if (selectMode) {
                 Checkbox(
                     checked = isSelected,
@@ -494,7 +495,7 @@ private fun HistorySkeletonLoading() {
 
     LazyColumn(
         contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
             SkeletonHistoryCard(alpha = pulseAlpha)
@@ -510,7 +511,7 @@ private fun SkeletonHistoryCard(alpha: Float) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Icon placeholder (matches HistoryRow 24dp Chat/PushPin icon)

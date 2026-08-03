@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolProperty
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Renders a form field per property in a [ToolDefinition]'s parameters.
@@ -41,8 +42,8 @@ fun ToolArgForm(
     val args = remember { mutableStateOf(mapOf<String, String>()) }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         for ((name, prop) in properties) {
             val isRequired = name in definition.parameters.required
@@ -76,7 +77,7 @@ private fun ToolArgField(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 Switch(
                     checked = value == "true",

@@ -153,14 +153,14 @@ private fun EmptyState() {
             tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.25f),
             modifier = Modifier.size(56.dp),
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
         Text(
             text = stringResource(R.string.no_proactive_events_yet),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
         Text(
             text = stringResource(R.string.morning_briefs_calendar_reminders_and_memory),
             style = MaterialTheme.typography.bodySmall,
@@ -292,7 +292,7 @@ private fun HistoryCard(
                     tint = iconTint,
                     modifier = Modifier
                         .size(40.dp)
-                        .padding(8.dp),
+                        .padding(AuraSpacing.xs),
                 )
             }
             Spacer(modifier = Modifier.width(14.dp))
@@ -321,7 +321,7 @@ private fun HistoryCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 // ── Body ─────────────────────────────────────────────
                 Text(
                     text = model.body,
@@ -383,13 +383,13 @@ private fun DebugSection(
     onClearStatus: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         HorizontalDivider(
             color = AuraThemeTokens.colors.borderDefault,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
 
         // ── Section header ──────────────────────────────────────────────
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -413,7 +413,7 @@ private fun DebugSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.55f),
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
 
         // ── Action: Morning brief ───────────────────────────────────────
         DebugActionRow(
@@ -445,7 +445,7 @@ private fun DebugSection(
 
         // ── Status message ──────────────────────────────────────────────
         status?.let { msg ->
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Surface(
                 color = if (msg.contains("Error", ignoreCase = true))
                     AuraThemeTokens.colors.error
@@ -455,7 +455,7 @@ private fun DebugSection(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(AuraSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -511,7 +511,7 @@ private fun DebugActionRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Branded icon circle

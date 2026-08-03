@@ -28,6 +28,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 internal fun memoryEditHeadline(edit: MemoryEditEntity): String = when {
     edit.oldCategory != edit.newCategory -> "${edit.oldCategory} → ${edit.newCategory}"
     edit.oldContent != edit.newContent -> "Content updated"
@@ -45,7 +46,7 @@ internal fun MemoryHistoryDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.edit_history)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 Text(
                     text = memory.content,
                     style = MaterialTheme.typography.bodySmall,
@@ -72,8 +73,8 @@ internal fun MemoryHistoryDialog(
                                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.45f),
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(AuraSpacing.sm),
+                                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
                                 ) {
                                     Text(
                                         memoryEditHeadline(edit),

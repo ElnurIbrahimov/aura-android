@@ -73,6 +73,7 @@ import com.aura.ui.theme.Fraunces
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.theme.JetBrainsMono
 import com.aura.ui.util.formatRelativeTime
+import com.aura.ui.theme.AuraSpacing
 import kotlin.math.sin
 
 /**
@@ -212,7 +213,7 @@ fun ThinkingShimmer(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
     ) {
         for (i in 0 until 3) {
             val transition = rememberInfiniteTransition(label = "dot-$i")
@@ -430,7 +431,7 @@ private fun AssistantMessage(
                 alpha = springEased.value
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         // Avatar: web uses w-7 h-7 (28dp). 36dp looked like a
         // giant blob next to 14sp body text.
@@ -450,7 +451,7 @@ private fun AssistantMessage(
                 color = AuraThemeTokens.colors.textPrimary,
             )
             if (isProactive) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Surface(
                     color = AuraThemeTokens.colors.aiToolCall,
                     shape = RoundedCornerShape(999.dp),
@@ -494,22 +495,22 @@ private fun AssistantMessage(
             }
             // Inline images (from image_gen tool)
             if (generatedImages.isNotEmpty() && !isStreaming) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 generatedImages.forEach { url ->
                     InlineImage(url = url)
                 }
             }
             // Citations row
             if (citations.isNotEmpty() && !isStreaming) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 CitationChipRow(citations = citations, onShowSources = onShowSources)
             }
             // Footer: timestamp + actions (model metadata moved to debug)
             if (!isStreaming) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     if (timestamp > 0) {
                         Text(
@@ -555,7 +556,7 @@ private fun AssistantMessage(
 
 @Composable
 private fun CitationChipRow(citations: List<Citation>, onShowSources: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
         citations.forEach { c ->
             var showDialog by remember { mutableStateOf(false) }
             CitationChip(

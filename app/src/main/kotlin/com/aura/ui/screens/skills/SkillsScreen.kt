@@ -133,7 +133,7 @@ private fun EmptyState(padding: PaddingValues) {
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(24.dp),
+            .padding(AuraSpacing.lg),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -141,7 +141,7 @@ private fun EmptyState(padding: PaddingValues) {
             Text(
                 "Skills are reusable instruction modules. The agent can invoke them by name via the use_skill tool.",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = AuraSpacing.xs),
             )
         }
     }
@@ -157,15 +157,15 @@ private fun SkillList(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = AuraSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(items = skills, key = { it.id }) { skill ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(AuraSpacing.md)) {
                     Text(
                         skill.name,
                         style = MaterialTheme.typography.titleMedium,
@@ -175,19 +175,19 @@ private fun SkillList(
                         Text(
                             skill.description,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp),
+                            modifier = Modifier.padding(top = AuraSpacing.xxs),
                         )
                     }
                     Text(
                         skill.preview(),
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.xs),
                         maxLines = 2,
                     )
                     FilledTonalButton(
                         onClick = { onClick(skill) },
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = AuraSpacing.xs)
                             .align(Alignment.End),
                     ) { Text(stringResource(R.string.edit)) }
                 }
@@ -213,9 +213,9 @@ private fun SkillDetail(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .padding(16.dp)
+            .padding(AuraSpacing.md)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         OutlinedTextField(
             value = name,
@@ -238,7 +238,7 @@ private fun SkillDetail(
         )
         HorizontalDivider()
         androidx.compose.foundation.layout.Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Button(
@@ -269,7 +269,7 @@ private fun NewSkillDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.new_skill)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, label = { Text(stringResource(R.string.name)) }, singleLine = true)
                 OutlinedTextField(value = description, onValueChange = { description = it.take(240) }, label = { Text(stringResource(R.string.description_optional)) }, singleLine = true)
                 OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text(stringResource(R.string.body_markdown)) }, minLines = 6, maxLines = 12)

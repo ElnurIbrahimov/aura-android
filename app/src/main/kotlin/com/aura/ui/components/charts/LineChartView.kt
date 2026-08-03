@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 private const val MAX_POINTS = 20
 
@@ -43,13 +44,13 @@ fun LineChartView(
         label = "lineChart",
     )
 
-    Column(modifier = modifier.fillMaxWidth().padding(8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(AuraSpacing.xs)) {
         if (chartData.title.isNotBlank()) {
             Text(
                 text = chartData.title,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.textPrimary,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = AuraSpacing.xs),
             )
         }
         Canvas(

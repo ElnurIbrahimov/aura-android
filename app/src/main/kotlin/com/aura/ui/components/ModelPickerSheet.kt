@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Format a model ID (e.g. "ollama:deepseek-v4-pro:cloud") into a
  * human-friendly display name. Derives everything from the ID —
@@ -166,7 +167,7 @@ fun ModelPickerContent(
         ) {
             // Header row: title + model count
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -222,7 +223,7 @@ fun ModelPickerContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("model-search")
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = AuraSpacing.sm),
                 placeholder = { Text(stringResource(R.string.search_models), style = MaterialTheme.typography.bodyMedium) },
                 leadingIcon = {
                     Icon(
@@ -245,14 +246,14 @@ fun ModelPickerContent(
             if (isLoading && models.isEmpty()) {
                 // First-load loading state
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
                         strokeWidth = 2.dp,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AuraSpacing.sm))
                     Text(
                         text = stringResource(R.string.loading_models_from_your_providers),
                         style = MaterialTheme.typography.bodyMedium,
@@ -263,7 +264,7 @@ fun ModelPickerContent(
                 // Surface the error so the user knows it's a network/key problem,
                 // not "the app doesn't have any models"
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -271,13 +272,13 @@ fun ModelPickerContent(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AuraSpacing.xxs))
                     Text(
                         text = errorMessage,
                         style = MaterialTheme.typography.bodySmall,
                         color = AuraThemeTokens.colors.error,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AuraSpacing.xs))
                     Text(
                         text = stringResource(R.string.tap_refresh_or_check_the_api),
                         style = MaterialTheme.typography.bodySmall,
@@ -289,14 +290,14 @@ fun ModelPickerContent(
                     text = stringResource(R.string.no_verified_models_available_save_test),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(vertical = AuraSpacing.lg),
                 )
             } else if (grouped.isEmpty()) {
                 Text(
                     text = "No models match \"$query\"",
                     style = MaterialTheme.typography.bodyMedium,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(vertical = AuraSpacing.lg),
                 )
             } else {
                 LazyColumn(
@@ -311,7 +312,7 @@ fun ModelPickerContent(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 12.dp),
+                                    .padding(bottom = AuraSpacing.sm),
                             ) {
                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                                     Text(
@@ -320,7 +321,7 @@ fun ModelPickerContent(
                                         fontWeight = FontWeight.SemiBold,
                                         color = AuraThemeTokens.colors.textPrimary,
                                     )
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(AuraSpacing.xxs))
                                     Text(
                                         text = errorMessage,
                                         style = MaterialTheme.typography.bodySmall,
@@ -367,7 +368,7 @@ fun ModelPickerContent(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
     }
 }
 
@@ -441,7 +442,7 @@ private fun ModelRow(
                 style = MaterialTheme.typography.labelSmall,
                 color = if (enabled) AuraThemeTokens.colors.assistantAccent
                     else AuraThemeTokens.colors.error,
-                modifier = Modifier.padding(horizontal = 8.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xs),
             )
         }
         if (isCurrent && enabled) {

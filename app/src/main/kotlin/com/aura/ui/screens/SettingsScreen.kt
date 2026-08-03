@@ -81,7 +81,7 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold,
                 color = AuraThemeTokens.colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Text(
                 text = stringResource(R.string.connect_providers_manage_memory_customize_aura),
                 style = MaterialTheme.typography.bodyLarge,
@@ -89,7 +89,7 @@ fun SettingsScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
 
         // ── AI & MODELS ──────────────────────────────────────────
         SettingsGroupHeader("AI & Models")
@@ -268,10 +268,10 @@ fun SettingsScreen(
                     text = "\u2726",
                     style = MaterialTheme.typography.titleLarge,
                     color = AuraThemeTokens.colors.actionPrimary,
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(AuraSpacing.sm),
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Text(
                 text = stringResource(R.string.aura),
                 style = MaterialTheme.typography.titleMedium,
@@ -284,7 +284,7 @@ fun SettingsScreen(
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.4f),
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
     }
 }
 

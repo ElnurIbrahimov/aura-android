@@ -81,7 +81,7 @@ fun TasteProfileScreen(
                         "Signals (${signals.size})",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
                 items(signals, key = { it.id }) { signal ->
@@ -94,7 +94,7 @@ fun TasteProfileScreen(
                         "No taste signals yet. Reactions, edits, and accepted suggestions will build your taste profile.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = 32.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.xl),
                     )
                 }
             }
@@ -106,8 +106,8 @@ fun TasteProfileScreen(
 private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             if (profile == null) {
                 Text(
@@ -142,7 +142,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                                 val pct = (score * 100).toInt().coerceIn(0, 100)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                                 ) {
                                     Text(
@@ -187,7 +187,7 @@ private fun SignalCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(AuraSpacing.md)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

@@ -53,6 +53,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun RemindersScreen(
@@ -89,7 +90,7 @@ fun RemindersScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = AuraSpacing.md),
         ) {
             AuraScreenHeader(
                 title = "Reminders",
@@ -98,7 +99,7 @@ fun RemindersScreen(
                     TextButton(onClick = { confirmClearHistory = true }) { Text(stringResource(R.string.clear_history)) }
                 }) else null,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 AssistChip(
                     onClick = { showHistory = false },
                     label = { Text(stringResource(R.string.upcoming)) },
@@ -114,7 +115,7 @@ fun RemindersScreen(
                     ) else AssistChipDefaults.assistChipColors(),
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             // Search bar
             androidx.compose.material3.OutlinedTextField(
                 value = state.searchQuery,
@@ -131,7 +132,7 @@ fun RemindersScreen(
                     }
                 },
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             if (!state.loading && rows.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 56.dp),
@@ -153,7 +154,7 @@ fun RemindersScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     items(rows, key = { it.id }) { reminder ->
                         ReminderLifecycleRow(

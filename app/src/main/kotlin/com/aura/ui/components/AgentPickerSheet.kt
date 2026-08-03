@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.agent.AgentEntity
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Bottom sheet that lets the user pick an active [AgentEntity] for the current chat.
@@ -61,7 +62,7 @@ fun AgentPickerSheet(
                 fontWeight = FontWeight.SemiBold,
                 color = AuraThemeTokens.colors.textPrimary,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AuraSpacing.sm))
             LazyColumn {
                 item {
                     AgentRow(
@@ -80,7 +81,7 @@ fun AgentPickerSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AuraSpacing.md))
         }
     }
 }
@@ -98,7 +99,7 @@ private fun AgentRow(
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         Icon(
             imageVector = Icons.Filled.Person,

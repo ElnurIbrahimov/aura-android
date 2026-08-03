@@ -66,6 +66,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.util.Log
 private val graphJson = Json { prettyPrint = true }
@@ -147,7 +148,7 @@ fun KnowledgeGraphScreen(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AuraSpacing.xs))
 
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -158,13 +159,13 @@ fun KnowledgeGraphScreen(
                 TypeChip(type, type.displayLabel(), state.typeFilter == type, viewModel::setTypeFilter)
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AuraSpacing.xs))
 
         state.error?.let { message ->
             Surface(
                 color = AuraThemeTokens.colors.error,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Row(
                     modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
@@ -189,13 +190,13 @@ fun KnowledgeGraphScreen(
             }
             state.nodes.isEmpty() -> GraphEmptyState(filtered = state.query.isNotBlank() || state.typeFilter != null)
             else -> LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(state.nodes, key = { it.id }) { node ->
                     GraphNodeCard(node = node, onClick = { viewModel.selectNode(node) })
                 }
-                item { Spacer(Modifier.height(12.dp)) }
+                item { Spacer(Modifier.height(AuraSpacing.sm)) }
             }
         }
     }
@@ -207,7 +208,7 @@ fun KnowledgeGraphScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TypeDot(selected.node.type)
@@ -254,7 +255,7 @@ fun KnowledgeGraphScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     OutlinedButton(
                         onClick = { editing = selected.node },
@@ -440,7 +441,7 @@ private fun DetailSection(title: String, content: @Composable () -> Unit) {
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(AuraSpacing.sm)) {
             Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             content()
@@ -558,7 +559,7 @@ private fun MergeGraphNodeDialog(
         onDismissRequest = onDismiss,
         title = { Text("Merge ${source.label}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 Text(
                     "Choose the entity to keep. Properties and relations from ${source.label} will move into it.",
                     style = MaterialTheme.typography.bodySmall,

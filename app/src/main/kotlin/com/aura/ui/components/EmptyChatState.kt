@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.Fraunces
 import com.aura.ui.theme.InterDisplay
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Quick-action chips shown BELOW the input bar in the empty
@@ -107,7 +108,7 @@ fun EmptyChatState(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AuraLogomark(size = 40.dp)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AuraSpacing.md))
             Text(
                 text = stringResource(R.string.welcome_to_aura),
                 fontFamily = Fraunces,

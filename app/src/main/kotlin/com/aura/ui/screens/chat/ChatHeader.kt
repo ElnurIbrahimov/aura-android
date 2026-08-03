@@ -56,6 +56,7 @@ import com.aura.ui.components.AuraIconButton
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.util.modelDisplayName
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ChatHeader(
@@ -102,9 +103,9 @@ fun ChatHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = AuraSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Surface(
                 modifier = Modifier

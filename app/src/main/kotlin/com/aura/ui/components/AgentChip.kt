@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.agent.AgentEntity
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * A single chip showing the currently active [AgentEntity]. Tapping it
@@ -30,7 +31,7 @@ fun AgentChip(
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         FilterChip(
             selected = true,

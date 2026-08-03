@@ -2,6 +2,7 @@ package com.aura.ui.settings
 import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
+import com.aura.ui.theme.AuraSpacing
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,8 +26,8 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
     val enabled = state.evolutionEnabled
     val interval = state.evolutionIntervalHours
     val autoApply = state.evolutionAutoApply
-    Card(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(AuraSpacing.md)) {
+        Column(modifier = Modifier.padding(AuraSpacing.md)) {
             Text(stringResource(R.string.evolution), style = MaterialTheme.typography.titleMedium)
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(stringResource(R.string.enabled), modifier = Modifier.weight(1f))
@@ -36,9 +37,9 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
                 value = interval.toString(),
                 onValueChange = { viewModel.setEvolutionIntervalHours(it.toIntOrNull() ?: 24) },
                 label = { Text(stringResource(R.string.interval_hours)) },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.xs),
             )
-            Spacer(modifier = Modifier.padding(top = 8.dp))
+            Spacer(modifier = Modifier.padding(top = AuraSpacing.xs))
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Auto-apply approved proposals", modifier = Modifier.weight(1f))
                 Switch(checked = autoApply, onCheckedChange = { viewModel.setEvolutionAutoApply(it) })
@@ -47,7 +48,7 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
                 "When enabled, evolution proposals that pass evaluation are applied automatically without requiring manual approval from the inbox.",
                 style = MaterialTheme.typography.labelSmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = AuraSpacing.xxs),
             )
         }
     }

@@ -43,6 +43,7 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.viewmodel.ChatUiState
 import com.aura.ui.viewmodel.ModelSelectionState
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ChatContent(
@@ -224,7 +225,7 @@ fun ChatContent(
 @Composable
 private fun JumpToLatest(onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xxs),
         horizontalArrangement = Arrangement.Center,
     ) {
         Surface(

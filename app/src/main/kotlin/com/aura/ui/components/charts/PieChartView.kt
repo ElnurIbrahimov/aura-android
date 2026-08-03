@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 private const val MAX_POINTS = 20
 private val PIE_COLORS = listOf(
@@ -53,13 +54,13 @@ fun PieChartView(
         label = "pieChart",
     )
 
-    Column(modifier = modifier.fillMaxWidth().padding(8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(AuraSpacing.xs)) {
         if (chartData.title.isNotBlank()) {
             Text(
                 text = chartData.title,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.textPrimary,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = AuraSpacing.xs),
             )
         }
         Row(
@@ -88,7 +89,7 @@ fun PieChartView(
                 }
             }
             // Legend
-            Column(modifier = Modifier.padding(start = 16.dp)) {
+            Column(modifier = Modifier.padding(start = AuraSpacing.md)) {
                 chartData.labels.forEachIndexed { i, label ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Canvas(modifier = Modifier.size(12.dp)) {

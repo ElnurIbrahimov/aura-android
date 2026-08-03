@@ -61,6 +61,7 @@ import com.aura.skills.Skill
 import com.aura.ui.components.AuraIconButton
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.Haptics
+import com.aura.ui.theme.AuraSpacing
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -154,7 +155,7 @@ fun ChatComposer(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp, max = 144.dp)
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = AuraSpacing.sm)
                     .testTag("chat-composer-input"),
             )
 
@@ -262,13 +263,13 @@ fun ChatComposer(
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
             ) {
                 Text(
                     text = stringResource(R.string.attach),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = AuraSpacing.xs),
                 )
                 AttachmentOption(Icons.Filled.PhotoLibrary, "Gallery") {
                     attachmentOpen = false
@@ -298,7 +299,7 @@ fun ChatComposer(
                         text = stringResource(R.string.inserts_use_skill_name_into_the),
                         style = MaterialTheme.typography.bodySmall,
                         color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = AuraSpacing.xs),
                     )
                     skills.take(8).forEach { skill ->
                         Surface(
@@ -313,7 +314,7 @@ fun ChatComposer(
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.AutoAwesome,
@@ -392,7 +393,7 @@ private fun AttachmentOption(
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             Icon(icon, contentDescription = null, tint = AuraThemeTokens.colors.textSecondary)
             Text(label, color = AuraThemeTokens.colors.textPrimary)

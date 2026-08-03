@@ -35,6 +35,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReminderEditorDialog(
@@ -80,7 +81,7 @@ internal fun ReminderEditorDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it },
@@ -90,7 +91,7 @@ internal fun ReminderEditorDialog(
                     maxLines = 3,
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedButton(
@@ -118,12 +119,12 @@ internal fun ReminderEditorDialog(
                     }
                 }
                 Text(stringResource(R.string.repeat))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
                     listOf("none", "daily", "weekdays", "weekly", "monthly")
                         .chunked(2)
                         .forEach { rowOptions ->
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 rowOptions.forEach { option ->

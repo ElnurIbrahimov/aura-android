@@ -38,6 +38,7 @@ import com.aura.ui.settings.SettingsUiState
 import com.aura.ui.settings.SmtpConfigCard
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
+import com.aura.ui.theme.AuraSpacing
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -78,7 +79,7 @@ fun AiAndModelsSection(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(AuraSpacing.sm)) {
                 Text(
                     text = if (state.configuredProviders.isEmpty())
                         "No providers configured yet."
@@ -88,7 +89,7 @@ fun AiAndModelsSection(
                     fontWeight = FontWeight.Medium,
                 )
                 if (state.configuredProviders.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.configuredProviders.forEach { name ->
                             AssistChip(
@@ -105,7 +106,7 @@ fun AiAndModelsSection(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         CustomEndpointCard(
             baseUrl = state.customBaseUrl,
@@ -119,7 +120,7 @@ fun AiAndModelsSection(
             onClear = onCustomClear,
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         SmtpConfigCard(
             host = state.smtpHost,
@@ -147,7 +148,7 @@ fun AiAndModelsSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
 
         SETTINGS_CREDENTIAL_SPECS.forEach { credential ->
             ProviderKeyField(
@@ -165,7 +166,7 @@ fun AiAndModelsSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         Text(
             text = stringResource(R.string.model_roles),
@@ -185,7 +186,7 @@ fun AiAndModelsSection(
         RoleModelRow("Background tasks", state.backgroundModel) { activeModelRole = "background" }
         RoleModelRow("Deep Mode", state.deepModeModel) { activeModelRole = "deep" }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Text(
             text = stringResource(R.string.mixture_of_agents),
             style = MaterialTheme.typography.titleSmall,
@@ -212,7 +213,7 @@ fun AiAndModelsSection(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedButton(onClick = onRefreshModels, enabled = !state.modelsLoading) {
@@ -230,7 +231,7 @@ fun AiAndModelsSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.plan_before_answering), style = MaterialTheme.typography.bodyLarge)

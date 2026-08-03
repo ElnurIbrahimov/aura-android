@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.BackupUiState
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 
@@ -57,7 +58,7 @@ fun DataAndBackupSection(
             }
             TextButton(onClick = onNavigateDiagnostics) { Text(stringResource(R.string.open)) }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AuraSpacing.xxs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Crash logs", style = MaterialTheme.typography.bodyLarge)
@@ -69,7 +70,7 @@ fun DataAndBackupSection(
             }
             TextButton(onClick = onNavigateCrashLogs) { Text(stringResource(R.string.open)) }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AuraSpacing.xs))
 
         OutlinedButton(
             onClick = onExport,
@@ -77,7 +78,7 @@ fun DataAndBackupSection(
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (backupState.exportInFlight) "Exporting..." else "Export to JSON") }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AuraSpacing.xs))
 
         OutlinedButton(
             onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
@@ -87,7 +88,7 @@ fun DataAndBackupSection(
 
         if (backupState.lastResult != null) {
             val result = backupState.lastResult!!
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             Surface(
                 color = AuraThemeTokens.colors.surface1,
                 shape = RoundedCornerShape(8.dp),

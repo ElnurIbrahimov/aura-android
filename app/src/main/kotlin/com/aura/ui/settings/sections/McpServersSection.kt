@@ -30,6 +30,7 @@ import com.aura.mcp.McpToolInfo
 import com.aura.ui.settings.McpServerDraft
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun McpServersSection(
@@ -52,19 +53,19 @@ fun McpServersSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         if (mcpServers.isEmpty()) {
             Text(
                 text = stringResource(R.string.no_mcp_servers_configured),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = AuraSpacing.xs),
             )
         }
         for (server in mcpServers) {
             val tools = mcpDiscoveredTools[server.id] ?: emptyList()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -78,7 +79,7 @@ fun McpServersSection(
                 TextButton(onClick = { onDisconnect(server.id) }) { Text(stringResource(R.string.disconnect)) }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         OutlinedButton(onClick = { showMcpAddDialog = true }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.add_mcp_server))
         }
@@ -96,7 +97,7 @@ fun McpServersSection(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         OutlinedTextField(
                             value = mcpDraft.url,
                             onValueChange = { mcpDraft = mcpDraft.copy(url = it) },
@@ -104,7 +105,7 @@ fun McpServersSection(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         OutlinedTextField(
                             value = mcpDraft.authToken,
                             onValueChange = { mcpDraft = mcpDraft.copy(authToken = it) },
@@ -113,7 +114,7 @@ fun McpServersSection(
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
                                 checked = mcpDraft.trustedLocal,

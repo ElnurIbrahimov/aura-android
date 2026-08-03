@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun SmtpConfigCard(
@@ -40,7 +41,7 @@ fun SmtpConfigCard(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             OutlinedTextField(
                 value = host,
@@ -93,7 +94,7 @@ fun SmtpConfigCard(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (it.startsWith("\u2713")) AuraThemeTokens.colors.success else AuraThemeTokens.colors.error,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.xxs),
                 )
             }
         }

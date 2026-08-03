@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 /**
  * Tools browser — lists every tool the agent can invoke, grouped
@@ -63,20 +64,20 @@ fun ToolsScreen(
             .fillMaxSize()
             .padding(horizontal = 20.dp),
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AuraSpacing.md))
         Text(
             text = stringResource(R.string.tools),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             color = AuraThemeTokens.colors.textPrimary,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AuraSpacing.xxs))
         Text(
             text = "${state.tools.size} capabilities Aura can use",
             style = MaterialTheme.typography.bodyLarge,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AuraSpacing.sm))
 
         // Search bar
         OutlinedTextField(
@@ -88,7 +89,7 @@ fun ToolsScreen(
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AuraSpacing.md))
 
         if (state.grouped.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -104,7 +105,7 @@ fun ToolsScreen(
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
                 state.grouped.forEach { (category, tools) ->
                     item(key = "h_$category") {
@@ -123,7 +124,7 @@ fun ToolsScreen(
 private fun CategoryHeader(category: String, count: Int) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.xs),
     ) {
         Text(
             text = ToolCategories.icon(category),
@@ -170,16 +171,16 @@ private fun ToolRow(tool: ToolDefinition) {
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AuraSpacing.xxs))
             Text(
                 text = tool.description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.8f),
             )
             if (tool.parameters.properties.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     tool.parameters.properties.keys.take(4).forEach { argName ->

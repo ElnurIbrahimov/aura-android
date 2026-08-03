@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.AgentEditorViewModel
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -77,13 +78,13 @@ fun AgentEditorScreen(
         // Template picker — only for new agents
         if (agentId == null && !state.isBuiltin) {
             if (state.showTemplatePicker) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
                 Text(
                     "Choose a template",
                     style = MaterialTheme.typography.titleMedium,
                     color = AuraThemeTokens.colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 viewModel.templates.forEach { template ->
                     OutlinedButton(
                         onClick = { viewModel.applyTemplate(template) },
@@ -95,11 +96,11 @@ fun AgentEditorScreen(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 TextButton(onClick = viewModel::dismissTemplatePicker) {
                     Text("Skip — start from scratch")
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.sm))
             } else if (state.name.isBlank()) {
                 OutlinedButton(
                     onClick = viewModel::showTemplatePicker,
@@ -107,11 +108,11 @@ fun AgentEditorScreen(
                 ) {
                     Text("Pick a template")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         // Name
         OutlinedTextField(
@@ -122,7 +123,7 @@ fun AgentEditorScreen(
             singleLine = true,
             enabled = !state.isBuiltin,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Icon
         OutlinedTextField(
@@ -132,7 +133,7 @@ fun AgentEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Description
         OutlinedTextField(
@@ -142,7 +143,7 @@ fun AgentEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Identity / system prompt
         OutlinedTextField(
@@ -153,7 +154,7 @@ fun AgentEditorScreen(
             minLines = 4,
             maxLines = 12,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Preferred model
         OutlinedTextField(
@@ -164,11 +165,11 @@ fun AgentEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
 
         // Memory scope
         Text(stringResource(R.string.memory), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (state.memoryScope == "shared") "Shared (sees all memories)" else "Private (sees only its own + shared)",
@@ -183,11 +184,11 @@ fun AgentEditorScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
 
         // Personality sliders
         Text(stringResource(R.string.personality), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         PersonalitySlider("Warmth", state.personality.warmth, 0f, 1f) { viewModel.updatePersonality("warmth", it) }
         PersonalitySlider("Formality", state.personality.formality, 0f, 1f) { viewModel.updatePersonality("formality", it) }
         PersonalitySlider("Verbosity", state.personality.verbosity, 0f, 1f) { viewModel.updatePersonality("verbosity", it) }
@@ -195,17 +196,17 @@ fun AgentEditorScreen(
         PersonalitySlider("Proactivity", state.personality.proactivity, 0f, 1f) { viewModel.updatePersonality("proactivity", it) }
         PersonalitySlider("Risk Tolerance", state.personality.riskTolerance, 0f, 1f) { viewModel.updatePersonality("riskTolerance", it) }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
 
         // Tools
         Text(stringResource(R.string.tools), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
         Text(
             text = stringResource(R.string.toggle_which_tools_this_agent_can),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         val toolNames = viewModel.availableTools
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (tool in toolNames) {
@@ -226,13 +227,13 @@ fun AgentEditorScreen(
         // Error
         state.error?.let { err ->
             Text(text = err, color = AuraThemeTokens.colors.error, style = MaterialTheme.typography.bodySmall)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
         }
 
         // Save + Delete
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             Button(
                 onClick = { viewModel.save() },
@@ -263,7 +264,7 @@ fun AgentEditorScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.lg))
     }
 }
 

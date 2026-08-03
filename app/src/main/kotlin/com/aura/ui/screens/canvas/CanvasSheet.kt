@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aura.ui.components.MarkdownColumn
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Canvas content type. The model emits fenced code blocks with
@@ -138,7 +139,7 @@ fun CanvasSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = AuraSpacing.md)
                             .verticalScroll(scrollState),
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
@@ -156,7 +157,7 @@ fun CanvasSheet(
                         shape = MaterialTheme.shapes.medium,
                     ) {
                         Column(modifier = Modifier
-                            .padding(12.dp)
+                            .padding(AuraSpacing.sm)
                             .verticalScroll(rememberScrollState())) {
                             MarkdownColumn(text = editedContent)
                         }
@@ -169,7 +170,7 @@ fun CanvasSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = AuraSpacing.md)
                             .verticalScroll(scrollState),
                         textStyle = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
@@ -189,7 +190,7 @@ fun CanvasSheet(
                         shape = MaterialTheme.shapes.medium,
                     ) {
                         Column(modifier = Modifier
-                            .padding(12.dp)
+                            .padding(AuraSpacing.sm)
                             .verticalScroll(rememberScrollState())) {
                             Text(
                                 text = editedContent,

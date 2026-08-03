@@ -87,6 +87,7 @@ import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.DocumentImportViewModel
 import com.aura.ui.viewmodel.MemoryViewModel
+import com.aura.ui.theme.AuraSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -168,7 +169,7 @@ fun MemoryScreen(
             Surface(
                 color = AuraThemeTokens.colors.surface2,
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -205,7 +206,7 @@ fun MemoryScreen(
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Category filter chips
         FlowRow(
@@ -244,7 +245,7 @@ fun MemoryScreen(
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.add_note))
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         OutlinedButton(
             onClick = { showDocuments = true },
             modifier = Modifier.fillMaxWidth(),
@@ -257,7 +258,7 @@ fun MemoryScreen(
                 else "Documents · ${documentState.documents.size}",
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
         OutlinedButton(
             onClick = onOpenKnowledgeGraph,
             modifier = Modifier.fillMaxWidth(),
@@ -269,7 +270,7 @@ fun MemoryScreen(
         }
 
         if (state.memories.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
             // Dream summaries stat row. Visible when the count is > 0
             // (so it doesn't show on a fresh install with no cycles
@@ -289,7 +290,7 @@ fun MemoryScreen(
                     Spacer(Modifier.size(8.dp))
                     Text("${state.dreamSummaryCount} dream summaries")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
 
             // v2 phase stats: routines + contradictions. Tappable for
@@ -299,8 +300,8 @@ fun MemoryScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(vertical = AuraSpacing.xxs),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     if (state.routineCount > 0) {
                         AssistChip(
@@ -329,7 +330,7 @@ fun MemoryScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
 
             // Rebuild embeddings action. Visible only once there is something
@@ -357,7 +358,7 @@ fun MemoryScreen(
                     Text(stringResource(R.string.rebuild_embeddings))
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
             // Bulk delete actions. "Clear category" only shows when a
             // category filter is active. Both show a confirm dialog.
@@ -375,7 +376,7 @@ fun MemoryScreen(
                     Spacer(modifier = Modifier.size(8.dp))
                     Text("Clear ${state.categoryFilter} memories", color = AuraThemeTokens.colors.error)
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
             OutlinedButton(
                 onClick = { showClearAllConfirm = true },
@@ -390,10 +391,10 @@ fun MemoryScreen(
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(stringResource(R.string.clear_all_memories), color = AuraThemeTokens.colors.error)
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         if (state.loading) {
             MemorySkeletonLoading()
@@ -401,7 +402,7 @@ fun MemoryScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = AuraSpacing.sm),
                 shape = RoundedCornerShape(20.dp),
                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.28f),
             ) {
@@ -428,7 +429,7 @@ fun MemoryScreen(
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 items(state.memories, key = { it.id }) { mem ->
                     SwipeToDeleteContainer(onDelete = { viewModel.forget(mem.id) }) {
@@ -459,7 +460,7 @@ fun MemoryScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(16.dp),
+                .padding(AuraSpacing.md),
         )
     }
 
@@ -673,7 +674,7 @@ private fun MemoryRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CategoryDot(mem.category)
@@ -801,7 +802,7 @@ private fun EditMemoryDialog(
                     maxLines = 6,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Box {
                     OutlinedTextField(
                         value = category,
@@ -830,7 +831,7 @@ private fun EditMemoryDialog(
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 OutlinedTextField(
                     value = tags,
                     onValueChange = { tags = it },
@@ -838,7 +839,7 @@ private fun EditMemoryDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AuraSpacing.xs))
                 Text(
                     text = "Importance: ${"%.0f".format(importance * 100)}%",
                     style = MaterialTheme.typography.labelMedium,
@@ -850,7 +851,7 @@ private fun EditMemoryDialog(
                     valueRange = 0f..1f,
                     steps = 9,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Text(
                     text = stringResource(R.string.higher_importance_ranks_higher_in_recall),
                     style = MaterialTheme.typography.bodySmall,
@@ -914,7 +915,7 @@ private fun MemorySkeletonLoading() {
 
     LazyColumn(
         contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
             SkeletonMemoryCard(alpha = pulseAlpha)
@@ -930,7 +931,7 @@ private fun SkeletonMemoryCard(alpha: Float) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Category dot placeholder
@@ -954,7 +955,7 @@ private fun SkeletonMemoryCard(alpha: Float) {
                             shape = RoundedCornerShape(4.dp),
                         ),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 // First metadata line: category · source · age
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -988,7 +989,7 @@ private fun SkeletonMemoryCard(alpha: Float) {
                     )
                 }
                 // Second metadata line: importance · recall count · tags
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -1049,7 +1050,7 @@ private fun AddNoteDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_note)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
@@ -1058,7 +1059,7 @@ private fun AddNoteDialog(
                     minLines = 2,
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     categories.forEach { cat ->

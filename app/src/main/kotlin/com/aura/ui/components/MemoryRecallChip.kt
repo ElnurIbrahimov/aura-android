@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.agent.RecallSummary
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * A small chip rendered below an assistant turn that summarizes
  * what Aura recalled from its long-term stores for that turn.
@@ -134,7 +135,7 @@ private fun MemoryRecallSheet(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.sm))
             }
             if (memories.isEmpty() && hands.isEmpty()) {
                 item {
@@ -153,7 +154,7 @@ private fun MemoryRecallSheet(
                         fontWeight = FontWeight.SemiBold,
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 }
                 items(memories) { mem ->
                     RecallRow(
@@ -165,14 +166,14 @@ private fun MemoryRecallSheet(
             }
             if (hands.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.xs))
                     Text(
                         text = "Hands (${hands.size})",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 }
                 items(hands) { hand ->
                     RecallRow(

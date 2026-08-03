@@ -62,6 +62,7 @@ import java.util.Date
 import java.util.Locale
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun DiagnosticsScreen(
@@ -141,7 +142,7 @@ fun DiagnosticsScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             Button(
                 onClick = viewModel::prepareExport,
@@ -177,11 +178,11 @@ fun DiagnosticsScreen(
             Surface(
                 color = AuraThemeTokens.colors.error,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Text(
                     error,
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(AuraSpacing.sm),
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary,
                 )
@@ -195,7 +196,7 @@ fun DiagnosticsScreen(
             state.entries.isEmpty() && state.traceEvents.isEmpty() -> DiagnosticsEmptyState()
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 if (state.traceEvents.isNotEmpty()) {
                     item {
@@ -210,12 +211,12 @@ fun DiagnosticsScreen(
                     items(state.traceEvents.takeLast(50), key = { it.id }) { event ->
                         TraceEventCard(event)
                     }
-                    item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                    item { HorizontalDivider(Modifier.padding(vertical = AuraSpacing.xs)) }
                 }
                 items(state.entries, key = { "${it.timestamp}:${it.code}:${it.message.hashCode()}" }) { entry ->
                     DiagnosticCard(entry)
                 }
-                item { Spacer(Modifier.height(12.dp)) }
+                item { Spacer(Modifier.height(AuraSpacing.sm)) }
             }
         }
     }
@@ -277,7 +278,7 @@ private fun DiagnosticCard(entry: CrashLogEntry) {
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AuraSpacing.xs))
             Text(entry.message, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(7.dp))
             Text(
@@ -314,7 +315,7 @@ private fun TraceEventCard(event: AgentTraceEvent) {
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(AuraSpacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = accent.copy(alpha = 0.14f), shape = CircleShape) {
                     Text(
@@ -341,7 +342,7 @@ private fun TraceEventCard(event: AgentTraceEvent) {
                 )
             }
             if (event.redactedPayload.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Text(
                     event.redactedPayload,
                     style = MaterialTheme.typography.bodySmall,
@@ -350,7 +351,7 @@ private fun TraceEventCard(event: AgentTraceEvent) {
                 )
             }
             if (!event.success && event.errorCode != null) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AuraSpacing.xxs))
                 Text(
                     "error: ${event.errorCode}",
                     style = MaterialTheme.typography.labelSmall,
@@ -373,10 +374,10 @@ private fun DiagnosticsEmptyState() {
                     Icons.Filled.BugReport,
                     contentDescription = null,
                     tint = AuraThemeTokens.colors.actionPrimary,
-                    modifier = Modifier.padding(16.dp).size(28.dp),
+                    modifier = Modifier.padding(AuraSpacing.md).size(28.dp),
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AuraSpacing.sm))
             Text(stringResource(R.string.no_diagnostic_entries), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(5.dp))
             Text(
