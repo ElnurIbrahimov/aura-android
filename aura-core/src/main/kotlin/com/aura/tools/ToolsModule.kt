@@ -85,6 +85,7 @@ object ToolsModule {
         triggerEvolution: TriggerEvolutionRunTool,
         delegateToAgent: DelegateToAgentTool,
         runCouncil: RunCouncilTool,
+        runLifeCouncil: com.aura.agent.council.RunLifeCouncilTool,
         gmail: GoogleGmailTool,
         googleCalendar: GoogleCalendarTool,
         googleDrive: GoogleDriveTool,
@@ -158,6 +159,7 @@ object ToolsModule {
         registry.register(triggerEvolution.tool)
         registry.register(delegateToAgent.tool)
         registry.register(runCouncil.tool)
+        registry.register(runLifeCouncil.tool)
         registry.register(gmail.tool)
         registry.register(googleCalendar.tool)
         registry.register(googleDrive.tool)
