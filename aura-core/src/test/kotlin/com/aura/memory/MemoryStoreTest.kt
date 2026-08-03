@@ -129,7 +129,7 @@ class MemoryStoreTest {
         )
         coEvery { dao.getById("m1") } returns original
         val captured = slot<MemoryEntity>()
-        coEvery { dao.update(capture(captured)) } answers { Unit }
+        coEvery { dao.updateWithAudit(capture(captured), any()) } answers { Unit }
 
         store.update("m1", "new content", "preference")
 
@@ -161,7 +161,7 @@ class MemoryStoreTest {
         )
         coEvery { dao.getById("m1") } returns original
         val captured = slot<MemoryEntity>()
-        coEvery { dao.update(capture(captured)) } answers { Unit }
+        coEvery { dao.updateWithAudit(capture(captured), any()) } answers { Unit }
 
         store.update("m1", "new content", "preference", 0.9f, "work,urgent")
 
@@ -429,8 +429,9 @@ class MemoryStoreTest {
 
         store.restore(memory, edits)
 
-        coVerify(exactly = 1) { dao.insert(memory) }
-        coVerify(exactly = 1) { editDao.insertAll(edits) }
+        coVerify(exactly = 1) { dao.restoreWithAudit(memory, edits) }
+        coVerify(exactly = 0) { dao.insert(any()) }
+        coVerify(exactly = 0) { editDao.insertAll(any()) }
     }
 
     // ── MEMORY_AUDIT A2: silent runCatching in MemoryStore ──────────

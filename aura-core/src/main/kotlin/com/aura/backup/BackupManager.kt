@@ -399,8 +399,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // mid-restore leaves memories in but KG nodes missing, breaking
         // FK relationships at next startup.
         try {
-        if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
-        if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
+        if (memRows.isNotEmpty() && editRows.isNotEmpty()) memoryDao.insertAllWithEdits(memRows, editRows)
+        else if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
+        else if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
         if (documentRows.isNotEmpty()) documentDao.insertAll(documentRows)
         if (creativeRows.isNotEmpty()) creativeProjectDao.insertAll(creativeRows)
         if (convRows.isNotEmpty()) conversationDao.insertAll(convRows)

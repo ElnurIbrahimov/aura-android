@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -74,6 +75,43 @@ interface MemoryDao {
         word1: String, word2: String, word3: String, word4: String, word5: String, word6: String,
         scopes: List<String>, limit: Int = 50,
     ): List<MemoryEntity>
+
+    @Insert
+    suspend fun insertEdit(edit: MemoryEditEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEdits(edits: List<MemoryEditEntity>)
+
+    /**
+     * Apply a memory edit and record its audit-trail row in ONE
+     * transaction. Without this, a crash between the two writes leaves
+     * the audit trail claiming a different state than the row.
+     */
+    @Transaction
+    suspend fun updateWithAudit(entity: MemoryEntity, edit: MemoryEditEntity) {
+        insertEdit(edit)
+        update(entity)
+    }
+
+    /**
+     * Reinsert a soft-deleted memory and its CASCADE-deleted audit
+     * trail atomically (undo path).
+     */
+    @Transaction
+    suspend fun restoreWithAudit(memory: MemoryEntity, edits: List<MemoryEditEntity>) {
+        insert(memory)
+        insertEdits(edits)
+    }
+
+    /**
+     * Batch-insert memories plus their audit rows atomically (backup
+     * restore path, same database).
+     */
+    @Transaction
+    suspend fun insertAllWithEdits(rows: List<MemoryEntity>, edits: List<MemoryEditEntity>) {
+        insertAll(rows)
+        insertEdits(edits)
+    }
 
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC")
     suspend fun allByScopes(scopes: List<String>): List<MemoryEntity>

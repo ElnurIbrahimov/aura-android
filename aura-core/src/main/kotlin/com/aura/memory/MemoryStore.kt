@@ -474,9 +474,22 @@ class MemoryStore @Inject constructor(
      */
     suspend fun update(id: String, content: String, category: String, importance: Float = 0.5f, tags: String = "") {
         val existing = dao.getById(id) ?: return
-        // Record the edit in the audit trail before applying it.
+        // Record the edit in the audit trail and apply it atomically
+        // (M6 fix): the audit row and the row update now commit or roll
+        // back together instead of two independent writes.
         runCatching {
-            memoryEditDao.insert(
+            dao.updateWithAudit(
+                existing.copy(
+                    content = content,
+                    category = category,
+                    importance = importance,
+                    tags = tags,
+                    // Invalidate the embedding so the next recall re-embeds.
+                    embedding = null,
+                    // Bump accessedAt so a freshly-edited memory ranks higher
+                    // in the next recall.
+                    accessedAt = System.currentTimeMillis(),
+                ),
                 MemoryEditEntity(
                     memoryId = id,
                     oldContent = existing.content,
@@ -484,22 +497,9 @@ class MemoryStore @Inject constructor(
                     oldCategory = existing.category,
                     newCategory = category,
                     editedBy = "user",
-                )
+                ),
             )
-        }.onFailure { Log.w("MemoryStore", "memoryEditDao.insert during update() failed (audit trail lost, main update still applied)", it) }
-        dao.update(
-            existing.copy(
-                content = content,
-                category = category,
-                importance = importance,
-                tags = tags,
-                // Invalidate the embedding so the next recall re-embeds.
-                embedding = null,
-                // Bump accessedAt so a freshly-edited memory ranks higher
-                // in the next recall.
-                accessedAt = System.currentTimeMillis(),
-            ),
-        )
+        }.onFailure { Log.w("MemoryStore", "updateWithAudit failed (edit not applied)", it) }
     }
 
     suspend fun touch(id: String) {
@@ -518,8 +518,7 @@ class MemoryStore @Inject constructor(
 
     /** Reinsert the exact deleted row and its CASCADE-deleted audit trail. */
     suspend fun restore(memory: MemoryEntity, edits: List<MemoryEditEntity> = emptyList()) {
-        dao.insert(memory)
-        if (edits.isNotEmpty()) memoryEditDao.insertAll(edits)
+        if (edits.isEmpty()) dao.insert(memory) else dao.restoreWithAudit(memory, edits)
     }
 
     fun observeCount(): Flow<Int> = dao.count()
