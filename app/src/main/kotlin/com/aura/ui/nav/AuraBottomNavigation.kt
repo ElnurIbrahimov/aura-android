@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraDimensions
+import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 
 sealed class TopLevelRoute(
@@ -79,7 +80,6 @@ internal val topLevelRoutes = listOf(
     TopLevelRoute.Chat,
     TopLevelRoute.Memory,
     TopLevelRoute.Tasks,
-    TopLevelRoute.Evolution,
     TopLevelRoute.Settings,
 )
 
@@ -97,12 +97,13 @@ fun AuraBottomNavigation(
     val baseRoute = normalizedBaseRoute(currentRoute)
     Surface(
         color = colors.surface0,
-        shape = RectangleShape,
-        shadowElevation = 0.dp,
-        border = BorderStroke(0.dp, Color.Transparent),
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = 8.dp,
+        border = BorderStroke(1.dp, colors.borderSubtle),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(navigationBarInsets)
+            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs)
             .testTag("bottom-navigation"),
     ) {
         Column {
@@ -111,7 +112,7 @@ fun AuraBottomNavigation(
                     .fillMaxWidth()
                     .height(AuraDimensions.bottomNavigationHeight - 8.dp)
                     .testTag("bottom-navigation-row")
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                    .padding(horizontal = AuraSpacing.xs, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -147,7 +148,7 @@ fun AuraBottomNavigation(
                                     imageVector = if (selected) route.selectedIcon else route.unselectedIcon,
                                     contentDescription = null,
                                     tint = contentColor,
-                                    modifier = Modifier.size(21.dp),
+                                    modifier = Modifier.size(22.dp),
                                 )
                             }
                             if (badgeCount > 0) {
