@@ -110,7 +110,7 @@ class TextToSpeech @Inject constructor(
      * complete. Call [flush] when the stream ends to speak any remaining
      * buffered text.
      */
-    private val streamBuffer = StringBuilder()
+    private val streamBuffer = StringBuffer()
     private val streamSentenceEnd = Regex("[.!?]\\s+|\n")
 
     fun feed(text: String) {
@@ -137,7 +137,7 @@ class TextToSpeech @Inject constructor(
             val id = "stream-final-${System.currentTimeMillis()}"
             tts?.speak(remaining, TextToSpeech.QUEUE_ADD, null, id)
         }
-        streamBuffer.clear()
+        streamBuffer.setLength(0)
     }
 
     fun shutdown() {

@@ -192,13 +192,16 @@ class CustomOpenAiCompatProvider(
             return@flow
         }
         // SSRF validation: user-supplied baseUrl must not resolve to internal/private IPs.
-        when (val ssrf = SsrfGuard.inspect(baseUrl)) {
+        // Use pinnedClient to prevent DNS rebinding TOCTOU (same as MCP client).
+        val ssrfResult = SsrfGuard.inspect(baseUrl)
+        when (ssrfResult) {
             is com.aura.core.url.SsrfValidation.Blocked -> {
-                emit(ProviderChunk(error = ProviderError("ssrf_blocked", "Custom endpoint URL blocked: ${ssrf.reason}", retryable = false)))
+                emit(ProviderChunk(error = ProviderError("ssrf_blocked", "Custom endpoint URL blocked: ${ssrfResult.reason}", retryable = false)))
                 return@flow
             }
             is com.aura.core.url.SsrfValidation.Safe -> { /* proceed */ }
         }
+        val pinnedClient = SsrfGuard.pinnedClient(httpClient, ssrfResult)
         val body = kotlinx.serialization.json.buildJsonObject {
             put("model", model)
             put("stream", true)
@@ -232,7 +235,7 @@ class CustomOpenAiCompatProvider(
             .build()
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = Channel.BUFFERED)
         val sseParser = OpenAiSseParser()
-        val src = okhttp3.sse.EventSources.createFactory(httpClient).newEventSource(request, object : okhttp3.sse.EventSourceListener() {
+        val src = okhttp3.sse.EventSources.createFactory(pinnedClient).newEventSource(request, object : okhttp3.sse.EventSourceListener() {
             override fun onEvent(eventSource: okhttp3.sse.EventSource, id: kotlin.String?, type: kotlin.String?, data: kotlin.String) {
                 val chunks = sseParser.parseEvent(data)
                 // P0-AGENTIC-F1: parseEvent returns a list to support parallel
@@ -272,11 +275,18 @@ class CustomOpenAiCompatProvider(
         val (baseUrl, apiKey, modelOverride) = state.snapshot()
         if (baseUrl.isBlank() || apiKey.isBlank()) return@withContext emptyList()
         if (modelOverride.isNotEmpty()) return@withContext modelOverride
+        // SSRF: pin DNS for listModels too
+        val ssrfResult = SsrfGuard.inspect(baseUrl)
+        when (ssrfResult) {
+            is com.aura.core.url.SsrfValidation.Blocked -> return@withContext emptyList()
+            is com.aura.core.url.SsrfValidation.Safe -> { }
+        }
+        val pinnedClient = SsrfGuard.pinnedClient(httpClient, ssrfResult)
         val request = okhttp3.Request.Builder()
             .url("$baseUrl/models")
             .header("Authorization", "Bearer $apiKey")
             .build()
-        val response = httpClient.newCall(request).execute()
+        val response = pinnedClient.newCall(request).execute()
         val raw = response.use { it.body?.string().orEmpty() }
         when (response.code) {
             401 -> throw ProviderCatalogException.AuthenticationException()

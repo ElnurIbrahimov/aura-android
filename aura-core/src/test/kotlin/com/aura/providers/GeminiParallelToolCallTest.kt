@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.toList
@@ -27,7 +28,7 @@ class GeminiParallelToolCallTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("gemini") } returns "key"
+            coEvery { keyForAwaiting("gemini") } returns "key"
             every { isConfigured("gemini") } returns true
         }
         provider = GeminiProvider(

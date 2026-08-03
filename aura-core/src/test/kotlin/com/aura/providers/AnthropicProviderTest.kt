@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -43,7 +44,7 @@ class AnthropicProviderTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("anthropic") } returns "test-api-key"
+            coEvery { keyForAwaiting("anthropic") } returns "test-api-key"
             every { isConfigured("anthropic") } returns true
         }
         // Use a client with followRedirects(false) to match the
@@ -147,7 +148,7 @@ class AnthropicProviderTest {
         unavailable.shutdown()
         val offline = AnthropicProvider(
             providerKeys = mockk {
-                every { keyFor("anthropic") } returns "key"
+                coEvery { keyForAwaiting("anthropic") } returns "key"
                 every { isConfigured("anthropic") } returns true
             },
             httpClient = OkHttpClient.Builder()
@@ -192,7 +193,7 @@ class AnthropicProviderTest {
     fun `isConfigured returns false when API key is not set`() {
         val unconfigured = AnthropicProvider(
             providerKeys = mockk {
-                every { keyFor("anthropic") } returns null
+                coEvery { keyForAwaiting("anthropic") } returns null
                 every { isConfigured("anthropic") } returns false
             },
             httpClient = OkHttpClient(),

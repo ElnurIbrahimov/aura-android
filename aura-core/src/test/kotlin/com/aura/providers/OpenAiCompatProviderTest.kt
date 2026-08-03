@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -29,7 +30,7 @@ class OpenAiCompatProviderTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("test") } returns "test-api-key"
+            coEvery { keyForAwaiting("test") } returns "test-api-key"
             every { isConfigured("test") } returns true
         }
         provider = OpenAiCompatProvider(
@@ -176,7 +177,7 @@ class OpenAiCompatProviderTest {
             displayName = "Test",
             baseUrl = "http://localhost:1",
             providerKeys = mockk {
-                every { keyFor("test") } returns "key"
+                coEvery { keyForAwaiting("test") } returns "key"
                 every { isConfigured("test") } returns true
             },
             httpClient = OkHttpClient.Builder()
@@ -196,7 +197,7 @@ class OpenAiCompatProviderTest {
         val cancelling = object : OpenAiCompatProvider(
             prefix = "test", displayName = "Test",
             baseUrl = server.url("/").toString().removeSuffix("/"),
-            providerKeys = mockk { every { keyFor("test") } returns "key"; every { isConfigured("test") } returns true },
+            providerKeys = mockk { coEvery { keyForAwaiting("test") } returns "key"; every { isConfigured("test") } returns true },
             httpClient = OkHttpClient(),
         ) {
             override suspend fun listModels(): List<String> {
@@ -215,7 +216,7 @@ class OpenAiCompatProviderTest {
         val prov = OpenAiCompatProvider(
             prefix = "test", displayName = "Test",
             baseUrl = "http://localhost:1",
-            providerKeys = mockk { every { keyFor("test") } returns "key"; every { isConfigured("test") } returns true },
+            providerKeys = mockk { coEvery { keyForAwaiting("test") } returns "key"; every { isConfigured("test") } returns true },
             httpClient = OkHttpClient(),
             defaultModels = listOf("built-in-model"),
         )

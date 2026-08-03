@@ -51,13 +51,14 @@ class AnthropicProvider(
     override val displayName = "Anthropic"
 
     /** Live API key, looked up at call time. */
-    private val apiKey: String get() = providerKeys.keyFor(prefix) ?: ""
+    private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix) ?: ""
 
     @Volatile private var activeCall: okhttp3.Call? = null
 
     override fun isConfigured(): Boolean = providerKeys.isConfigured(prefix)
 
     override fun chat(model: String, messages: List<ProviderMessage>, options: ChatOptions, tools: List<ToolDefinition>): Flow<ProviderChunk> = flow {
+        val key = apiKey()
         val (systemPrompt, anthropicMessages) = splitSystem(messages)
         val body = buildJsonObject {
             put("model", model)
@@ -97,7 +98,7 @@ class AnthropicProvider(
         }
         val request = Request.Builder()
             .url("$baseUrl/v1/messages")
-            .addHeader("x-api-key", apiKey)
+            .addHeader("x-api-key", key)
             .addHeader("anthropic-version", "2023-06-01")
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
@@ -222,11 +223,12 @@ class AnthropicProvider(
     }.flowOn(Dispatchers.IO)
 
     override suspend fun listModels(): List<String> {
+        val key = apiKey()
         return try {
             runInterruptible(Dispatchers.IO) {
                 val request = Request.Builder()
                 .url("$baseUrl$modelsEndpoint?limit=100")
-                .addHeader("x-api-key", apiKey)
+                .addHeader("x-api-key", key)
                 .addHeader("anthropic-version", "2023-06-01")
                 .build()
                 httpClient.newCall(request).execute().use { response ->

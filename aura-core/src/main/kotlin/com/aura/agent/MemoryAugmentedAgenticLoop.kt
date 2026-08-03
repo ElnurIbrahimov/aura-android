@@ -784,7 +784,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             }
 
             if (accumulatedText.isNotEmpty()) {
-                currentConversation = currentConversation.addAssistant(accumulatedText.toString())
+                val thinkingText = accumulatedThinking.toString().ifBlank { null }
+                currentConversation = currentConversation.addAssistant(accumulatedText.toString(), thinking = thinkingText)
             }
             for ((id, args) in toolCalls) {
                 val name = toolCallStarts[id] ?: ""

@@ -54,7 +54,7 @@ class GeminiProvider(
     override val displayName = "Google Gemini"
 
     /** Live API key, looked up at call time. */
-    private val apiKey: String get() = providerKeys.keyFor(prefix) ?: ""
+    private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix) ?: ""
 
     @Volatile private var activeCall: okhttp3.Call? = null
 
@@ -66,8 +66,8 @@ class GeminiProvider(
         options: ChatOptions,
         tools: List<ToolDefinition>,
     ): Flow<ProviderChunk> = flow {
+        val key = apiKey()
         val body = buildRequestBody(messages, options, tools)
-        val key = apiKey
         if (key.isBlank()) {
             emit(ProviderChunk(error = ProviderError("missing_api_key", "Gemini API key not configured", retryable = false)))
             return@flow
@@ -180,12 +180,13 @@ class GeminiProvider(
     }.flowOn(Dispatchers.IO)
 
     override suspend fun listModels(): List<String> {
+        val key = apiKey()
         return try {
             runInterruptible(Dispatchers.IO) {
                 val request = Request.Builder()
                 .url("$baseUrl/models")
                 .addHeader("Content-Type", "application/json")
-                .addHeader("X-Goog-Api-Key", apiKey)
+                .addHeader("X-Goog-Api-Key", key)
                 .get()
                 .build()
                 httpClient.newCall(request).execute().use { response ->
@@ -252,7 +253,7 @@ class GeminiProvider(
      */
     override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
         try {
-            val key = apiKey
+            val key = apiKey()
             val requestBuilder = Request.Builder()
                 .url("$baseUrl/v1beta/models?pageSize=100")
             if (key.isNotBlank()) {

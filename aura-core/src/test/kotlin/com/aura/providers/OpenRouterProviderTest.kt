@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,7 @@ class OpenRouterProviderTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("openrouter") } returns "test-api-key"
+            coEvery { keyForAwaiting("openrouter") } returns "test-api-key"
             every { isConfigured("openrouter") } returns true
         }
         provider = OpenRouterProvider(
@@ -55,7 +56,7 @@ class OpenRouterProviderTest {
     fun `isConfigured returns false when API key is not set`() {
         val unconfigured = OpenRouterProvider(
             providerKeys = mockk {
-                every { keyFor("openrouter") } returns null
+                coEvery { keyForAwaiting("openrouter") } returns null
                 every { isConfigured("openrouter") } returns false
             },
             httpClient = OkHttpClient(),

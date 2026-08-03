@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.toList
@@ -32,6 +33,7 @@ class ChatGptSubscriptionToolCallTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
+            coEvery { keyForAwaiting("chatgpt") } returns "test-session-token"
             every { keyFor("chatgpt") } returns "test-session-token"
             every { isConfigured("chatgpt") } returns true
         }

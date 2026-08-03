@@ -55,8 +55,8 @@ class ProviderKeysTest {
     fun `keyFor returns null when no key is set`() = runTest(dispatchTimeoutMs = 60_000) {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
-        assertNull(keys.keyFor("ollama"))
-        assertNull(keys.keyFor("anthropic"))
+        assertNull(keys.keyForAwaiting("ollama"))
+        assertNull(keys.keyForAwaiting("anthropic"))
     }
 
     @Test
@@ -129,7 +129,7 @@ class ProviderKeysTest {
         val keys = createProviderKeys()
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "sk-test-123-abc")
-        assertEquals("sk-test-123-abc", keys.keyFor("ollama"))
+        assertEquals("sk-test-123-abc", keys.keyForAwaiting("ollama"))
         assertTrue(keys.isConfigured("ollama"))
     }
 
@@ -150,7 +150,7 @@ class ProviderKeysTest {
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
 
         keys.set("ollama", "")
-        assertNull(keys.keyFor("ollama"))
+        assertNull(keys.keyForAwaiting("ollama"))
         assertFalse(keys.isConfigured("ollama"))
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["ollama"])
     }
@@ -163,7 +163,7 @@ class ProviderKeysTest {
         assertTrue(keys.isConfigured("ollama"))
 
         keys.set("ollama", "   ")
-        assertNull(keys.keyFor("ollama"))
+        assertNull(keys.keyForAwaiting("ollama"))
         assertFalse(keys.isConfigured("ollama"))
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["ollama"])
     }
@@ -176,9 +176,9 @@ class ProviderKeysTest {
         keys.set("ollama", "sk-ollama-value")
         keys.set("anthropic", "sk-anthropic-value")
 
-        assertEquals("sk-ollama-value", keys.keyFor("ollama"))
-        assertEquals("sk-anthropic-value", keys.keyFor("anthropic"))
-        assertNull(keys.keyFor("openai"))
+        assertEquals("sk-ollama-value", keys.keyForAwaiting("ollama"))
+        assertEquals("sk-anthropic-value", keys.keyForAwaiting("anthropic"))
+        assertNull(keys.keyForAwaiting("openai"))
     }
 
     @Test
@@ -187,7 +187,7 @@ class ProviderKeysTest {
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
         keys.set("ollama", "old-key")
         keys.set("ollama", "new-key")
-        assertEquals("new-key", keys.keyFor("ollama"))
+        assertEquals("new-key", keys.keyForAwaiting("ollama"))
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
     }
 
@@ -252,7 +252,7 @@ class ProviderKeysTest {
         // Second instance reading from same DataStore
         val keys2 = ProviderKeys(secureDataStore)
         keys2.awaitLoaded()
-        assertEquals("sk-persist-value", keys2.keyFor("ollama"))
+        assertEquals("sk-persist-value", keys2.keyForAwaiting("ollama"))
         assertEquals(ProviderCredentialState.Saved, keys2.credentialStates.value["ollama"])
     }
 
@@ -270,7 +270,7 @@ class ProviderKeysTest {
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         assertEquals(ProviderCredentialState.StorageError, keys.credentialStates.value["ollama"])
-        assertNull(keys.keyFor("ollama"))
+        assertNull(keys.keyForAwaiting("ollama"))
         assertFalse(keys.isConfigured("ollama"))
         // Other providers should still be NotConfigured (not StorageError)
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["anthropic"])
@@ -304,8 +304,8 @@ class ProviderKeysTest {
         job1.await()
         job2.await()
 
-        assertEquals("sk-ollama-concurrent", keys.keyFor("ollama"))
-        assertEquals("sk-anthropic-concurrent", keys.keyFor("anthropic"))
+        assertEquals("sk-ollama-concurrent", keys.keyForAwaiting("ollama"))
+        assertEquals("sk-anthropic-concurrent", keys.keyForAwaiting("anthropic"))
     }
 
     @Test
@@ -318,7 +318,7 @@ class ProviderKeysTest {
         keys.set("ollama", "key-2")
         keys.set("ollama", "key-3")
 
-        assertEquals("key-3", keys.keyFor("ollama"))
+        assertEquals("key-3", keys.keyForAwaiting("ollama"))
     }
 
     @Test
@@ -329,7 +329,7 @@ class ProviderKeysTest {
         keys.set("ollama", "sk-ollama")
         keys.setEmbeddingModel("custom-model")
 
-        assertEquals("sk-ollama", keys.keyFor("ollama"))
+        assertEquals("sk-ollama", keys.keyForAwaiting("ollama"))
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
         assertEquals("custom-model", keys.embeddingModel)
     }
@@ -360,14 +360,14 @@ class ProviderKeysTest {
         withContext(Dispatchers.IO) { keys.awaitLoaded() }
 
         // Initially NotConfigured - should return null
-        assertNull(keys.keyFor("openai"))
+        assertNull(keys.keyForAwaiting("openai"))
 
         // After set - should return key
         keys.set("openai", "sk-openai")
-        assertNotNull(keys.keyFor("openai"))
+        assertNotNull(keys.keyForAwaiting("openai"))
 
         // After clear - should return null
         keys.set("openai", "")
-        assertNull(keys.keyFor("openai"))
+        assertNull(keys.keyForAwaiting("openai"))
     }
 }

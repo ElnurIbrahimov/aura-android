@@ -499,11 +499,17 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
             prefs.remove(KEY_SMTP_PASSWORD)
             prefs[KEY_SMTP_FROM] = from.trim().ifBlank { username.trim() }
         }
+        // Only update SecureDataStore when a password is provided.
+        // When password is blank (e.g. backup restore where password
+        // isn't in the backup JSON), preserve the existing stored password.
         if (password.isNotBlank()) {
             secureDataStore?.putString("smtp_password", password)
-        } else {
-            secureDataStore?.removeString("smtp_password")
         }
+        // Explicit clear: caller passes password = " " (single space) to
+        // signal "remove existing password". This avoids wiping the stored
+        // password when the caller just doesn't have one to pass (backup).
+        // (No explicit clear needed yet — the UI can call secureDataStore
+        // directly if a "clear password" action is ever needed.)
     }
 
     // ---- Google / Microsoft OAuth client IDs ----

@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -43,7 +44,7 @@ class GeminiProviderTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("gemini") } returns "test-api-key"
+            coEvery { keyForAwaiting("gemini") } returns "test-api-key"
             every { isConfigured("gemini") } returns true
         }
         provider = GeminiProvider(
@@ -153,7 +154,7 @@ class GeminiProviderTest {
     fun `listModels throws NetworkException when server is unreachable`() = runBlocking<Unit> {
         val offline = GeminiProvider(
             providerKeys = mockk {
-                every { keyFor("gemini") } returns "key"
+                coEvery { keyForAwaiting("gemini") } returns "key"
                 every { isConfigured("gemini") } returns true
             },
             httpClient = OkHttpClient.Builder()
@@ -192,7 +193,7 @@ class GeminiProviderTest {
     fun `isConfigured returns false when API key is not set`() {
         val unconfigured = GeminiProvider(
             providerKeys = mockk {
-                every { keyFor("gemini") } returns null
+                coEvery { keyForAwaiting("gemini") } returns null
                 every { isConfigured("gemini") } returns false
             },
             httpClient = OkHttpClient(),

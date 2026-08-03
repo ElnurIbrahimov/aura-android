@@ -584,6 +584,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         userPreferences.setPlanningEnabled(p.planningEnabled)
         if (p.defaultAgentId.isNotBlank()) userPreferences.setAgentId(p.defaultAgentId)
+        // Restore SMTP config (host, port, username, from — password stays in SecureDataStore)
+        if (!p.smtpHost.isNullOrBlank()) {
+            userPreferences.setSmtpConfig(
+                host = p.smtpHost,
+                port = p.smtpPort,
+                username = p.smtpUsername ?: "",
+                password = "", // Password lives in SecureDataStore — not in backup JSON
+                from = p.smtpFrom ?: "",
+            )
+        }
     }
 
 private suspend fun restoreEvolution(backup: AuraBackup) {

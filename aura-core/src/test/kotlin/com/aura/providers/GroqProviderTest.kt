@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,7 @@ class GroqProviderTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("groq") } returns "test-api-key"
+            coEvery { keyForAwaiting("groq") } returns "test-api-key"
             every { isConfigured("groq") } returns true
         }
         provider = GroqProvider(
@@ -55,7 +56,7 @@ class GroqProviderTest {
     fun `isConfigured returns false when API key is not set`() {
         val unconfigured = GroqProvider(
             providerKeys = mockk {
-                every { keyFor("groq") } returns null
+                coEvery { keyForAwaiting("groq") } returns null
                 every { isConfigured("groq") } returns false
             },
             httpClient = OkHttpClient(),

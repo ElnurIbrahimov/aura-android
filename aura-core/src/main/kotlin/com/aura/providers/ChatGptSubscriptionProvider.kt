@@ -51,10 +51,10 @@ class ChatGptSubscriptionProvider(
 ) : Provider {
     override val prefix = "chatgpt"
     override val displayName = "ChatGPT Subscription"
-    private val apiKey: String get() = providerKeys.keyFor(prefix).orEmpty()
+    private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix).orEmpty()
     @Volatile private var activeEventSource: EventSource? = null
 
-    override fun isConfigured(): Boolean = apiKey.isNotBlank()
+    override fun isConfigured(): Boolean = providerKeys.keyFor(prefix).orEmpty().isNotBlank()
 
     override fun chat(
         model: String,
@@ -62,6 +62,7 @@ class ChatGptSubscriptionProvider(
         options: ChatOptions,
         tools: List<ToolDefinition>,
     ): Flow<ProviderChunk> = flow {
+        val key = apiKey()
         val body = buildJsonObject {
             put("model", model)
             put("stream", true)
@@ -112,7 +113,7 @@ class ChatGptSubscriptionProvider(
         }
         val request = Request.Builder()
             .url("$baseUrl/responses")
-            .header("Authorization", "Bearer $apiKey")
+            .header("Authorization", "Bearer $key")
             .header("Content-Type", "application/json")
             .header("OpenAI-Beta", "responses=experimental")
             .post(body.toString().toRequestBody("application/json".toMediaType()))

@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -29,7 +30,7 @@ class OpenAiCompatCancelRaceTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("test") } returns "key"
+            coEvery { keyForAwaiting("test") } returns "key"
             every { isConfigured("test") } returns true
         }
         provider = OpenAiCompatProvider(

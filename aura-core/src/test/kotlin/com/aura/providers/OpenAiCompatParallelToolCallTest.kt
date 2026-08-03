@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.toList
@@ -41,7 +42,7 @@ class OpenAiCompatParallelToolCallTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("test") } returns "test-key"
+            coEvery { keyForAwaiting("test") } returns "test-key"
             every { isConfigured("test") } returns true
         }
         provider = OpenAiCompatProvider(

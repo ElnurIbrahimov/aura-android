@@ -50,7 +50,7 @@ open class OpenAiCompatProvider(
      * hasn't set a key for this provider; [isConfigured] will return false in
      * that case and the chat request will fail with a clear 401.
      */
-    private val apiKey: String get() = providerKeys.keyFor(prefix) ?: ""
+    private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix) ?: ""
 
     override fun isConfigured(): Boolean = providerKeys.isConfigured(prefix)
 
@@ -60,7 +60,8 @@ open class OpenAiCompatProvider(
         options: ChatOptions,
         tools: List<ToolDefinition>,
     ): Flow<ProviderChunk> = flow {
-        val request = buildRequest(model, messages, options, tools, stream = true)
+        val key = apiKey()
+        val request = buildRequest(model, messages, options, tools, stream = true, key = key)
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
         val sseParser = OpenAiSseParser()
         // P0-PROVIDERS-CANCEL: wrap the listener so the source reference is
@@ -119,10 +120,11 @@ open class OpenAiCompatProvider(
     }
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         if (defaultModels.isNotEmpty()) return@withContext defaultModels
+        val key = apiKey()
         try {
             val request = Request.Builder()
                 .url("$baseUrl/models")
-                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Authorization", "Bearer $key")
                 .build()
             httpClient.newCall(request).execute().use { response ->
                 when (response.code) {
@@ -212,6 +214,7 @@ open class OpenAiCompatProvider(
         options: ChatOptions,
         tools: List<ToolDefinition>,
         stream: Boolean,
+        key: String,
     ): Request {
         val body = buildJsonObject {
             put("model", model)
@@ -245,7 +248,7 @@ open class OpenAiCompatProvider(
         }
         return Request.Builder()
             .url("$baseUrl/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $key")
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()

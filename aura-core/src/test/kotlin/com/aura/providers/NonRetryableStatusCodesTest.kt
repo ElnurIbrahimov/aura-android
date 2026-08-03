@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.toList
@@ -59,7 +60,7 @@ class NonRetryableStatusCodesTest {
     }
 
     private fun keys(prefix: String) = mockk<ProviderKeys> {
-        every { keyFor(prefix) } returns "test-key"
+        coEvery { keyForAwaiting(prefix) } returns "test-key"
         every { isConfigured(prefix) } returns true
     }
 

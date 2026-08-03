@@ -39,6 +39,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
@@ -281,6 +284,7 @@ fun MessageBubble(
     animationIndex: Int = 0,
     durationMs: Long = 0L,
     generatedImages: List<String> = emptyList(),
+    thinking: String? = null,
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
@@ -311,6 +315,7 @@ fun MessageBubble(
             animationIndex = animationIndex,
             copied = copied,
             generatedImages = generatedImages,
+            thinking = thinking,
             onCopiedChange = { copied = it },
             onCopy = {
                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -393,6 +398,7 @@ private fun AssistantMessage(
     animationIndex: Int,
     copied: Boolean,
     generatedImages: List<String> = emptyList(),
+    thinking: String? = null,
     onCopiedChange: (Boolean) -> Unit,
     onCopy: () -> Unit,
     onShowSources: () -> Unit,
@@ -458,6 +464,10 @@ private fun AssistantMessage(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
+            }
+            // Persisted thinking block (from history replay)
+            if (!thinking.isNullOrBlank() && !isStreaming) {
+                PersistedThinkingBlock(text = thinking)
             }
             Spacer(Modifier.height(6.dp))
             val renderedText = remember(text, citations, isStreaming) {
@@ -681,4 +691,61 @@ private fun formatDuration(ms: Long): String = when {
     ms < 1000 -> "${ms}ms"
     ms < 60_000 -> String.format(java.util.Locale.US, "%.1fs", ms / 1000.0)
     else -> String.format(java.util.Locale.US, "%.1fm", ms / 60_000.0)
+}
+
+@Composable
+private fun PersistedThinkingBlock(text: String) {
+    var expanded by remember { mutableStateOf(false) }
+    val colors = AuraThemeTokens.colors
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xxs),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.small)
+                .clickable { expanded = !expanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Psychology,
+                contentDescription = null,
+                tint = colors.assistantAccent,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = if (expanded) "Thinking" else "Thinking\u2026",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textTertiary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = colors.textTertiary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        if (expanded) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = colors.surface0,
+                shape = MaterialTheme.shapes.small,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = text,
+                        modifier = Modifier.padding(AuraSpacing.sm),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textTertiary,
+                        lineHeight = 18.sp,
+                    )
+                }
+            }
+        }
+    }
 }

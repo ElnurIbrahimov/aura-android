@@ -1,5 +1,6 @@
 package com.aura.providers
 
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,7 @@ class OpenAiCompatProviderMockWebServerTest {
         server = MockWebServer()
         server.start()
         val keys = mockk<ProviderKeys> {
-            every { keyFor("test") } returns "sk-abc123-secret"
+            coEvery { keyForAwaiting("test") } returns "sk-abc123-secret"
             every { isConfigured("test") } returns true
         }
         provider = OpenAiCompatProvider(

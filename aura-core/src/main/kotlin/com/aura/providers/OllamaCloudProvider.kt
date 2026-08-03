@@ -96,7 +96,7 @@ class OllamaCloudProvider(
         // doesn't break the catalog.
         names.map { name ->
             val contextWindow = runCatching {
-                val apiKey = providerKeys.keyFor(prefix).orEmpty()
+                val apiKey = providerKeys.keyForAwaiting(prefix).orEmpty()
                 val request = Request.Builder()
                     .url("$baseUrl/api/show")
                     .post(

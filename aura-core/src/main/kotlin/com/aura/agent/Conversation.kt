@@ -99,11 +99,11 @@ data class Conversation(
     )
 
     /** Append or fill in an assistant turn. */
-    fun addAssistant(text: String, agentId: String? = null): Conversation {
+    fun addAssistant(text: String, agentId: String? = null, thinking: String? = null): Conversation {
         if (turns.isEmpty() || turns.last().assistant != null || turns.last().user == null) {
-            return copy(turns = turns + Turn(assistant = text, agentId = agentId), updatedAt = System.currentTimeMillis())
+            return copy(turns = turns + Turn(assistant = text, agentId = agentId, thinking = thinking), updatedAt = System.currentTimeMillis())
         }
-        return replaceLastTurn(turns.last().copy(assistant = text, agentId = agentId))
+        return replaceLastTurn(turns.last().copy(assistant = text, agentId = agentId, thinking = thinking))
     }
 
     /**
@@ -198,6 +198,14 @@ data class Turn(
     val reaction: Reaction? = null,
     /** Whether this turn is pinned by the user for quick reference. */
     val pinned: Boolean = false,
+    /**
+     * Extended-thinking / reasoning output from the model. Collected
+     * from ProviderChunk.thinking via BrainChunk.Thinking during the
+     * streaming response. Persisted so the user can expand the
+     * thinking block on history replays. Null when the model didn't
+     * produce thinking output or thinking was disabled.
+     */
+    val thinking: String? = null,
 )
 
 /**
