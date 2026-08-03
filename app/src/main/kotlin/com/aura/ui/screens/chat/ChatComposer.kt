@@ -101,7 +101,7 @@ fun ChatComposer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = AuraSpacing.xs, vertical = 6.dp)
             .defaultMinSize(minHeight = 52.dp)
             .testTag("chat-composer"),
         color = AuraThemeTokens.colors.surface1,

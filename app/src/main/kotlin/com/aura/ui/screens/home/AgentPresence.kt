@@ -147,12 +147,12 @@ private fun rememberAgentPulse(): Float {
 
 private fun rememberAgentColor(name: String): Color {
     val palette = listOf(
-        Color(0xFF8B5CF6),
-        Color(0xFF3B82F6),
-        Color(0xFF10A37F),
-        Color(0xFFF59E0B),
-        Color(0xFFEC4899),
-        Color(0xFF06B6D4),
+        Color(0xFF0F766E), // teal-700 (brand)
+        Color(0xFF2DD4BF), // teal-400
+        Color(0xFF3B82F6), // blue
+        Color(0xFFF59E0B), // amber
+        Color(0xFFEC4899), // pink
+        Color(0xFF06B6D4), // cyan
     )
     return palette[Math.floorMod(name.hashCode(), palette.size)]
 }

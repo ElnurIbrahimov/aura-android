@@ -344,7 +344,7 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
                 translationY = (1f - springEased.value) * 16f
                 alpha = springEased.value
             }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
         horizontalArrangement = Arrangement.End,
     ) {
         // Pointed-corner bubble: top-left 24, top-right 24,
@@ -354,15 +354,8 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
         Box(
             modifier = Modifier
                 .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 4.dp))
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            AuraThemeTokens.colors.userBubble,
-                            AuraThemeTokens.colors.userBubble,
-                        ),
-                    ),
-                )
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 24.dp))
+                    .background(AuraThemeTokens.colors.userBubble)
                 .combinedClickable(
                     onClick = {},
                     onLongClick = onEdit,
@@ -385,6 +378,7 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun AssistantMessage(
     text: String,
@@ -430,15 +424,14 @@ private fun AssistantMessage(
                 translationY = (1f - springEased.value) * 16f
                 alpha = springEased.value
             }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
-        // Avatar: web uses w-7 h-7 (28dp). 36dp looked like a
-        // giant blob next to 14sp body text.
+        // Avatar: 32dp — proportional to 16sp body text, matches Claude mobile.
         AuraAiAvatar(
             isThinking = isStreaming,
             isProactive = isProactive,
-            size = 28.dp,
+            size = 32.dp,
         )
         Column(modifier = Modifier.weight(1f)) {
             // Role label
@@ -505,12 +498,18 @@ private fun AssistantMessage(
                 Spacer(Modifier.height(AuraSpacing.xs))
                 CitationChipRow(citations = citations, onShowSources = onShowSources)
             }
-            // Footer: timestamp + actions (model metadata moved to debug)
+            // Footer: timestamp + actions. Actions appear on long-press
+            // to reduce visual noise (like Claude mobile).
             if (!isStreaming) {
                 Spacer(Modifier.height(AuraSpacing.xs))
+                var showActions by remember { mutableStateOf(false) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                    modifier = Modifier.combinedClickable(
+                        onClick = { showActions = !showActions },
+                        onLongClick = { showActions = true },
+                    ),
                 ) {
                     if (timestamp > 0) {
                         Text(
@@ -521,9 +520,9 @@ private fun AssistantMessage(
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    // Reaction buttons: thumbs up / down. Toggle the
-                    // active one off when tapped again. Match Copy's
-                    // 18dp IconButton so the row height is uniform.
+                    // Action buttons appear on tap/long-press to reduce noise
+                    if (showActions) {
+                    // Reaction buttons: thumbs up / down.
                     BubbleAction(
                         icon = Icons.Filled.ThumbUp,
                         label = "Helpful",
@@ -548,6 +547,7 @@ private fun AssistantMessage(
                         label = "Share",
                         onClick = onShare,
                     )
+                    } // end if (showActions)
                 }
             }
         }
