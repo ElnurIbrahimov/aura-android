@@ -55,6 +55,8 @@ class DaemonWorker @AssistedInject constructor(
     private val adaptiveTimingEngine: AdaptiveTimingEngine? = null,
     private val idleTimePreparationEngine: IdleTimePreparationEngine? = null,
     private val proactiveMessageLibrary: ProactiveMessageLibrary? = null,
+    // Council — overnight agent society debates
+    private val councilOrchestrator: com.aura.agent.council.CouncilOrchestrator? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -159,6 +161,49 @@ class DaemonWorker @AssistedInject constructor(
 
             // 8. LLM insight — review conversation + context
             generateLlmInsight()
+
+            // 9. Council — agents debate findings and propose interventions
+            runCatching {
+                councilOrchestrator?.let { orchestrator ->
+                    if (salient.isNotEmpty()) {
+                        val councilContext = buildString {
+                            val calEvents = runCatching {
+                                calendarReadTool.readTodaysEvents()
+                            }.getOrDefault(emptyList())
+                            if (calEvents.isNotEmpty()) {
+                                append("Calendar: ${calEvents.joinToString("; ")}\n")
+                            }
+                            val today = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                            val tomorrow = today + 24L * 60 * 60 * 1000
+                            val due = runCatching { taskDao.dueInRange(today, tomorrow) }.getOrDefault(emptyList())
+                            if (due.isNotEmpty()) {
+                                append("Tasks due: ${due.joinToString("; ") { it.title }}\n")
+                            }
+                        }
+                        val results = orchestrator.runFromFindings(salient, councilContext)
+                        for (result in results) {
+                            if (result.quorumReached && result.proposal != null) {
+                                val body = when (result.proposal) {
+                                    is com.aura.agent.council.Intervention.Schedule -> result.proposal.description
+                                    is com.aura.agent.council.Intervention.Message -> result.proposal.draftBody.take(200)
+                                    is com.aura.agent.council.Intervention.Reminder -> result.proposal.rationale
+                                    is com.aura.agent.council.Intervention.SelfCare -> result.proposal.rationale
+                                    is com.aura.agent.council.Intervention.Memory -> result.proposal.connection
+                                }
+                                eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+                                    title = "Council: ${result.proposal.summary}",
+                                    body = body,
+                                ))
+                            }
+                        }
+                    }
+                }
+            }.onFailure { Log.w(TAG, "council: ${it.message}", it) }
 
             Result.success()
         } catch (e: Exception) {
