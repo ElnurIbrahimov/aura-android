@@ -1,5 +1,6 @@
 package com.aura.ui.screens.home
 
+import androidx.compose.material.icons.filled.HowToVote
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
@@ -78,6 +79,7 @@ fun HomeSecondaryActions(
     onOpenProduction: () -> Unit = {},
     onOpenCapabilities: () -> Unit = {},
     onOpenEvolution: () -> Unit = {},
+    onOpenCouncil: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val groups = listOf(
@@ -102,6 +104,7 @@ fun HomeSecondaryActions(
             destinations = listOf(
                 HomeDestination("Proactive", if (proactiveCount == 0) "All caught up" else "$proactiveCount events", Icons.Filled.NotificationsActive, onOpenProactive),
                 HomeDestination("Evolution", "Self-improvement", Icons.Filled.AutoAwesome, onOpenEvolution),
+                HomeDestination("Council", "Agent society", Icons.Filled.HowToVote, onOpenCouncil),
                 HomeDestination("Tools", "All $toolsCount tools", Icons.Filled.Build, onOpenTools),
                 HomeDestination("Agent Runs", "Durable runs", Icons.Filled.Movie, onOpenAgentRuns),
                 HomeDestination("Production", "Pipelines", Icons.Filled.Movie, onOpenProduction),

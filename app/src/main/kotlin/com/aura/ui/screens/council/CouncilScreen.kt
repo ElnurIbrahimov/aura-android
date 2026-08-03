@@ -1,237 +1,170 @@
 package com.aura.ui.screens.council
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.HowToVote
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.aura.agent.AgentCouncil
-import com.aura.agent.AgentEntity
+import com.aura.agent.forum.ForumPostEntity
 import com.aura.ui.components.AuraScreenShell
-import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
-import com.aura.ui.theme.InterDisplay
-import com.aura.ui.viewmodel.CouncilViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CouncilScreen(
     onBack: () -> Unit,
-    onSendToChat: (String) -> Unit = {},
     viewModel: CouncilViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     AuraScreenShell(
-        title = "Agent Council",
-        subtitle = "Multi-agent council results",
+        title = "Council",
+        subtitle = "Agent society decisions",
         action = {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Filled.Close, contentDescription = "Back")
             }
         },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = AuraSpacing.md)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Spacer(Modifier.height(AuraSpacing.sm))
-            Text(
-                text = "Ask multiple agents, then let one synthesize the best answer.",
-                color = AuraThemeTokens.colors.textSecondary,
-                fontFamily = InterDisplay,
-                fontSize = 14.sp,
+    ) { paddingValues ->
+        if (state.selectedThread.isNotEmpty()) {
+            ThreadView(
+                posts = state.selectedThread,
+                onBack = { viewModel.closeThread() },
             )
-
-            Spacer(Modifier.height(AuraSpacing.md))
-
-            OutlinedTextField(
-                value = state.task,
-                onValueChange = viewModel::setTask,
-                label = { Text("Task for the council") },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 6,
-                trailingIcon = {
-                    IconButton(
-                        onClick = { viewModel.runCouncil() },
-                        enabled = state.task.isNotBlank() && !state.running,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Run council")
-                    }
-                },
-            )
-
-            Spacer(Modifier.height(AuraSpacing.md))
-
-            Text(
-                text = "Agents",
-                fontFamily = InterDisplay,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-            )
-
-            Spacer(Modifier.height(AuraSpacing.xs))
-
-            AgentMultiSelect(
-                agents = state.availableAgents,
-                selectedIds = state.selectedAgentIds,
-                onToggle = viewModel::toggleAgent,
-            )
-
-            Spacer(Modifier.height(AuraSpacing.lg))
-
-            if (state.running) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Running council...", color = AuraThemeTokens.colors.textSecondary)
-                }
-            }
-
-            state.error?.let {
-                Spacer(Modifier.height(AuraSpacing.xs))
-                Text(it, color = AuraThemeTokens.colors.error, fontSize = 14.sp)
-            }
-
-            state.result?.let { result ->
-                Spacer(Modifier.height(AuraSpacing.md))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Final synthesis", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    IconButton(onClick = { onSendToChat(result.directorOutput) }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send synthesis to chat",
-                            tint = AuraThemeTokens.colors.actionPrimary,
-                        )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (state.interventions.isEmpty() && !state.isLoading) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 80.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(
+                                Icons.Filled.Forum,
+                                contentDescription = null,
+                                modifier = Modifier.padding(bottom = 16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "No council activity yet",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Agents will debate and propose interventions while your phone is idle.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(AuraSpacing.xs))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = AuraThemeTokens.colors.surface1,
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Text(
-                        text = result.directorOutput,
-                        modifier = Modifier.padding(AuraSpacing.md),
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
+
+                items(state.interventions, key = { it.id }) { post ->
+                    InterventionCard(
+                        post = post,
+                        onOpenThread = { viewModel.openThread(post.threadId) },
+                        onApprove = { viewModel.approveIntervention(post.id) },
+                        onReject = { viewModel.rejectIntervention(post.id) },
                     )
                 }
             }
-
-            if (state.progress.isNotEmpty()) {
-                Spacer(Modifier.height(AuraSpacing.lg))
-                Text("Progress", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Spacer(Modifier.height(AuraSpacing.xs))
-                state.progress.forEach { progress ->
-                    ProgressCard(progress)
-                    Spacer(Modifier.height(AuraSpacing.xs))
-                }
-            }
-
-            Spacer(Modifier.height(AuraSpacing.lg))
         }
     }
 }
 
 @Composable
-private fun AgentMultiSelect(
-    agents: List<AgentEntity>,
-    selectedIds: List<String>,
-    onToggle: (String) -> Unit,
+private fun InterventionCard(
+    post: ForumPostEntity,
+    onOpenThread: () -> Unit,
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.heightIn(max = 320.dp),
-        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
-        contentPadding = PaddingValues(vertical = 4.dp),
+    val agentName = post.agentId.removePrefix("agent_").replaceFirstChar { it.uppercase() }
+    val isProposal = post.type == "proposal"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
     ) {
-        items(agents, key = { it.id }) { agent ->
-            val selected = agent.id in selectedIds
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = post.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = AuraThemeTokens.colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            AssistChip(
+                onClick = onOpenThread,
+                label = { Text(agentName, style = MaterialTheme.typography.labelSmall) },
+                leadingIcon = { Icon(Icons.Filled.HowToVote, contentDescription = null, modifier = Modifier.height(16.dp)) },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = post.body.take(300),
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+            maxLines = 4,
+        )
+
+        if (isProposal) {
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (selected) AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f) else AuraThemeTokens.colors.surface1)
-                    .clickable { onToggle(agent.id) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = agent.icon,
-                    fontSize = 22.sp,
-                    modifier = Modifier.width(32.dp),
+                    text = "Tap thread to see debate",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AuraThemeTokens.colors.textTertiary,
+                    modifier = Modifier.weight(1f),
                 )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = agent.name,
-                        fontFamily = InterDisplay,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                    )
-                    if (agent.description.isNotBlank()) {
-                        Text(
-                            text = agent.description,
-                            color = AuraThemeTokens.colors.textTertiary,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                IconButton(onClick = onReject) {
+                    Icon(Icons.Filled.Close, contentDescription = "Reject", tint = MaterialTheme.colorScheme.error)
                 }
-                if (selected) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "Selected",
-                        tint = AuraThemeTokens.colors.actionPrimary,
-                        modifier = Modifier.size(20.dp),
-                    )
+                IconButton(onClick = onApprove) {
+                    Icon(Icons.Filled.Check, contentDescription = "Approve", tint = AuraThemeTokens.colors.actionPrimary)
                 }
             }
         }
@@ -239,43 +172,76 @@ private fun AgentMultiSelect(
 }
 
 @Composable
-private fun ProgressCard(progress: AgentCouncil.Progress) {
-    val (icon, title, body) = when (progress) {
-        is AgentCouncil.Progress.ProposalsStarted ->
-            Triple(Icons.Filled.Groups, "Proposals started", progress.agentNames.joinToString(", "))
-        is AgentCouncil.Progress.ProducerDone ->
-            Triple(Icons.Filled.Groups, "${progress.agentName} finished", progress.output)
-        is AgentCouncil.Progress.DirectorStarted ->
-            Triple(Icons.Filled.Groups, "Director ${progress.agentName} synthesizing", "")
-        is AgentCouncil.Progress.DirectorDone ->
-            Triple(Icons.Filled.Groups, "Director done", progress.output)
-        is AgentCouncil.Progress.Error ->
-            Triple(Icons.Filled.Groups, "Error", progress.message)
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(12.dp),
+private fun ThreadView(
+    posts: List<ForumPostEntity>,
+    onBack: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(AuraSpacing.sm),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Icon(icon, contentDescription = null, tint = AuraThemeTokens.colors.actionPrimary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(title, fontFamily = InterDisplay, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                if (body.isNotBlank()) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close thread")
+                }
+                Text(
+                    "Debate thread",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        items(posts, key = { it.id }) { post ->
+            val agentName = post.agentId.removePrefix("agent_").replaceFirstChar { it.uppercase() }
+            val typeLabel = when (post.type) {
+                "debate" -> "debated"
+                "proposal" -> "proposed"
+                "intervention" -> "intervened"
+                "dream" -> "dreamed"
+                else -> post.type
+            }
+            val sentimentIcon = when {
+                post.sentiment > 0.3f -> "▲"
+                post.sentiment < -0.3f -> "▼"
+                else -> "◆"
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
                     Text(
-                        text = body,
-                        color = AuraThemeTokens.colors.textSecondary,
-                        fontSize = 12.sp,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 16.sp,
+                        text = "$agentName $typeLabel",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AuraThemeTokens.colors.actionPrimary,
+                    )
+                    Text(
+                        text = sentimentIcon,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = when {
+                            post.sentiment > 0.3f -> AuraThemeTokens.colors.success
+                            post.sentiment < -0.3f -> MaterialTheme.colorScheme.error
+                            else -> AuraThemeTokens.colors.textTertiary
+                        },
                     )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = post.body.take(500),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                )
             }
         }
     }

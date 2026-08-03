@@ -181,6 +181,7 @@ fun NavGraph(
                     onOpenProduction = { navController.navigate("production") },
                     onOpenCapabilities = { navController.navigate("capabilities") },
                     onOpenEvolution = { navController.navigate("evolution/inbox") },
+            onOpenCouncil = { navController.navigate("council") },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
@@ -351,21 +352,6 @@ fun NavGraph(
                     onDone = { navController.popBackStack() },
                 )
             }
-            composable(
-                route = "council/{convId}",
-                arguments = listOf(navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null }),
-            ) { backStackEntry ->
-                val convId = backStackEntry.arguments?.getString("convId")
-                CouncilScreen(
-                    onBack = { navController.popBackStack() },
-                    onSendToChat = { text ->
-                        if (!convId.isNullOrBlank()) {
-                            navController.previousBackStackEntry?.savedStateHandle?.set("council_result", text)
-                            navController.popBackStack()
-                        }
-                    },
-                )
-            }
             composable("evolution/inbox") {
                 EvolutionInboxScreen(
                     onBack = { navController.popBackStack() },
@@ -379,6 +365,9 @@ fun NavGraph(
 
             composable("evolution/beliefs") {
                 BeliefsScreen()
+            }
+            composable("council") {
+                CouncilScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = "evolution/rollback/{proposalId}",
