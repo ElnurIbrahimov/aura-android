@@ -96,12 +96,52 @@ class TavilySearchTool @Inject constructor(
             }
         },
     category = "web")
+    /**
+     * Backend entry point for the consolidated [WebSearchTool]
+     * dispatcher: structured results (title/url/snippet), basic depth,
+     * AI answer included.
+     */
+    internal suspend fun searchStructured(query: kotlin.String, maxResults: Int, apiKey: kotlin.String): List<WebSearchResult> {
+        val requestBody = buildJsonBody(query, maxResults, "basic", true, apiKey)
+        val req = Request.Builder()
+            .url("https://api.tavily.com/search")
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $apiKey")
+            .post(requestBody.toRequestBody(mediaType))
+            .build()
+        val response = httpClient.newCall(req).execute()
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: ""
+            throw RuntimeException("Tavily API HTTP ${response.code}: $errorBody")
+        }
+        val body = response.body?.string() ?: throw RuntimeException("Empty response body")
+        return parseStructured(body)
+    }
+
+    private fun parseStructured(body: kotlin.String): List<WebSearchResult> {
+        val root = json.parseToJsonElement(body).jsonObject
+        val out = mutableListOf<WebSearchResult>()
+        root["answer"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }?.let {
+            out.add(WebSearchResult(title = "AI answer", url = "", snippet = it))
+        }
+        val results = root["results"]?.jsonArray ?: return out
+        results.forEach { el ->
+            val obj = el.jsonObject
+            val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val url = obj["url"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val content = obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+            out.add(WebSearchResult(title, url, content))
+        }
+        return out
+    }
+
     private fun search(
         query: String,
         maxResults: Int,
         searchDepth: String,
         includeAnswer: Boolean,
-        apiKey: kotlin.String,
+        apiKey: kotlin.String
     ): String {
         val requestBody = buildJsonBody(query, maxResults, searchDepth, includeAnswer, apiKey)
         val req = Request.Builder()

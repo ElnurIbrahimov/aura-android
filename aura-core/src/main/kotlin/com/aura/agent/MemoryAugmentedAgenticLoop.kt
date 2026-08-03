@@ -1139,15 +1139,12 @@ private suspend fun extractProfileFromText(text: String) {
      */
     private suspend fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> {
         if (providerKeys == null) return tools
-        val tavilyConfigured = !providerKeys.keyForAwaiting("tavily").isNullOrBlank()
-        val braveConfigured = !providerKeys.keyForAwaiting("brave").isNullOrBlank()
-        return tools.filter { def ->
-            when (def.name) {
-                "tavily_search" -> tavilyConfigured
-                "brave_search" -> braveConfigured
-                else -> true
-            }
-        }
+        // M5 consolidation: web_search now dispatches to Tavily/Brave
+        // internally, so the standalone tools would only create
+        // selection ambiguity for the model. They stay registered in
+        // the ToolRegistry (direct/tool calls and tests still work),
+        // but the model sees exactly one search tool.
+        return tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
     }
 
     /**

@@ -77,6 +77,14 @@ class BraveSearchTool @Inject constructor(
         }
     }
 
+    /**
+     * Backend entry point for the consolidated [WebSearchTool]
+     * dispatcher: Brave API call with a known-good key, returned as
+     * structured results.
+     */
+    internal suspend fun searchStructured(query: kotlin.String, maxResults: Int, apiKey: kotlin.String): List<WebSearchResult> =
+        searchBraveApi(query, maxResults, apiKey).map { WebSearchResult(it.title, it.url, it.snippet) }
+
     // ------------------------------------------------------------------
     // Brave Web Search API
     // ------------------------------------------------------------------

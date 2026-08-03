@@ -25,7 +25,7 @@ class ToolsModuleSanityTest {
         val registry = ToolRegistry()
         registry.register(ImageGenCapabilityTool(router).tool)
         registry.register(WebSearchCapabilityTool(router, okhttp3.OkHttpClient()).tool)
-        registry.register(WebSearchTool(okhttp3.OkHttpClient()).tool)
+        registry.register(WebSearchTool(okhttp3.OkHttpClient(), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true)).tool)
 
         val names = registry.all().map { it.name }.toSet()
         assertTrue("image_generate" in names)
