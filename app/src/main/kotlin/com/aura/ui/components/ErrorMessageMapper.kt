@@ -17,6 +17,8 @@ fun friendlyErrorMessage(raw: String): String = when {
         "The AI provider is having issues. Try again."
     raw.contains("missing_api_key", ignoreCase = true) ->
         "No API key configured. Go to Settings → AI & Models."
+    raw.contains("empty_response", ignoreCase = true) ->
+        "The model returned an empty response. Try again or switch models."
     raw.contains("not_configured", ignoreCase = true) ->
         "This provider isn't set up yet. Go to Settings."
     raw.contains("tool_timeout", ignoreCase = true) ->

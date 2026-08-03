@@ -793,6 +793,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             }
 
             if (toolCalls.isEmpty() || finishReason == "stop" || finishReason == "length") {
+                // Guard: if the stream produced no text, no tool calls, and
+                // no error, the model returned an empty response. Emit an
+                // error so the user sees something instead of silence.
+                if (accumulatedText.isEmpty() && stepError == null && toolCalls.isEmpty()) {
+                    emit(AgentEvent.Error("empty_response", "The model returned an empty response. Try again or switch models.", true, null))
+                }
                 finished = true
                 break
             }
