@@ -89,6 +89,9 @@ internal val KEY_GOOGLE_CLIENT_ID = stringPreferencesKey("google_client_id")
 internal val KEY_MICROSOFT_CLIENT_ID = stringPreferencesKey("microsoft_client_id")
 internal val KEY_REASONING_ENABLED = booleanPreferencesKey("reasoning_enabled")
 internal val KEY_REASONING_BUDGET = intPreferencesKey("reasoning_budget")
+internal val KEY_COUNCIL_ENABLED = booleanPreferencesKey("council_enabled")
+internal val KEY_COUNCIL_AUTO_APPLY = booleanPreferencesKey("council_auto_apply")
+internal val KEY_COUNCIL_ACTIVITY_LEVEL = intPreferencesKey("council_activity_level")
 
 @Singleton
 class UserPreferences @Inject constructor(
@@ -588,5 +591,39 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
             com.aura.providers.ModelRole.EMBEDDING -> setOptionalModel(KEY_EMBEDDING_MODEL, model)
             com.aura.providers.ModelRole.EVOLUTION -> setOptionalModel(KEY_EVOLUTION_MODEL, model)
         }
+    }
+
+    /**
+     * Whether the overnight council runs during idle/charging.
+     * Default true (opt-out). When disabled, agents do not debate
+     * overnight and no interventions are proposed.
+     */
+    val councilEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_COUNCIL_ENABLED] ?: true }
+
+    /**
+     * Whether council interventions are auto-applied without user
+     * approval. Default false — all interventions require explicit
+     * approval. Only enable if you trust the council completely.
+     */
+    val councilAutoApply: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_COUNCIL_AUTO_APPLY] ?: false }
+
+    /**
+     * Council activity level (1-5). Controls how many findings are
+     * debated per session and how many agents participate.
+     * 1 = minimal (1 finding, 3 agents), 5 = active (3 findings, 5 agents).
+     * Default 3.
+     */
+    val councilActivityLevel: Flow<Int> = context.auraPrefs.data.map { it[KEY_COUNCIL_ACTIVITY_LEVEL] ?: 3 }
+
+    suspend fun setCouncilEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_COUNCIL_ENABLED] = enabled }
+    }
+
+    suspend fun setCouncilAutoApply(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_COUNCIL_AUTO_APPLY] = enabled }
+    }
+
+    suspend fun setCouncilActivityLevel(level: Int) {
+        context.auraPrefs.edit { it[KEY_COUNCIL_ACTIVITY_LEVEL] = level.coerceIn(1, 5) }
     }
 }

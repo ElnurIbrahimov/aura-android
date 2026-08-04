@@ -163,7 +163,10 @@ class DaemonWorker @AssistedInject constructor(
             generateLlmInsight()
 
             // 9. Council — agents debate findings and propose interventions
-            runCatching {
+            val councilEnabled = runCatching { userPreferences.councilEnabled.first() }
+                .getOrDefault(true)
+            if (councilEnabled) {
+                runCatching {
                 councilOrchestrator?.let { orchestrator ->
                     if (salient.isNotEmpty()) {
                         val councilContext = buildString {
@@ -204,6 +207,7 @@ class DaemonWorker @AssistedInject constructor(
                     }
                 }
             }.onFailure { Log.w(TAG, "council: ${it.message}", it) }
+            }
 
             Result.success()
         } catch (e: Exception) {
