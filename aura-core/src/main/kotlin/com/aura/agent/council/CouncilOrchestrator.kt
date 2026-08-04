@@ -5,6 +5,7 @@ import com.aura.agent.forum.DebateRoundUseCase
 import com.aura.agent.forum.ForumEngine
 import com.aura.agent.state.AgentStateStore
 import com.aura.proactive.ProactiveAwarenessEngine
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -95,6 +96,13 @@ class CouncilOrchestrator @Inject constructor(
      * Run a single council session on a topic.
      */
     suspend fun runSession(
+        topic: kotlin.String,
+        context: kotlin.String = "",
+    ): CouncilResult = withTimeout(120_000L) {
+        _runSession(topic, context)
+    }
+
+    private suspend fun _runSession(
         topic: kotlin.String,
         context: kotlin.String = "",
     ): CouncilResult {

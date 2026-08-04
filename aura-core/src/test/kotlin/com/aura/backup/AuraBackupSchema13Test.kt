@@ -24,7 +24,7 @@ class AuraBackupSchema13Test {
 
     @Test
     fun `schema version is 15`() {
-        assertEquals(15, AuraBackup.SCHEMA_VERSION)
+        assertEquals(16, AuraBackup.SCHEMA_VERSION)
     }
 
     @Test
@@ -134,7 +134,7 @@ class AuraBackupSchema13Test {
 
         val restored = json.decodeFromString<AuraBackup>(json.encodeToString(original))
 
-        assertEquals(15, restored.schemaVersion)
+        assertEquals(16, restored.schemaVersion)
 
         val dep = restored.artifactDependencies.single()
         assertEquals("derived_from", dep.relation)

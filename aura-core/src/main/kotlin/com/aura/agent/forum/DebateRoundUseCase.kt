@@ -9,7 +9,11 @@ import com.aura.agent.state.AgentStateStore
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -59,14 +63,18 @@ class DebateRoundUseCase @Inject constructor(
 
         val cheapModel = resolveCheapModel()
 
-        return agents.map { agent ->
-            val stance = generateStance(agent, topic, context, previousRoundStances, cheapModel)
-            DebateEntry(
-                agentId = agent.id,
-                agentName = agent.name,
-                stance = stance.text,
-                sentiment = stance.sentiment,
-            )
+        return coroutineScope {
+            agents.map { agent ->
+                async {
+                    val stance = generateStance(agent, topic, context, previousRoundStances, cheapModel)
+                    DebateEntry(
+                        agentId = agent.id,
+                        agentName = agent.name,
+                        stance = stance.text,
+                        sentiment = stance.sentiment,
+                    )
+                }
+            }.awaitAll()
         }
     }
 
@@ -150,7 +158,9 @@ class DebateRoundUseCase @Inject constructor(
                 ProviderMessage(ProviderMessage.Role.system, systemPrompt),
                 ProviderMessage(ProviderMessage.Role.user, userPrompt),
             )
-            val chunks = brain.stream(model, messages, options = ChatOptions(maxTokens = 400)).toList()
+            val chunks = withTimeoutOrNull(30_000L) {
+                brain.stream(model, messages, options = ChatOptions(maxTokens = 400)).toList()
+            } ?: return StanceResult("(Timed out waiting for response)", 0f)
             val text = chunks.filterIsInstance<BrainChunk.Text>().joinToString("") { it.text }
             val sentiment = extractSentiment(text)
             StanceResult(text.replace(Regex("\\[sentiment:[^]]*]"), "").trim(), sentiment)

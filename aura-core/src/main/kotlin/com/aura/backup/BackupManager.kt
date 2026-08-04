@@ -126,6 +126,12 @@ class BackupManager @Inject constructor(
     private val routingOutcomeDao: com.aura.taste.RoutingOutcomeDao? = null,
     // Schema v14: learned strategy weights.
     private val strategyBanditDao: StrategyBanditDao? = null,
+    // Schema v16: council — agent state, relationships, observations, forum posts/votes.
+    private val agentStateDao: com.aura.agent.state.AgentStateDao? = null,
+    private val agentRelationshipDao: com.aura.agent.state.AgentRelationshipDao? = null,
+    private val agentObservationDao: com.aura.agent.state.AgentObservationDao? = null,
+    private val forumPostDao: com.aura.agent.forum.ForumPostDao? = null,
+    private val forumVoteDao: com.aura.agent.forum.ForumVoteDao? = null,
 ) {
 
     private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
@@ -302,6 +308,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v16: council — agent state, relationships, observations, forum.
+            agentStates = agentStateDao?.allOnce()?.map { it.toBackup() } ?: emptyList(),
+            agentRelationships = agentRelationshipDao?.let { dao -> dao.forAgent("__all__").map { it.toBackup() } } ?: emptyList(),
+            agentObservations = agentObservationDao?.let { dao -> dao.forAgent("__all__").map { it.toBackup() } } ?: emptyList(),
+            forumPosts = forumPostDao?.recent(200)?.map { it.toBackup() } ?: emptyList(),
+            forumVotes = runCatching {
+                val posts = forumPostDao?.recent(200) ?: emptyList()
+                posts.flatMap { post -> forumVoteDao?.forPost(post.id) ?: emptyList() }.distinctBy { it.id }.map { it.toBackup() }
+            }.getOrDefault(emptyList()),
         )
     }
 
@@ -471,6 +486,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         restoreEvolution(backup)
         // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
         restoreStrategyBandit(backup)
+        restoreCouncil(backup)
         // Restore custom agents. Builtins are re-seeded on startup
         // so we only insert non-builtin entries from the backup.
         val customAgents = agentRows.filter { !it.isBuiltin }
@@ -704,6 +720,12 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
         routingOutcomeDao?.deleteAll()
         // P0 fix: purge strategy bandit weights
         strategyBanditDao?.clear()
+        // Schema v16: purge council data
+        agentStateDao?.deleteAll()
+        agentRelationshipDao?.deleteAll()
+        agentObservationDao?.deleteAll()
+        forumPostDao?.deleteAll()
+        forumVoteDao?.deleteAll()
     }
 
     /**
@@ -802,6 +824,39 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
         if (rows.isNotEmpty()) {
             strategyBanditDao?.clear()
             strategyBanditDao?.insertAll(rows)
+        }
+    }
+
+    private suspend fun restoreCouncil(backup: AuraBackup) {
+        // Agent state
+        val states = backup.agentStates.map { it.toEntity() }
+        if (states.isNotEmpty()) {
+            agentStateDao?.deleteAll()
+            agentStateDao?.upsertAll(states)
+        }
+        // Relationships
+        val rels = backup.agentRelationships.map { it.toEntity() }
+        if (rels.isNotEmpty()) {
+            agentRelationshipDao?.deleteAll()
+            rels.forEach { agentRelationshipDao?.upsert(it) }
+        }
+        // Observations
+        val obs = backup.agentObservations.map { it.toEntity() }
+        if (obs.isNotEmpty()) {
+            agentObservationDao?.deleteAll()
+            agentObservationDao?.insertAll(obs)
+        }
+        // Forum posts
+        val posts = backup.forumPosts.map { it.toEntity() }
+        if (posts.isNotEmpty()) {
+            forumPostDao?.deleteAll()
+            posts.forEach { forumPostDao?.insert(it) }
+        }
+        // Forum votes
+        val votes = backup.forumVotes.map { it.toEntity() }
+        if (votes.isNotEmpty()) {
+            forumVoteDao?.deleteAll()
+            votes.forEach { forumVoteDao?.insert(it) }
         }
     }
 }

@@ -53,12 +53,14 @@ class ForumEngine @Inject constructor(
         agentId: kotlin.String,
         vote: kotlin.String,
         reason: kotlin.String = "",
-    ): Long = voteDao.insert(ForumVoteEntity(
-        postId = postId,
-        agentId = agentId,
-        vote = vote,
-        reason = reason,
-    ))
+    ): Long = mutex.withLock {
+        voteDao.insert(ForumVoteEntity(
+            postId = postId,
+            agentId = agentId,
+            vote = vote,
+            reason = reason,
+        ))
+    }
 
     /** Get all votes for a post. */
     suspend fun votesFor(postId: Long): List<ForumVoteEntity> =

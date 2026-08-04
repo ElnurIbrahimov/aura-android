@@ -85,9 +85,15 @@ data class AuraBackup(
     val routingOutcomes: List<RoutingOutcomeBackup> = emptyList(),
     // Schema v15: learned strategy weights.
     val strategyBandit: List<StrategyBanditBackup> = emptyList(),
+    // Schema v16: council — agent emotional state, relationships, observations, forum.
+    val agentStates: List<AgentStateBackup> = emptyList(),
+    val agentRelationships: List<AgentRelationshipBackup> = emptyList(),
+    val agentObservations: List<AgentObservationBackup> = emptyList(),
+    val forumPosts: List<ForumPostBackup> = emptyList(),
+    val forumVotes: List<ForumVoteBackup> = emptyList(),
 ) {
     companion object {
-        const val SCHEMA_VERSION = 15
+        const val SCHEMA_VERSION = 16
     }
 }
 
@@ -673,3 +679,123 @@ data class KgEdgeProposalBackup(
     val decidedAt: Long? = null,
 )
 
+
+
+// ── Schema v16: Council backup types ──
+
+@Serializable
+data class AgentStateBackup(
+    val agentId: kotlin.String,
+    val mood: Float,
+    val energy: Float,
+    val currentGoal: kotlin.String,
+    val stanceOnUser: Float,
+    val participationCount: Int,
+    val lastActiveAt: Long,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class AgentRelationshipBackup(
+    val agentAId: kotlin.String,
+    val agentBId: kotlin.String,
+    val affinity: Float,
+    val conflictCount: Int,
+    val collaborationCount: Int,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class AgentObservationBackup(
+    val agentId: kotlin.String,
+    val targetType: kotlin.String,
+    val targetId: kotlin.String,
+    val content: kotlin.String,
+    val sentiment: Float,
+    val weight: Float,
+    val resolved: Boolean,
+    val createdAt: Long,
+)
+
+@Serializable
+data class ForumPostBackup(
+    val threadId: kotlin.String,
+    val agentId: kotlin.String,
+    val replyToId: Long? = null,
+    val type: kotlin.String,
+    val title: kotlin.String,
+    val body: kotlin.String,
+    val sentiment: Float,
+    val status: kotlin.String,
+    val createdAt: Long,
+)
+
+@Serializable
+data class ForumVoteBackup(
+    val postId: Long,
+    val agentId: kotlin.String,
+    val vote: kotlin.String,
+    val reason: kotlin.String,
+    val createdAt: Long,
+)
+
+// ── Council backup mappers ──
+
+fun com.aura.agent.state.AgentStateEntity.toBackup() = AgentStateBackup(
+    agentId = agentId, mood = mood, energy = energy,
+    currentGoal = currentGoal, stanceOnUser = stanceOnUser,
+    participationCount = participationCount, lastActiveAt = lastActiveAt,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+fun AgentStateBackup.toEntity() = com.aura.agent.state.AgentStateEntity(
+    agentId = agentId, mood = mood, energy = energy,
+    currentGoal = currentGoal, stanceOnUser = stanceOnUser,
+    participationCount = participationCount, lastActiveAt = lastActiveAt,
+    createdAt = createdAt, updatedAt = updatedAt,
+)
+
+fun com.aura.agent.state.AgentRelationshipEntity.toBackup() = AgentRelationshipBackup(
+    agentAId = agentAId, agentBId = agentBId,
+    affinity = affinity, conflictCount = conflictCount,
+    collaborationCount = collaborationCount, updatedAt = updatedAt,
+)
+
+fun AgentRelationshipBackup.toEntity() = com.aura.agent.state.AgentRelationshipEntity(
+    agentAId = agentAId, agentBId = agentBId,
+    affinity = affinity, conflictCount = conflictCount,
+    collaborationCount = collaborationCount, updatedAt = updatedAt,
+)
+
+fun com.aura.agent.state.AgentObservationEntity.toBackup() = AgentObservationBackup(
+    agentId = agentId, targetType = targetType, targetId = targetId,
+    content = content, sentiment = sentiment, weight = weight,
+    resolved = resolved, createdAt = createdAt,
+)
+
+fun AgentObservationBackup.toEntity() = com.aura.agent.state.AgentObservationEntity(
+    agentId = agentId, targetType = targetType, targetId = targetId,
+    content = content, sentiment = sentiment, weight = weight,
+    resolved = resolved, createdAt = createdAt,
+)
+
+fun com.aura.agent.forum.ForumPostEntity.toBackup() = ForumPostBackup(
+    threadId = threadId, agentId = agentId, replyToId = replyToId,
+    type = type, title = title, body = body, sentiment = sentiment,
+    status = status, createdAt = createdAt,
+)
+
+fun ForumPostBackup.toEntity() = com.aura.agent.forum.ForumPostEntity(
+    threadId = threadId, agentId = agentId, replyToId = replyToId,
+    type = type, title = title, body = body, sentiment = sentiment,
+    status = status, createdAt = createdAt,
+)
+
+fun com.aura.agent.forum.ForumVoteEntity.toBackup() = ForumVoteBackup(
+    postId = postId, agentId = agentId, vote = vote, reason = reason, createdAt = createdAt,
+)
+
+fun ForumVoteBackup.toEntity() = com.aura.agent.forum.ForumVoteEntity(
+    postId = postId, agentId = agentId, vote = vote, reason = reason, createdAt = createdAt,
+)
