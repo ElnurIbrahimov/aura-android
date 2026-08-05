@@ -85,6 +85,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val responseCache: ResponseCache? = null,
+    private val reasoningTree: ReasoningTree? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -674,33 +675,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     lastUserMessage.length > 20 &&
                     lastUserMessage.split(Regex("\\s+")).filter { it.isNotBlank() }.size > 3
                 val plan = if (step == 1 && needsPlan) {
-                    runCatching {
-                        // Use a cheap model for planning — this is a 150-token
-                        // outline, not a generation task. If the user selected
-                        // MoA (3-model virtual provider), the planning step
-                        // would fire 3 API calls for a 2-sentence plan.
-                        val planModel = resolveCheapModel(effectiveModel)
-                        val planMessages = listOf(
-                            ProviderMessage(
-                                role = Role.system,
-                                content = "You are a planning assistant. Given the user's request, outline your approach in 1-2 sentences. What information do you need? What tools will you use? Be specific.",
-                            ),
-                            ProviderMessage(role = Role.user, content = lastUserMessage),
-                        )
-                        val planBuilder = StringBuilder()
-                        // Timeout: planning is auxiliary — if the cheap model
-                        // hangs, don't block the user's real answer.
-                        kotlinx.coroutines.withTimeoutOrNull(15_000L) {
-                            brain.stream(
-                                planModel, planMessages,
-                                options = ChatOptions(temperature = 0.0, maxTokens = 150),
-                            ).collect { chunk ->
-                                if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
-                            }
-                        }
-                        val raw = planBuilder.toString().trim()
-                        if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""
-                    }.onFailure { android.util.Log.w("AgenticLoop", "planning step failed: ${it.message}", it) }.getOrDefault("")
+                    generatePlanPrefix(lastUserMessage, effectiveModel)
                 } else ""
 
                 val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
@@ -1198,6 +1173,49 @@ private suspend fun extractProfileFromText(text: String) {
         // but the model sees exactly one search tool.
         return tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
     }
+
+    /**
+     * Generate the system-prompt plan prefix for a turn. Uses the cheap
+     * model tier (a 150-token outline, not a generation task — if the
+     * user selected MoA, the planning step would fire 3 API calls for a
+     * 2-sentence plan). For long questions, MCTS-lite expands 2-3
+     * distinct approach branches, scores them, and commits to the best
+     * instead of a single linear plan. Falls back to the linear plan on
+     * any error. Returns "" when nothing useful was produced.
+     */
+    private suspend fun generatePlanPrefix(lastUserMessage: kotlin.String, effectiveModel: kotlin.String): kotlin.String =
+        runCatching {
+            val planModel = resolveCheapModel(effectiveModel)
+            val treePlan = if (lastUserMessage.length >= com.aura.agent.ReasoningTree.MIN_MESSAGE_LENGTH) {
+                kotlinx.coroutines.withTimeoutOrNull(20_000L) {
+                    reasoningTree?.bestApproach(lastUserMessage, planModel)
+                }
+            } else null
+            if (treePlan != null) {
+                "## Approach: $treePlan\n\n"
+            } else {
+                val planMessages = listOf(
+                    ProviderMessage(
+                        role = ProviderMessage.Role.system,
+                        content = "You are a planning assistant. Given the user's request, outline your approach in 1-2 sentences. What information do you need? What tools will you use? Be specific.",
+                    ),
+                    ProviderMessage(role = ProviderMessage.Role.user, content = lastUserMessage),
+                )
+                val planBuilder = StringBuilder()
+                // Timeout: planning is auxiliary — if the cheap model
+                // hangs, don't block the user's real answer.
+                kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                    brain.stream(
+                        planModel, planMessages,
+                        options = ChatOptions(temperature = 0.0, maxTokens = 150),
+                    ).collect { chunk ->
+                        if (chunk is BrainChunk.Text) planBuilder.append(chunk.text)
+                    }
+                }
+                val raw = planBuilder.toString().trim()
+                if (raw.isNotBlank()) "## Plan: $raw\n\n" else ""
+            }
+        }.onFailure { android.util.Log.w("AgenticLoop", "planning step failed: ${it.message}", it) }.getOrDefault("")
 
     /**
      * Find the first enabled hand whose trigger phrase is contained in the
