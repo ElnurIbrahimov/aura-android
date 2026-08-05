@@ -588,6 +588,17 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Index the hot recall sort keys. searchByText/searchByWords/top
+            // ORDER BY decayScore DESC; vectorScanCandidates ORDER BY
+            // accessCount DESC, decayScore DESC. Without these, every recall
+            // on a 10K+ memory install does a full table scan + sort.
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memories_decayScore ON memories(decayScore)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memories_accessCount ON memories(accessCount)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -595,7 +606,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16),
         ).build()
 
     @Provides

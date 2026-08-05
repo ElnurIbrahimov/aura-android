@@ -9,7 +9,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Entity(
     tableName = "memories",
-    indices = [Index("createdAt"), Index("source"), Index("category"), Index("sourceConversationId"), Index("scope")]
+    indices = [
+        Index("createdAt"),
+        Index("source"),
+        Index("category"),
+        Index("sourceConversationId"),
+        Index("scope"),
+        // Hot query keys: recall sorts by decayScore DESC (search, top),
+        // and the vector fallback sorts by accessCount + decayScore.
+        Index("decayScore"),
+        Index("accessCount"),
+    ]
 )
 data class MemoryEntity(
     @PrimaryKey val id: String,
