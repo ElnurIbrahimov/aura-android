@@ -1,5 +1,6 @@
 package com.aura.triggers
 
+import android.content.Context
 import com.aura.tasks.TaskDao
 import com.aura.tasks.TaskEntity
 import io.mockk.coEvery
@@ -10,13 +11,15 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TriggerEngineTest {
     private val webChangeDetector: WebChangeDetector = mockk(relaxed = true)
     private val taskDao: TaskDao = mockk(relaxed = true)
-    private val engine = TriggerEngine(webChangeDetector, taskDao)
+    private val context: Context = mockk(relaxed = true)
+    private val engine = TriggerEngine(context, webChangeDetector, taskDao)
 
     @Test
     fun `schedule daily fires at matching time`() = runTest {
@@ -97,5 +100,33 @@ class TriggerEngineTest {
         )
         val actions = engine.checkAll(listOf(trigger))
         assertTrue(actions.isEmpty())
+    }
+
+    // ── LocationEntered (haversine math — pure function) ─────────────
+
+    @Test
+    fun `haversine returns ~0 for identical coordinates`() {
+        val d = TriggerEngine.haversineMetersStatic(40.4093, 49.8671, 40.4093, 49.8671)
+        assertTrue(d < 0.001, "identical points should be ~0m, got $d")
+    }
+
+    @Test
+    fun `haversine matches known Baku distance`() {
+        // Baku center (28 May) → Baku airport: ~20.3 km
+        val d = TriggerEngine.haversineMetersStatic(40.3686, 49.8249, 40.4675, 50.0467)
+        assertEquals(20_300.0, d, 1_500.0)
+    }
+
+    @Test
+    fun `haversine is symmetric`() {
+        val a = TriggerEngine.haversineMetersStatic(40.4093, 49.8671, 52.5200, 13.4050)
+        val b = TriggerEngine.haversineMetersStatic(52.5200, 13.4050, 40.4093, 49.8671)
+        assertEquals(a, b, 1e-6)
+    }
+
+    @Test
+    fun `haversine 1 degree latitude is ~111 km`() {
+        val d = TriggerEngine.haversineMetersStatic(0.0, 0.0, 1.0, 0.0)
+        assertEquals(111_195.0, d, 1_000.0)
     }
 }

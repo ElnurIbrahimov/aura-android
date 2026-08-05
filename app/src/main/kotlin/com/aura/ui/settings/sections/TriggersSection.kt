@@ -56,7 +56,7 @@ fun TriggersSection(
                 val summary = when (val c = trigger.condition) {
                     is TriggerCondition.Schedule -> "schedule @ ${c.cron}"
                     is TriggerCondition.WebChanged -> "web: ${c.url}"
-                    is TriggerCondition.LocationEntered -> "location (not yet implemented)"
+                    is TriggerCondition.LocationEntered -> "location @ ${"%.3f".format(c.lat)},${"%.3f".format(c.lon)} (r=${c.radiusMeters.toInt()}m)"
                     is TriggerCondition.IntentReceived -> "intent: ${c.action}"
                 }
                 Row(

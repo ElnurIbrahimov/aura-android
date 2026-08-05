@@ -306,6 +306,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     ): Flow<AgentEvent> = flow {
         val runId = "run_${java.util.UUID.randomUUID()}"
         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
+        // Neuromodulated sampling: map the emotional state onto LLM
+        // sampling parameters (temperature/topP/maxTokens) so mood affects
+        // generation, not just the prompt's tone directive. Only adjusts —
+        // never overrides an explicit caller choice.
+        val effectiveOptions = emotionEngine?.applySampling(options) ?: options
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
@@ -330,9 +335,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 if (def.category == "mcp" || def.name.startsWith("mcp_")) {
                     val baseName = if (def.name.startsWith("mcp_")) {
                         // mcp_<serverId>_<toolName> → <toolName>.
-                        // serverId is sanitized to no underscores so
-                        // the first segment after the prefix is the
-                        // server id; the rest is the tool name.
+                        // serverIds MAY contain underscores (McpToolBridge
+                        // registers mcp_<serverId>_<toolName> verbatim and
+                        // tracks ownership via registeredNameToServerId).
+                        // The first segment after the prefix is the server
+                        // id; the remainder is the tool name. If the server
+                        // id itself contains an underscore, this splits at
+                        // the FIRST one, which still yields the correct
+                        // tool name for allowlist matching (the base name
+                        // is what the MCP server actually exposes).
                         val rest = def.name.removePrefix("mcp_")
                         val firstUnderscore = rest.indexOf('_')
                         if (firstUnderscore > 0) rest.substring(firstUnderscore + 1) else rest
@@ -705,7 +716,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 finishReason = null
 
                 try {
-                    brain.stream(currentModel, messages, tools, options).collect { chunk ->
+                    brain.stream(currentModel, messages, tools, effectiveOptions).collect { chunk ->
                         when (chunk) {
                             is BrainChunk.Thinking -> {
                                 accumulatedThinking.append(chunk.text)

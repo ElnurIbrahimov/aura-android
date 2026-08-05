@@ -186,4 +186,34 @@ class EmotionEngineTest {
             }
         }
     }
+
+    // ── Neuromodulated sampling ──────────────────────────────────────
+
+    @Test
+    fun `neutral state keeps default temperature and topP`() {
+        // snapshot defaults: tension=0.3, connection=0.5, energy=0.4, focus=0.3
+        val adj = engine.samplingAdjustments()
+        assertTrue("neutral temp ~0.65, got ${adj.temperature}", adj.temperature in 0.6..0.8)
+        assertTrue("neutral topP ~0.905, got ${adj.topP}", adj.topP in 0.89..0.93)
+    }
+
+    @Test
+    fun `high energy raises temperature`() {
+        engine.update("I'm so excited about this new project we should build it right now and explore everything!!")
+        engine.update("Let's try all the ideas, this is going to be amazing and I can't wait to get started!!")
+        val low = EmotionEngine(mockk(relaxed = true)).samplingAdjustments().temperature
+        val high = engine.samplingAdjustments().temperature
+        assertTrue("high-energy state should raise temperature: $low -> $high", high > low)
+    }
+
+    @Test
+    fun `applySampling adjusts options without overriding explicit maxTokens`() {
+        val opts = com.aura.providers.ChatOptions(temperature = 0.7, topP = 1.0, maxTokens = null)
+        val adjusted = engine.applySampling(opts)
+        assertTrue("temperature should be adjusted by emotion", adjusted.temperature != 0.7)
+        // explicit caller maxTokens is preserved
+        val explicit = com.aura.providers.ChatOptions(maxTokens = 150)
+        val preserved = engine.applySampling(explicit)
+        assertEquals(150, preserved.maxTokens)
+    }
 }

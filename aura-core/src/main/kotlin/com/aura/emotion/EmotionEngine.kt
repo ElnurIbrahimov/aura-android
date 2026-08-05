@@ -161,6 +161,42 @@ class EmotionEngine @Inject constructor(
     fun profile(): ResponseProfile = ResponseProfile.from(stateRef.get())
 
     /**
+     * Neuromodulator-style sampling adjustments (ported from Python Aura's
+     * `_build_neuro_llm_options`). Maps the 4D emotional state onto LLM
+     * sampling parameters so mood affects generation, not just prompt tone:
+     *
+     *  - energy  (0..1) → temperature:  0.45 (focused) .. 0.95 (exploratory)
+     *  - focus   (0..1) → topP:         0.95 (loose) .. 0.80 (tight sampling)
+     *
+     * Values are clamped to safe ranges and only *adjust* the caller's
+     * options — they never override an explicit caller choice (maxTokens
+     * is left untouched: an explicit cap is a user decision).
+     */
+    fun samplingAdjustments(): SamplingAdjustments {
+        val s = stateRef.get()
+        val temperature = (0.45 + s.energy.coerceIn(0f, 1f) * 0.5).coerceIn(0.2, 1.2)
+        val topP = (0.95 - s.focus.coerceIn(0f, 1f) * 0.15).coerceIn(0.7, 1.0)
+        return SamplingAdjustments(
+            temperature = temperature,
+            topP = topP,
+        )
+    }
+
+    /** Applies [samplingAdjustments] to a [com.aura.providers.ChatOptions]. */
+    fun applySampling(options: com.aura.providers.ChatOptions): com.aura.providers.ChatOptions {
+        val adj = samplingAdjustments()
+        return options.copy(
+            temperature = adj.temperature,
+            topP = adj.topP,
+        )
+    }
+
+    data class SamplingAdjustments(
+        val temperature: Double,
+        val topP: Double,
+    )
+
+    /**
      * Persist the current state to DataStore (called periodically).
      */
     suspend fun save() {
