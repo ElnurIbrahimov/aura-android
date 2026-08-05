@@ -131,6 +131,9 @@ class BackupManagerTest {
         every { userPreferences.triggers } returns flowOf(emptyList())
         every { userPreferences.planningEnabled } returns flowOf(false)
         every { userPreferences.agentId } returns flowOf(null)
+        every { userPreferences.councilEnabled } returns flowOf(true)
+        every { userPreferences.councilAutoApply } returns flowOf(false)
+        every { userPreferences.councilActivityLevel } returns flowOf(3)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
@@ -623,6 +626,9 @@ class BackupManagerTest {
         every { userPreferences.triggers } returns flowOf(emptyList())
         every { userPreferences.planningEnabled } returns flowOf(false)
         every { userPreferences.agentId } returns flowOf(null)
+        every { userPreferences.councilEnabled } returns flowOf(true)
+        every { userPreferences.councilAutoApply } returns flowOf(false)
+        every { userPreferences.councilActivityLevel } returns flowOf(3)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns "nomic-embed-text"
 
@@ -817,6 +823,9 @@ class BackupManagerTest {
         every { userPreferences.triggers } returns flowOf(emptyList())
         every { userPreferences.planningEnabled } returns flowOf(false)
         every { userPreferences.agentId } returns flowOf(null)
+        every { userPreferences.councilEnabled } returns flowOf(true)
+        every { userPreferences.councilAutoApply } returns flowOf(false)
+        every { userPreferences.councilActivityLevel } returns flowOf(3)
         every { userPreferences.forRole(any()) } returns flowOf(null)
         every { providerKeys.embeddingModel } returns ""
 

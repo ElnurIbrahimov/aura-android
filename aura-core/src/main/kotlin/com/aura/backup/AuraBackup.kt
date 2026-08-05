@@ -416,6 +416,10 @@ data class PreferencesBackup(
     val triggersJson: String = "[]",
     val planningEnabled: Boolean = false,
     val defaultAgentId: String = "",
+    // Schema v16: council preferences.
+    val councilEnabled: Boolean = true,
+    val councilAutoApply: Boolean = false,
+    val councilActivityLevel: Int = 3,
 )
 
 @Serializable

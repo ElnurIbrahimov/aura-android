@@ -117,9 +117,10 @@ class ImageGenTool @Inject constructor(
     // Response: data[0].url
     // ------------------------------------------------------------------
 
-    private suspend fun generateWithOpenAi(prompt: String, size: String, apiKey: String): String {
+    private suspend fun generateWithOpenAi(prompt: String, size: String, apiKey: kotlin.String): kotlin.String {
+        val model = userPreferences.imageModel.first() ?: "dall-e-3"
         val body = buildJsonObject {
-            put("model", userPreferences.imageModel.first())
+            put("model", model)
             put("prompt", prompt)
             put("n", 1)
             put("size", size)

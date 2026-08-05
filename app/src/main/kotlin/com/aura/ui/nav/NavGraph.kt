@@ -281,10 +281,10 @@ fun NavGraph(
                     }
                 })
             }
-            composable("hands") { HandsScreen() }
+            composable("hands") { HandsScreen(onBack = { navController.popBackStack() }) }
             composable("tasks") { TasksScreen(onOpenSchedule = { navController.navigate("schedule") }) }
-            composable("tools") { ToolsScreen() }
-            composable("proactive") { ProactiveHistoryScreen() }
+            composable("tools") { ToolsScreen(onBack = { navController.popBackStack() }) }
+            composable("proactive") { ProactiveHistoryScreen(onBack = { navController.popBackStack() }) }
             composable("dreams") {
                 DreamsScreen(onBack = { navController.popBackStack() })
             }
@@ -368,8 +368,12 @@ fun NavGraph(
             composable("evolution/beliefs") {
                 BeliefsScreen()
             }
-            composable("council") {
+            composable(
+                route = "council?convId={convId}",
+                arguments = listOf(navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+            ) { backStackEntry ->
                 CouncilScreen(
+                    convId = backStackEntry.arguments?.getString("convId"),
                     onBack = { navController.popBackStack() },
                     onOpenDreamLog = { navController.navigate("dream_log") },
                     onOpenAgentProfiles = { navController.navigate("agent_profiles") },

@@ -459,9 +459,9 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         context.auraPrefs.edit { it[KEY_MCP_SERVERS_JSON] = json }
     }
 
-    /** Image generation model for OpenAI (default: dall-e-3). */
-    val imageModel: Flow<kotlin.String> = context.auraPrefs.data.map { prefs ->
-        prefs[KEY_IMAGE_MODEL] ?: "dall-e-3"
+    /** Image generation model (null = resolve from configured provider at runtime). */
+    val imageModel: Flow<kotlin.String?> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_IMAGE_MODEL]?.takeIf { it.isNotBlank() }
     }
 
     suspend fun setImageModel(model: kotlin.String) {

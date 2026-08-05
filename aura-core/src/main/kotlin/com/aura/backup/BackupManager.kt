@@ -218,7 +218,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 deepModeModel = userPreferences.deepModeModel.first(),
                 moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
                 moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
-                imageModel = userPreferences.imageModel.first().takeIf { it.isNotBlank() },
+                imageModel = userPreferences.imageModel.first()?.takeIf { it.isNotBlank() },
                 mcpServersJson = userPreferences.mcpServersJson.first(),
                 evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
@@ -242,6 +242,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 triggersJson = encodeTriggersJson(userPreferences),
                 planningEnabled = userPreferences.planningEnabled.first(),
                 defaultAgentId = userPreferences.agentId.first().orEmpty(),
+                councilEnabled = userPreferences.councilEnabled.first(),
+                councilAutoApply = userPreferences.councilAutoApply.first(),
+                councilActivityLevel = userPreferences.councilActivityLevel.first(),
             )
 
     suspend fun snapshot(
@@ -310,8 +313,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),
             // Schema v16: council — agent state, relationships, observations, forum.
             agentStates = agentStateDao?.allOnce()?.map { it.toBackup() } ?: emptyList(),
-            agentRelationships = agentRelationshipDao?.let { dao -> dao.forAgent("__all__").map { it.toBackup() } } ?: emptyList(),
-            agentObservations = agentObservationDao?.let { dao -> dao.forAgent("__all__").map { it.toBackup() } } ?: emptyList(),
+            agentRelationships = agentRelationshipDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
+            agentObservations = agentObservationDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
             forumPosts = forumPostDao?.recent(200)?.map { it.toBackup() } ?: emptyList(),
             forumVotes = runCatching {
                 val posts = forumPostDao?.recent(200) ?: emptyList()
@@ -601,6 +604,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         userPreferences.setPlanningEnabled(p.planningEnabled)
         if (p.defaultAgentId.isNotBlank()) userPreferences.setAgentId(p.defaultAgentId)
+        userPreferences.setCouncilEnabled(p.councilEnabled)
+        userPreferences.setCouncilAutoApply(p.councilAutoApply)
+        userPreferences.setCouncilActivityLevel(p.councilActivityLevel)
         // Restore SMTP config (host, port, username, from — password stays in SecureDataStore)
         if (!p.smtpHost.isNullOrBlank()) {
             userPreferences.setSmtpConfig(
@@ -838,7 +844,7 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
         val rels = backup.agentRelationships.map { it.toEntity() }
         if (rels.isNotEmpty()) {
             agentRelationshipDao?.deleteAll()
-            rels.forEach { agentRelationshipDao?.upsert(it) }
+            agentRelationshipDao?.upsertAll(rels)
         }
         // Observations
         val obs = backup.agentObservations.map { it.toEntity() }

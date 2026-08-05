@@ -93,6 +93,7 @@ import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HandsScreen(
+    onBack: () -> Unit = {},
     viewModel: HandsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()

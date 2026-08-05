@@ -79,6 +79,19 @@ class Brain @Inject constructor(
                 }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}", it) }
                     .getOrDefault(32000)
                 resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
+                // Clamp thinking budget to be smaller than maxTokens.
+                // Anthropic requires max_tokens > budget_tokens. When the
+                // caller set an explicit maxTokens (e.g. auxiliary callers
+                // like LlmProfileExtractor at 200 tokens), the thinking
+                // budget must be clamped to maxTokens - 1 to avoid an API
+                // rejection ("max_tokens must be > budget_tokens").
+                val callerSetMaxTokens = options.maxTokens != null
+                if (callerSetMaxTokens) {
+                    val maxTok = resolvedOptions.maxTokens ?: 0
+                    if (maxTok > 0 && budget >= maxTok) {
+                        resolvedOptions = resolvedOptions.copy(thinkingBudget = (maxTok - 1).coerceAtLeast(0))
+                    }
+                }
                 // Ensure maxTokens covers BOTH the thinking budget AND a
                 // generous output budget. Anthropic requires max_tokens >=
                 // budget_tokens + 1, but the remaining tokens must also be
@@ -92,7 +105,6 @@ class Brain @Inject constructor(
                 // small maxTokens values (150-200) for short auxiliary
                 // calls. Without this guard, a 150-token reflection call
                 // gets inflated to 56K tokens — a 375x cost inflation.
-                val callerSetMaxTokens = options.maxTokens != null
                 if (!callerSetMaxTokens) {
                     val minMaxTokens = budget + 24_576
                     if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {

@@ -38,9 +38,9 @@ This document is a snapshot of the **actual** project state, not aspirational. T
 │  └────┬──────────┬────────────┬─────────────┬───┘ │
 │       │          │            │             │     │
 │  ┌────▼────┐ ┌───▼────┐ ┌─────▼──────┐ ┌───▼────┐│
-│  │Memory  │ │Tool    │ │  Provider  │ │ Voice  ││
+│  │Memory  │ │Tools   │ │  Provider  │ │ Voice  ││
 │  │Store   │ │Registry│ │   SDK      │ │ I/O    ││
-│  │(Room)  │ │(59 tls)│ │17 providers│ │STT+TTS ││
+│  │(Room)  │ │(70 tools)│ │17 providers│ │STT+TTS ││
 │  └────────┘ └────────┘ └────────────┘ └────────┘│
 │                                                 │
 │  ┌──────────────────────────────────────────────┐│

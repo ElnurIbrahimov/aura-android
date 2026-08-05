@@ -80,7 +80,9 @@ class ChatGptSubscriptionProvider(
             }
             put("input", JsonArray(messages.map { msg ->
                 buildJsonObject {
-                    put("role", msg.role.name)
+                    // The Responses API expects "developer" for system messages,
+                    // not "system". Passing "system" causes a 400 error.
+                    put("role", if (msg.role == ProviderMessage.Role.system) "developer" else msg.role.name)
                     put("content", msg.content)
                 }
             }))

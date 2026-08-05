@@ -88,6 +88,7 @@ data class HistoryCardModel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProactiveHistoryScreen(
+    onBack: () -> Unit = {},
     viewModel: ProactiveHistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()

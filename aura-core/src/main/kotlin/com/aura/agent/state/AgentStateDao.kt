@@ -46,11 +46,17 @@ interface AgentRelationshipDao {
     @Query("SELECT * FROM agent_relationships WHERE agentAId = :agentId OR agentBId = :agentId")
     suspend fun forAgent(agentId: kotlin.String): List<AgentRelationshipEntity>
 
+    @Query("SELECT * FROM agent_relationships")
+    suspend fun allOnce(): List<AgentRelationshipEntity>
+
     @Query("SELECT * FROM agent_relationships WHERE (agentAId = :a AND agentBId = :b) OR (agentAId = :b AND agentBId = :a) LIMIT 1")
     suspend fun between(a: kotlin.String, b: kotlin.String): AgentRelationshipEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(rel: AgentRelationshipEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(rels: List<AgentRelationshipEntity>)
 
     @Query("DELETE FROM agent_relationships")
     suspend fun deleteAll()
@@ -61,6 +67,9 @@ interface AgentObservationDao {
 
     @Query("SELECT * FROM agent_observations WHERE agentId = :agentId ORDER BY createdAt DESC LIMIT :limit")
     suspend fun forAgent(agentId: kotlin.String, limit: Int = 20): List<AgentObservationEntity>
+
+    @Query("SELECT * FROM agent_observations ORDER BY createdAt DESC")
+    suspend fun allOnce(): List<AgentObservationEntity>
 
     @Query("SELECT * FROM agent_observations WHERE agentId = :agentId AND resolved = 0 ORDER BY createdAt DESC LIMIT :limit")
     suspend fun unresolvedForAgent(agentId: kotlin.String, limit: Int = 10): List<AgentObservationEntity>

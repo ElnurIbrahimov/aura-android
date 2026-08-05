@@ -37,6 +37,7 @@ import com.aura.ui.theme.AuraThemeTokens
 
 @Composable
 fun CouncilScreen(
+    convId: String? = null,
     onBack: () -> Unit,
     onOpenDreamLog: () -> Unit = {},
     onOpenAgentProfiles: () -> Unit = {},
