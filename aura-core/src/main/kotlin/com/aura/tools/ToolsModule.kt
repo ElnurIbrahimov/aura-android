@@ -26,6 +26,11 @@ object ToolsModule {
         webSearch: WebSearchTool,
         braveSearch: BraveSearchTool,
         tavilySearch: TavilySearchTool,
+        wikipediaSearch: WikipediaSearchTool,
+        wikipediaRead: WikipediaReadTool,
+        ddgInstantAnswer: DdgInstantAnswerTool,
+        searxngSearch: SearxngSearchTool,
+        jinaReaderFree: JinaReaderFreeTool,
         notifications: NotificationsTool,
         location: LocationNowTool,
         share: ShareIntentTool,
@@ -97,6 +102,11 @@ object ToolsModule {
         registry.register(webSearch.tool)
         registry.register(braveSearch.tool)
         registry.register(tavilySearch.tool)
+        registry.register(wikipediaSearch.tool)
+        registry.register(wikipediaRead.tool)
+        registry.register(ddgInstantAnswer.tool)
+        registry.register(searxngSearch.tool)
+        registry.register(jinaReaderFree.tool)
         registry.register(notifications.tool)
         registry.register(location.tool)
         registry.register(share.tool)
