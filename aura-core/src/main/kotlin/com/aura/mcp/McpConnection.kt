@@ -32,6 +32,7 @@ internal class McpConnection(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
+
     @Volatile
     private var _health: McpServerHealth = McpServerHealth(
         serverId = config.id,
@@ -47,7 +48,9 @@ internal class McpConnection(
         /** Timeout for the initialize handshake. */
         private const val INIT_TIMEOUT_MS = 15_000L
         /** Max response body size for initialize/listTools/listResources. */
-        private const val MAX_META_RESPONSE_BYTES = 2_000_000 // 2 MB
+        private const val MAX_META_RESPONSE_BYTES = 2_000_000
+        /** Max response size for tool call results (10MB). */
+        private const val MAX_TOOL_RESPONSE_BYTES = 10_000_000
     }
 
     suspend fun initialize(): McpServerHealth = withContext(Dispatchers.IO) {
@@ -162,7 +165,7 @@ internal class McpConnection(
                     put("name", toolName)
                     put("arguments", argsObj)
                 })
-                val response = sendRequest(request)
+                val response = sendRequest(request, maxResponseBytes = MAX_TOOL_RESPONSE_BYTES)
                     ?: return@withContext McpToolResult.Failure("No response from server", "no_response")
                 val result = response["result"]?.jsonObject
                     ?: return@withContext McpToolResult.Failure("Missing result", "malformed_response")
@@ -193,7 +196,10 @@ internal class McpConnection(
         put("params", params)
     }
 
-    private fun sendRequest(requestBody: JsonObject): JsonObject? {
+    private fun sendRequest(
+        requestBody: JsonObject,
+        maxResponseBytes: Int = MAX_META_RESPONSE_BYTES,
+    ): JsonObject? {
         val body = requestBody.toString().toRequestBody(mediaTypeJson)
         val builder = Request.Builder().url(config.url).post(body)
             .header("Content-Type", "application/json")
@@ -212,8 +218,8 @@ internal class McpConnection(
                 // byte count, not character count — a 1MB char limit on UTF-8
                 // with non-ASCII content could be 3-4MB in bytes.
                 val bytes = response.body?.bytes() ?: return null
-                if (bytes.size > MAX_META_RESPONSE_BYTES) {
-                    android.util.Log.w("McpConnection", "Response from ${config.name} exceeded ${MAX_META_RESPONSE_BYTES} bytes, truncating")
+                if (bytes.size > maxResponseBytes) {
+                    android.util.Log.w("McpConnection", "Response from ${config.name} exceeded ${maxResponseBytes} bytes, truncating")
                     return null
                 }
                 val raw = bytes.toString(Charsets.UTF_8)

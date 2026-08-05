@@ -6,7 +6,11 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
 import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
@@ -28,7 +32,7 @@ import kotlin.coroutines.resume
  * JS engine, captures console.log output, and returns it as the tool result.
  *
  * Security:
- * - No network access (WebView settings block it)
+ * - No network access (WebViewClient blocks all requests)
  * - No file access (allowFileAccess = false, allowContentAccess = false)
  * - No DOM access (the WebView has no loaded content)
  * - 10-second timeout
@@ -109,6 +113,32 @@ class CodeInterpreterTool @Inject constructor(
                         settings.javaScriptCanOpenWindowsAutomatically = false
                         settings.mediaPlaybackRequiresUserGesture = true
                         settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+                        // Block all network access from the JS sandbox.
+                        // Without this, user-supplied JS can fetch()
+                        // internal IPs (169.254.169.254 metadata, localhost
+                        // services, enterprise network hosts).
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): WebResourceResponse? {
+                                // Return a 403 for every network request the JS
+                                // tries to make (fetch, XMLHttpRequest, etc).
+                                return WebResourceResponse(
+                                    "text/plain",
+                                    "utf-8",
+                                    403,
+                                    "Blocked",
+                                    emptyMap(),
+                                    ByteArrayInputStream("Network access blocked by sandbox".toByteArray()),
+                                )
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): Boolean = true
+                        }
                     }
 
                     // JS interface to capture console.log output

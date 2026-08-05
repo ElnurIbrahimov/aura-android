@@ -73,18 +73,12 @@ class OAuthFlow @Inject constructor(
      * attacker-chosen OAuth session. The state proves the code belongs
      * to the launch we initiated.
      */
-    @Volatile
-    private var pendingState: String? = null
-
     /**
-     * PKCE S256 verifier for this launch. A custom-scheme redirect is
-     * not a private channel, so the code exchange MUST be bound to the
-     * original authorization request. The verifier is random per launch
-     * and never leaves the device; only its SHA-256 challenge goes to
-     * the authorization server.
+     * Maps state nonces to their PKCE verifiers, so concurrent OAuth
+     * flows (e.g. Google + Microsoft) don't overwrite each other's
+     * pending state. The state is the key we match on redirect.
      */
-    @Volatile
-    private var pendingVerifier: String? = null
+    private val pendingFlows = java.util.concurrent.ConcurrentHashMap<kotlin.String, kotlin.String>()
 
     private fun newState(): String {
         val bytes = ByteArray(32)
@@ -118,11 +112,10 @@ class OAuthFlow @Inject constructor(
      * Build the Google authorization URL with per-launch CSRF state
      * and PKCE S256 challenge. Extracted for testability.
      */
-    internal fun buildGoogleAuthUrl(clientId: String): String {
+    internal fun buildGoogleAuthUrl(clientId: kotlin.String): kotlin.String {
         val state = newState()
         val verifier = newCodeVerifier()
-        pendingState = state
-        pendingVerifier = verifier
+        pendingFlows[state] = verifier
         return Uri.parse(GOOGLE_AUTH_URL).buildUpon()
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", GOOGLE_REDIRECT)
@@ -148,11 +141,10 @@ class OAuthFlow @Inject constructor(
      * Build the Microsoft authorization URL with per-launch CSRF state
      * and PKCE S256 challenge. Extracted for testability.
      */
-    internal fun buildMicrosoftAuthUrl(clientId: String): String {
+    internal fun buildMicrosoftAuthUrl(clientId: kotlin.String): kotlin.String {
         val state = newState()
         val verifier = newCodeVerifier()
-        pendingState = state
-        pendingVerifier = verifier
+        pendingFlows[state] = verifier
         return Uri.parse(MS_AUTH_URL).buildUpon()
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", MS_REDIRECT)
@@ -202,20 +194,12 @@ class OAuthFlow @Inject constructor(
         // issued for the pending launch. This makes the flow immune to
         // crafted redirects: an attacker cannot inject an authorization
         // code that the app will exchange.
-        val expectedState = pendingState
         val redirectState = uri.getQueryParameter("state")
-        if (expectedState == null || redirectState != expectedState) {
-            Log.w(TAG, "OAuth state mismatch — rejecting redirect (possible login CSRF)")
-            return true
-        }
-        val verifier = pendingVerifier
-        pendingState = null
-        pendingVerifier = null
+        val verifier = redirectState?.let { pendingFlows.remove(it) }
         if (verifier == null) {
-            Log.w(TAG, "OAuth verifier missing — rejecting redirect")
+            Log.w(TAG, "OAuth state mismatch — rejecting redirect (possible login CSRF or stale flow)")
             return true
         }
-
         when (uri.host) {
             "oauth" -> {
                 val provider = uri.lastPathSegment // "google" or "microsoft"

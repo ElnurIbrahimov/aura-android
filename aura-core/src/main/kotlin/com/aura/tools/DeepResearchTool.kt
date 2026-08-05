@@ -388,7 +388,7 @@ class DeepResearchTool @Inject constructor(
         }
     }
 
-    private fun fetchDirect(target: SsrfValidation.Safe): String? {
+    private fun fetchDirect(target: SsrfValidation.Safe): kotlin.String? {
         try {
             val pinnedClient = SsrfGuard.pinnedClient(httpClient, target)
             val req = Request.Builder()
@@ -399,7 +399,18 @@ class DeepResearchTool @Inject constructor(
 
             pinnedClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return null
-                val body = resp.body?.string() ?: return null
+                // Cap the body read at 256KB to prevent OOM on large pages.
+                // The final output is truncated to 3000 chars anyway, so
+                // reading more than 256KB is wasted work + memory pressure.
+                val maxBytes = 256 * 1024L
+                val source = resp.body?.source() ?: return null
+                source.request(maxBytes + 1L)
+                val bodyBytes = if (source.buffer.size > maxBytes) {
+                    source.readByteArray(maxBytes)
+                } else {
+                    source.readByteArray()
+                }
+                val body = java.lang.String(bodyBytes, Charsets.UTF_8)
                 return body
                     .replace(Regex("<[^>]+>"), " ")
                     .replace(Regex("\\s+"), " ")

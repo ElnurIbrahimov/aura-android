@@ -46,7 +46,7 @@ class McpToolBridge @Inject constructor(
     /** Track which MCP tool names we've registered so we can clean up. */
     private val registeredNames = ConcurrentHashMap.newKeySet<kotlin.String>()
 
-    /** Maps bare-name MCP tool registrations back to their owning server id. */
+    /** Maps registered tool names (both prefixed and bare) back to their owning server id. */
     private val registeredNameToServerId = ConcurrentHashMap<kotlin.String, kotlin.String>()
 
     /**
@@ -61,25 +61,18 @@ class McpToolBridge @Inject constructor(
         val currentServerIds = servers.map { it.id }.toSet()
         val connectedServerIds = mcpClientManager.connectedServerIds()
         val staleNames = registeredNames.filter { name ->
-            val serverId = extractServerId(name)
-            // Stale if the server was removed entirely, OR if it's
-            // still in the list but is no longer connected. Until
-            // v0.30.x the second case was silently skipped, leaving
-            // the LLM able to call tools whose server had dropped the
-            // connection (call would fail, but the tool remained in
-            // the registry and in the loop's allowed-set evaluation).
-            //
-            // Tools without a parseable server id (e.g. registered by
-            // syncToolsUnprefixed with a bare base name) are owned by
-            // no particular server, so we leave them alone here —
-            // unregisterAll() is the only way to clean those up.
-            serverId != null && (
+            // Use the ownership map instead of parsing the name —
+            // serverIds can contain underscores, so name-based parsing
+            // is unreliable (e.g. "mcp_my_server_tool" would extract "my"
+            // instead of "my_server").
+            registeredNameToServerId[name]?.let { serverId ->
                 serverId !in currentServerIds || serverId !in connectedServerIds
-            )
+            } ?: false
         }
         for (name in staleNames) {
             toolRegistry.unregister(name)
             registeredNames.remove(name)
+            registeredNameToServerId.remove(name)
         }
 
         // Register tools from connected servers
@@ -127,6 +120,7 @@ class McpToolBridge @Inject constructor(
                 )
                 toolRegistry.register(tool)
                 registeredNames.add(registeredName)
+                registeredNameToServerId[registeredName] = config.id
             }
         }
     }
@@ -218,15 +212,6 @@ class McpToolBridge @Inject constructor(
 
     private fun mcpToolName(serverId: kotlin.String, toolName: kotlin.String): kotlin.String =
         "mcp_${serverId}_${toolName}"
-
-    private fun extractServerId(registeredName: kotlin.String): kotlin.String? {
-        if (!registeredName.startsWith("mcp_")) return null
-        val rest = registeredName.removePrefix("mcp_")
-        // serverId was lowercased + sanitized, so it won't contain underscores
-        // that weren't in the original name. Find the first segment.
-        val firstUnderscore = rest.indexOf('_')
-        return if (firstUnderscore > 0) rest.substring(0, firstUnderscore) else null
-    }
 
     /**
      * Parse an MCP tool's JSON Schema input schema into [ToolParameters].

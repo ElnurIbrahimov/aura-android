@@ -113,10 +113,12 @@ class McpToolBridgeTest {
         assertEquals(1, bridge.registeredToolNames().size)
 
         bridge.syncTools(emptyList())
-        // unprefixed tool survives syncTools cleanup; that's by design
-        assertEquals(1, bridge.registeredToolNames().size)
+        // With the ownership map, ALL registered tools (prefixed and
+        // unprefixed) are tracked by serverId. When the server is removed,
+        // its tools are correctly unregistered — no orphaned tools remain.
+        assertEquals(0, bridge.registeredToolNames().size)
 
-        // Explicit cleanup via unregisterAll removes everything
+        // Explicit cleanup via unregisterAll also works
         bridge.unregisterAll()
         assertEquals(0, bridge.registeredToolNames().size)
     }
