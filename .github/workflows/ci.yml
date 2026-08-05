@@ -19,7 +19,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Cold builds on the free 2-core runner exceed 45m: 1857 unit tests +
+    # lintDebug on both modules + assembleRelease (R8). 90m gives a full
+    # cold run room; cached runs finish in ~10m.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -35,7 +38,17 @@ jobs:
         uses: android-actions/setup-android@d24156dbc98afec1657d3bb4948a729ce8407815 # v3.1.0
         with:
           cmdline-tools-version: '13114758'
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      # android-actions/setup-android v3 only installs cmdline-tools; the
+      # `packages` input it used to accept is gone. Without this step the
+      # platform/build-tools are auto-downloaded by AGP on every cold run —
+      # slow and dependent on network. Install them explicitly so the build
+      # starts with the SDK it needs. Match what app/build.gradle.kts pins
+      # (compileSdk 35, build-tools 35.0.0).
+      - name: Install Android SDK components
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --licenses > /dev/null 2>&1 || true
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
