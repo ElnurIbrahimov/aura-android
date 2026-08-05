@@ -165,11 +165,11 @@ fun ProductionPipelineScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (state.busy) {
-                CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
-                Spacer(modifier = Modifier.width(8.dp))
+                CircularProgressIndicator(modifier = Modifier.width(AuraSpacing.lg).height(AuraSpacing.lg))
+                Spacer(modifier = Modifier.width(AuraSpacing.xs))
             } else {
                 Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AuraSpacing.xs))
             }
             Text(if (state.busy) "Scheduling..." else "Schedule pipeline")
         }
@@ -192,7 +192,7 @@ fun ProductionPipelineScreen(
             }
             Button(onClick = onOpenAgentRuns, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.Movie, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AuraSpacing.xs))
                 Text(stringResource(R.string.view_in_agent_runs))
             }
             OutlinedButton(onClick = { viewModel.dismissResult() }, modifier = Modifier.fillMaxWidth()) {

@@ -146,7 +146,7 @@ fun TasksScreen(
             Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
             // Status filter chips
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("all") },
                     label = { Text(stringResource(R.string.all)) },
@@ -175,7 +175,7 @@ fun TasksScreen(
                 TasksSkeletonLoading()
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                    contentPadding = PaddingValues(vertical = AuraSpacing.xs),
                     verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     if (state.reminders.isNotEmpty() && state.statusFilter != "done") {
@@ -191,14 +191,14 @@ fun TasksScreen(
                     } else if (state.statusFilter != "done") {
                         item {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(stringResource(R.string.upcoming_reminders), style = MaterialTheme.typography.titleSmall)
                                 TextButton(onClick = { showAddReminder = true }) {
-                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(4.dp))
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+                                    Spacer(Modifier.width(AuraSpacing.xxs))
                                     Text(stringResource(R.string.add))
                                 }
                             }
@@ -323,7 +323,7 @@ private fun TasksSkeletonLoading() {
     )
 
     LazyColumn(
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = AuraSpacing.xs),
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
@@ -336,7 +336,7 @@ private fun TasksSkeletonLoading() {
 private fun SkeletonTaskCard(alpha: Float) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -348,10 +348,10 @@ private fun SkeletonTaskCard(alpha: Float) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.6f)
-                        .height(16.dp)
+                        .height(AuraSpacing.md)
                         .background(
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.4f),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(AuraSpacing.xxs),
                         ),
                 )
                 Spacer(Modifier.height(AuraSpacing.xs))
@@ -359,43 +359,43 @@ private fun SkeletonTaskCard(alpha: Float) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
-                        .height(12.dp)
+                        .height(AuraSpacing.sm)
                         .background(
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.25f),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(AuraSpacing.xxs),
                         ),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AuraSpacing.small))
                 // Meta line (due date + priority chip)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .width(72.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AuraSpacing.xs))
                     Box(
                         modifier = Modifier
-                            .size(width = 44.dp, height = 20.dp)
+                            .size(width = 44.dp, height = AuraSpacing.xxl2)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(AuraSpacing.medium),
                             ),
                     )
                 }
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AuraSpacing.xs))
             // Action button placeholder
             Box(
                 modifier = Modifier
-                    .size(width = 48.dp, height = 28.dp)
+                    .size(width = AuraSpacing.xxl, height = 28.dp)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(AuraSpacing.small),
                     ),
             )
         }
@@ -418,8 +418,8 @@ private fun RemindersHeader(onAddReminder: () -> Unit = {}) {
             color = AuraThemeTokens.colors.actionPrimary,
         )
         TextButton(onClick = onAddReminder) {
-            Icon(Icons.Filled.Add, contentDescription = "Add reminder", modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
+            Icon(Icons.Filled.Add, contentDescription = "Add reminder", modifier = Modifier.size(AuraSpacing.xl2))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             Text(stringResource(R.string.add))
         }
     }
@@ -434,7 +434,7 @@ private fun ReminderRow(
     val fmt = SimpleDateFormat("MMM d, HH:mm", Locale.US)
     Surface(
         color = AuraThemeTokens.colors.surface2,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -448,7 +448,7 @@ private fun ReminderRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(AuraSpacing.tiny))
                 Text(
                     buildString {
                         append(fmt.format(Date(reminder.triggerAt)))
@@ -483,7 +483,7 @@ private fun TaskRow(
     val fmt = SimpleDateFormat("MMM d, HH:mm", Locale.US)
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -498,7 +498,7 @@ private fun TaskRow(
                     textDecoration = if (task.status == "done") androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                 )
                 if (task.description.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(AuraSpacing.tiny))
                     Text(
                         task.description,
                         style = MaterialTheme.typography.bodySmall,
@@ -516,11 +516,11 @@ private fun TaskRow(
                             style = MaterialTheme.typography.labelSmall,
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AuraSpacing.xs))
                     }
                     PriorityChip(task.priority)
                     if (task.tags.isNotBlank()) {
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AuraSpacing.xs))
                         Text(
                             task.tags,
                             style = MaterialTheme.typography.labelSmall,
@@ -753,7 +753,7 @@ private fun PriorityOption(label: String, selected: Boolean, onClick: () -> Unit
             containerColor = if (selected) AuraThemeTokens.colors.actionPrimary else AuraThemeTokens.colors.surface1,
         ),
     ) {
-        Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Box(Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.small)) {
             Text(label, style = MaterialTheme.typography.labelMedium)
         }
     }

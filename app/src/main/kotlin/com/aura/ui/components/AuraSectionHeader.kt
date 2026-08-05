@@ -50,7 +50,7 @@ fun AuraSectionHeader(
         }
         if (action != null) {
             Row(
-                modifier = Modifier.sizeIn(minWidth = 48.dp),
+                modifier = Modifier.sizeIn(minWidth = AuraSpacing.xxl),
                 verticalAlignment = Alignment.CenterVertically,
                 content = action,
             )

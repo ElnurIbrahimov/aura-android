@@ -61,7 +61,7 @@ fun WorldBibleEditor(
         Surface(
             color = colors.surface1,
             shape = MaterialTheme.shapes.medium,
-            border = BorderStroke(1.dp, colors.borderSubtle),
+            border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
         ) {
             Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
                 Text(stringResource(R.string.world_foundation), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -173,7 +173,7 @@ private fun WorldSection(
     Surface(
         color = colors.surface1,
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

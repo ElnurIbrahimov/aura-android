@@ -116,7 +116,7 @@ fun EmptyChatState(
                 fontSize = 28.sp,
                 color = colors.textPrimary,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AuraSpacing.small))
             Text(
                 text = stringResource(R.string.what_should_we_explore),
                 fontFamily = InterDisplay,
@@ -167,8 +167,8 @@ fun QuickChipRow(
     onPick: (String) -> Unit,
 ) {
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        contentPadding = PaddingValues(horizontal = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
+        contentPadding = PaddingValues(horizontal = AuraSpacing.medium),
     ) {
         items(chips.size) { i ->
             QuickChipView(chip = chips[i], onClick = { onPick(chips[i].prompt) })
@@ -192,15 +192,15 @@ private fun QuickChipView(chip: QuickChip, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(colors.surface2)
-            .border(1.dp, colors.borderSubtle, RoundedCornerShape(999.dp))
+            .border(AuraSpacing.hairline, colors.borderSubtle, RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .heightIn(min = AuraSpacing.xxl)
+            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
     ) {
         Icon(
             imageVector = chip.icon,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(AuraSpacing.md),
             tint = colors.textSecondary,
         )
         Text(

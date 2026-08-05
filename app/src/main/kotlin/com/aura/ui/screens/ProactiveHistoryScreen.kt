@@ -112,7 +112,7 @@ fun ProactiveHistoryScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
         ) {
             val reversed = state.events.reversed()
             if (reversed.isEmpty()) {
@@ -145,7 +145,7 @@ private fun EmptyState() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 64.dp, bottom = 32.dp),
+            .padding(top = 64.dp, bottom = AuraSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
@@ -274,12 +274,12 @@ private fun HistoryCard(
     }
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(AuraSpacing.large),
         tonalElevation = 0.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(AuraSpacing.large),
             verticalAlignment = Alignment.Top,
         ) {
             // ── Icon container (branded circle) ──────────────────────
@@ -296,7 +296,7 @@ private fun HistoryCard(
                         .padding(AuraSpacing.xs),
                 )
             }
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(AuraSpacing.large))
             Column(modifier = Modifier.weight(1f)) {
                 // ── Title row ────────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,14 +310,14 @@ private fun HistoryCard(
                     model.badge?.let { (label, count) ->
                         Surface(
                             color = iconBackground,
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(AuraSpacing.small),
                         ) {
                             Text(
                                 text = "$count $label",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Medium,
                                 color = iconTint,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                modifier = Modifier.padding(horizontal = AuraSpacing.xs, vertical = 3.dp),
                             )
                         }
                     }
@@ -330,7 +330,7 @@ private fun HistoryCard(
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.85f),
                 )
                 // ── Footer row: tap hint + timestamp ─────────────────
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.small))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -341,9 +341,9 @@ private fun HistoryCard(
                                 imageVector = Icons.Filled.PlayArrow,
                                 contentDescription = null,
                                 tint = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.7f),
-                                modifier = Modifier.size(12.dp),
+                                modifier = Modifier.size(AuraSpacing.sm),
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(AuraSpacing.xxs))
                             Text(
                                 text = hint,
                                 style = MaterialTheme.typography.labelSmall,
@@ -358,7 +358,7 @@ private fun HistoryCard(
                             imageVector = Icons.Filled.Schedule,
                             contentDescription = null,
                             tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.38f),
-                            modifier = Modifier.size(12.dp),
+                            modifier = Modifier.size(AuraSpacing.sm),
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
@@ -398,9 +398,9 @@ private fun DebugSection(
                 imageVector = Icons.Filled.Refresh,
                 contentDescription = null,
                 tint = AuraThemeTokens.colors.actionPrimary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(AuraSpacing.xl2),
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(AuraSpacing.xs))
             Text(
                 text = stringResource(R.string.debug_fire_now),
                 style = MaterialTheme.typography.titleSmall,
@@ -408,7 +408,7 @@ private fun DebugSection(
                 color = AuraThemeTokens.colors.actionPrimary,
             )
         }
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.tiny))
         Text(
             text = stringResource(R.string.run_each_loop_on_demand_without),
             style = MaterialTheme.typography.bodySmall,
@@ -452,7 +452,7 @@ private fun DebugSection(
                     AuraThemeTokens.colors.error
                 else
                     AuraThemeTokens.colors.surface2,
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(AuraSpacing.medium),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
@@ -469,9 +469,9 @@ private fun DebugSection(
                             AuraThemeTokens.colors.error
                         else
                             AuraThemeTokens.colors.assistantAccent,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.medium))
                     Text(
                         text = msg,
                         style = MaterialTheme.typography.bodySmall,
@@ -507,7 +507,7 @@ private fun DebugActionRow(
 ) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(AuraSpacing.sm),
         tonalElevation = 0.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -529,7 +529,7 @@ private fun DebugActionRow(
                         .padding(7.dp),
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(AuraSpacing.sm))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
@@ -549,16 +549,16 @@ private fun DebugActionRow(
                     containerColor = iconBackground,
                     contentColor = iconTint,
                 ),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(AuraSpacing.xs),
                 contentPadding = ButtonDefaults.TextButtonContentPadding,
                 modifier = Modifier.height(34.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.PlayArrow,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(AuraSpacing.large),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(AuraSpacing.xxs))
                 Text(
                     text = stringResource(R.string.run),
                     style = MaterialTheme.typography.labelSmall,

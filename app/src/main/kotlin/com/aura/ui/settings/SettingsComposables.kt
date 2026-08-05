@@ -50,7 +50,7 @@ fun SettingsSection(
 
     Surface(
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.40f),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(AuraSpacing.large),
         tonalElevation = 0.dp,
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
     ) {
@@ -59,11 +59,11 @@ fun SettingsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded = !expanded }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.large),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = emoji, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(AuraSpacing.medium))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = title,
@@ -93,11 +93,11 @@ fun SettingsSection(
                 exit = shrinkVertically(),
             ) {
                 Column(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                    modifier = Modifier.padding(start = AuraSpacing.md, end = AuraSpacing.md, bottom = AuraSpacing.large),
                 ) {
                     HorizontalDivider(
                         color = AuraThemeTokens.colors.borderDefault.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(bottom = 10.dp),
+                        modifier = Modifier.padding(bottom = AuraSpacing.medium),
                     )
                     content()
                 }
@@ -114,7 +114,7 @@ fun SettingsClickableRow(
 ) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = AuraSpacing.xxs)

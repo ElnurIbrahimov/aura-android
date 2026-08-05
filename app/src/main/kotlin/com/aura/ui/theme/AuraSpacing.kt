@@ -11,4 +11,12 @@ object AuraSpacing {
     val lg = 24.dp
     val xl = 32.dp
     val xxl = 48.dp
+    /** Common non-scale values used across screens. */
+    val hairline = 1.dp
+    val tiny = 2.dp
+    val small = 6.dp
+    val medium = 10.dp
+    val large = 14.dp
+    val xl2 = 18.dp
+    val xxl2 = 20.dp
 }

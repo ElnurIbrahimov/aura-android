@@ -81,7 +81,7 @@ fun InlineImage(
             .fillMaxWidth()
             .height(200.dp)
             .padding(vertical = AuraSpacing.xxs)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(AuraSpacing.sm))
             .background(colors.surface2)
             .clickable { fullScreen = true },
         contentAlignment = Alignment.Center,
@@ -89,7 +89,7 @@ fun InlineImage(
         if (loading) {
             CircularProgressIndicator(
                 color = colors.actionPrimary,
-                strokeWidth = 2.dp,
+                strokeWidth = AuraSpacing.tiny,
                 modifier = Modifier.padding(AuraSpacing.md),
             )
         } else if (bitmap != null) {
@@ -128,7 +128,7 @@ fun InlineImage(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(AuraSpacing.md)
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(AuraSpacing.xs)),
                 contentScale = ContentScale.Fit,
             )
         }

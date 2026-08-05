@@ -123,17 +123,17 @@ fun ChatContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(AuraThemeTokens.colors.warning.copy(alpha = 0.12f))
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.small),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     androidx.compose.material3.Icon(
                         imageVector = androidx.compose.material.icons.Icons.Filled.CloudOff,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(AuraSpacing.md),
                         tint = AuraThemeTokens.colors.warning,
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AuraSpacing.xs))
                     Text(
                         text = stringResource(R.string.you_re_offline),
                         style = MaterialTheme.typography.labelSmall,
@@ -143,7 +143,7 @@ fun ChatContent(
             }
 
             if (state.deepModeActive) {
-                MoaThinkingIndicator(Modifier.padding(horizontal = AuraSpacing.md, vertical = 6.dp))
+                MoaThinkingIndicator(Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.small))
             }
             if (state.streamingThinking.isNotBlank()) {
                 ThinkingBlock(text = state.streamingThinking)
@@ -196,7 +196,7 @@ fun ChatContent(
                     AgentChip(
                         agent = agent,
                         onClick = onShowAgentPicker,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
                     )
                 }
             }
@@ -243,20 +243,20 @@ private fun JumpToLatest(onClick: () -> Unit) {
         Surface(
             onClick = onClick,
             color = AuraThemeTokens.colors.surface2,
-            shape = RoundedCornerShape(16.dp),
-            shadowElevation = 4.dp,
+            shape = RoundedCornerShape(AuraSpacing.md),
+            shadowElevation = AuraSpacing.xxs,
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.small),
             ) {
                 Icon(
                     imageVector = Icons.Filled.ArrowDownward,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(AuraSpacing.large),
                     tint = AuraThemeTokens.colors.textSecondary,
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AuraSpacing.xxs))
                 Text(
                     text = stringResource(R.string.jump_to_latest),
                     fontFamily = InterDisplay,
@@ -273,7 +273,7 @@ private fun TtsStopPill(onStop: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.small),
         horizontalArrangement = Arrangement.Center,
     ) {
         Surface(
@@ -282,19 +282,19 @@ private fun TtsStopPill(onStop: () -> Unit) {
             color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f),
             contentColor = AuraThemeTokens.colors.actionPrimary,
             border = androidx.compose.foundation.BorderStroke(
-                1.dp,
+                AuraSpacing.hairline,
                 AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.3f),
             ),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.large, vertical = AuraSpacing.small),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
             ) {
                 androidx.compose.material3.Icon(
                     imageVector = androidx.compose.material.icons.Icons.Filled.Stop,
                     contentDescription = "Stop reading",
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(AuraSpacing.large),
                 )
                 Text(
                     text = stringResource(R.string.tap_to_stop_reading),
@@ -310,14 +310,14 @@ private fun TtsStopPill(onStop: () -> Unit) {
 private fun IncognitoBanner() {
     Surface(
         color = AuraThemeTokens.colors.warning.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(AuraSpacing.xs),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
     ) {
         Text(
             text = stringResource(R.string.incognito_this_chat_is_not_saved),
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
         )
     }
 }
@@ -334,11 +334,11 @@ private fun ErrorBanner(
     val display = typedError?.formatUserMessage() ?: error
     Surface(
         color = AuraThemeTokens.colors.error,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
+        shape = RoundedCornerShape(AuraSpacing.xs),
     ) {
         Row(
-            Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.padding(start = AuraSpacing.sm, end = AuraSpacing.xxs, top = AuraSpacing.small, bottom = AuraSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -360,11 +360,11 @@ private fun ErrorBanner(
 private fun SaveWarningBanner(warning: String, onDismiss: () -> Unit) {
     Surface(
         color = AuraThemeTokens.colors.warning.copy(alpha = 0.12f),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
+        shape = RoundedCornerShape(AuraSpacing.xs),
     ) {
         Row(
-            Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.padding(start = AuraSpacing.sm, end = AuraSpacing.xxs, top = AuraSpacing.small, bottom = AuraSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -382,11 +382,11 @@ private fun SaveWarningBanner(warning: String, onDismiss: () -> Unit) {
 private fun ModelSelectionBanner(message: String, onChooseModel: () -> Unit) {
     Surface(
         color = AuraThemeTokens.colors.error,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(AuraSpacing.sm),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -422,7 +422,7 @@ private fun ThinkingBlock(text: String) {
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
                 tint = colors.assistantAccent,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(AuraSpacing.md),
             )
             Text(
                 text = if (expanded) "Thinking" else "Thinking\u2026",
@@ -435,7 +435,7 @@ private fun ThinkingBlock(text: String) {
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Collapse" else "Expand",
                 tint = colors.textTertiary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(AuraSpacing.xl2),
             )
         }
         if (expanded) {
@@ -443,7 +443,7 @@ private fun ThinkingBlock(text: String) {
                 modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.xxs),
                 color = colors.surface0,
                 shape = MaterialTheme.shapes.small,
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+                border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
             ) {
                 SelectionContainer {
                     Text(

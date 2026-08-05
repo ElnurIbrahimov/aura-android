@@ -71,10 +71,10 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AuraSpacing.xxl2),
     ) {
         // Header
-        Column(modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)) {
+        Column(modifier = Modifier.padding(top = AuraSpacing.md, bottom = AuraSpacing.small)) {
             Text(
                 text = stringResource(R.string.settings),
                 style = MaterialTheme.typography.displaySmall,
@@ -254,15 +254,15 @@ fun SettingsScreen(
         )
 
         // Footer
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxl2))
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .padding(bottom = 24.dp, top = 8.dp),
+                .padding(bottom = AuraSpacing.lg, top = AuraSpacing.xs),
         ) {
             Surface(
                 color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.lg),
             ) {
                 Text(
                     text = "\u2726",

@@ -88,9 +88,9 @@ private fun CapabilityCard(card: CapabilityCardState) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (card.isConfigured) colors.surface1 else colors.surface0,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(AuraSpacing.md),
         border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
+            width = AuraSpacing.hairline,
             color = if (card.isConfigured) colors.actionPrimary.copy(alpha = 0.5f) else colors.borderSubtle,
         ),
     ) {
@@ -102,13 +102,13 @@ private fun CapabilityCard(card: CapabilityCardState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(AuraSpacing.sm),
                 color = if (card.isConfigured) colors.actionPrimary.copy(alpha = 0.15f) else colors.surface1,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.padding(AuraSpacing.sm).size(24.dp),
+                    modifier = Modifier.padding(AuraSpacing.sm).size(AuraSpacing.lg),
                     tint = if (card.isConfigured) colors.actionPrimary else colors.textSecondary,
                 )
             }

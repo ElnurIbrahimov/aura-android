@@ -29,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.components.AuraEmptyState
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
@@ -54,25 +55,25 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = AuraSpacing.xxs)
                             .clickable { viewModel.select(belief.id) },
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(AuraSpacing.md)) {
                             Text(
                                 "${belief.subject} — ${belief.predicate}",
                                 style = MaterialTheme.typography.titleMedium,
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                             Text(belief.valueJson, style = MaterialTheme.typography.bodyMedium)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                             Row {
                                 Text("conf: ${belief.confidence}", style = MaterialTheme.typography.labelSmall)
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(AuraSpacing.sm))
                                 Text("status: ${belief.status}", style = MaterialTheme.typography.labelSmall)
                             }
                             val supporting = state.evidence[belief.id].orEmpty()
                             if (supporting.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                                 supporting.take(3).forEach { evidence ->
                                     Text(
                                         text = "· ${evidence.summary}",
@@ -83,7 +84,7 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
                             }
                             val chain = state.history[belief.id].orEmpty()
                             if (chain.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                                 val previouslyLabel = stringResource(R.string.previously)
                                 chain.take(3).forEach { old ->
                                     Text(
@@ -111,18 +112,18 @@ fun BeliefsScreen(viewModel: BeliefsViewModel = hiltViewModel()) {
             text = {
                 Column {
                     Text(belief.valueJson, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.sm))
                     Text(
                         "Confidence: ${"%.0f".format(belief.confidence * 100)}%",
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Text("Status: ${belief.status}", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.md))
                     Row {
                         TextButton(onClick = {
                             viewModel.verify(belief.id)
                         }) { Text("Verify") }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AuraSpacing.xs))
                         TextButton(
                             onClick = {
                                 viewModel.retire(belief.id)

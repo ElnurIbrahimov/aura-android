@@ -63,10 +63,10 @@ fun CustomEndpointCard(
     var visible by remember { mutableStateOf(false) }
     Surface(
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.4f),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(AuraSpacing.large),
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
+            .padding(vertical = AuraSpacing.small)
             .testTag("custom-endpoint-card"),
     ) {
         Column(modifier = Modifier.padding(AuraSpacing.md)) {
@@ -95,7 +95,7 @@ fun CustomEndpointCard(
                     )
                 }
             }
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AuraSpacing.tiny))
             Text(
                 text = stringResource(R.string.any_openai_compatible_chat_completions_url) +
                     "Models are pulled from <URL>/models unless you provide a static list.",
@@ -146,7 +146,7 @@ fun CustomEndpointCard(
                     modifier = Modifier.testTag("custom-endpoint-test"),
                 ) {
                     if (testing) {
-                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = AuraSpacing.tiny)
                     } else {
                         Text(stringResource(R.string.save_test))
                     }

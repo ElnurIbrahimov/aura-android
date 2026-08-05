@@ -136,7 +136,7 @@ fun ProfileScreen(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.xs))
                     IconButton(
                         onClick = {
                             viewModel.addTrait(traitInput)
@@ -164,7 +164,7 @@ fun ProfileScreen(
                     state.facts.forEach { fact ->
                         Surface(
                             color = AuraThemeTokens.colors.surface1,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(AuraSpacing.medium),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
@@ -195,7 +195,7 @@ fun ProfileScreen(
                         minLines = 2,
                         maxLines = 4,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.xs))
                     IconButton(
                         onClick = {
                             viewModel.addFact(factInput)

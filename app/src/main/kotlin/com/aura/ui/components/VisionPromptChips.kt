@@ -51,14 +51,14 @@ fun VisionPromptChips(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.small),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         for ((label, prompt) in prompts) {
             Surface(
                 color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(AuraSpacing.md),
                 modifier = Modifier.clickable { onPick(prompt) },
             ) {
                 Text(
@@ -66,19 +66,19 @@ fun VisionPromptChips(
                     style = MaterialTheme.typography.labelMedium,
                     color = AuraThemeTokens.colors.onActionPrimary,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.large, vertical = AuraSpacing.xs),
                 )
             }
         }
         IconButton(
             onClick = onDismiss,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(AuraSpacing.xl),
         ) {
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "Dismiss staged image",
                 tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(AuraSpacing.xl2),
             )
         }
     }

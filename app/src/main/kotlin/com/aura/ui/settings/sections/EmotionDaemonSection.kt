@@ -51,7 +51,7 @@ fun EmotionDaemonSection(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.small))
 
         if (emotionSnapshot != null) {
             EmotionBar("Tension", emotionSnapshot.tension, "Calm", "Stressed")
@@ -82,7 +82,7 @@ fun EmotionDaemonSection(
         // Daemon toggle
         Surface(
             color = AuraThemeTokens.colors.surface1,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(AuraSpacing.medium),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
@@ -141,10 +141,10 @@ private fun EmotionBar(
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
             )
         }
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.tiny))
         LinearProgressIndicator(
             progress = { value.coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(4.dp),
+            modifier = Modifier.fillMaxWidth().height(AuraSpacing.xxs),
             color = AuraThemeTokens.colors.actionPrimary,
             trackColor = AuraThemeTokens.colors.surface1,
         )

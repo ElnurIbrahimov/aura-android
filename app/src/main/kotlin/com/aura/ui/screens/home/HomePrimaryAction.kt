@@ -63,7 +63,7 @@ fun HomePrimaryAction(
         modifier = modifier.fillMaxWidth(),
         color = colors.surface0,
         shape = MaterialTheme.shapes.large,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(
             modifier = Modifier.padding(AuraSpacing.md),

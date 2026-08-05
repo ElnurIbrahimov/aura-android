@@ -45,6 +45,7 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Full-screen continuous voice mode overlay — premium redesign with
  * a layered breathing orb (3 concentric pulsing rings), a live
@@ -107,7 +108,7 @@ fun ContinuousVoiceOverlay(
             )
 
             Column(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
+                modifier = Modifier.fillMaxSize().padding(AuraSpacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -159,7 +160,7 @@ fun ContinuousVoiceOverlay(
                     color = AuraThemeTokens.colors.textPrimary,
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxl2))
 
                 // ── Waveform / transcript area ─────────────────────────────
                 when (phase) {
@@ -170,7 +171,7 @@ fun ContinuousVoiceOverlay(
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
                             )
                         } else {
                             WaveformVisualizer(
@@ -187,7 +188,7 @@ fun ContinuousVoiceOverlay(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
                             )
                         } else {
                             WaveformVisualizer(
@@ -207,7 +208,7 @@ fun ContinuousVoiceOverlay(
 
                 // ── Error ───────────────────────────────────────────────────
                 state.error?.let { err ->
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.md))
                     Text(
                         text = err,
                         style = MaterialTheme.typography.labelSmall,
@@ -228,16 +229,16 @@ fun ContinuousVoiceOverlay(
                         imageVector = Icons.Filled.Stop,
                         contentDescription = "Stop voice mode",
                         tint = AuraThemeTokens.colors.textPrimary,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(AuraSpacing.xl),
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
                 Text(
                     text = "Tap to stop · or say \"stop listening\"",
                     style = MaterialTheme.typography.labelSmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
         }
     }
@@ -306,8 +307,8 @@ private fun WaveformVisualizer(
     )
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.height(48.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
+        modifier = Modifier.height(AuraSpacing.xxl),
     ) {
         for (i in 0 until bars) {
             val offset = i * 0.5f
@@ -319,7 +320,7 @@ private fun WaveformVisualizer(
                     .height(heightDp)
                     .background(
                         color.copy(alpha = if (isActive) 0.5f + normalized * 0.5f else 0.3f),
-                        androidx.compose.foundation.shape.RoundedCornerShape(2.dp),
+                        androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.tiny),
                     ),
             )
         }
@@ -332,7 +333,7 @@ private fun WaveformVisualizer(
  */
 @Composable
 private fun ThinkingDots(color: Color) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
         for (i in 0 until 3) {
             val transition = rememberInfiniteTransition(label = "dot-$i")
             val alpha by transition.animateFloat(
@@ -347,7 +348,7 @@ private fun ThinkingDots(color: Color) {
             )
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(AuraSpacing.medium)
                     .background(color.copy(alpha = alpha), CircleShape),
             )
         }

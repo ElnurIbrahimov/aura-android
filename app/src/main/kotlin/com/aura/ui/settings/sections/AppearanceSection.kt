@@ -37,8 +37,8 @@ fun AppearanceSection(
         subtitle = "Light, dark, or follow the system theme",
         initialExpanded = false,
     ) {
-        Spacer(modifier = Modifier.height(2.dp))
-        FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+        Spacer(modifier = Modifier.height(AuraSpacing.tiny))
+        FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(AuraSpacing.small)) {
             listOf(
                 "system" to "System",
                 "light" to "Light",
@@ -75,7 +75,7 @@ private fun ThemePreview(themeMode: String) {
         modifier = Modifier.fillMaxWidth(),
         color = colors.surface0,
         shape = MaterialTheme.shapes.medium,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(modifier = Modifier.padding(AuraSpacing.sm), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             // Mock assistant message
@@ -83,7 +83,7 @@ private fun ThemePreview(themeMode: String) {
                 androidx.compose.material3.Icon(
                     Icons.Filled.Psychology,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                     tint = colors.actionPrimary,
                 )
                 Column {
@@ -106,24 +106,24 @@ private fun ThemePreview(themeMode: String) {
             ) {
                 androidx.compose.material3.Surface(
                     color = colors.actionPrimary,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.md, AuraSpacing.md, AuraSpacing.xxs, AuraSpacing.md),
                 ) {
                     Text(
                         "And this is my reply.",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onActionPrimary,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
                     )
                 }
             }
             // Mock input bar
             androidx.compose.material3.Surface(
                 color = colors.surface1,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.lg),
+                border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
@@ -136,7 +136,7 @@ private fun ThemePreview(themeMode: String) {
                     androidx.compose.material3.Icon(
                         Icons.Filled.ArrowUpward,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                         tint = colors.actionPrimary,
                     )
                 }

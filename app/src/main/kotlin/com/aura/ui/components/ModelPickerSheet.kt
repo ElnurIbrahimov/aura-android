@@ -163,7 +163,7 @@ fun ModelPickerContent(
                 .fillMaxWidth()
                 .heightIn(min = 320.dp)
                 .testTag("model-picker")
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = AuraSpacing.xxl2, vertical = AuraSpacing.xs),
         ) {
             // Header row: title + model count
             Row(
@@ -190,7 +190,7 @@ fun ModelPickerContent(
                                 color = AuraThemeTokens.colors.actionPrimary,
                             )
                             onMakeDefault?.let { promote ->
-                                TextButton(onClick = promote, contentPadding = PaddingValues(start = 8.dp)) {
+                                TextButton(onClick = promote, contentPadding = PaddingValues(start = AuraSpacing.xs)) {
                                     Text(stringResource(R.string.make_default), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
@@ -206,9 +206,9 @@ fun ModelPickerContent(
                         contentDescription = "Refresh models",
                         // Subtle spin while loading
                         modifier = if (isLoading) Modifier
-                            .size(20.dp)
+                            .size(AuraSpacing.xxl2)
                             .rotate(0f)  // static; full spin would need a LaunchedEffect
-                        else Modifier.size(20.dp),
+                        else Modifier.size(AuraSpacing.xxl2),
                     )
                 }
                 IconButton(onClick = onDismiss) {
@@ -229,11 +229,11 @@ fun ModelPickerContent(
                     Icon(
                         Icons.Filled.Search,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(AuraSpacing.xxl2),
                     )
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(AuraSpacing.md),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = AuraThemeTokens.colors.surface1,
                     unfocusedContainerColor = AuraThemeTokens.colors.surface1,
@@ -251,7 +251,7 @@ fun ModelPickerContent(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
-                        strokeWidth = 2.dp,
+                        strokeWidth = AuraSpacing.tiny,
                     )
                     Spacer(Modifier.height(AuraSpacing.sm))
                     Text(
@@ -301,7 +301,7 @@ fun ModelPickerContent(
                 )
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(bottom = 8.dp),
+                    contentPadding = PaddingValues(bottom = AuraSpacing.xs),
                 ) {
                     if (errorMessage != null) {
                         item(key = "models-warning") {
@@ -309,12 +309,12 @@ fun ModelPickerContent(
                                 // A tinted background (not solid light-red) so the
                                 // near-white title/body text keeps adequate contrast.
                                 color = AuraThemeTokens.colors.error.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(AuraSpacing.large),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = AuraSpacing.sm),
                             ) {
-                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                                Column(modifier = Modifier.padding(horizontal = AuraSpacing.large, vertical = AuraSpacing.sm)) {
                                     Text(
                                         text = stringResource(R.string.last_refresh_failed),
                                         style = MaterialTheme.typography.labelLarge,
@@ -377,7 +377,7 @@ private fun ProviderHeader(name: String, count: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 4.dp),
+            .padding(top = AuraSpacing.md, bottom = AuraSpacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -386,14 +386,14 @@ private fun ProviderHeader(name: String, count: Int) {
             fontWeight = FontWeight.SemiBold,
             color = AuraThemeTokens.colors.actionPrimary,
         )
-        Spacer(modifier = Modifier.size(8.dp))
+        Spacer(modifier = Modifier.size(AuraSpacing.xs))
         Surface(
             color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(AuraSpacing.xs),
         ) {
             Text(
                 text = "$count",
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.hairline),
                 style = MaterialTheme.typography.labelSmall,
                 color = AuraThemeTokens.colors.actionPrimary,
             )
@@ -417,7 +417,7 @@ private fun ModelRow(
             .widthIn(min = 0.dp)
             .testTag("model-row-$id")
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .padding(vertical = AuraSpacing.sm, horizontal = AuraSpacing.xxs),
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(

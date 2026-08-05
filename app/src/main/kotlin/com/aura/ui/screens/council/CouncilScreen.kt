@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.agent.forum.ForumPostEntity
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun CouncilScreen(
@@ -72,8 +73,8 @@ fun CouncilScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = AuraSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
             ) {
                 if (state.interventions.isEmpty() && !state.isLoading) {
                     item {
@@ -86,7 +87,7 @@ fun CouncilScreen(
                             Icon(
                                 Icons.Filled.Forum,
                                 contentDescription = null,
-                                modifier = Modifier.padding(bottom = 16.dp),
+                                modifier = Modifier.padding(bottom = AuraSpacing.md),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
@@ -98,7 +99,7 @@ fun CouncilScreen(
                                 "Agents will debate and propose interventions while your phone is idle.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
+                                modifier = Modifier.padding(top = AuraSpacing.xs, start = AuraSpacing.lg, end = AuraSpacing.lg),
                             )
                         }
                     }
@@ -130,7 +131,7 @@ private fun InterventionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = AuraSpacing.xxs),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -147,11 +148,11 @@ private fun InterventionCard(
             AssistChip(
                 onClick = onOpenThread,
                 label = { Text(agentName, style = MaterialTheme.typography.labelSmall) },
-                leadingIcon = { Icon(Icons.Filled.HowToVote, contentDescription = null, modifier = Modifier.height(16.dp)) },
+                leadingIcon = { Icon(Icons.Filled.HowToVote, contentDescription = null, modifier = Modifier.height(AuraSpacing.md)) },
             )
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
 
         Text(
             text = post.body.take(300),
@@ -161,7 +162,7 @@ private fun InterventionCard(
         )
 
         if (isProposal) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -192,8 +193,8 @@ private fun ThreadView(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = AuraSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         item {
             Row(
@@ -249,7 +250,7 @@ private fun ThreadView(
                         },
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 Text(
                     text = post.body.take(500),
                     style = MaterialTheme.typography.bodySmall,

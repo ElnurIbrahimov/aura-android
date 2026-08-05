@@ -56,7 +56,7 @@ internal fun MemoryHistoryDialog(
                 when {
                     loading -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.CenterHorizontally),
-                        strokeWidth = 2.dp,
+                        strokeWidth = AuraSpacing.tiny,
                     )
                     entries.isEmpty() -> Text(
                         "No edits yet. This memory is still in its original form.",
@@ -64,12 +64,12 @@ internal fun MemoryHistoryDialog(
                     )
                     else -> LazyColumn(
                         modifier = Modifier.heightIn(max = 420.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
                     ) {
                         items(entries, key = { it.id }) { edit ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(AuraSpacing.large),
                                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.45f),
                             ) {
                                 Column(

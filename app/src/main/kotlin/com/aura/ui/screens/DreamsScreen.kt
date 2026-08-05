@@ -294,7 +294,7 @@ private fun ContradictionCard(
                 Icon(
                     Icons.Filled.Warning,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                     tint = AuraThemeTokens.colors.error,
                 )
             }

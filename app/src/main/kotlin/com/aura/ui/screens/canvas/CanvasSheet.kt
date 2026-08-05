@@ -91,7 +91,7 @@ fun CanvasSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -102,7 +102,7 @@ fun CanvasSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AuraSpacing.xs))
                 Text(
                     text = canvas.type.label,
                     style = MaterialTheme.typography.labelSmall,
@@ -152,7 +152,7 @@ fun CanvasSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
                         color = colors.surface1,
                         shape = MaterialTheme.shapes.medium,
                     ) {
@@ -185,7 +185,7 @@ fun CanvasSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
                         color = colors.surface1,
                         shape = MaterialTheme.shapes.medium,
                     ) {

@@ -86,16 +86,16 @@ fun KnowledgeGraphScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AuraSpacing.xxl2),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.medium, bottom = AuraSpacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             Column(Modifier.weight(1f)) {
                 Text(
                     "Knowledge graph",
@@ -115,7 +115,7 @@ fun KnowledgeGraphScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
         ) {
             GraphStatCard(
                 value = state.stats.nodeCount.toString(),
@@ -130,7 +130,7 @@ fun KnowledgeGraphScreen(
                 modifier = Modifier.weight(1f),
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AuraSpacing.medium))
 
         OutlinedTextField(
             value = state.query,
@@ -145,14 +145,14 @@ fun KnowledgeGraphScreen(
             } else null,
             placeholder = { Text(stringResource(R.string.search_labels_types_or_properties)) },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(AuraSpacing.md),
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(AuraSpacing.xs))
 
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
         ) {
             TypeChip(null, "All", state.typeFilter == null, viewModel::setTypeFilter)
             NodeType.entries.filterNot { it == NodeType.UNKNOWN }.forEach { type ->
@@ -164,11 +164,11 @@ fun KnowledgeGraphScreen(
         state.error?.let { message ->
             Surface(
                 color = AuraThemeTokens.colors.error,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(AuraSpacing.sm),
                 modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Row(
-                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                    modifier = Modifier.padding(start = AuraSpacing.sm, end = AuraSpacing.xxs, top = AuraSpacing.small, bottom = AuraSpacing.small),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -206,13 +206,13 @@ fun KnowledgeGraphScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = AuraSpacing.xxl2)
                     .padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TypeDot(selected.node.type)
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(AuraSpacing.medium))
                     Column(Modifier.weight(1f)) {
                         Text(
                             selected.node.label,
@@ -339,14 +339,14 @@ private fun GraphStatCard(value: String, label: String, color: Color, modifier: 
     Surface(
         modifier = modifier,
         color = color.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(AuraSpacing.md),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.large, vertical = AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = color)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AuraSpacing.xs))
             Text(label, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
         }
     }
@@ -371,14 +371,14 @@ private fun GraphNodeCard(node: KgNode, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.34f),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(AuraSpacing.md),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.large, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TypeDot(node.type)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AuraSpacing.sm))
             Column(Modifier.weight(1f)) {
                 Text(
                     node.label,
@@ -409,7 +409,7 @@ private fun GraphNodeCard(node: KgNode, onClick: () -> Unit) {
 private fun TypeDot(type: NodeType) {
     Box(
         modifier = Modifier
-            .size(12.dp)
+            .size(AuraSpacing.sm)
             .background(type.color(), CircleShape),
     )
 }
@@ -423,7 +423,7 @@ private fun GraphEmptyState(filtered: Boolean) {
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AuraSpacing.small))
             Text(
                 if (filtered) "Clear the search or choose another type."
                 else "As you chat, Aura will connect people, projects, tools, and ideas here.",
@@ -438,12 +438,12 @@ private fun GraphEmptyState(filtered: Boolean) {
 private fun DetailSection(title: String, content: @Composable () -> Unit) {
     Surface(
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.38f),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(AuraSpacing.large),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(AuraSpacing.sm)) {
             Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AuraSpacing.small))
             content()
         }
     }
@@ -485,7 +485,7 @@ private fun EditGraphNodeDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.edit_entity)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -576,12 +576,12 @@ private fun MergeGraphNodeDialog(
                         Surface(
                             color = if (target?.id == candidate.id) AuraThemeTokens.colors.actionPrimary
                             else Color.Transparent,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(AuraSpacing.medium),
                             modifier = Modifier.fillMaxWidth().clickable { target = candidate },
                         ) {
-                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.padding(AuraSpacing.medium), verticalAlignment = Alignment.CenterVertically) {
                                 TypeDot(candidate.type)
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(AuraSpacing.xs))
                                 Column {
                                     Text(candidate.label, fontWeight = FontWeight.Medium)
                                     Text(candidate.type.displayLabel(), style = MaterialTheme.typography.bodySmall)

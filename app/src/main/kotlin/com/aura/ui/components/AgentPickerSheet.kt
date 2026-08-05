@@ -54,7 +54,7 @@ fun AgentPickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 480.dp)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = AuraSpacing.xxl2, vertical = AuraSpacing.md),
         ) {
             Text(
                 text = "Select agent",
@@ -97,14 +97,14 @@ private fun AgentRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
+            .padding(vertical = AuraSpacing.medium),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         Icon(
             imageVector = Icons.Filled.Person,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(AuraSpacing.xxl2),
             tint = if (selected) AuraThemeTokens.colors.actionPrimary
             else AuraThemeTokens.colors.textSecondary,
         )

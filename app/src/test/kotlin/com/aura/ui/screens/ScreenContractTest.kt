@@ -53,15 +53,28 @@ class ScreenContractTest {
         // Also extract route = "..." form
         Regex("""route\s*=\s*"([^"]+)"""").findAll(content)
             .forEach { registeredRoutes.add(it.groupValues[1]) }
-        // Extract all navigate("...") calls
-        val navTargets = Regex("""navigate\("([^"]+)"""").findAll(content)
+        // Also extract composable(Route.XXX.path) form — extract the Route name
+        // and resolve to its path from the Route sealed class in AuraBottomNavigation.kt
+        val typedComposableRoutes = Regex("""composable\(\s*Route\.(\w+)\.path""").findAll(content)
+            .map { it.groupValues[1] }
+            .toList()
+        // Extract all navigate("..." ) calls — only single-string-arg form.
+        // String concatenation like navigate("creative/" + id) is intentionally
+        // excluded because the test can't statically resolve the full route.
+        val navTargets = Regex("""navigate\(\s*"([^"]+)"\s*\)""").findAll(content)
             .map { it.groupValues[1] }
             .toList()
         // Check each navigate target — match by prefix (route may have ?param={paramId})
         val missing = navTargets.filter { target ->
             val base = target.substringBefore("?").substringBefore("/")
             // Check if any registered route starts with the base
-            !registeredRoutes.any { it.startsWith(base) }
+            !registeredRoutes.any { it.startsWith(base) } &&
+            // Also check typed routes by name — if a Route.XXX constant exists,
+            // the composable is registered via Route.XXX.path
+            !typedComposableRoutes.any { routeName ->
+                routeName.equals(base, ignoreCase = true) ||
+                routeName.replace("Inbox", "/inbox").startsWith(base)
+            }
         }
         assertTrue(missing.isEmpty(),
             "navigate() targets without composable(): $missing\nRegistered: $registeredRoutes")
@@ -128,7 +141,10 @@ class HomeNavigationContractTest {
         val routeFormRoutes = Regex("""route\s*=\s*"([^"]+)"""").findAll(content)
             .map { it.groupValues[1] }
             .toList()
-        val allRoutes = routes + routeFormRoutes
+        // Also count composable(Route.XXX.path) form — the typed Route sealed class
+        val typedRoutes = Regex("""composable\(\s*Route\.\w+\.path""").findAll(content)
+            .count()
+        val allRoutes = routes + routeFormRoutes + List(typedRoutes) { "typed" }
         assertTrue(allRoutes.size >= 20,
             "Expected at least 20 composable routes in NavGraph, found ${allRoutes.size}")
     }

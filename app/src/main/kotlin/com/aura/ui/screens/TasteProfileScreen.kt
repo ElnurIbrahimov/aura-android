@@ -127,7 +127,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                     )
                 } else {
                     for ((category, values) in attrs) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.tiny)) {
                             Text(
                                 category,
                                 style = MaterialTheme.typography.labelLarge,
@@ -154,7 +154,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
                                         progress = { score.coerceIn(0f, 1f) },
                                         modifier = Modifier
                                             .weight(0.5f)
-                                            .padding(vertical = 2.dp),
+                                            .padding(vertical = AuraSpacing.tiny),
                                         color = AuraThemeTokens.colors.actionPrimary,
                                         trackColor = AuraThemeTokens.colors.surface2,
                                     )

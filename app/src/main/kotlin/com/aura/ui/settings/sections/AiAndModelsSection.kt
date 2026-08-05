@@ -76,7 +76,7 @@ fun AiAndModelsSection(
     ) {
         Surface(
             color = AuraThemeTokens.colors.surface1,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(AuraSpacing.medium),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(AuraSpacing.sm)) {
@@ -90,7 +90,7 @@ fun AiAndModelsSection(
                 )
                 if (state.configuredProviders.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(AuraSpacing.xxs))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
                         state.configuredProviders.forEach { name ->
                             AssistChip(
                                 onClick = {},
@@ -178,7 +178,7 @@ fun AiAndModelsSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.small))
 
         RoleModelRow("Chat default", state.defaultModel) { activeModelRole = "chat" }
         RoleModelRow("Embedding", state.embeddingModel) { activeModelRole = "embedding" }
@@ -197,7 +197,7 @@ fun AiAndModelsSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary,
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
             state.moaReferenceModels.forEach { model ->
                 AssistChip(
                     onClick = { onSetMoaReferenceModels(state.moaReferenceModels.filterNot { it == model }) },

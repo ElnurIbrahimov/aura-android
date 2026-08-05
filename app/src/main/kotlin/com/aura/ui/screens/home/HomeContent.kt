@@ -551,7 +551,7 @@ private fun HomeFreshStart(
 
         shape = MaterialTheme.shapes.large,
 
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
 
     ) {
 
@@ -731,7 +731,7 @@ private fun HomeAtAGlance(state: HomeUiState) {
                 modifier = Modifier.fillMaxWidth(),
                 color = colors.surface1,
                 shape = MaterialTheme.shapes.small,
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+                border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
@@ -742,7 +742,7 @@ private fun HomeAtAGlance(state: HomeUiState) {
                         imageVector = item.icon,
                         contentDescription = null,
                         tint = colors.actionPrimary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(

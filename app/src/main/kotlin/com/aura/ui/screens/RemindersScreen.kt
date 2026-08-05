@@ -236,11 +236,11 @@ private fun ReminderLifecycleRow(
     val format = SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.US)
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(AuraSpacing.large),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(AuraSpacing.large),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {

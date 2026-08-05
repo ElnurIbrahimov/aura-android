@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Visual indicator shown during MoA turns.
  *
@@ -55,16 +56,16 @@ fun MoaThinkingIndicator(
                 AuraThemeTokens.colors.surface1.copy(alpha = 0.6f),
                 MaterialTheme.shapes.small,
             )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
     ) {
         Text(
             text = stringResource(R.string.consulting_3_models),
             style = MaterialTheme.typography.labelSmall,
             color = AuraThemeTokens.colors.textPrimary,
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(AuraSpacing.xxs))
         // Animated dots representing reference models + aggregator
         listOf("G", "K", "D").forEach { label ->
             Box(

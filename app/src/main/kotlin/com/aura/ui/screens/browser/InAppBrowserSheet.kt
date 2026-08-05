@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * In-app browser sheet. Renders a WebView inside the app so the user
@@ -71,9 +72,9 @@ fun InAppBrowserSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                    .padding(horizontal = AuraSpacing.xxs, vertical = AuraSpacing.tiny),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.tiny),
             ) {
                 IconButton(
                     onClick = {
@@ -139,7 +140,7 @@ fun InAppBrowserSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 2.dp),
+                    .padding(top = AuraSpacing.tiny),
             ) {
                 AndroidView(
                     factory = { ctx ->

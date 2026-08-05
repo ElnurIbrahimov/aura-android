@@ -127,13 +127,13 @@ fun AuraAiAvatar(
         label = "ring-alpha",
     )
     Box(
-        modifier = modifier.size(size + 12.dp),
+        modifier = modifier.size(size + AuraSpacing.sm),
         contentAlignment = Alignment.Center,
     ) {
         // Outer breathing ring — radial gradient blur
         Box(
             modifier = Modifier
-                .size(size + 8.dp)
+                .size(size + AuraSpacing.xs)
                 .graphicsLayer {
                     scaleX = ringScale
                     scaleY = ringScale
@@ -172,7 +172,7 @@ fun AuraAiAvatar(
                     ),
                 )
                 .border(
-                    width = 1.dp,
+                    width = AuraSpacing.hairline,
                     color = AuraThemeTokens.colors.borderStrong,
                     shape = CircleShape,
                 ),
@@ -194,7 +194,7 @@ fun AuraAiAvatar(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(10.dp)
+                    .size(AuraSpacing.medium)
                     .background(
                         color = AuraThemeTokens.colors.info,
                         shape = CircleShape,
@@ -244,7 +244,7 @@ fun ThinkingShimmer(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .graphicsLayer { translationY = offset }
                     .alpha(alpha)
-                    .size(6.dp)
+                    .size(AuraSpacing.small)
                     .background(
                         color = AuraThemeTokens.colors.textSecondary,
                         shape = CircleShape,
@@ -359,13 +359,13 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
         Box(
             modifier = Modifier
                 .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(topStart = AuraSpacing.lg, topEnd = AuraSpacing.lg, bottomStart = AuraSpacing.xxs, bottomEnd = AuraSpacing.lg))
                     .background(AuraThemeTokens.colors.userBubble)
                 .combinedClickable(
                     onClick = {},
                     onLongClick = onEdit,
                 )
-                .padding(horizontal = 22.dp, vertical = 12.dp),
+                .padding(horizontal = 22.dp, vertical = AuraSpacing.sm),
         ) {
             // SelectionContainer lets the user highlight and copy
             // just a phrase from their own message, not the whole thing.
@@ -430,14 +430,14 @@ private fun AssistantMessage(
                 translationY = (1f - springEased.value) * 16f
                 alpha = springEased.value
             }
-            .padding(horizontal = AuraSpacing.md, vertical = 12.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
         // Avatar: 32dp — proportional to 16sp body text, matches Claude mobile.
         AuraAiAvatar(
             isThinking = isStreaming,
             isProactive = isProactive,
-            size = 32.dp,
+            size = AuraSpacing.xl,
         )
         Column(modifier = Modifier.weight(1f)) {
             // Role label
@@ -461,7 +461,7 @@ private fun AssistantMessage(
                         fontWeight = FontWeight.Medium,
                         fontSize = 10.sp,
                         color = AuraThemeTokens.colors.assistantAccent,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.tiny),
                     )
                 }
             }
@@ -469,7 +469,7 @@ private fun AssistantMessage(
             if (!thinking.isNullOrBlank() && !isStreaming) {
                 PersistedThinkingBlock(text = thinking)
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AuraSpacing.small))
             val renderedText = remember(text, citations, isStreaming) {
                 if (isStreaming) text else renderCitationMarkers(
                     text,
@@ -628,13 +628,13 @@ private fun CitationChip(index: Int, onClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
-                .size(18.dp)
+                .size(AuraSpacing.xl2)
                 .clip(CircleShape)
                 .background(
                     color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.35f),
                 )
                 .border(
-                    width = 1.dp,
+                    width = AuraSpacing.hairline,
                     color = AuraThemeTokens.colors.assistantAccent.copy(alpha = 0.5f),
                     shape = CircleShape,
                 ),
@@ -661,19 +661,19 @@ private fun BubbleAction(
     val tint = if (isActive) AuraThemeTokens.colors.assistantAccent else AuraThemeTokens.colors.textTertiary
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.tiny),
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(AuraSpacing.small))
             .clickable(onClick = onClick)
             // Meet the 48dp minimum touch target; the icon+label stay small.
-            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .defaultMinSize(minWidth = AuraSpacing.xxl, minHeight = AuraSpacing.xxl)
+            .padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.tiny),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(AuraSpacing.md),
         )
         if (label.isNotBlank()) {
             Text(
@@ -705,7 +705,7 @@ private fun PersistedThinkingBlock(text: String) {
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.small)
                 .clickable { expanded = !expanded }
-                .padding(vertical = 4.dp),
+                .padding(vertical = AuraSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
@@ -713,7 +713,7 @@ private fun PersistedThinkingBlock(text: String) {
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
                 tint = colors.assistantAccent,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(AuraSpacing.large),
             )
             Text(
                 text = if (expanded) "Thinking" else "Thinking\u2026",
@@ -726,7 +726,7 @@ private fun PersistedThinkingBlock(text: String) {
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "Collapse" else "Expand",
                 tint = colors.textTertiary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(AuraSpacing.md),
             )
         }
         if (expanded) {
@@ -734,7 +734,7 @@ private fun PersistedThinkingBlock(text: String) {
                 modifier = Modifier.fillMaxWidth(),
                 color = colors.surface0,
                 shape = MaterialTheme.shapes.small,
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+                border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
             ) {
                 SelectionContainer {
                     Text(

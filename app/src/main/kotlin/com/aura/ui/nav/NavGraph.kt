@@ -172,18 +172,18 @@ fun NavGraph(
                             restoreState = true
                         }
                     },
-                    onOpenTasks = { navController.navigate("tasks") },
-                    onOpenReminders = { navController.navigate("reminders") },
-                    onOpenHands = { navController.navigate("hands") },
-                    onOpenTools = { navController.navigate("tools") },
-                    onOpenSkills = { navController.navigate("skills") },
-                    onOpenCreative = { navController.navigate("creative") },
-                    onOpenProactive = { navController.navigate("proactive") },
-                    onOpenAgentRuns = { navController.navigate("agent_runs") },
-                    onOpenProduction = { navController.navigate("production") },
-                    onOpenCapabilities = { navController.navigate("capabilities") },
-                    onOpenEvolution = { navController.navigate("evolution/inbox") },
-            onOpenCouncil = { navController.navigate("council") },
+                    onOpenTasks = { navController.navigate(Route.Tasks.path) },
+                    onOpenReminders = { navController.navigate(Route.Reminders.path) },
+                    onOpenHands = { navController.navigate(Route.Hands.path) },
+                    onOpenTools = { navController.navigate(Route.Tools.path) },
+                    onOpenSkills = { navController.navigate(Route.Skills.path) },
+                    onOpenCreative = { navController.navigate(Route.Creative.path) },
+                    onOpenProactive = { navController.navigate(Route.Proactive.path) },
+                    onOpenAgentRuns = { navController.navigate(Route.AgentRuns.path) },
+                    onOpenProduction = { navController.navigate(Route.Production.path) },
+                    onOpenCapabilities = { navController.navigate(Route.Capabilities.path) },
+                    onOpenEvolution = { navController.navigate(Route.EvolutionInbox.path) },
+            onOpenCouncil = { navController.navigate(Route.Council.path) },
                     onOpenCalendar = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                             data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
@@ -222,13 +222,13 @@ fun NavGraph(
                     morningBriefSummary = summary,
                     initialDraft = draft,
                     focusTurnTimestamp = focusTurn,
-                    onNavigateHistory = { navController.navigate("history") },
+                    onNavigateHistory = { navController.navigate(Route.History.path) },
                 )
             }
             composable(TopLevelRoute.Memory.route) {
                 MemoryScreen(
-                    onOpenKnowledgeGraph = { navController.navigate("knowledge_graph") },
-                    onOpenDreams = { navController.navigate("dreams") },
+                    onOpenKnowledgeGraph = { navController.navigate(Route.KnowledgeGraph.path) },
+                    onOpenDreams = { navController.navigate(Route.Dreams.path) },
                     onOpenSourceConversation = { convId, turnTimestamp ->
                         navController.navigate(
                             "chat?convId=${android.net.Uri.encode(convId)}&focusTurn=$turnTimestamp"
@@ -240,29 +240,29 @@ fun NavGraph(
             }
             composable(TopLevelRoute.Settings.route) {
                 SettingsScreen(
-                    onNavigateProfile = { navController.navigate("profile") },
-                    onNavigateIdentity = { navController.navigate("identity_editor") },
-                    onNavigateDiagnostics = { navController.navigate("diagnostics") },
-                    onNavigateCrashLogs = { navController.navigate("crash_logs") },
-                    onNavigateEvolutionInbox = { navController.navigate("evolution/inbox") },
-                    onNavigateBeliefs = { navController.navigate("evolution/beliefs") },
-                    onNavigateAgentEditor = { navController.navigate("agent_editor") },
-                    onNavigateWorldModel = { navController.navigate("world_model") },
-                    onNavigateTasteProfile = { navController.navigate("taste_profile") },
+                    onNavigateProfile = { navController.navigate(Route.Profile.path) },
+                    onNavigateIdentity = { navController.navigate(Route.IdentityEditor.path) },
+                    onNavigateDiagnostics = { navController.navigate(Route.Diagnostics.path) },
+                    onNavigateCrashLogs = { navController.navigate(Route.CrashLogs.path) },
+                    onNavigateEvolutionInbox = { navController.navigate(Route.EvolutionInbox.path) },
+                    onNavigateBeliefs = { navController.navigate(Route.EvolutionBeliefs.path) },
+                    onNavigateAgentEditor = { navController.navigate(Route.AgentEditor.path) },
+                    onNavigateWorldModel = { navController.navigate(Route.WorldModel.path) },
+                    onNavigateTasteProfile = { navController.navigate(Route.TasteProfile.path) },
                 )
             }
-            composable("diagnostics") {
+            composable(Route.Diagnostics.path) {
                 DiagnosticsScreen(onBack = { navController.popBackStack() })
             }
-            composable("crash_logs") {
+            composable(Route.CrashLogs.path) {
                 com.aura.ui.screens.CrashLogScreen(onBack = { navController.popBackStack() })
             }
-            composable("identity_editor") {
+            composable(Route.IdentityEditor.path) {
                 com.aura.ui.screens.IdentityEditorScreen(
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable("knowledge_graph") {
+            composable(Route.KnowledgeGraph.path) {
                 KnowledgeGraphScreen(
                     onBack = { navController.popBackStack() },
                     onOpenSourceConversation = { convId, turnTimestamp ->
@@ -272,7 +272,7 @@ fun NavGraph(
                     },
                 )
             }
-            composable("history") {
+            composable(Route.History.path) {
                 HistoryScreen(onSelect = { convId ->
                     navController.navigate("chat?convId=$convId") {
                         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -281,32 +281,32 @@ fun NavGraph(
                     }
                 })
             }
-            composable("hands") { HandsScreen(onBack = { navController.popBackStack() }) }
-            composable("tasks") { TasksScreen(onOpenSchedule = { navController.navigate("schedule") }) }
-            composable("tools") { ToolsScreen(onBack = { navController.popBackStack() }) }
-            composable("proactive") { ProactiveHistoryScreen(onBack = { navController.popBackStack() }) }
-            composable("dreams") {
+            composable(Route.Hands.path) { HandsScreen(onBack = { navController.popBackStack() }) }
+            composable(Route.Tasks.path) { TasksScreen(onOpenSchedule = { navController.navigate(Route.Schedule.path) }) }
+            composable(Route.Tools.path) { ToolsScreen(onBack = { navController.popBackStack() }) }
+            composable(Route.Proactive.path) { ProactiveHistoryScreen(onBack = { navController.popBackStack() }) }
+            composable(Route.Dreams.path) {
                 DreamsScreen(onBack = { navController.popBackStack() })
             }
-            composable("world_model") {
+            composable(Route.WorldModel.path) {
                 WorldModelScreen(onBack = { navController.popBackStack() })
             }
-            composable("taste_profile") {
+            composable(Route.TasteProfile.path) {
                 TasteProfileScreen(onBack = { navController.popBackStack() })
             }
-            composable("reminders") {
+            composable(Route.Reminders.path) {
                 RemindersScreen(onBack = { navController.popBackStack() })
             }
-            composable("profile") {
+            composable(Route.Profile.path) {
                 ProfileScreen(onBack = { navController.popBackStack() })
             }
-            composable("creative") {
+            composable(Route.Creative.path) {
                 CreativeStudioScreen(
-                    onOpenProject = { id -> navController.navigate("creative/$id") },
+                    onOpenProject = { id -> navController.navigate("creative/" + id) },
                 )
             }
             composable(
-                route = "creative/{projectId}",
+                route = Route.CreativeProject.path,
                 arguments = listOf(
                     navArgument("projectId") { type = NavType.StringType },
                 ),
@@ -317,14 +317,14 @@ fun NavGraph(
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable("agent_runs") {
+            composable(Route.AgentRuns.path) {
                 AgentRunsScreen(
                     runId = null,
                     onBack = { navController.popBackStack() },
                 )
             }
             composable(
-                route = "agent_runs/{runId}",
+                route = Route.AgentRunDetail.path,
                 arguments = listOf(navArgument("runId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 AgentRunsScreen(
@@ -332,20 +332,20 @@ fun NavGraph(
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable("skills") {
+            composable(Route.Skills.path) {
                 SkillsScreen(onBack = { navController.popBackStack() })
             }
-            composable("capabilities") {
+            composable(Route.Capabilities.path) {
                 CapabilitiesScreen(onBack = { navController.popBackStack() })
             }
-            composable("production") {
+            composable(Route.Production.path) {
                 ProductionPipelineScreen(
-                    onOpenAgentRuns = { navController.navigate("agent_runs") },
-                    onOpenCreative = { navController.navigate("creative") },
+                    onOpenAgentRuns = { navController.navigate(Route.AgentRuns.path) },
+                    onOpenCreative = { navController.navigate(Route.Creative.path) },
                 )
             }
             composable(
-                route = "agent_editor?agentId={agentId}",
+                route = Route.AgentEditor.path,
                 arguments = listOf(navArgument("agentId") { type = NavType.StringType; nullable = true; defaultValue = null }),
             ) { backStackEntry ->
                 val agentId = backStackEntry.arguments?.getString("agentId")
@@ -354,39 +354,39 @@ fun NavGraph(
                     onDone = { navController.popBackStack() },
                 )
             }
-            composable("evolution/inbox") {
+            composable(Route.EvolutionInbox.path) {
                 EvolutionInboxScreen(
                     onBack = { navController.popBackStack() },
-                    onRollback = { proposalId -> navController.navigate("evolution/rollback/$proposalId") },
+                    onRollback = { proposalId -> navController.navigate("evolution/rollback/" + proposalId) },
                 )
             }
-            composable("schedule") {
+            composable(Route.Schedule.path) {
                 val viewModel: ScheduleViewModel = hiltViewModel()
                 ScheduleScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
 
-            composable("evolution/beliefs") {
+            composable(Route.EvolutionBeliefs.path) {
                 BeliefsScreen()
             }
             composable(
-                route = "council?convId={convId}",
+                route = Route.Council.path,
                 arguments = listOf(navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null }),
             ) { backStackEntry ->
                 CouncilScreen(
                     convId = backStackEntry.arguments?.getString("convId"),
                     onBack = { navController.popBackStack() },
-                    onOpenDreamLog = { navController.navigate("dream_log") },
-                    onOpenAgentProfiles = { navController.navigate("agent_profiles") },
+                    onOpenDreamLog = { navController.navigate(Route.DreamLog.path) },
+                    onOpenAgentProfiles = { navController.navigate(Route.AgentProfiles.path) },
                 )
             }
-            composable("dream_log") {
+            composable(Route.DreamLog.path) {
                 DreamLogScreen(onBack = { navController.popBackStack() })
             }
-            composable("agent_profiles") {
+            composable(Route.AgentProfiles.path) {
                 AgentProfileScreen(onBack = { navController.popBackStack() })
             }
             composable(
-                route = "evolution/rollback/{proposalId}",
+                route = Route.EvolutionRollback.path,
                 arguments = listOf(navArgument("proposalId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val proposalId = backStackEntry.arguments?.getString("proposalId").orEmpty()

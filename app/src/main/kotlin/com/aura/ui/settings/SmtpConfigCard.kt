@@ -40,7 +40,7 @@ fun SmtpConfigCard(
         initialExpanded = true,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             OutlinedTextField(

@@ -140,7 +140,7 @@ private fun CreativeHero(projectCount: Int, onCreate: () -> Unit) {
     Surface(
         color = colors.surface1,
         shape = MaterialTheme.shapes.large,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(
             Modifier.padding(AuraSpacing.lg),
@@ -175,7 +175,7 @@ private fun CreativeHero(projectCount: Int, onCreate: () -> Unit) {
                 )
                 Button(onClick = onCreate) {
                     Icon(Icons.Filled.Add, contentDescription = null)
-                    Spacer(Modifier.size(6.dp))
+                    Spacer(Modifier.size(AuraSpacing.small))
                     Text(stringResource(R.string.new_project))
                 }
             }
@@ -196,7 +196,7 @@ private fun CreativeProjectCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         color = colors.surface1,
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Row(
             Modifier.padding(AuraSpacing.md),
@@ -251,7 +251,7 @@ private fun NewCreativeProjectDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.new_creative_project)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium)) {
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.project_name)) }, singleLine = true)
                 OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {

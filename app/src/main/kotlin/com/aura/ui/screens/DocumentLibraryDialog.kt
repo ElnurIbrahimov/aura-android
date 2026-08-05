@@ -69,8 +69,8 @@ internal fun DocumentLibraryDialog(
                 ) {
                     if (state.importing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(AuraSpacing.xl2),
+                            strokeWidth = AuraSpacing.tiny,
                         )
                         Text("  ${state.stage ?: "Importing…"}")
                     } else {
@@ -91,13 +91,13 @@ internal fun DocumentLibraryDialog(
                     ) {
                         items(state.documents, key = { it.id }) { document ->
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(AuraSpacing.large),
                                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.45f),
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+                                        .padding(start = AuraSpacing.sm, top = AuraSpacing.medium, bottom = AuraSpacing.medium, end = AuraSpacing.xxs),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Icon(
@@ -108,7 +108,7 @@ internal fun DocumentLibraryDialog(
                                     Column(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .padding(horizontal = 10.dp),
+                                            .padding(horizontal = AuraSpacing.medium),
                                     ) {
                                         Text(
                                             document.name,

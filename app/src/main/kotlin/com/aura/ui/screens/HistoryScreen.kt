@@ -116,7 +116,7 @@ fun HistoryScreen(
     }
 
     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = AuraSpacing.xxl2)) {
         val headerAction: (@Composable () -> Unit)? = when {
             // Bulk action bar — replaces the normal "Export all" action
             // when in select mode. Shows the count and Delete/Share/Cancel.
@@ -140,8 +140,8 @@ fun HistoryScreen(
                         },
                         enabled = state.selectedIds.isNotEmpty(),
                     ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+                        Spacer(Modifier.width(AuraSpacing.xxs))
                         Text(stringResource(R.string.share))
                     }
                     TextButton(
@@ -152,9 +152,9 @@ fun HistoryScreen(
                             Icons.Filled.Delete,
                             contentDescription = null,
                             tint = AuraThemeTokens.colors.error,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(AuraSpacing.xl2),
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(AuraSpacing.xxs))
                         Text(stringResource(R.string.delete), color = AuraThemeTokens.colors.error)
                     }
                     TextButton(onClick = { viewModel.toggleSelectMode() }) {
@@ -174,8 +174,8 @@ fun HistoryScreen(
                             shareMarkdown(context, viewModel.exportAllMarkdown(), "aura-conversations")
                         }
                     }) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+                        Spacer(Modifier.width(AuraSpacing.xxs))
                         Text(stringResource(R.string.export_all))
                     }
                 }
@@ -206,7 +206,7 @@ fun HistoryScreen(
         )
 
         if (state.searching) {
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AuraSpacing.tiny))
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -266,7 +266,7 @@ fun HistoryScreen(
                 }
             }
         } else {
-            LazyColumn(contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+            LazyColumn(contentPadding = PaddingValues(vertical = AuraSpacing.xs), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 items(state.conversations, key = { it.id }) { conv ->
                     if (state.selectMode) {
                         HistoryRow(
@@ -375,7 +375,7 @@ private fun HistoryRow(
     Surface(
         color = if (isSelected) AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.12f)
                 else AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier
             .fillMaxWidth()
             .pointerInput(conv.id) {
@@ -398,20 +398,20 @@ private fun HistoryRow(
                     checked = isSelected,
                     onCheckedChange = { onClick() },
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AuraSpacing.xxs))
             } else {
                 Icon(
                     imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Filled.Chat,
                     contentDescription = if (isPinned) "Pinned" else null,
                     tint = if (isPinned) AuraThemeTokens.colors.actionPrimary
                            else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(AuraSpacing.lg),
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AuraSpacing.sm))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(conv.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(AuraSpacing.tiny))
                 Text(preview.take(80), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -419,7 +419,7 @@ private fun HistoryRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.82f),
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(AuraSpacing.tiny))
                 Text(
                     text = conv.model?.let { com.aura.ui.util.modelDisplayName(it) } ?: "Unknown model",
                     style = MaterialTheme.typography.labelSmall,
@@ -427,31 +427,31 @@ private fun HistoryRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(AuraSpacing.tiny))
                 Text(fmt.format(Date(conv.updatedAt)), style = MaterialTheme.typography.labelSmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.4f))
             }
             IconButton(
                 onClick = onTogglePin,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(AuraSpacing.xxl),
             ) {
                 Icon(
                     imageVector = Icons.Filled.PushPin,
                     contentDescription = if (isPinned) "Unpin" else "Pin",
                     tint = if (isPinned) AuraThemeTokens.colors.actionPrimary
                            else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(AuraSpacing.xl2),
                 )
             }
-            IconButton(onClick = onShare, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onShare, modifier = Modifier.size(AuraSpacing.xxl)) {
                 Icon(
                     imageVector = Icons.Filled.Share,
                     contentDescription = "Share as Markdown",
                     tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(AuraSpacing.xl2),
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.Delete, "Delete", tint = AuraThemeTokens.colors.error.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+            IconButton(onClick = onDelete, modifier = Modifier.size(AuraSpacing.xxl)) {
+                Icon(Icons.Filled.Delete, "Delete", tint = AuraThemeTokens.colors.error.copy(alpha = 0.6f), modifier = Modifier.size(AuraSpacing.xl2))
             }
         }
     }
@@ -494,7 +494,7 @@ private fun HistorySkeletonLoading() {
     )
 
     LazyColumn(
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = AuraSpacing.xs),
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
@@ -507,7 +507,7 @@ private fun HistorySkeletonLoading() {
 private fun SkeletonHistoryCard(alpha: Float) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -517,86 +517,86 @@ private fun SkeletonHistoryCard(alpha: Float) {
             // Icon placeholder (matches HistoryRow 24dp Chat/PushPin icon)
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(AuraSpacing.lg)
                     .alpha(alpha * 0.5f)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.3f),
                         shape = CircleShape,
                     ),
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AuraSpacing.sm))
             Column(modifier = Modifier.weight(1f)) {
                 // Title line
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.55f)
-                        .height(16.dp)
+                        .height(AuraSpacing.md)
                         .background(
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.4f),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(AuraSpacing.xxs),
                         ),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AuraSpacing.small))
                 // Preview line
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
-                        .height(12.dp)
+                        .height(AuraSpacing.sm)
                         .background(
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.25f),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(AuraSpacing.xxs),
                         ),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AuraSpacing.small))
                 // Meta row: model name + date
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .width(120.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AuraSpacing.sm))
                     Box(
                         modifier = Modifier
                             .width(80.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
                 }
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             // Action button placeholders (pin, share, delete)
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(AuraSpacing.xl)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(AuraSpacing.small),
                     ),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(AuraSpacing.xl)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(AuraSpacing.small),
                     ),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(AuraSpacing.xl)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(AuraSpacing.small),
                     ),
             )
         }

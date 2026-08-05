@@ -46,6 +46,7 @@ import com.aura.ui.theme.AuraThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.aura.ui.theme.AuraSpacing
 @Composable
 fun VoiceOverlay(
     viewModel: VoiceViewModel = hiltViewModel(),
@@ -93,7 +94,7 @@ fun VoiceOverlay(
         modifier = Modifier.fillMaxSize(),
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(AuraSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -118,22 +119,22 @@ fun VoiceOverlay(
                     modifier = Modifier.size(56.dp),
                 )
             }
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xl))
             Text(
                 text = if (holdToTalk) "Hold to talk" else statusText(state),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Medium,
                 color = AuraThemeTokens.colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Text(
                 text = partial.ifBlank { "Speak now…" },
                 style = MaterialTheme.typography.bodyLarge,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = if (partial.isBlank()) 0.5f else 0.9f),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
             )
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxl))
             IconButton(
                 onClick = {
                     // In hold-to-talk mode, the user is releasing
@@ -157,11 +158,11 @@ fun VoiceOverlay(
                     imageVector = Icons.Filled.Stop,
                     contentDescription = if (holdToTalk) "Send" else "Stop",
                     tint = AuraThemeTokens.colors.textPrimary,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(AuraSpacing.xl),
                 )
             }
             if (holdToTalk) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.xs))
                 Text(
                     text = stringResource(R.string.tap_to_send_what_you_said),
                     style = MaterialTheme.typography.labelSmall,

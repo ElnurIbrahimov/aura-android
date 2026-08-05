@@ -48,7 +48,7 @@ fun AgentChip(
                 Icon(
                     imageVector = Icons.Filled.Person,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(AuraSpacing.md),
                     tint = AuraThemeTokens.colors.actionPrimary,
                 )
             },

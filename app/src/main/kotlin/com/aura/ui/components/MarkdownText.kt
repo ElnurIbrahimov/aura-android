@@ -478,18 +478,18 @@ fun MarkdownColumn(
             when (block) {
                 is MarkdownBlock.Code -> {
                     CodeBlock(language = block.language, code = block.code)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AuraSpacing.small))
                 }
                 is MarkdownBlock.Chart -> {
                     com.aura.ui.components.charts.ChartDispatcher(
                         language = block.language,
                         rawBody = block.body,
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AuraSpacing.small))
                 }
                 is MarkdownBlock.Table -> {
                     TableBlock(headers = block.headers, rows = block.rows)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AuraSpacing.small))
                 }
                 is MarkdownBlock.Text -> {
                     ClickableMarkdownBlock(text = block.content, colors = colors, style = style)
@@ -620,9 +620,9 @@ private fun CodeBlock(language: String, code: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(codeBg, RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .padding(14.dp),
+            .background(codeBg, RoundedCornerShape(AuraSpacing.sm))
+            .border(AuraSpacing.hairline, borderColor, RoundedCornerShape(AuraSpacing.sm))
+            .padding(AuraSpacing.large),
     ) {
         Column {
             if (language.isNotBlank()) {
@@ -636,13 +636,13 @@ private fun CodeBlock(language: String, code: String) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(AuraSpacing.xs)
                                 .background(
                                     AuraThemeTokens.colors.actionPrimary,
                                     androidx.compose.foundation.shape.CircleShape,
                                 ),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AuraSpacing.xs))
                         Text(
                             text = language,
                             style = MaterialTheme.typography.labelSmall,
@@ -657,12 +657,12 @@ private fun CodeBlock(language: String, code: String) {
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                             copied = true
                         },
-                        modifier = Modifier.size(24.dp).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
+                        modifier = Modifier.size(AuraSpacing.lg).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
                             contentDescription = if (copied) "Copied" else "Copy code",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(AuraSpacing.md),
                             tint = AuraThemeTokens.colors.textSecondary,
                         )
                     }
@@ -681,12 +681,12 @@ private fun CodeBlock(language: String, code: String) {
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Code", code))
                             copied = true
                         },
-                        modifier = Modifier.size(24.dp).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
+                        modifier = Modifier.size(AuraSpacing.lg).semantics { this.contentDescription = if (copied) "Copied" else "Copy code" },
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = if (copied) androidx.compose.material.icons.Icons.Filled.Check else androidx.compose.material.icons.Icons.Filled.ContentCopy,
                             contentDescription = if (copied) "Copied" else "Copy code",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(AuraSpacing.md),
                             tint = AuraThemeTokens.colors.textSecondary,
                         )
                     }
@@ -723,7 +723,7 @@ private fun TableBlock(headers: List<String>, rows: List<List<String>>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp)),
+            .border(AuraSpacing.hairline, borderColor, RoundedCornerShape(AuraSpacing.xs)),
     ) {
         // Header row
         Row(modifier = Modifier.background(headerBg)) {

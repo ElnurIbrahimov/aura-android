@@ -148,7 +148,7 @@ private fun HomeDestinationCard(destination: HomeDestination) {
             .clickable(onClick = destination.onClick),
         color = colors.surface1,
         shape = MaterialTheme.shapes.medium,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderSubtle),
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(
             modifier = Modifier.padding(AuraSpacing.sm),
@@ -162,7 +162,7 @@ private fun HomeDestinationCard(destination: HomeDestination) {
                     imageVector = destination.icon,
                     contentDescription = null,
                     tint = colors.actionPrimary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                 )
                 Text(
                     text = destination.label,

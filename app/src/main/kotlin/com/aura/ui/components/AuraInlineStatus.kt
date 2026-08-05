@@ -39,7 +39,7 @@ fun AuraInlineStatus(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
-        Box(Modifier.size(8.dp).background(accent, RoundedCornerShape(50)))
+        Box(Modifier.size(AuraSpacing.xs).background(accent, RoundedCornerShape(50)))
         Text(text, style = MaterialTheme.typography.bodySmall, color = colors.textPrimary)
     }
 }

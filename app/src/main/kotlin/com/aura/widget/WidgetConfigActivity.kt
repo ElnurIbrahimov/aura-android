@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Configuration activity for the AskAuraWidget. Launched when the
@@ -114,7 +115,7 @@ class WidgetConfigActivity : ComponentActivity() {
                             verticalArrangement = Arrangement.Center,
                         ) {
                             CircularProgressIndicator()
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(AuraSpacing.md))
                             Text(stringResource(R.string.loading_models), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
@@ -178,8 +179,8 @@ private fun WidgetConfigContent(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(AuraSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             Text(stringResource(R.string.configure_widget), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.pick_a_model_and_optional_prompt), style = MaterialTheme.typography.bodySmall)
@@ -189,7 +190,7 @@ private fun WidgetConfigContent(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
                     androidx.compose.material3.RadioButton(
                         selected = model == selectedModel,
@@ -202,7 +203,7 @@ private fun WidgetConfigContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Text(stringResource(R.string.prompt_prefix_optional), style = MaterialTheme.typography.labelLarge)
             OutlinedTextField(
                 value = prefix,
@@ -212,14 +213,14 @@ private fun WidgetConfigContent(
                 singleLine = true,
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.md))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-                Spacer(modifier = Modifier.height(0.dp).padding(horizontal = 8.dp))
+                Spacer(modifier = Modifier.height(0.dp).padding(horizontal = AuraSpacing.xs))
                 Button(onClick = { onSave(selectedModel, prefix) }) { Text(stringResource(R.string.save)) }
             }
         }

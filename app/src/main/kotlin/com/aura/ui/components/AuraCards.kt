@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun AuraCard(
@@ -31,8 +32,8 @@ fun AuraCard(
         } else {
             containerColor
         },
-        border = BorderStroke(1.dp, colors.borderSubtle),
-        tonalElevation = if (elevated) 2.dp else 0.dp,
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
+        tonalElevation = if (elevated) AuraSpacing.tiny else 0.dp,
     ) {
         Column(
             modifier = Modifier.padding(contentPadding),

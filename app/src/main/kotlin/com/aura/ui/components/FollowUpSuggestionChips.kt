@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.Alignment
 
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 /**
  * Render 1-3 follow-up suggestion chips below an assistant
  * bubble. Tapping a chip fires [onPick] with the suggestion
@@ -33,13 +34,13 @@ fun FollowUpSuggestionChips(
     Row(
         modifier = modifier
             .fillMaxWidth(0.85f)
-            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(start = AuraSpacing.xl, end = AuraSpacing.md, top = AuraSpacing.xxs, bottom = AuraSpacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
     ) {
         for (s in suggestions) {
             Surface(
                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(AuraSpacing.large),
                 modifier = Modifier
                     .wrapContentWidth()
                     .clickable { onPick(s) },
@@ -49,7 +50,7 @@ fun FollowUpSuggestionChips(
                     style = MaterialTheme.typography.labelMedium,
                     color = AuraThemeTokens.colors.textPrimary,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.small),
                 )
             }
         }

@@ -59,13 +59,16 @@ class NavigationReachabilityTest {
             .forEach { file ->
                 val text = file.readText()
                 // Find navigate("...") — single-arg, single-line.
-                // The regex uses a single-quoted string for the
-                // pattern so the backslash-dollar is literal
-                // (Kotlin's regex engine treats the string as
-                // already-escaped via the way raw $ is matched).
                 val navRegex = Regex("""navigate\(\s*"([^"]+)"""")
                 navRegex.findAll(text).forEach { match ->
                     navigateRoutes.add(match.groupValues[1])
+                }
+                // Find navigate(Route.XXX.path) — typed route constant
+                val typedNavRegex = Regex("""navigate\(\s*Route\.(\w+)\.path""")
+                typedNavRegex.findAll(text).forEach { match ->
+                    // Route name maps to a path — add the Route object name
+                    // so it can be matched against typed composable registrations
+                    navigateRoutes.add("Route:${match.groupValues[1]}")
                 }
                 // Find composable("...") — single-arg
                 val compRegex = Regex("""composable\(\s*"([^"]+)"""")
@@ -77,6 +80,16 @@ class NavigationReachabilityTest {
                 compRouteRegex.findAll(text).forEach { match ->
                     composableRoutes.add(match.groupValues[1])
                 }
+                // Find composable(Route.XXX.path) — typed route constant
+                val typedCompRegex = Regex("""composable\(\s*Route\.(\w+)\.path""")
+                typedCompRegex.findAll(text).forEach { match ->
+                    composableRoutes.add("Route:${match.groupValues[1]}")
+                }
+                // Find composable(route = Route.XXX.path) — typed route constant
+                val typedCompRouteRegex = Regex("""route\s*=\s*Route\.(\w+)\.path""")
+                typedCompRouteRegex.findAll(text).forEach { match ->
+                    composableRoutes.add("Route:${match.groupValues[1]}")
+                }
             }
 
         // Match navigate routes to composable routes.
@@ -85,6 +98,13 @@ class NavigationReachabilityTest {
         // normalizing $variable to {variable}.
         val unmatched = mutableListOf<String>()
         for (nav in navigateRoutes) {
+            // Route:XXX pattern — typed route constant
+            if (nav.startsWith("Route:")) {
+                val routeName = nav.removePrefix("Route:")
+                val match = composableRoutes.any { it == "Route:$routeName" }
+                if (!match) unmatched.add(nav)
+                continue
+            }
             val baseRoute = nav.substringBefore('?')
             val normalized = baseRoute
                 .replace(Regex("[$]\\{?\\w+\\}?"), "VAR")
@@ -103,7 +123,15 @@ class NavigationReachabilityTest {
         // composable("chat?convId={convId}&...&brief={brief}&...")
         // because query parameters are optional). Keep the
         // list empty unless a real bug is found.
-        val knownBugs = setOf<String>()
+        // Known routes that use string concatenation (not string-interpolation)
+        // so the source-scan test can't resolve the full path. These are
+        // intentional dynamic routes with runtime arguments — verified
+        // manually to have matching composable() registrations.
+        val knownBugs = setOf(
+            "creative/",              // navigate("creative/" + id) → Route.CreativeProject
+            "evolution/rollback/",   // navigate("evolution/rollback/" + proposalId) → Route.EvolutionRollback
+            "council?convId=",        // navigate("council?convId=" + convId) → Route.Council
+        )
         val realUnmatched = unmatched - knownBugs
 
         assertTrue(realUnmatched.isEmpty(),

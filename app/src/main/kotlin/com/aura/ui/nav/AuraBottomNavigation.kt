@@ -75,6 +75,43 @@ sealed class TopLevelRoute(
     data object Evolution : TopLevelRoute("evolution/inbox", "Evolve", Icons.Filled.AutoFixHigh, Icons.Outlined.AutoFixHigh)
 }
 
+/**
+ * Secondary route constants. Every route string used in [NavGraph] should
+ * reference these constants so a typo is a compile error, not a silent
+ * navigation no-op.
+ */
+sealed class Route(val path: String) {
+    data object History : Route("history")
+    data object Hands : Route("hands")
+    data object Tasks : Route("tasks")
+    data object Reminders : Route("reminders")
+    data object Tools : Route("tools")
+    data object Skills : Route("skills")
+    data object Creative : Route("creative")
+    data object CreativeProject : Route("creative/{projectId}")
+    data object Production : Route("production")
+    data object Proactive : Route("proactive")
+    data object AgentRuns : Route("agent_runs")
+    data object AgentRunDetail : Route("agent_runs/{runId}")
+    data object Capabilities : Route("capabilities")
+    data object Council : Route("council?convId={convId}")
+    data object Dreams : Route("dreams")
+    data object DreamLog : Route("dream_log")
+    data object AgentProfiles : Route("agent_profiles")
+    data object WorldModel : Route("world_model")
+    data object TasteProfile : Route("taste_profile")
+    data object KnowledgeGraph : Route("knowledge_graph")
+    data object Profile : Route("profile")
+    data object IdentityEditor : Route("identity_editor")
+    data object Diagnostics : Route("diagnostics")
+    data object CrashLogs : Route("crash_logs")
+    data object Schedule : Route("schedule")
+    data object EvolutionInbox : Route("evolution/inbox")
+    data object EvolutionBeliefs : Route("evolution/beliefs")
+    data object EvolutionRollback : Route("evolution/rollback/{proposalId}")
+    data object AgentEditor : Route("agent_editor?agentId={agentId}")
+}
+
 internal val topLevelRoutes = listOf(
     TopLevelRoute.Home,
     TopLevelRoute.Chat,
@@ -97,9 +134,9 @@ fun AuraBottomNavigation(
     val baseRoute = normalizedBaseRoute(currentRoute)
     Surface(
         color = colors.surface0,
-        shape = RoundedCornerShape(20.dp),
-        shadowElevation = 8.dp,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        shape = RoundedCornerShape(AuraSpacing.xxl2),
+        shadowElevation = AuraSpacing.xs,
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(navigationBarInsets)
@@ -110,9 +147,9 @@ fun AuraBottomNavigation(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(AuraDimensions.bottomNavigationHeight - 8.dp)
+                    .height(AuraDimensions.bottomNavigationHeight - AuraSpacing.xs)
                     .testTag("bottom-navigation-row")
-                    .padding(horizontal = AuraSpacing.xs, vertical = 2.dp),
+                    .padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.tiny),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -140,7 +177,7 @@ fun AuraBottomNavigation(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(AuraSpacing.tiny),
                         ) {
                             val badgeCount = badgeCounts[route.route] ?: 0
                             val iconWithBadge: @Composable () -> Unit = {

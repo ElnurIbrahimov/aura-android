@@ -48,6 +48,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 import com.aura.ui.theme.AuraThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.theme.AuraSpacing
 internal fun buildQuickAskSystemPrompt(prefix: String): String = buildString {
     append(
         "This is a compact Aura session opened from the home-screen widget. " +
@@ -173,13 +174,13 @@ private fun QuickAskContent(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        shape = RoundedCornerShape(24.dp),
-        tonalElevation = 8.dp,
+        modifier = Modifier.fillMaxWidth().padding(AuraSpacing.md),
+        shape = RoundedCornerShape(AuraSpacing.lg),
+        tonalElevation = AuraSpacing.xs,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(AuraSpacing.xxl2),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -207,11 +208,11 @@ private fun QuickAskContent(
             state.providerWarning?.let { warning ->
                 Surface(
                     color = AuraThemeTokens.colors.surface2,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AuraSpacing.large),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                        modifier = Modifier.padding(start = AuraSpacing.sm, end = AuraSpacing.xxs, top = AuraSpacing.small, bottom = AuraSpacing.small),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -227,31 +228,31 @@ private fun QuickAskContent(
             when {
                 state.streaming && response.isBlank() -> Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(AuraSpacing.md), strokeWidth = AuraSpacing.tiny)
                     Text(stringResource(R.string.aura_is_thinking), style = MaterialTheme.typography.bodySmall)
                 }
                 state.error != null -> Surface(
                     color = AuraThemeTokens.colors.error,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AuraSpacing.large),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         state.error.orEmpty(),
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(AuraSpacing.sm),
                         color = AuraThemeTokens.colors.textPrimary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 response.isNotBlank() -> Surface(
                     color = AuraThemeTokens.colors.surface1,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(AuraSpacing.md),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         response,
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(AuraSpacing.large),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -264,7 +265,7 @@ private fun QuickAskContent(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs, Alignment.End),
             ) {
                 if (response.isNotBlank()) {
                     OutlinedButton(onClick = onOpenFullChat) { Text(stringResource(R.string.open_chat)) }

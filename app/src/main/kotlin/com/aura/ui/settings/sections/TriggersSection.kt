@@ -41,7 +41,7 @@ fun TriggersSection(
     var prompt by remember { mutableStateOf("") }
 
     SettingsSection(emoji = "⏰", title = "Triggers", subtitle = "Schedule-based hands and prompts", initialExpanded = false) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Enable triggers", style = MaterialTheme.typography.bodyLarge)

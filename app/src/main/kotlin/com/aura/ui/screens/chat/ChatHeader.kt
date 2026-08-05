@@ -110,14 +110,14 @@ fun ChatHeader(
             Surface(
                 modifier = Modifier
                     .widthIn(max = maxPillWidth)
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = AuraSpacing.xxl)
                     .testTag("chat-model-pill")
                     .clickable(onClick = onShowModelPicker),
                 color = AuraThemeTokens.colors.surface2,
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(AuraSpacing.xl2),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.medium),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -139,7 +139,7 @@ fun ChatHeader(
                                 },
                             ),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(AuraSpacing.small))
                     Column {
                         Text(
                             text = activeAgentName ?: displayModel,
@@ -169,7 +169,7 @@ fun ChatHeader(
                         imageVector = Icons.Filled.ArrowDropDown,
                         contentDescription = if (activeAgentName != null) "Change agent" else "Change model",
                         tint = AuraThemeTokens.colors.textTertiary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                     )
                 }
             }
@@ -184,7 +184,7 @@ fun ChatHeader(
                         contentDescription = "Select agent",
                         tint = if (activeAgent != null) AuraThemeTokens.colors.actionPrimary
                         else AuraThemeTokens.colors.textPrimary,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(AuraSpacing.xxl2),
                     )
                 }
             }
@@ -200,7 +200,7 @@ fun ChatHeader(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "New conversation",
                     tint = AuraThemeTokens.colors.textPrimary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                 )
             }
 
@@ -218,7 +218,7 @@ fun ChatHeader(
                         contentDescription = "More chat actions",
                         tint = if (modesActive) AuraThemeTokens.colors.actionPrimary
                         else AuraThemeTokens.colors.textPrimary,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(AuraSpacing.xxl2),
                     )
                 }
                 DropdownMenu(

@@ -88,16 +88,16 @@ fun DiagnosticsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AuraSpacing.xxl2),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = AuraSpacing.medium, bottom = AuraSpacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(AuraSpacing.xxs))
             Column(Modifier.weight(1f)) {
                 Text(
                     "Diagnostics",
@@ -117,7 +117,7 @@ fun DiagnosticsScreen(
 
         Surface(
             color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.42f),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(AuraSpacing.large),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
@@ -128,9 +128,9 @@ fun DiagnosticsScreen(
                     Icons.Filled.BugReport,
                     contentDescription = null,
                     tint = AuraThemeTokens.colors.actionPrimary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(AuraSpacing.medium))
                 Text(
                     "Logs stay on this device. Aura never uploads them; they leave only when you tap Share.",
                     style = MaterialTheme.typography.bodySmall,
@@ -138,7 +138,7 @@ fun DiagnosticsScreen(
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AuraSpacing.medium))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -150,11 +150,11 @@ fun DiagnosticsScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 if (state.exporting) {
-                    CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = AuraSpacing.tiny)
                 } else {
                     Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(17.dp))
                 }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AuraSpacing.small))
                 Text(if (state.exporting) "Preparing…" else "Share log")
             }
             OutlinedButton(
@@ -168,16 +168,16 @@ fun DiagnosticsScreen(
                     tint = AuraThemeTokens.colors.error,
                     modifier = Modifier.size(17.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AuraSpacing.small))
                 Text(stringResource(R.string.clear), color = AuraThemeTokens.colors.error)
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AuraSpacing.medium))
 
         state.error?.let { error ->
             Surface(
                 color = AuraThemeTokens.colors.error,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(AuraSpacing.sm),
                 modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Text(
@@ -205,7 +205,7 @@ fun DiagnosticsScreen(
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.68f),
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                            modifier = Modifier.padding(top = AuraSpacing.xs, bottom = AuraSpacing.xxs),
                         )
                     }
                     items(state.traceEvents.takeLast(50), key = { it.id }) { event ->
@@ -245,23 +245,23 @@ private fun DiagnosticCard(entry: CrashLogEntry) {
 
     Surface(
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.38f),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(AuraSpacing.md),
         modifier = Modifier
             .fillMaxWidth()
             .then(if (canExpand) Modifier.clickable { expanded = !expanded } else Modifier),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(AuraSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = accent.copy(alpha = 0.14f), shape = CircleShape) {
                     Text(
                         if (entry.fatal) "FATAL" else "ERROR",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.xxs),
                         style = MaterialTheme.typography.labelSmall,
                         color = accent,
                         fontWeight = FontWeight.Bold,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AuraSpacing.xs))
                 Text(
                     entry.code,
                     style = MaterialTheme.typography.labelLarge,
@@ -274,7 +274,7 @@ private fun DiagnosticCard(entry: CrashLogEntry) {
                     Icon(
                         if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                         contentDescription = if (expanded) "Collapse stack trace" else "Expand stack trace",
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(AuraSpacing.xxl2),
                     )
                 }
             }
@@ -290,7 +290,7 @@ private fun DiagnosticCard(entry: CrashLogEntry) {
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.68f),
             )
             if (expanded) {
-                HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                HorizontalDivider(Modifier.padding(vertical = AuraSpacing.medium))
                 Text(
                     entry.stackTrace.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
@@ -312,7 +312,7 @@ private fun TraceEventCard(event: AgentTraceEvent) {
     }
     Surface(
         color = AuraThemeTokens.colors.surface1.copy(alpha = 0.38f),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(AuraSpacing.sm),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(AuraSpacing.sm)) {
@@ -320,13 +320,13 @@ private fun TraceEventCard(event: AgentTraceEvent) {
                 Surface(color = accent.copy(alpha = 0.14f), shape = CircleShape) {
                     Text(
                         event.type.name,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = AuraSpacing.xs, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = accent,
                         fontWeight = FontWeight.Bold,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AuraSpacing.xs))
                 Text(
                     event.toolName ?: event.stepId ?: event.runId,
                     style = MaterialTheme.typography.bodySmall,

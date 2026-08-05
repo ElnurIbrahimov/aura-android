@@ -113,7 +113,7 @@ fun HomeBriefCard(
                         imageVector = presentation.icon,
                         contentDescription = null,
                         tint = colors.actionPrimary,
-                        modifier = Modifier.padding(AuraSpacing.sm).size(24.dp),
+                        modifier = Modifier.padding(AuraSpacing.sm).size(AuraSpacing.lg),
                     )
                 }
                 Column(

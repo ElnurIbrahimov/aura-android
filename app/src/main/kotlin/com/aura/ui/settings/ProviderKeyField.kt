@@ -59,7 +59,7 @@ fun ProviderKeyField(
 ) {
     var visible by remember { mutableStateOf(false) }
     val testId = label.lowercase().replace(' ', '-')
-    Column(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(vertical = AuraSpacing.small)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(
                 text = label,
@@ -110,7 +110,7 @@ fun ProviderKeyField(
             },
         )
         if (!enabled) {
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.tiny))
             Text(
                 text = stringResource(R.string.coming_soon_this_key_isn_t),
                 style = MaterialTheme.typography.labelSmall,
@@ -118,7 +118,7 @@ fun ProviderKeyField(
             )
         }
         if (helperText != null) {
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.tiny))
             Text(
                 text = helperText,
                 style = MaterialTheme.typography.labelSmall,
@@ -137,7 +137,7 @@ fun ProviderKeyField(
                     modifier = Modifier.testTag("provider-test-$testId"),
                 ) {
                     if (verifying) {
-                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.height(AuraSpacing.md), strokeWidth = AuraSpacing.tiny)
                     } else {
                         Text(actionLabel)
                     }

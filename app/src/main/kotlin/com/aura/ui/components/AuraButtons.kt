@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun AuraPrimaryButton(
@@ -50,7 +51,7 @@ fun AuraSecondaryButton(
         modifier = modifier.defaultMinSize(minHeight = AuraDimensions.minimumTouchTarget),
         enabled = enabled,
         shape = RoundedCornerShape(AuraDimensions.controlRadius),
-        border = BorderStroke(1.dp, colors.borderDefault),
+        border = BorderStroke(AuraSpacing.hairline, colors.borderDefault),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = colors.textPrimary,
             disabledContentColor = colors.onActionDisabled,

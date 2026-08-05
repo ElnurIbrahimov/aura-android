@@ -23,19 +23,19 @@ fun ReasoningSection(
         "Reasoning",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
     )
     Text(
         "Extended thinking lets the model reason internally before responding. When on, every response uses maximum reasoning depth. This costs more tokens but produces significantly better answers for complex questions, code, math, and analysis.",
         style = MaterialTheme.typography.bodySmall,
         color = AuraThemeTokens.colors.textSecondary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
     )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -62,7 +62,7 @@ fun ReasoningSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("8K", style = MaterialTheme.typography.bodySmall)
@@ -79,7 +79,7 @@ fun ReasoningSection(
             "Supported by: Anthropic (thinking budget), OpenAI o-series (reasoning effort), Gemini (thinking config). Other providers ignore the budget and respond normally.",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.tiny),
         )
     }
 

@@ -50,7 +50,7 @@ fun PersonaSection(
     ) {
         Surface(
             color = AuraThemeTokens.colors.surface1,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(AuraSpacing.medium),
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onNavigateIdentity),
@@ -152,7 +152,7 @@ fun PersonaSection(
                             )
                             editingSpecialist = null
                         }) { Text(stringResource(R.string.reset_to_default_2)) }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AuraSpacing.xs))
                         TextButton(onClick = { editingSpecialist = null }) { Text(stringResource(R.string.cancel)) }
                     }
                 },

@@ -91,10 +91,10 @@ fun DataAndBackupSection(
             Spacer(Modifier.height(AuraSpacing.xs))
             Surface(
                 color = AuraThemeTokens.colors.surface1,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(AuraSpacing.xs),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(text = result, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))

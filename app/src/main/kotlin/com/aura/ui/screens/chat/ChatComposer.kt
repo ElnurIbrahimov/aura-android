@@ -101,18 +101,18 @@ fun ChatComposer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = AuraSpacing.xs, vertical = 6.dp)
+            .padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.small)
             .defaultMinSize(minHeight = 52.dp)
             .testTag("chat-composer"),
         color = AuraThemeTokens.colors.surface1,
         contentColor = AuraThemeTokens.colors.textPrimary,
         shape = RoundedCornerShape(26.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AuraThemeTokens.colors.borderSubtle),
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, AuraThemeTokens.colors.borderSubtle),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 2.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.tiny),
             verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.tiny),
         ) {
             AuraIconButton(
                 onClick = { attachmentOpen = true },
@@ -123,7 +123,7 @@ fun ChatComposer(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "Attach",
                     tint = AuraThemeTokens.colors.textSecondary,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(AuraSpacing.xxl2),
                 )
             }
 
@@ -154,7 +154,7 @@ fun ChatComposer(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 48.dp, max = 144.dp)
+                    .heightIn(min = AuraSpacing.xxl, max = 144.dp)
                     .padding(vertical = AuraSpacing.sm)
                     .testTag("chat-composer-input"),
             )
@@ -163,7 +163,7 @@ fun ChatComposer(
                 Box {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(AuraSpacing.xxl)
                             .combinedClickable(
                                 onClick = { voiceMenuOpen = true },
                                 onLongClick = onHoldToTalk,
@@ -175,7 +175,7 @@ fun ChatComposer(
                             imageVector = Icons.Filled.Mic,
                             contentDescription = "Voice modes",
                             tint = AuraThemeTokens.colors.textSecondary,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(AuraSpacing.xxl2),
                         )
                     }
                     DropdownMenu(
@@ -250,7 +250,7 @@ fun ChatComposer(
                         canSend -> Color.White
                         else -> AuraThemeTokens.colors.textTertiary
                     },
-                    modifier = Modifier.size(if (streaming) 18.dp else 20.dp),
+                    modifier = Modifier.size(if (streaming) AuraSpacing.xl2 else AuraSpacing.xxl2),
                 )
             }
         }
@@ -262,7 +262,7 @@ fun ChatComposer(
             sheetState = attachmentState,
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xxl2, vertical = AuraSpacing.sm),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
             ) {
                 Text(
@@ -293,7 +293,7 @@ fun ChatComposer(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                        modifier = Modifier.padding(top = AuraSpacing.md, bottom = AuraSpacing.xxs),
                     )
                     Text(
                         text = stringResource(R.string.inserts_use_skill_name_into_the),
@@ -307,12 +307,12 @@ fun ChatComposer(
                                 attachmentOpen = false
                                 onUseSkill(skill)
                             },
-                            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = AuraSpacing.xxl),
                             color = Color.Transparent,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(AuraSpacing.medium),
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.medium),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
                             ) {
@@ -344,7 +344,7 @@ fun ChatComposer(
                             text = "+${skills.size - 8} more — open the Skills tab to see all",
                             style = MaterialTheme.typography.labelSmall,
                             color = AuraThemeTokens.colors.textTertiary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
                         )
                     }
                 }
@@ -386,12 +386,12 @@ private fun AttachmentOption(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = AuraSpacing.xxl),
         color = Color.Transparent,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.medium),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {

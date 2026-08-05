@@ -31,6 +31,7 @@ import com.aura.ui.components.ToolCallBadge
 import com.aura.ui.components.ToolCallState
 import com.aura.ui.viewmodel.ChatUiState
 import kotlinx.coroutines.delay
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun ChatTimeline(
@@ -53,8 +54,8 @@ fun ChatTimeline(
         modifier = modifier
             .fillMaxWidth()
             .testTag("chat-timeline"),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
     ) {
         itemsIndexed(
             items = state.conversation.turns,
@@ -159,9 +160,9 @@ private fun ChatResumeLoading(modifier: Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxl2)
             .testTag("chat-conversation-loading"),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.large),
     ) {
         AuraSkeleton(height = 42.dp, widthFraction = 0.58f)
         AuraSkeleton(height = 94.dp, widthFraction = 0.88f)

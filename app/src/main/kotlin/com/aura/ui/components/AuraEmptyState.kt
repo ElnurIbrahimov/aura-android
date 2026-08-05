@@ -61,7 +61,7 @@ internal fun AuraStatePane(
             imageVector = icon,
             contentDescription = null,
             tint = if (isError) colors.error else colors.textTertiary,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(AuraSpacing.xl),
         )
         Text(title, style = MaterialTheme.typography.titleLarge, color = colors.textPrimary, textAlign = TextAlign.Center)
         Text(message, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, textAlign = TextAlign.Center)

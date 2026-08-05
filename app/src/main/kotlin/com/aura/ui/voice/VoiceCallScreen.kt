@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 /**
  * Voice Call Screen — a full-screen phone-call-style UI for
@@ -145,7 +146,7 @@ fun VoiceCallScreen(
                 text = state.partialTranscript,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.xl, vertical = AuraSpacing.xxs),
             )
         }
 
@@ -165,7 +166,7 @@ fun VoiceCallScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 48.dp),
+                .padding(bottom = AuraSpacing.xxl),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -63,7 +63,7 @@ fun ToolsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AuraSpacing.xxl2),
     ) {
         Spacer(Modifier.height(AuraSpacing.md))
         Text(
@@ -105,7 +105,7 @@ fun ToolsScreen(
             val listState = rememberLazyListState()
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = AuraSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
                 state.grouped.forEach { (category, tools) ->
@@ -131,7 +131,7 @@ private fun CategoryHeader(category: String, count: Int) {
             text = ToolCategories.icon(category),
             style = MaterialTheme.typography.titleLarge,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AuraSpacing.xs))
         Text(
             text = ToolCategories.displayName(category),
             style = MaterialTheme.typography.titleMedium,
@@ -154,7 +154,7 @@ private fun ToolRow(tool: ToolDefinition) {
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(AuraSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = tool.name,
@@ -193,7 +193,7 @@ private fun ToolRow(tool: ToolDefinition) {
                                 text = argName,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = AuraSpacing.small, vertical = AuraSpacing.tiny),
                             )
                         }
                     }

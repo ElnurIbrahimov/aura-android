@@ -12,9 +12,9 @@ import androidx.compose.ui.unit.dp
  *   --radius-full: 9999
  */
 val AuraShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(AuraSpacing.small),
+    small = RoundedCornerShape(AuraSpacing.xs),
+    medium = RoundedCornerShape(AuraSpacing.sm),
+    large = RoundedCornerShape(AuraSpacing.md),
+    extraLarge = RoundedCornerShape(AuraSpacing.lg),
 )

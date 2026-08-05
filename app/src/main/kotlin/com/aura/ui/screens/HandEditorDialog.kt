@@ -144,10 +144,10 @@ internal fun HandEditorDialog(
                     variables.forEach { (key, value) ->
                         Surface(
                             color = AuraThemeTokens.colors.surface1,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(AuraSpacing.sm),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.padding(start = AuraSpacing.sm, top = AuraSpacing.small, bottom = AuraSpacing.small), verticalAlignment = Alignment.CenterVertically) {
                                 Text("{{$key}}", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                 Text(value.ifBlank { "empty" }, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary)
                                 IconButton(onClick = { variables = variables - key }) {
@@ -192,10 +192,10 @@ internal fun HandEditorDialog(
                     conditions.forEachIndexed { index, condition ->
                         Surface(
                             color = AuraThemeTokens.colors.surface1,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(AuraSpacing.sm),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.padding(start = AuraSpacing.sm, top = AuraSpacing.small, bottom = AuraSpacing.small), verticalAlignment = Alignment.CenterVertically) {
                                 Text(condition.failureDescription(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                                 IconButton(onClick = { conditions = conditions.toMutableList().apply { removeAt(index) } }) {
                                     Icon(Icons.Filled.Close, contentDescription = "Remove condition")
@@ -321,10 +321,10 @@ private fun StepEditor(
     steps.forEachIndexed { index, step ->
         Surface(
             color = AuraThemeTokens.colors.surface1,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(AuraSpacing.sm),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = AuraSpacing.sm, top = AuraSpacing.small, bottom = AuraSpacing.small), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("${index + 1}. ${step.tool}", fontWeight = FontWeight.SemiBold)
                     if (step.args.isNotEmpty()) {
@@ -413,7 +413,7 @@ private fun OperatorPicker(value: String, onValue: (String) -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DayPicker(selected: Int, onSelected: (Int) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
         DayOfWeek.entries.forEach { day ->
             AssistChip(
                 onClick = { onSelected(day.value) },

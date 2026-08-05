@@ -48,6 +48,7 @@ import com.aura.ui.settings.SettingsViewModel
 
 import com.aura.ui.theme.AuraThemeTokens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.theme.AuraSpacing
 /**
  * Full-screen identity (SOUL.md) editor.
  *
@@ -124,7 +125,7 @@ fun IdentityEditorScreen(
                     "It is included in settings backups. Leave blank for the bundled default.",
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
             )
             HorizontalDivider()
             // The editor itself
@@ -134,7 +135,7 @@ fun IdentityEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
                 textStyle = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 13.sp,
@@ -144,12 +145,12 @@ fun IdentityEditorScreen(
             // Footer
             Surface(
                 color = AuraThemeTokens.colors.surface1,
-                tonalElevation = 2.dp,
+                tonalElevation = AuraSpacing.tiny,
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -162,7 +163,7 @@ fun IdentityEditorScreen(
                         TextButton(onClick = { showResetConfirm = true }) {
                             Text(stringResource(R.string.reset))
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AuraSpacing.xs))
                         Button(onClick = { showSaveConfirm = true }) {
                             Text(stringResource(R.string.save))
                         }

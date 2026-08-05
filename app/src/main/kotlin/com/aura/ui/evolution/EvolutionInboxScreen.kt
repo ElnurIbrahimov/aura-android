@@ -38,6 +38,7 @@ import com.aura.evolution.EvolutionDomain
 import com.aura.evolution.EvolutionProposalEntity
 import com.aura.evolution.ProposalStatus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun EvolutionInboxScreen(
@@ -59,31 +60,31 @@ fun EvolutionInboxScreen(
     LaunchedEffect(Unit) { viewModel.load() }
 
     Column(modifier = modifier.fillMaxSize()) {
-        IconButton(onClick = onBack, modifier = Modifier.padding(start = 8.dp, top = 8.dp)) {
+        IconButton(onClick = onBack, modifier = Modifier.padding(start = AuraSpacing.xs, top = AuraSpacing.xs)) {
             Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
         Text(
             text = stringResource(R.string.evolution_inbox),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(AuraSpacing.md),
         )
 
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md)) {
             for (domain in EvolutionDomain.entries) {
                 val enabled = settings.find { it.domain == domain.name }?.enabled != false
                 Switch(
                     checked = enabled,
                     onCheckedChange = { viewModel.setDomainEnabled(domain, it) },
-                    modifier = Modifier.padding(end = 8.dp),
+                    modifier = Modifier.padding(end = AuraSpacing.xs),
                 )
                 Text(
                     text = domain.name.lowercase().replaceFirstChar { it.uppercase() },
-                    modifier = Modifier.align(Alignment.CenterVertically).padding(end = 16.dp),
+                    modifier = Modifier.align(Alignment.CenterVertically).padding(end = AuraSpacing.md),
                 )
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md), horizontalArrangement = Arrangement.End) {
             androidx.compose.material3.IconButton(onClick = { viewModel.load() }) {
                 Icon(
                     imageVector = androidx.compose.material.icons.Icons.Filled.Refresh,
@@ -131,7 +132,7 @@ fun EvolutionInboxScreen(
                         Text(
                             text = stringResource(R.string.patch) + proposal.patchJson,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier.padding(top = AuraSpacing.xs),
                         )
                     }
                 }
@@ -196,17 +197,17 @@ private fun RejectReasonDialog(
                 Text(
                     text = proposalTitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 12.dp),
+                    modifier = Modifier.padding(bottom = AuraSpacing.sm),
                 )
                 Text(
                     text = stringResource(R.string.why_this_helps_the_system_learn),
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = AuraSpacing.xs),
                 )
                 // Preset chips in a FlowRow so they wrap on small screens.
                 androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
                 ) {
                     presets.forEach { preset ->
                         FilterChip(
@@ -228,7 +229,7 @@ private fun RejectReasonDialog(
                     label = { Text(stringResource(R.string.or_write_your_own)) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp),
+                        .padding(top = AuraSpacing.sm),
                     singleLine = true,
                 )
             }
@@ -256,25 +257,25 @@ private fun ProposalCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs)
             .clickable { onDetail() },
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(AuraSpacing.md)) {
             Text(text = proposal.title, style = MaterialTheme.typography.titleMedium)
             Text(text = proposal.summary, style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = "${proposal.domain} • ${proposal.action} • ${proposal.status}",
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = AuraSpacing.xxs),
             )
             if (proposal.status == ProposalStatus.PENDING_REVIEW.name) {
-                Row(modifier = Modifier.padding(top = 8.dp)) {
+                Row(modifier = Modifier.padding(top = AuraSpacing.xs)) {
                     TextButton(onClick = onApprove) { Text(stringResource(R.string.approve)) }
                     TextButton(onClick = onReject) { Text(stringResource(R.string.reject)) }
                 }
             }
             if (proposal.status == ProposalStatus.APPLIED.name) {
-                Row(modifier = Modifier.padding(top = 8.dp)) {
+                Row(modifier = Modifier.padding(top = AuraSpacing.xs)) {
                     TextButton(onClick = onRollback) { Text(stringResource(R.string.rollback)) }
                 }
             }

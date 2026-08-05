@@ -147,7 +147,7 @@ private fun OnboardingHeader(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         } else {
-            Spacer(Modifier.size(48.dp))
+            Spacer(Modifier.size(AuraSpacing.xxl))
         }
         Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -164,7 +164,7 @@ private fun OnboardingHeader(
         if (step != OnboardingStep.Complete) {
             TextButton(onClick = onSkip) { Text(stringResource(R.string.skip)) }
         } else {
-            Spacer(Modifier.size(48.dp))
+            Spacer(Modifier.size(AuraSpacing.xxl))
         }
     }
 }

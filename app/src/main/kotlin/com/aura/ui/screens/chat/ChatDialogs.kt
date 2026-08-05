@@ -83,7 +83,7 @@ fun DeleteConversationDialog(
 fun SourcesSheet(citations: List<Citation>, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(AuraSpacing.xxl2)) {
             Text(
                 text = stringResource(R.string.sources),
                 style = MaterialTheme.typography.titleMedium,
@@ -94,7 +94,7 @@ fun SourcesSheet(citations: List<Citation>, onDismiss: () -> Unit) {
                 items(citations, key = { it.url ?: it.title ?: it.hashCode().toString() }) { citation ->
                     Surface(
                         color = AuraThemeTokens.colors.surface1,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(AuraSpacing.xs),
                         modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                     ) {
                         Column(modifier = Modifier.padding(AuraSpacing.sm)) {

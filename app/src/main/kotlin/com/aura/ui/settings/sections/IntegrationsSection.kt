@@ -25,20 +25,20 @@ fun IntegrationsSection(
         "Integrations",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
     )
     Text(
         "Connect Google and Microsoft accounts to let Aura read/send email, manage calendar, and browse files via official APIs.",
         style = MaterialTheme.typography.bodySmall,
         color = AuraThemeTokens.colors.textSecondary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
     )
 
     // Google
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -63,7 +63,7 @@ fun IntegrationsSection(
             label = { Text("Google OAuth Client ID") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
             singleLine = true,
             textStyle = MaterialTheme.typography.bodySmall,
         )
@@ -71,7 +71,7 @@ fun IntegrationsSection(
             "Create an OAuth client at console.cloud.google.com → APIs & Services → Credentials. Set the redirect URI to aura://oauth/google",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.tiny),
         )
     }
 
@@ -81,7 +81,7 @@ fun IntegrationsSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -106,7 +106,7 @@ fun IntegrationsSection(
             label = { Text("Microsoft App Client ID") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
             singleLine = true,
             textStyle = MaterialTheme.typography.bodySmall,
         )
@@ -114,7 +114,7 @@ fun IntegrationsSection(
             "Register an app at portal.azure.com → App registrations. Set redirect URI to aura://oauth/microsoft",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.tiny),
         )
     }
 

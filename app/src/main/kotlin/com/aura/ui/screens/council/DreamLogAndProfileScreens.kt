@@ -33,6 +33,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun DreamLogScreen(
@@ -70,7 +71,7 @@ fun DreamLogScreen(
                 Icon(
                     Icons.Filled.Bedtime,
                     contentDescription = null,
-                    modifier = Modifier.padding(bottom = 16.dp),
+                    modifier = Modifier.padding(bottom = AuraSpacing.md),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
@@ -82,7 +83,7 @@ fun DreamLogScreen(
                     "Agents will debate overnight. Check back in the morning.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
+                    modifier = Modifier.padding(top = AuraSpacing.xs, start = AuraSpacing.lg, end = AuraSpacing.lg),
                 )
             }
         } else {
@@ -90,7 +91,7 @@ fun DreamLogScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AuraSpacing.md)
                     .verticalScroll(rememberScrollState()),
             ) {
                 if (state.summary.isNotBlank()) {
@@ -98,7 +99,7 @@ fun DreamLogScreen(
                         state.summary,
                         style = MaterialTheme.typography.labelMedium,
                         color = AuraThemeTokens.colors.assistantAccent,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        modifier = Modifier.padding(bottom = AuraSpacing.md),
                     )
                 }
                 Text(
@@ -141,8 +142,8 @@ fun AgentProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(horizontal = AuraSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
                 items(state.agents, key = { it.id }) { agent ->
                     AgentProfileCard(agent)
@@ -178,7 +179,7 @@ private fun AgentProfileCard(agent: AgentProfileData) {
         }
 
         if (agent.currentGoal.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Text(
                 "Goal: ${agent.currentGoal}",
                 style = MaterialTheme.typography.bodySmall,
@@ -186,17 +187,17 @@ private fun AgentProfileCard(agent: AgentProfileData) {
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Mood bar
         LabeledBar("Mood", agent.mood, AuraThemeTokens.colors.actionPrimary)
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
         // Energy bar
         LabeledBar("Energy", agent.energy, AuraThemeTokens.colors.assistantAccent)
 
         // Stance
         if (agent.stanceOnUser != 0f) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
             Text(
                 "Stance: ${stanceLabel(agent.stanceOnUser)} (${agent.stanceOnUser.toInt()})",
                 style = MaterialTheme.typography.labelSmall,
@@ -206,7 +207,7 @@ private fun AgentProfileCard(agent: AgentProfileData) {
 
         // Relationships
         if (agent.relationships.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AuraSpacing.xs))
             Text(
                 "Relationships:",
                 style = MaterialTheme.typography.labelSmall,
@@ -254,7 +255,7 @@ private fun LabeledBar(label: kotlin.String, value: Float, color: androidx.compo
             progress = { value / 100f },
             modifier = Modifier
                 .weight(1f)
-                .height(4.dp),
+                .height(AuraSpacing.xxs),
             color = color,
         )
         Text(

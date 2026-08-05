@@ -92,14 +92,14 @@ fun PieChartView(
             Column(modifier = Modifier.padding(start = AuraSpacing.md)) {
                 chartData.labels.forEachIndexed { i, label ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Canvas(modifier = Modifier.size(12.dp)) {
+                        Canvas(modifier = Modifier.size(AuraSpacing.sm)) {
                             drawCircle(color = PIE_COLORS[i % PIE_COLORS.size])
                         }
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textPrimary,
-                            modifier = Modifier.padding(start = 6.dp),
+                            modifier = Modifier.padding(start = AuraSpacing.small),
                         )
                     }
                 }

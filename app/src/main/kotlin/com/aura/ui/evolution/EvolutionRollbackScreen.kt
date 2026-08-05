@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun EvolutionRollbackScreen(
@@ -41,7 +42,7 @@ fun EvolutionRollbackScreen(
 
     val proposal = remember(proposals, proposalId) { proposals.firstOrNull { it.id == proposalId } }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(AuraSpacing.md)) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
@@ -50,7 +51,7 @@ fun EvolutionRollbackScreen(
             Text("Domain: ${p.domain}", style = MaterialTheme.typography.bodyLarge)
             Text("Target: ${p.targetId}", style = MaterialTheme.typography.bodyLarge)
             Text("Status: ${p.status}", style = MaterialTheme.typography.bodyLarge)
-            Button(onClick = { confirm = true }, modifier = Modifier.padding(top = 16.dp)) {
+            Button(onClick = { confirm = true }, modifier = Modifier.padding(top = AuraSpacing.md)) {
                 Text(stringResource(R.string.rollback))
             }
         } ?: Text(stringResource(R.string.proposal_not_found), style = MaterialTheme.typography.bodyLarge)

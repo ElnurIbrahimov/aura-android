@@ -151,7 +151,7 @@ fun MemoryScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = AuraSpacing.xxl2)
         ) {
         val filterText = state.categoryFilter?.let { " · $it" } ?: ""
         val subtitle = when {
@@ -168,11 +168,11 @@ fun MemoryScreen(
         state.rebuildResult?.let { result ->
             Surface(
                 color = AuraThemeTokens.colors.surface2,
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(AuraSpacing.medium),
                 modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xs),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -183,13 +183,13 @@ fun MemoryScreen(
                     )
                     IconButton(
                         onClick = { viewModel.clearRebuildResult() },
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(AuraSpacing.lg),
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "Dismiss",
                             tint = AuraThemeTokens.colors.textSecondary,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(AuraSpacing.xl2),
                         )
                     }
                 }
@@ -211,8 +211,8 @@ fun MemoryScreen(
         // Category filter chips
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.small),
         ) {
             AssistChip(
                 onClick = { viewModel.setCategory(null) },
@@ -239,20 +239,20 @@ fun MemoryScreen(
         Button(
             onClick = { showAddNote = true },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(AuraSpacing.xl2),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+            Spacer(Modifier.width(AuraSpacing.small))
             Text(stringResource(R.string.add_note))
         }
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
         OutlinedButton(
             onClick = { showDocuments = true },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(AuraSpacing.xl2),
         ) {
-            Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+            Spacer(Modifier.width(AuraSpacing.small))
             Text(
                 if (documentState.documents.isEmpty()) "Import documents"
                 else "Documents · ${documentState.documents.size}",
@@ -262,10 +262,10 @@ fun MemoryScreen(
         OutlinedButton(
             onClick = onOpenKnowledgeGraph,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(AuraSpacing.xl2),
         ) {
-            Icon(Icons.Filled.AccountTree, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Filled.AccountTree, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
+            Spacer(Modifier.width(AuraSpacing.small))
             Text(stringResource(R.string.knowledge_graph))
         }
 
@@ -285,9 +285,9 @@ fun MemoryScreen(
                     Icon(
                         imageVector = Icons.Filled.Star,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                     )
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(AuraSpacing.xs))
                     Text("${state.dreamSummaryCount} dream summaries")
                 }
                 Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -311,7 +311,7 @@ fun MemoryScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Repeat,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(AuraSpacing.md),
                                 )
                             },
                         )
@@ -324,7 +324,7 @@ fun MemoryScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Warning,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(AuraSpacing.md),
                                 )
                             },
                         )
@@ -342,19 +342,19 @@ fun MemoryScreen(
             ) {
                 if (state.rebuildInFlight) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(AuraSpacing.md),
+                        strokeWidth = AuraSpacing.tiny,
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
-                    Spacer(modifier = Modifier.size(8.dp))
+                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
                     Text(stringResource(R.string.rebuilding))
                 } else {
                     Icon(
                         imageVector = Icons.Filled.Build,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                     )
-                    Spacer(modifier = Modifier.size(8.dp))
+                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
                     Text(stringResource(R.string.rebuild_embeddings))
                 }
             }
@@ -370,10 +370,10 @@ fun MemoryScreen(
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(AuraSpacing.xl2),
                         tint = AuraThemeTokens.colors.error,
                     )
-                    Spacer(modifier = Modifier.size(8.dp))
+                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
                     Text("Clear ${state.categoryFilter} memories", color = AuraThemeTokens.colors.error)
                 }
                 Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -385,10 +385,10 @@ fun MemoryScreen(
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(AuraSpacing.xl2),
                     tint = AuraThemeTokens.colors.error,
                 )
-                Spacer(modifier = Modifier.size(8.dp))
+                Spacer(modifier = Modifier.size(AuraSpacing.xs))
                 Text(stringResource(R.string.clear_all_memories), color = AuraThemeTokens.colors.error)
             }
             Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -403,12 +403,12 @@ fun MemoryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = AuraSpacing.sm),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(AuraSpacing.xxl2),
                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.28f),
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(horizontal = AuraSpacing.xl2, vertical = AuraSpacing.xl2),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.small),
                 ) {
                     Text(
                         text = if (state.query.isBlank()) "No memories yet" else "Nothing matches that search",
@@ -428,7 +428,7 @@ fun MemoryScreen(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(vertical = 8.dp),
+                contentPadding = PaddingValues(vertical = AuraSpacing.xs),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 items(state.memories, key = { it.id }) { mem ->
@@ -562,7 +562,7 @@ fun MemoryScreen(
                 } else {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         state.dreamSummaries.forEach { summary ->
-                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                            Column(modifier = Modifier.padding(vertical = AuraSpacing.small)) {
                                 Text(
                                     text = summary.compressedText,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -670,7 +670,7 @@ private fun MemoryRow(
 
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -678,14 +678,14 @@ private fun MemoryRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CategoryDot(mem.category)
-            Spacer(modifier = Modifier.size(10.dp))
+            Spacer(modifier = Modifier.size(AuraSpacing.medium))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = mem.content,
                     style = MaterialTheme.typography.bodyMedium,
                     color = AuraThemeTokens.colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(AuraSpacing.tiny))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = mem.category,
@@ -725,7 +725,7 @@ private fun MemoryRow(
                     metaParts += mem.tags
                 }
                 if (metaParts.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(AuraSpacing.tiny))
                     Text(
                         text = metaParts.joinToString("  \u00B7  "),
                         style = MaterialTheme.typography.labelSmall,
@@ -889,7 +889,7 @@ private fun CategoryDot(category: String) {
     }
     Box(
         modifier = Modifier
-            .size(10.dp)
+            .size(AuraSpacing.medium)
             .background(color, CircleShape),
     )
 }
@@ -914,7 +914,7 @@ private fun MemorySkeletonLoading() {
     )
 
     LazyColumn(
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = PaddingValues(vertical = AuraSpacing.xs),
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         items(5) {
@@ -927,7 +927,7 @@ private fun MemorySkeletonLoading() {
 private fun SkeletonMemoryCard(alpha: Float) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -937,22 +937,22 @@ private fun SkeletonMemoryCard(alpha: Float) {
             // Category dot placeholder
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(AuraSpacing.medium)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.4f),
                         shape = CircleShape,
                     ),
             )
-            Spacer(modifier = Modifier.size(10.dp))
+            Spacer(modifier = Modifier.size(AuraSpacing.medium))
             Column(modifier = Modifier.weight(1f)) {
                 // Content line placeholder
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
-                        .height(14.dp)
+                        .height(AuraSpacing.large)
                         .background(
                             color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.35f),
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(AuraSpacing.xxs),
                         ),
                 )
                 Spacer(modifier = Modifier.height(AuraSpacing.xxs))
@@ -961,30 +961,30 @@ private fun SkeletonMemoryCard(alpha: Float) {
                     Box(
                         modifier = Modifier
                             .width(40.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.small))
                     Box(
                         modifier = Modifier
                             .width(60.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.small))
                     Box(
                         modifier = Modifier
                             .width(36.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.2f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
                 }
@@ -994,20 +994,20 @@ private fun SkeletonMemoryCard(alpha: Float) {
                     Box(
                         modifier = Modifier
                             .width(72.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.15f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AuraSpacing.small))
                     Box(
                         modifier = Modifier
                             .width(52.dp)
-                            .height(10.dp)
+                            .height(AuraSpacing.medium)
                             .background(
                                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.15f),
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(AuraSpacing.xxs),
                             ),
                     )
                 }
@@ -1015,17 +1015,17 @@ private fun SkeletonMemoryCard(alpha: Float) {
             // Edit icon placeholder
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(AuraSpacing.lg)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.15f),
                         shape = CircleShape,
                     ),
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(AuraSpacing.xxs))
             // Delete icon placeholder
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(AuraSpacing.lg)
                     .background(
                         color = AuraThemeTokens.colors.textPrimary.copy(alpha = alpha * 0.15f),
                         shape = CircleShape,

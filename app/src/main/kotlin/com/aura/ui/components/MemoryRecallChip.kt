@@ -78,22 +78,22 @@ fun MemoryRecallChip(
     }
     Surface(
         color = container,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(AuraSpacing.sm),
         modifier = modifier
             .fillMaxWidth(0.85f)
-            .padding(start = 32.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+            .padding(start = AuraSpacing.xl, end = AuraSpacing.md, top = AuraSpacing.xxs, bottom = AuraSpacing.xxs)
             .clickable { sheetOpen = true },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(AuraSpacing.xs)
                     .background(color = content.copy(alpha = 0.5f), shape = CircleShape),
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(AuraSpacing.xs))
             Text(
                 text = summary,
                 style = MaterialTheme.typography.labelSmall,
@@ -128,7 +128,7 @@ private fun MemoryRecallSheet(
         // Single LazyColumn — nesting scrollable LazyColumns inside a Column
         // of unbounded height (the bottom sheet) throws IllegalStateException
         // at measure time. All sections are items of one scroll container.
-        LazyColumn(modifier = Modifier.padding(20.dp)) {
+        LazyColumn(modifier = Modifier.padding(AuraSpacing.xxl2)) {
             item {
                 Text(
                     text = recall.summary(),
@@ -183,7 +183,7 @@ private fun MemoryRecallSheet(
                     )
                 }
             }
-            item { Spacer(modifier = Modifier.height(20.dp)) }
+            item { Spacer(modifier = Modifier.height(AuraSpacing.xxl2)) }
         }
     }
 }
@@ -197,16 +197,16 @@ private fun RecallRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = AuraSpacing.small),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = AuraThemeTokens.colors.textPrimary,
-            modifier = Modifier.size(16.dp).padding(top = 2.dp),
+            modifier = Modifier.size(AuraSpacing.md).padding(top = AuraSpacing.tiny),
         )
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(AuraSpacing.sm))
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = title,

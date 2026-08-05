@@ -63,10 +63,10 @@ fun AgentEditorScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = AuraSpacing.xxl2),
     ) {
         // Header
-        Column(modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)) {
+        Column(modifier = Modifier.padding(top = AuraSpacing.md, bottom = AuraSpacing.small)) {
             Text(
                 text = if (state.isBuiltin) "Edit Agent" else if (agentId != null) "Edit Agent" else "New Agent",
                 style = MaterialTheme.typography.displaySmall,
@@ -88,7 +88,7 @@ fun AgentEditorScreen(
                 viewModel.templates.forEach { template ->
                     OutlinedButton(
                         onClick = { viewModel.applyTemplate(template) },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.tiny),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(template.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
@@ -208,7 +208,7 @@ fun AgentEditorScreen(
         )
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
         val toolNames = viewModel.availableTools
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
             for (tool in toolNames) {
                 val selected = tool in state.toolsAllowed
                 AssistChip(
@@ -222,7 +222,7 @@ fun AgentEditorScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(AuraSpacing.xxl2))
 
         // Error
         state.error?.let { err ->

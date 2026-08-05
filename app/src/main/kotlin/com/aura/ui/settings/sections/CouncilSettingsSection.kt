@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.settings.SettingsSection
+import com.aura.ui.theme.AuraSpacing
 
 @Composable
 fun CouncilSettingsSection(
@@ -38,7 +39,7 @@ fun CouncilSettingsSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = AuraSpacing.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -58,7 +59,7 @@ fun CouncilSettingsSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = AuraSpacing.xs),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -77,7 +78,7 @@ fun CouncilSettingsSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = AuraSpacing.xs),
                 ) {
                     Text("Activity level: ${councilActivityLevel.value}", style = MaterialTheme.typography.bodyMedium)
                     Text(

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.InFlightToolCall
+import com.aura.ui.theme.AuraSpacing
 
 sealed class ToolCallState {
     data class Running(val inFlight: InFlightToolCall) : ToolCallState()
@@ -48,17 +49,17 @@ fun ToolCallBadge(
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
         modifier = modifier
             .background(
                 color = AuraThemeTokens.colors.surface1.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(AuraSpacing.xs)
             )
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = AuraSpacing.xs, vertical = AuraSpacing.xxs),
     ) {
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(AuraSpacing.small)
                 .background(
                     color = when (state) {
                         is ToolCallState.Running -> AuraThemeTokens.colors.assistantAccent
@@ -78,13 +79,13 @@ fun ToolCallBadge(
                 imageVector = Icons.Filled.Check,
                 contentDescription = "done",
                 tint = AuraThemeTokens.colors.actionPrimary,
-                modifier = Modifier.size(10.dp),
+                modifier = Modifier.size(AuraSpacing.medium),
             )
             is ToolCallState.Failed -> Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "failed",
                 tint = AuraThemeTokens.colors.error,
-                modifier = Modifier.size(10.dp),
+                modifier = Modifier.size(AuraSpacing.medium),
             )
             else -> {}
         }

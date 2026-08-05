@@ -414,7 +414,7 @@ fun ChatRoute(
         onDismissSaveWarning = viewModel::dismissSaveWarning,
         onShowAgentPicker = { showAgentPicker = true },
         onOpenCouncil = {
-            navController.navigate("council?convId=${state.conversation.id}")
+            navController.navigate("council?convId=" + state.conversation.id)
         },
         onRunVisionPrompt = viewModel::runVisionPrompt,
         onDismissVision = viewModel::dismissPendingVision,

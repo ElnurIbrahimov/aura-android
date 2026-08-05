@@ -72,7 +72,7 @@ fun AgentPresence(
                 modifier = Modifier
                     .size(96.dp)
                     .background(tint.copy(alpha = 0.12f), CircleShape)
-                    .border(2.dp, tint.copy(alpha = 0.35f), CircleShape),
+                    .border(AuraSpacing.tiny, tint.copy(alpha = 0.35f), CircleShape),
             )
             Text(
                 text = name.take(1).uppercase(),
@@ -116,13 +116,13 @@ fun AgentPresence(
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textSecondary,
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AuraSpacing.xs))
                 androidx.compose.material3.LinearProgressIndicator(
                     progress = { affinityProgress },
                     modifier = Modifier
                         .weight(1f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
+                        .height(AuraSpacing.xxs)
+                        .clip(RoundedCornerShape(AuraSpacing.tiny)),
                     color = tint,
                     trackColor = colors.surface2,
                 )

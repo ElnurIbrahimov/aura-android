@@ -346,7 +346,7 @@ private fun ToolsRoom(
         if (state.voiceProfile.isNotBlank()) {
             Surface(
                 color = AuraThemeTokens.colors.surface1,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.sm),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(AuraSpacing.md)) {
@@ -379,7 +379,7 @@ private fun ToolsRoom(
         if (state.tensionReport.isNotBlank()) {
             Surface(
                 color = AuraThemeTokens.colors.surface1,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(AuraSpacing.sm),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(AuraSpacing.md)) {
@@ -438,7 +438,7 @@ private fun SimulationRoom(
                 Surface(
                     color = colors.surface1,
                     shape = MaterialTheme.shapes.medium,
-                    border = BorderStroke(1.dp, colors.borderSubtle),
+                    border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
                 ) {
                     Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                         Text(simulation.premise, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -465,7 +465,7 @@ private fun GenerationOutput(output: String, generating: Boolean) {
     Surface(
         color = colors.surface1,
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, colors.borderSubtle),
+        border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
     ) {
         Column(Modifier.padding(AuraSpacing.md), verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
             Text(if (generating) "Aura is writing…" else "Result", style = MaterialTheme.typography.labelLarge, color = colors.actionPrimary)

@@ -54,7 +54,7 @@ fun DreamConsolidationSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 8.dp),
+                .padding(horizontal = AuraSpacing.xxs, vertical = AuraSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -116,7 +116,7 @@ fun DreamConsolidationSection(
             OutlinedButton(
                 onClick = onRunNow,
                 enabled = !isRunning,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(AuraSpacing.sm),
                 modifier = Modifier.padding(horizontal = AuraSpacing.xxs),
             ) {
                 Text(if (isRunning) "Running…" else "Run now")
