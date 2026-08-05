@@ -478,18 +478,30 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Catch Throwable (not just Exception) so OOM / StackOverflow
+            // also trigger the purge. Without this, an Error subclass bypasses
+            // the catch and leaves the DB half-imported.
             android.util.Log.e("BackupManager", "restore failed, purging partial data: ${e.message}", e)
             try { purgeAll() } catch (_: Exception) { /* best-effort cleanup */ }
             throw e
         }
 
-        restorePreferences(backup.preferences)
-        usageTracker.restore(backup.usage)
-        restoreEvolution(backup)
+        // Post-restore writes are outside the try/catch because they touch
+        // different stores (DataStore, not Room). If any of them fail, the
+        // Room data is already committed — preferences/evolution/council
+        // failure is recoverable (user can re-toggle in Settings).
+        runCatching { restorePreferences(backup.preferences) }
+            .onFailure { android.util.Log.w("BackupManager", "restorePreferences failed (non-fatal): ${it.message}", it) }
+        runCatching { usageTracker.restore(backup.usage) }
+            .onFailure { android.util.Log.w("BackupManager", "usageTracker restore failed (non-fatal): ${it.message}", it) }
+        runCatching { restoreEvolution(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreEvolution failed (non-fatal): ${it.message}", it) }
         // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
-        restoreStrategyBandit(backup)
-        restoreCouncil(backup)
+        runCatching { restoreStrategyBandit(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreStrategyBandit failed (non-fatal): ${it.message}", it) }
+        runCatching { restoreCouncil(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreCouncil failed (non-fatal): ${it.message}", it) }
         // Restore custom agents. Builtins are re-seeded on startup
         // so we only insert non-builtin entries from the backup.
         val customAgents = agentRows.filter { !it.isBuiltin }

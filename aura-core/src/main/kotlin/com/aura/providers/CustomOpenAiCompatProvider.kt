@@ -233,7 +233,7 @@ class CustomOpenAiCompatProvider(
             .header("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = Channel.BUFFERED)
+        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
         val sseParser = OpenAiSseParser()
         val src = okhttp3.sse.EventSources.createFactory(pinnedClient).newEventSource(request, object : okhttp3.sse.EventSourceListener() {
             override fun onEvent(eventSource: okhttp3.sse.EventSource, id: kotlin.String?, type: kotlin.String?, data: kotlin.String) {

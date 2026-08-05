@@ -100,11 +100,12 @@ class McpToolBridge @Inject constructor(
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
                     risk = ToolRisk.REMOTE_COST,
                     parameters = parseSchema(mcpTool.inputSchemaJson),
-                    execute = { call, _ ->
+                    execute = { call, ctx ->
                         val result = mcpClientManager.callTool(
                             serverId = config.id,
                             toolName = mcpTool.name,
                             arguments = call.arguments,
+                            timeoutMs = ctx.timeout,
                         )
                         when (result) {
                             is McpToolResult.Success -> {
@@ -171,11 +172,12 @@ class McpToolBridge @Inject constructor(
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
                     risk = ToolRisk.REMOTE_COST,
                     parameters = parseSchema(mcpTool.inputSchemaJson),
-                    execute = { call, _ ->
+                    execute = { call, ctx ->
                         val result = mcpClientManager.callTool(
                             serverId = config.id,
                             toolName = mcpTool.name,
                             arguments = call.arguments,
+                            timeoutMs = ctx.timeout,
                         )
                         when (result) {
                             is McpToolResult.Success -> {

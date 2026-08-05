@@ -217,23 +217,27 @@ class MoaProvider(
     ): ReferenceOutput {
         val modelId = "${ref.providerPrefix}:${ref.modelName}"
         val text = StringBuilder()
+        var hadError = false
         try {
             registry.get().chat(modelId, messages, options, emptyList()).collect { chunk ->
                 if (!currentCoroutineContext().isActive) return@collect
                 chunk.text?.let { text.append(it) }
                 if (chunk.error != null) {
+                    hadError = true
                     text.append("\n[Error: ${chunk.error.message}]")
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            hadError = true
             text.append("\n[Exception: ${e.message}]")
         }
         return ReferenceOutput(
             providerPrefix = ref.providerPrefix,
             modelName = ref.modelName,
             text = text.toString().trim(),
+            isError = hadError,
         )
     }
 

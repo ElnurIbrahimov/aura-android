@@ -206,13 +206,17 @@ internal class McpConnection(
         return try {
             httpClient.newCall(builder.build()).execute().use { response ->
                 if (!response.isSuccessful) return null
-                val raw = response.body?.string() ?: return null
                 // Enforce max response size on metadata calls (initialize/listTools)
                 // to prevent OOM from a malicious server returning huge JSON.
-                if (raw.length > MAX_META_RESPONSE_BYTES) {
+                // Read as bytes first (not string) so the size check is by
+                // byte count, not character count — a 1MB char limit on UTF-8
+                // with non-ASCII content could be 3-4MB in bytes.
+                val bytes = response.body?.bytes() ?: return null
+                if (bytes.size > MAX_META_RESPONSE_BYTES) {
                     android.util.Log.w("McpConnection", "Response from ${config.name} exceeded ${MAX_META_RESPONSE_BYTES} bytes, truncating")
                     return null
                 }
+                val raw = bytes.toString(Charsets.UTF_8)
                 json.parseToJsonElement(raw) as? JsonObject
             }
         } catch (e: Exception) {

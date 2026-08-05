@@ -62,7 +62,7 @@ open class OpenAiCompatProvider(
     ): Flow<ProviderChunk> = flow {
         val key = apiKey()
         val request = buildRequest(model, messages, options, tools, stream = true, key = key)
-        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
+        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
         val sseParser = OpenAiSseParser()
         // P0-PROVIDERS-CANCEL: wrap the listener so the source reference is
         // visible to cancel() immediately. We assign a mutable holder first,
