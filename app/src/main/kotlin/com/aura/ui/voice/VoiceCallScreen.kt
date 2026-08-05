@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import com.aura.ui.theme.AuraTokens
 
 /**
  * Voice Call Screen — a full-screen phone-call-style UI for
@@ -187,7 +188,7 @@ fun VoiceCallScreen(
             FloatingActionButton(
                 onClick = onEndCall,
                 modifier = Modifier.size(72.dp),
-                containerColor = Color(0xFFEF4444),
+                containerColor = AuraThemeTokens.colors.error,
             ) {
                 Icon(
                     imageVector = Icons.Filled.CallEnd,

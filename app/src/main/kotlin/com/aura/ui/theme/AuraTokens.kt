@@ -140,4 +140,27 @@ object AuraTokens {
     val proactiveAvatarGradient: Brush = Brush.linearGradient(
         colors = listOf(Color(0x33A855F7), Color(0x05FFFFFF)),
     )
+
+    // ── Chart categorical palette ────────────────────────────────────────
+    // Six visually-distinct hues used by Bar/Line/Pie chart series. Kept
+    // here so charts follow the brand palette instead of ad-hoc hex values.
+    val chartPalette: List<Color> = listOf(
+        Color(0xFF2DD4BF), // teal-400
+        Color(0xFF60A5FA), // blue-400
+        Color(0xFFF59E0B), // amber-500
+        Color(0xFFEF4444), // red-500
+        Color(0xFF8B5CF6), // violet-500
+        Color(0xFF10B981), // emerald-500
+    )
+    val chartPaletteExtended: List<Color> = listOf(
+        Color(0xFF2DD4BF), // teal-400
+        Color(0xFF60A5FA), // blue-400
+        Color(0xFFF59E0B), // amber-500
+        Color(0xFFEF4444), // red-500
+        Color(0xFF8B5CF6), // violet-500
+        Color(0xFF10B981), // emerald-500
+        Color(0xFFEC4899), // pink-500
+        Color(0xFF06B6D4), // cyan-500
+        Color(0xFF3B82F6), // blue-500
+    )
 }

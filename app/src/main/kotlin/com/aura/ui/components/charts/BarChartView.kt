@@ -28,16 +28,10 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import kotlin.math.max
+import com.aura.ui.theme.AuraTokens
 
 private const val MAX_POINTS = 20
-private val CHART_COLORS = listOf(
-    Color(0xFF2DD4BF),
-    Color(0xFF60A5FA),
-    Color(0xFFF59E0B),
-    Color(0xFFEF4444),
-    Color(0xFF8B5CF6),
-    Color(0xFF10B981),
-)
+private val CHART_COLORS: List<Color> = AuraTokens.chartPalette
 
 @Composable
 fun BarChartView(

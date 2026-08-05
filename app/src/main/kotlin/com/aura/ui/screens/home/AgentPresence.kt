@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.aura.emotion.EmotionEngine
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
+import com.aura.ui.theme.AuraTokens
 
 /**
  * Persistent agent presence on the Home screen: avatar, name, mood caption.
@@ -148,11 +149,11 @@ private fun rememberAgentPulse(): Float {
 private fun rememberAgentColor(name: String): Color {
     val palette = listOf(
         Color(0xFF0F766E), // teal-700 (brand)
-        Color(0xFF2DD4BF), // teal-400
-        Color(0xFF3B82F6), // blue
-        Color(0xFFF59E0B), // amber
-        Color(0xFFEC4899), // pink
-        Color(0xFF06B6D4), // cyan
+        AuraTokens.chartPaletteExtended[0], // teal-400
+        AuraTokens.chartPaletteExtended[3], // blue-500
+        AuraTokens.chartPaletteExtended[2], // amber-500
+        AuraTokens.chartPaletteExtended[6], // pink-500
+        AuraTokens.chartPaletteExtended[7], // cyan-500
     )
     return palette[Math.floorMod(name.hashCode(), palette.size)]
 }
