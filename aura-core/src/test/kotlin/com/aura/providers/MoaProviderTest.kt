@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -131,13 +132,17 @@ class MoaProviderTest {
         started.receive()
         val second = launch { moa.chat("default", emptyList(), ChatOptions(), emptyList()).collect {} }
         started.receive()
-        runCurrent()
         // Give the cancellation chain time to propagate: cancelling the
         // channelFlow's Job needs to resume the async{} children, throw
         // CancellationException through await(), close the channel, and
-        // cancel the collecting launch. runCurrent() alone doesn't always
-        // process all these rounds in one pass on the test dispatcher.
-        advanceTimeBy(1L)
+        // cancel the collecting launch. A fixed runCurrent()+advanceTimeBy
+        // window was flaky on cold CI runners (the chain has 5+ suspension
+        // points and the first chat's reference coroutines run on
+        // Dispatchers.Default real threads). advanceUntilIdle() is
+        // deterministic: the hangFlow suspends at awaitCancellation, so
+        // there is no unbounded work that would prevent idle.
+        runCurrent()
+        advanceUntilIdle()
         runCurrent()
 
         assertTrue(first.isCancelled)
