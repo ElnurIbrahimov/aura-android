@@ -31,6 +31,7 @@ object ToolsModule {
         ddgInstantAnswer: DdgInstantAnswerTool,
         searxngSearch: SearxngSearchTool,
         jinaReaderFree: JinaReaderFreeTool,
+        parallelResearch: ParallelResearchTool,
         notifications: NotificationsTool,
         location: LocationNowTool,
         share: ShareIntentTool,
@@ -100,6 +101,7 @@ object ToolsModule {
     ): ToolRegistry {
         val registry = ToolRegistry()
         registry.register(webSearch.tool)
+        registry.register(parallelResearch.tool)
         registry.register(braveSearch.tool)
         registry.register(tavilySearch.tool)
         registry.register(wikipediaSearch.tool)
