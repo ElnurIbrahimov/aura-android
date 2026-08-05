@@ -19,9 +19,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,6 +78,10 @@ fun ChatContent(
     onStopTts: () -> Unit = {},
     onSendSuggestion: (String) -> Unit,
     onRetry: () -> Unit,
+    /** Idle-time prepared question (ProAct chip). Null hides the chip. */
+    preparedQuestion: String? = null,
+    onSendPrepared: () -> Unit = {},
+    onDismissPrepared: () -> Unit = {},
     onDismissError: () -> Unit,
     onDismissProviderWarning: () -> Unit,
     onDismissSaveWarning: () -> Unit,
@@ -229,7 +236,62 @@ fun ChatContent(
                 is ModelSelectionState.Ready -> Unit
             }
 
+            preparedQuestion?.let { q ->
+                PreparedQuestionChip(
+                    question = q,
+                    onSend = onSendPrepared,
+                    onDismiss = onDismissPrepared,
+                )
+            }
+
             composer()
+        }
+    }
+}
+
+@Composable
+private fun PreparedQuestionChip(
+    question: String,
+    onSend: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AuraThemeTokens.colors
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
+        color = colors.surface1,
+        shape = MaterialTheme.shapes.medium,
+        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
+        onClick = onSend,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = colors.assistantAccent,
+                modifier = Modifier.size(AuraSpacing.md),
+            )
+            Spacer(modifier = Modifier.width(AuraSpacing.sm))
+            Text(
+                text = "Aura pre-researched: $question",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Dismiss prepared suggestion",
+                    tint = colors.textTertiary,
+                    modifier = Modifier.size(AuraSpacing.md),
+                )
+            }
         }
     }
 }

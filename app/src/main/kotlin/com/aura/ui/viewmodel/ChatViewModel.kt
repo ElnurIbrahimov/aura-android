@@ -257,6 +257,13 @@ data class ChatUiState(
     /** Proactive in-chat message from AgentPresence. Shown as a special bubble. */
     val proactiveMessage: String? = null,
     /**
+     * Idle-time prepared answer (ProAct pattern). Populated when the
+     * daemon pre-researched a predicted question. ChatRoute renders a
+     * suggestion chip; tapping it sends the predicted question so the
+     * pre-researched answer is injected as fast-path context.
+     */
+    val preparedQuestion: String? = null,
+    /**
      * Per-conversation set of REMOTE_COST tools the user has
      * approved. Passed into ToolContext so ToolExecutor lets
      * them through without re-prompting.
@@ -347,6 +354,7 @@ class ChatViewModel @Inject constructor(
     private val agentStore: com.aura.agent.AgentStore,
     private val strategyBandit: com.aura.agent.StrategyBandit,
     private val proactiveMessageStore: com.aura.proactive.ProactiveMessageStore? = null,
+    private val idleTimePreparationEngine: com.aura.proactive.IdleTimePreparationEngine? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -493,6 +501,20 @@ class ChatViewModel @Inject constructor(
             agentStore.all().collect { agents ->
                 _state.update { it.copy(availableAgents = agents) }
             }
+        }
+        // Idle-time preparation (ProAct): if the daemon pre-researched a
+        // predicted question, surface it as a suggestion chip. consumePrepared()
+        // clears it once the user taps the chip (or it expires on next prepare).
+        viewModelScope.launch {
+            runCatching {
+                idleTimePreparationEngine?.prepared?.collect { prepared ->
+                    if (prepared != null) {
+                        _state.update {
+                            it.copy(preparedQuestion = prepared.predictedQuestion)
+                        }
+                    }
+                }
+            }.onFailure { Log.w(TAG, "Idle prep collect failed", it) }
         }
         viewModelScope.launch {
             val recent = conversationStore.mostRecent()
@@ -891,6 +913,34 @@ class ChatViewModel @Inject constructor(
 
     /** Load proactive message if one is waiting. Called on chat open. */
     fun loadProactiveMessage() = interactionController.loadProactiveMessage()
+
+    /**
+     * Consume the idle-time prepared answer (ProAct fast path). Sets the
+     * draft to the predicted question and injects the pre-researched
+     * answer as system-prompt context so the model can answer instantly
+     * instead of re-researching. Clears the chip state.
+     */
+    fun sendPrepared() {
+        val prepared = idleTimePreparationEngine?.consume() ?: return
+        _state.update { st ->
+            val withContext = st.conversation.copy(
+                systemPrompt = st.conversation.systemPrompt +
+                    "\n\n[Pre-researched context for the next question]:\n" + prepared.answer,
+            )
+            st.copy(
+                conversation = withContext,
+                draft = prepared.predictedQuestion,
+                preparedQuestion = null,
+            )
+        }
+        send()
+    }
+
+    /** Dismiss the idle-prep chip without sending. */
+    fun dismissPrepared() {
+        idleTimePreparationEngine?.consume()
+        _state.update { it.copy(preparedQuestion = null) }
+    }
 
     /** Save canvas content as a memory. */
     fun saveCanvasToMemory(content: String) = interactionController.saveCanvasToMemory(content)

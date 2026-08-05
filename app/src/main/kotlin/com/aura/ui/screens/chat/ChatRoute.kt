@@ -409,6 +409,12 @@ fun ChatRoute(
             viewModel.send()
         },
         onRetry = viewModel::retryLast,
+        preparedQuestion = state.preparedQuestion,
+        onSendPrepared = {
+            followLiveEdge = true
+            viewModel.sendPrepared()
+        },
+        onDismissPrepared = viewModel::dismissPrepared,
         onDismissError = viewModel::dismissError,
         onDismissProviderWarning = viewModel::dismissProviderWarning,
         onDismissSaveWarning = viewModel::dismissSaveWarning,

@@ -116,4 +116,9 @@ class IdleTimePreparationEngine @Inject constructor(
         _prepared.value = null
         return value
     }
+
+    /** Test-only: inject a prepared answer without running an LLM call. */
+    internal fun setForTest(answer: PreparedAnswer) {
+        _prepared.value = answer
+    }
 }
