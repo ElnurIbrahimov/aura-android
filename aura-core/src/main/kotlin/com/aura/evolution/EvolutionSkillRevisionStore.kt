@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Revisioned storage for user-authored skills. Keeps the existing DataStore
@@ -41,6 +42,6 @@ class EvolutionSkillRevisionStore @Inject constructor(
         val rev = revisionDao.history(EvolutionDomain.SKILL.name, skillId, limit = 1).firstOrNull()
             ?: return null
         val plaintext = keyManager.decrypt(rev.snapshotCiphertext, key) ?: return null
-        return runCatching { json.decodeFromString<Skill>(plaintext) }.getOrNull()
+        return runCatching { json.decodeFromString<Skill>(plaintext) }.onFailure { Log.w("EvolutionSkillRevisionSt", "runCatching failed: ${it.message}", it) }.getOrNull()
     }
 }

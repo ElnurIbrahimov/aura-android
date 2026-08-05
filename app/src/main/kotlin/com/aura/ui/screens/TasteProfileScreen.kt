@@ -32,6 +32,7 @@ import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.TasteProfileViewModel
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,7 +119,7 @@ private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
             } else {
                 val attrs = runCatching {
                     Json.decodeFromString<Map<String, Map<String, Float>>>(profile.attributesJson)
-                }.getOrDefault(emptyMap())
+                }.onFailure { Log.w("TasteProfileScreen", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
                 if (attrs.isEmpty()) {
                     Text(
                         "Profile is empty. Add reactions or edit generated outputs to populate it.",

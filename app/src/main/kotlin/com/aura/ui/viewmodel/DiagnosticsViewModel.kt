@@ -45,7 +45,7 @@ class DiagnosticsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true) }
-            runCatching { crashLogger.entries() }
+            runCatching { crashLogger.entries() }.onFailure { Log.w("DiagnosticsViewModel", "runCatching failed: ${it.message}", it) }
                 .onSuccess { entries ->
                     _state.update {
                         it.copy(

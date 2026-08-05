@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Character progression tracker. Instead of a static "arc" field,
@@ -131,7 +132,7 @@ class CharacterProgressionTracker @Inject constructor(
     private suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
-            val model = runCatching { provider.listModels().firstOrNull() }.getOrNull()
+            val model = runCatching { provider.listModels().firstOrNull() }.onFailure { Log.w("CharacterProgressionTrac", "runCatching failed: ${it.message}", it) }.getOrNull()
             if (!model.isNullOrBlank()) return "${provider.prefix}:$model"
         }
         throw IllegalStateException("Configure an LLM provider before using progression tracking.")

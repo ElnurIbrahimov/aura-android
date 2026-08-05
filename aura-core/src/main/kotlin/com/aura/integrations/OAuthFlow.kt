@@ -240,7 +240,7 @@ class OAuthFlow @Inject constructor(
                 return@withContext
             }
             val responseBody = resp.body?.string() ?: return@withContext
-            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext
+            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext
             val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext
             val refreshToken = parsed["refresh_token"]?.jsonPrimitive?.content ?: ""
             val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
@@ -270,7 +270,7 @@ class OAuthFlow @Inject constructor(
                 return@withContext
             }
             val responseBody = resp.body?.string() ?: return@withContext
-            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext
+            val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext
             val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext
             val refreshToken = parsed["refresh_token"]?.jsonPrimitive?.content ?: ""
             val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
@@ -293,12 +293,12 @@ class OAuthFlow @Inject constructor(
 
             val response = runCatching {
                 httpClient.newCall(Request.Builder().url(GOOGLE_TOKEN_URL).post(body).build()).execute()
-            }.getOrNull() ?: return@withContext null
+            }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext null
 
             response.use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 val responseBody = resp.body?.string() ?: return@withContext null
-                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext null
+                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext null
                 val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext null
                 val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
                 val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
@@ -320,12 +320,12 @@ class OAuthFlow @Inject constructor(
 
             val response = runCatching {
                 httpClient.newCall(Request.Builder().url(MS_TOKEN_URL).post(body).build()).execute()
-            }.getOrNull() ?: return@withContext null
+            }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext null
 
             response.use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 val responseBody = resp.body?.string() ?: return@withContext null
-                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull() ?: return@withContext null
+                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }.onFailure { Log.w("OAuthFlow", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext null
                 val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext null
                 val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
                 val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L

@@ -70,7 +70,7 @@ private val json = Json { ignoreUnknownKeys = true; isLenient = true }
                         url = map["url"]?.jsonPrimitive?.content ?: "",
                     )
                 }
-            }.getOrDefault(emptyList())
+            }.onFailure { Log.w("ChatViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         }
         "brave_search", "tavily_search" -> {
             // Parse markdown lines: "- [title](url): snippet"

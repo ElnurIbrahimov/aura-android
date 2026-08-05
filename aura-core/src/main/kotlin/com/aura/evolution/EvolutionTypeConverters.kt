@@ -4,6 +4,7 @@ import androidx.room.TypeConverter
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 object EvolutionTypeConverters {
     private val json = Json { ignoreUnknownKeys = true }
@@ -16,5 +17,5 @@ object EvolutionTypeConverters {
     @TypeConverter
     @JvmStatic
     fun toStringList(value: kotlin.String): List<kotlin.String> =
-        runCatching { json.decodeFromString(ListSerializer(String.serializer()), value) }.getOrDefault(emptyList())
+        runCatching { json.decodeFromString(ListSerializer(String.serializer()), value) }.onFailure { Log.w("EvolutionTypeConverters", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 }

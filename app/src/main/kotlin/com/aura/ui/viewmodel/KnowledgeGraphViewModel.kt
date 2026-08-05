@@ -104,7 +104,7 @@ class KnowledgeGraphViewModel @Inject constructor(
 
     fun selectNode(node: KgNode) {
         viewModelScope.launch {
-            runCatching { repository.getNeighbors(node.id) }
+            runCatching { repository.getNeighbors(node.id) }.onFailure { Log.w("KnowledgeGraphViewModel", "runCatching failed: ${it.message}", it) }
                 .onSuccess { neighbors ->
                     val labels = allNodes.associate { it.id to it.label }
                     _state.update {

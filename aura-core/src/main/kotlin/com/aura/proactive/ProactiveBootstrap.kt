@@ -277,7 +277,7 @@ class ProactiveBootstrap @Inject constructor(
                 val obj = item as? JsonObject ?: return@mapNotNull null
                 val config = json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
                 // Re-inject auth token from SecureDataStore (not stored in plain JSON)
-                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.getOrNull()
+                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.onFailure { Log.w("ProactiveBootstrap", "runCatching failed: ${it.message}", it) }.getOrNull()
                 if (token.isNullOrBlank()) config else config.copy(authToken = token)
             }
         } catch (e: Exception) {

@@ -47,6 +47,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Reads the full local state into an [AuraBackup] for export, and
@@ -140,7 +141,7 @@ class BackupManager @Inject constructor(
             kotlinx.serialization.builtins.ListSerializer(com.aura.triggers.Trigger.serializer()),
             triggers,
         )
-    }.getOrDefault("[]")
+    }.onFailure { Log.w("BackupManager", "runCatching failed: ${it.message}", it) }.getOrDefault("[]")
 
 private fun com.aura.evolution.EvolutionProposalEntity.toBackup() = EvolutionProposalBackup(
     id = id,
@@ -326,7 +327,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             forumVotes = runCatching {
                 val posts = forumPostDao?.recent(200) ?: emptyList()
                 posts.flatMap { post -> forumVoteDao?.forPost(post.id) ?: emptyList() }.distinctBy { it.id }.map { it.toBackup() }
-            }.getOrDefault(emptyList()),
+            }.onFailure { Log.w("BackupManager", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList()),
         )
     }
 

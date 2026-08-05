@@ -2,6 +2,7 @@ package com.aura.proactive
 
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Salience Filter — determines which proactive findings are worth
@@ -40,7 +41,7 @@ class SalienceFilter @Inject constructor(
     suspend fun filter(findings: List<ProactiveAwarenessEngine.ProactiveFinding>): List<FilteredFinding> {
         val recentTypes = runCatching {
             proactiveEventDao.recent(30).map { it.eventType }.toSet()
-        }.getOrDefault(emptySet())
+        }.onFailure { Log.w("SalienceFilter", "runCatching failed: ${it.message}", it) }.getOrDefault(emptySet())
 
         return findings.map { finding ->
             val recency = if (finding.type in recentTypes) 0.2f else 1.0f

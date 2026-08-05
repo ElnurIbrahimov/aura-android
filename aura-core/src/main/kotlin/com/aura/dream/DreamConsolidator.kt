@@ -638,14 +638,14 @@ class DreamConsolidator @Inject constructor(
             // Parse the JSON response and merge into profile.
             val response = output.toString().trim()
             val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
-            val parsed = runCatching { json.parseToJsonElement(response) }.getOrNull()
+            val parsed = runCatching { json.parseToJsonElement(response) }.onFailure { Log.w("DreamConsolidator", "runCatching failed: ${it.message}", it) }.getOrNull()
             if (parsed != null) {
                 val obj = parsed.jsonObject
                 val facts = obj["facts"]?.let {
-                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.getOrDefault(emptyList())
+                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.onFailure { Log.w("DreamConsolidator", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 } ?: emptyList()
                 val traits = obj["traits"]?.let {
-                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.getOrDefault(emptyList())
+                    runCatching { json.decodeFromString<List<String>>(it.toString()) }.onFailure { Log.w("DreamConsolidator", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 } ?: emptyList()
                 if (facts.isNotEmpty()) store.mergeFacts(facts)
                 if (traits.isNotEmpty()) store.mergeTraits(traits)

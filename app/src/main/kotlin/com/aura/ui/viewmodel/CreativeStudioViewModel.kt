@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
 
 data class CreativeStudioUiState(
     val projects: List<CreativeProject> = emptyList(),
@@ -312,7 +313,7 @@ class CreativeStudioViewModel @Inject constructor(
         // cause ProviderRegistry.parse() to reject the call.
         val role = runCatching {
             com.aura.providers.ModelRole.valueOf(modelRole)
-        }.getOrDefault(com.aura.providers.ModelRole.CREATIVE_DRAFT)
+        }.onFailure { Log.w("CreativeStudioViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(com.aura.providers.ModelRole.CREATIVE_DRAFT)
         return modelRoleRouter.resolve(role)
             ?: throw IllegalStateException("No model configured for $role. Set a default model in Settings.")
     }

@@ -220,7 +220,7 @@ class HandsViewModel @Inject constructor(
                     trigger = HandRunTrigger.RESUME.value,
                     startStepIndex = stepIndex,
                 )
-            }.getOrElse { ToolResult.Error(it.message ?: "Hand resume failed", "hand_resume_error") }
+            }.onFailure { Log.w("HandsViewModel", "runCatching failed: ${it.message}", it) }.getOrElse { ToolResult.Error(it.message ?: "Hand resume failed", "hand_resume_error") }
             _state.value = _state.value.copy(running = null, lastResult = resultMessage(result))
         }
     }

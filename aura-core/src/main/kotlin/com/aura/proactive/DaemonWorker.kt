@@ -164,7 +164,7 @@ class DaemonWorker @AssistedInject constructor(
 
             // 9. Council — agents debate findings and propose interventions
             val councilEnabled = runCatching { userPreferences.councilEnabled.first() }
-                .getOrDefault(true)
+                .onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault(true)
             if (councilEnabled) {
                 runCatching {
                 councilOrchestrator?.let { orchestrator ->
@@ -172,7 +172,7 @@ class DaemonWorker @AssistedInject constructor(
                         val councilContext = buildString {
                             val calEvents = runCatching {
                                 calendarReadTool.readTodaysEvents()
-                            }.getOrDefault(emptyList())
+                            }.onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                             if (calEvents.isNotEmpty()) {
                                 append("Calendar: ${calEvents.joinToString("; ")}\n")
                             }
@@ -183,7 +183,7 @@ class DaemonWorker @AssistedInject constructor(
                                 set(java.util.Calendar.MILLISECOND, 0)
                             }.timeInMillis
                             val tomorrow = today + 24L * 60 * 60 * 1000
-                            val due = runCatching { taskDao.dueInRange(today, tomorrow) }.getOrDefault(emptyList())
+                            val due = runCatching { taskDao.dueInRange(today, tomorrow) }.onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                             if (due.isNotEmpty()) {
                                 append("Tasks due: ${due.joinToString("; ") { it.title }}\n")
                             }
@@ -225,20 +225,20 @@ class DaemonWorker @AssistedInject constructor(
 
     private suspend fun generateLlmInsight() {
         val backgroundModel = runCatching { userPreferences.backgroundModel.first() }
-            .getOrNull() ?: return
+            .onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return
         if (backgroundModel.isNullOrBlank()) return
 
         val calendarContext = runCatching {
             val events = calendarReadTool.readTodaysEvents()
             if (events.isNotEmpty()) "Today's calendar: ${events.joinToString("; ")}"
             else ""
-        }.getOrDefault("")
+        }.onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault("")
 
         val memoryContext = runCatching {
             val decayed = memoryStore.decayedBelow(0.4f, 5)
             if (decayed.isNotEmpty()) "Fading memories: ${decayed.joinToString("; ") { it.content.take(80) }}"
             else ""
-        }.getOrDefault("")
+        }.onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault("")
 
         val taskContext = runCatching {
             val today = java.util.Calendar.getInstance().apply {
@@ -249,7 +249,7 @@ class DaemonWorker @AssistedInject constructor(
             val due = taskDao.dueInRange(today, tomorrow)
             if (due.isNotEmpty()) "Tasks due today: ${due.joinToString("; ") { it.title }}"
             else ""
-        }.getOrDefault("")
+        }.onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault("")
 
         val contextBlock = listOfNotNull(
             calendarContext.ifBlank { null },

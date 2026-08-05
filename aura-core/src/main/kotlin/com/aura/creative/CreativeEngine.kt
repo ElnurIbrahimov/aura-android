@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 enum class CreativeMode(val label: String, val instruction: String, val temperature: Double) {
     BRAINSTORM(
@@ -318,13 +319,13 @@ class CreativeEngine @Inject constructor(
             artifactStore.forProject(projectId)
                 .sortedByDescending { it.updatedAt }
                 .take(3)
-        }.getOrDefault(emptyList())
+        }.onFailure { Log.w("CreativeEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
         for (artifact in recentArtifacts) {
             val content = runCatching {
                 val revisions = artifactStore.revisionsForArtifact(artifact.id)
                 revisions.lastOrNull()?.contentText ?: artifact.previewText
-            }.getOrDefault(artifact.previewText)
+            }.onFailure { Log.w("CreativeEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(artifact.previewText)
 
             if (content.isNotBlank()) {
                 messages.add(ProviderMessage(

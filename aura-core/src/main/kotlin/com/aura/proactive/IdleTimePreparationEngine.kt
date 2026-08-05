@@ -51,7 +51,7 @@ class IdleTimePreparationEngine @Inject constructor(
      */
     suspend fun prepare(): PreparedAnswer? {
         val backgroundModel = runCatching { userPreferences.backgroundModel.first() }
-            .getOrNull() ?: return null
+            .onFailure { Log.w("IdleTimePreparationEngin", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return null
         if (backgroundModel.isNullOrBlank()) return null
 
         val lastConv = conversationStore.recent(1).firstOrNull() ?: return null
@@ -65,10 +65,10 @@ class IdleTimePreparationEngine @Inject constructor(
 
         val memories = runCatching {
             memoryStore.recent(3).map { it.content.take(100) }
-        }.getOrDefault(emptyList())
+        }.onFailure { Log.w("IdleTimePreparationEngin", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         val tasks = runCatching {
             taskDao.all().filter { it.status == "pending" }.take(5).map { it.title }
-        }.getOrDefault(emptyList())
+        }.onFailure { Log.w("IdleTimePreparationEngin", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
         val systemPrompt = """
             You are Aura's predictive assistant. Based on the recent conversation

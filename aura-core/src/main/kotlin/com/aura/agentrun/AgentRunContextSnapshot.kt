@@ -3,6 +3,7 @@ package com.aura.agentrun
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 /**
  * Minimal snapshot of the [com.aura.agent.ToolContext] that created an
@@ -22,6 +23,6 @@ data class AgentRunContextSnapshot(
 
     companion object {
         fun fromJson(json: String): AgentRunContextSnapshot =
-            runCatching { Json.decodeFromString<AgentRunContextSnapshot>(json) }.getOrDefault(AgentRunContextSnapshot())
+            runCatching { Json.decodeFromString<AgentRunContextSnapshot>(json) }.onFailure { Log.w("AgentRunContextSnapshot", "runCatching failed: ${it.message}", it) }.getOrDefault(AgentRunContextSnapshot())
     }
 }

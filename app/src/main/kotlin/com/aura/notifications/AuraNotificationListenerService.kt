@@ -5,6 +5,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import android.util.Log
 
 /**
  * Opt-in bridge for device notifications. Android only binds this service after
@@ -19,7 +20,7 @@ class AuraNotificationListenerService : NotificationListenerService() {
         super.onListenerConnected()
         store.setConnected(true)
         val active = runCatching { activeNotifications.orEmpty().map(::capture) }
-            .getOrDefault(emptyList())
+            .onFailure { Log.w("AuraNotificationListener", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         store.replaceAll(active)
     }
 

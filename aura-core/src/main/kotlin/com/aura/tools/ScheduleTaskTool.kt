@@ -14,6 +14,7 @@ import com.aura.tools.TimeParser
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /** Let the agent schedule a future task (notification or chat start) for itself. */
 @Singleton
@@ -54,7 +55,7 @@ class ScheduleTaskTool @Inject constructor(
             if (action !in setOf("notify", "start_chat")) {
                 return@Tool ToolResult.Error("action must be notify or start_chat", "bad_args")
             }
-            val dueAt = runCatching { Instant.parse(dueAtStr).toEpochMilli() }.getOrNull()
+            val dueAt = runCatching { Instant.parse(dueAtStr).toEpochMilli() }.onFailure { Log.w("ScheduleTaskTool", "runCatching failed: ${it.message}", it) }.getOrNull()
                 ?: return@Tool ToolResult.Error("could not parse due_at: $dueAtStr", "bad_args")
             val id = UUID.randomUUID().toString()
             val task = TaskEntity(

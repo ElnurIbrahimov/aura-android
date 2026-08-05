@@ -341,14 +341,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun buildMemoryCallback(): String? {
-        val recent = runCatching { memoryStore.recent(3) }.getOrDefault(emptyList())
+        val recent = runCatching { memoryStore.recent(3) }.onFailure { Log.w("HomeViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
             .filter { it.content.isNotBlank() }
             .maxByOrNull { it.accessCount }
         if (recent != null) {
             val snippet = recent.content.take(60).let { if (recent.content.length > 60) "$it…" else it }
             return "Still thinking about: $snippet"
         }
-        val tasks = runCatching { taskDao.allPending() }.getOrDefault(emptyList())
+        val tasks = runCatching { taskDao.allPending() }.onFailure { Log.w("HomeViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         if (tasks.isNotEmpty()) {
             return "You have ${tasks.size} pending task${if (tasks.size == 1) "" else "s"}."
         }
@@ -435,13 +435,13 @@ class HomeViewModel @Inject constructor(
         val endOfDay = startOfDay + 24L * 60L * 60L * 1000L
         val dayAgo = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
 
-        val recentMemories = runCatching { memoryStore.recent(50) }.getOrDefault(emptyList())
+        val recentMemories = runCatching { memoryStore.recent(50) }.onFailure { Log.w("HomeViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         val decayed = recentMemories.filter { it.decayScore < DECAY_FADING_THRESHOLD }.take(5)
         val newMems = recentMemories.filter { it.createdAt >= dayAgo }.take(5)
         val newKg = runCatching { knowledgeGraphRepository.recentSince(dayAgo, 5) }
-            .getOrDefault(emptyList())
+            .onFailure { Log.w("HomeViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         val tasksToday = runCatching { taskDao.dueInRange(startOfDay, endOfDay) }
-            .getOrDefault(emptyList())
+            .onFailure { Log.w("HomeViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
             .take(5)
 
         val ctx = BriefContext(

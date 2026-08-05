@@ -49,6 +49,7 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import android.util.Log
 /**
  * Lightweight markdown renderer. Handles the 80% case with regex
  * — no external library.
@@ -133,7 +134,7 @@ internal fun renderCitationMarkers(text: String, validIndices: Set<Int>): String
 internal fun isSafeMarkdownUrl(url: String): Boolean = runCatching {
     val uri = java.net.URI(url.trim())
     (uri.scheme == "https" || uri.scheme == "http") && !uri.host.isNullOrBlank()
-}.getOrDefault(false)
+}.onFailure { Log.w("MarkdownText", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
 
 // Colors used for inline markdown rendering. Captured at
 // composition time (the only legal place to read

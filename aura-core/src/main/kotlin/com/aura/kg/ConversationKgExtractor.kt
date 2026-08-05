@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Best-effort extractor that runs after an assistant turn completes.

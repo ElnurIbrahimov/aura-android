@@ -5,6 +5,7 @@ import com.aura.providers.ProviderContextWindows
 import com.aura.providers.ProviderRegistry
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Resolves a safe per-call token budget for a fully-qualified model id.
@@ -50,7 +51,7 @@ class ContextBudgetResolver @Inject constructor(
         } catch (_: Exception) {
             return null
         }
-        val models = runCatching { provider.listModelsWithContext() }.getOrNull()
+        val models = runCatching { provider.listModelsWithContext() }.onFailure { Log.w("ContextBudgetResolver", "runCatching failed: ${it.message}", it) }.getOrNull()
             ?: provider.listModels().map { ModelInfo(name = it, contextWindow = null) }
         val info = models.firstOrNull { it.name == modelName || modelId.endsWith(":${it.name}") }
         val contextWindow = info?.contextWindow

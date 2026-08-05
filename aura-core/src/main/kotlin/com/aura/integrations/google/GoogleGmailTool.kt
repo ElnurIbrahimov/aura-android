@@ -131,7 +131,7 @@ class GoogleGmailTool @Inject constructor(
             .url("$GMAIL_API/users/me/messages/$id?format=metadata&metadataHeaders=Subject&metadataHeaders=From")
             .header("Authorization", "Bearer $token")
             .build()
-        val response = runCatching { httpClient.newCall(request).execute() }.getOrNull() ?: return@withContext "(unknown)"
+        val response = runCatching { httpClient.newCall(request).execute() }.onFailure { Log.w("GoogleGmailTool", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@withContext "(unknown)"
         response.use { resp ->
             if (!resp.isSuccessful) return@withContext "(error)"
             val body = resp.body?.string() ?: return@withContext "(empty)"

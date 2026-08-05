@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import android.util.Log
 
 private val sharedImageClient by lazy {
     OkHttpClient.Builder()
@@ -52,7 +53,7 @@ private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.I
         if (!response.isSuccessful) return@withContext null
         val bytes = response.body?.bytes() ?: return@withContext null
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }.getOrNull()
+    }.onFailure { Log.w("InlineImage", "runCatching failed: ${it.message}", it) }.getOrNull()
 }
 
 /**

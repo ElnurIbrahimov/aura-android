@@ -16,6 +16,7 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Shared, concurrent, cached repository that aggregates model catalogs
@@ -187,7 +188,7 @@ class ModelCatalogRepository @Inject constructor(
             }.map { deferred: Deferred<Pair<String, ProviderModelList>> ->
                 // Catch per-provider failures so supervisorScope
                 // does not propagate them.
-                runCatching { deferred.await() }.getOrNull()
+                runCatching { deferred.await() }.onFailure { Log.w("ModelCatalogRepository", "runCatching failed: ${it.message}", it) }.getOrNull()
             }
         }
         if (generation != refreshGeneration) return

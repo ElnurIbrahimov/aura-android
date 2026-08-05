@@ -251,7 +251,7 @@ class ConversationStore @Inject constructor(
         val entity = dao.getById(id) ?: return false
         val turns = runCatching {
             convJson.decodeFromString<List<Turn>>(entity.turnsJson)
-        }.getOrElse { return false }
+        }.onFailure { Log.w("ConversationStore", "runCatching failed: ${it.message}", it) }.getOrElse { return false }
         if (turnIndex !in turns.indices) return false
         val updated = turns.toMutableList()
         updated[turnIndex] = updated[turnIndex].copy(pinned = !updated[turnIndex].pinned)

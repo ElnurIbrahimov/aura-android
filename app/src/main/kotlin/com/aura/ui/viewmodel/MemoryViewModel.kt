@@ -300,9 +300,9 @@ class MemoryViewModel @Inject constructor(
         if (_state.value.rebuildInFlight) return
         _state.update { it.copy(rebuildInFlight = true) }
         viewModelScope.launch {
-            val total = runCatching { memoryStore.count() }.getOrDefault(0)
+            val total = runCatching { memoryStore.count() }.onFailure { Log.w("MemoryViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
             val rebuilt = runCatching { memoryStore.rebuildEmbeddings() }
-                .getOrDefault(0)
+                .onFailure { Log.w("MemoryViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
             val msg = when {
                 total == 0 -> "No memories to rebuild."
                 rebuilt == 0 -> "All $total memories already have embeddings."
@@ -333,7 +333,7 @@ class MemoryViewModel @Inject constructor(
         _state.update { it.copy(dreamSummariesLoading = true) }
         viewModelScope.launch {
             val rows = runCatching { dreamConsolidationDao?.all() ?: emptyList() }
-                .getOrDefault(emptyList())
+                .onFailure { Log.w("MemoryViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 .take(50)
             _state.update {
                 it.copy(

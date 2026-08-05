@@ -132,7 +132,7 @@ class ProactiveEvents(
                 // Persist to Room
                 val insertedId = runCatching {
                     dao.insert(event.toEntity())
-                }.getOrDefault(-1L)
+                }.onFailure { Log.w("ProactiveEvents", "runCatching failed: ${it.message}", it) }.getOrDefault(-1L)
 
                 // Bump the tick so the unread-count flow re-queries.
                 _refreshTick.value = event.timestamp
@@ -220,7 +220,7 @@ class ProactiveEvents(
                 // event is the fallback surface.
                 val ctx = runCatching {
                     briefContextJson.decodeFromString<BriefContext>(body)
-                }.getOrNull() ?: return null
+                }.onFailure { Log.w("ProactiveEvents", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return null
                 ProactiveEventBus.Event.MorningBriefStructured(ctx, timestamp, id)
             }
             "CalendarEventSoon" -> {

@@ -6,6 +6,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Deterministic, offline detectors that produce evolution candidates from
@@ -149,7 +150,7 @@ class EvolutionCandidateDetectors @Inject constructor(
 
     private fun parsePayload(json: kotlin.String): Map<kotlin.String, kotlin.String> = runCatching {
         Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), json)
-    }.getOrDefault(emptyMap())
+    }.onFailure { Log.w("EvolutionCandidateDetect", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
 
     private companion object {
         const val DAY_MS = 24L * 60L * 60L * 1000L

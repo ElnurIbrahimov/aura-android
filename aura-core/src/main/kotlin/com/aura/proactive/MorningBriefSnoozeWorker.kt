@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import com.aura.core.R
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import android.util.Log
 
 /**
  * One-time snooze worker that re-posts the captured morning brief
@@ -42,7 +43,7 @@ class MorningBriefSnoozeWorker @AssistedInject constructor(
         val packageName = ctx.packageName
         val mainActivityClass = runCatching {
             Class.forName("$packageName.MainActivity")
-        }.getOrNull() ?: android.app.Activity::class.java
+        }.onFailure { Log.w("MorningBriefSnoozeWorker", "runCatching failed: ${it.message}", it) }.getOrNull() ?: android.app.Activity::class.java
 
         val chatIntent = Intent(ctx, mainActivityClass).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

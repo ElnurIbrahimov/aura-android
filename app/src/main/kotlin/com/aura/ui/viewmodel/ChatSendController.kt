@@ -308,7 +308,7 @@ class ChatSendController(
                 val category = ProblemCategory.classify(text, resolvedSpecialist)
                 val strategy = if (strategyBandit != null) {
                     runCatching { strategyBandit.selectStrategy(category) }
-                        .getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
+                        .onFailure { Log.w("ChatSendController", "runCatching failed: ${it.message}", it) }.getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
                 } else null
 
                 val maxSteps = strategy?.maxSteps ?: when (resolvedSpecialist?.name) {

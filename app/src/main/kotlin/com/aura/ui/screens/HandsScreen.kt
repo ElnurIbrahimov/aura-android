@@ -91,6 +91,7 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.util.Log
 @Composable
 fun HandsScreen(
     onBack: () -> Unit = {},
@@ -559,18 +560,18 @@ private fun scheduleLabel(hand: Hand): String = when (HandScheduleType.from(hand
     HandScheduleType.DAILY -> "Daily %02d:%02d".format(hand.scheduleHour, hand.scheduleMinute)
     HandScheduleType.WEEKDAYS -> "Weekdays %02d:%02d".format(hand.scheduleHour, hand.scheduleMinute)
     HandScheduleType.WEEKLY -> {
-        val day = runCatching { DayOfWeek.of(hand.scheduleDayOfWeek).name.take(3).lowercase().replaceFirstChar { it.uppercase() } }.getOrDefault("Mon")
+        val day = runCatching { DayOfWeek.of(hand.scheduleDayOfWeek).name.take(3).lowercase().replaceFirstChar { it.uppercase() } }.onFailure { Log.w("HandsScreen", "runCatching failed: ${it.message}", it) }.getOrDefault("Mon")
         "$day %02d:%02d".format(hand.scheduleHour, hand.scheduleMinute)
     }
 }
 
 private fun jsonArrayCount(raw: String): Int = runCatching {
     (Json.parseToJsonElement(raw) as? kotlinx.serialization.json.JsonArray)?.size ?: 0
-}.getOrDefault(0)
+}.onFailure { Log.w("HandsScreen", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
 
 private fun jsonObjectCount(raw: String): Int = runCatching {
     Json.parseToJsonElement(raw).jsonObject.size
-}.getOrDefault(0)
+}.onFailure { Log.w("HandsScreen", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
 
 internal fun runtimeVariableInputs(hand: Hand): Map<String, String> {
     val inputs = LinkedHashMap(parseVariableDefaults(hand.variables))
@@ -583,7 +584,7 @@ internal fun runtimeVariableInputs(hand: Hand): Map<String, String> {
 
 private fun parseVariableDefaults(raw: String): Map<String, String> = runCatching {
     Json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.content }
-}.getOrDefault(emptyMap())
+}.onFailure { Log.w("HandsScreen", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
 @Composable
 private fun HandsStatusFilterChips(
     selected: String,

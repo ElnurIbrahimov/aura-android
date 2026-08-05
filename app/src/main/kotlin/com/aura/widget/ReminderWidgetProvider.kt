@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
+import android.util.Log
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -56,7 +57,7 @@ class ReminderWidgetProvider : AppWidgetProvider() {
                     context,
                     ReminderWidgetEntryPoint::class.java,
                 ).reminderDao()
-            }.getOrNull() ?: return@launch
+            }.onFailure { Log.w("ReminderWidgetProvider", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@launch
 
             val reminders = dao.allForBackup()
                 .filter { it.triggerAt > System.currentTimeMillis() }

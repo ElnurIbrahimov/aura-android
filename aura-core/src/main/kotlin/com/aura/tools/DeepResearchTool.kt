@@ -36,6 +36,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Deep research tool with citations and multi-step reasoning.
@@ -206,7 +207,7 @@ class DeepResearchTool @Inject constructor(
         val deferreds = citations.map { citation ->
             async {
                 runCatching { fetchUrlContent(citation.url) }
-                    .getOrNull()
+                    .onFailure { Log.w("DeepResearchTool", "runCatching failed: ${it.message}", it) }.getOrNull()
                     ?.takeIf { it.isNotBlank() }
                     ?.let { citation.url to it }
             }

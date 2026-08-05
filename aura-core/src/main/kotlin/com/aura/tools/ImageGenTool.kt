@@ -20,6 +20,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Image generation tool: generates images using OpenAI DALL-E 3 or
@@ -192,7 +193,7 @@ class ImageGenTool @Inject constructor(
             val first = providers.firstOrNull()
             val firstModel = first?.listModels()?.firstOrNull()
             if (first != null && firstModel != null) "${first.prefix}:$firstModel" else null
-        }.getOrNull() ?: return original
+        }.onFailure { Log.w("ImageGenTool", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return original
         val messages = listOf(
             com.aura.providers.ProviderMessage(
                 role = com.aura.providers.ProviderMessage.Role.system,

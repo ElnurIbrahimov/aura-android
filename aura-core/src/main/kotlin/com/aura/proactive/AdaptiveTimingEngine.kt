@@ -2,6 +2,7 @@ package com.aura.proactive
 
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Adaptive Timing Engine — learns when the user engages vs dismisses
@@ -17,7 +18,7 @@ class AdaptiveTimingEngine @Inject constructor(
     suspend fun hourlyEngagement(): FloatArray {
         val interactions = runCatching {
             proactiveInteractionDao.recent(200)
-        }.getOrDefault(emptyList())
+        }.onFailure { Log.w("AdaptiveTimingEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
         val scores = FloatArray(24) { 0f }
         for (interaction in interactions) {

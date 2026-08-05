@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Voice calibration system. Learns the user's prose style and produces
@@ -111,7 +112,7 @@ class VoiceCalibration @Inject constructor(
     private suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
-            val model = runCatching { provider.listModels().firstOrNull() }.getOrNull()
+            val model = runCatching { provider.listModels().firstOrNull() }.onFailure { Log.w("VoiceCalibration", "runCatching failed: ${it.message}", it) }.getOrNull()
             if (!model.isNullOrBlank()) return "${provider.prefix}:$model"
         }
         throw IllegalStateException("Configure an LLM provider before using voice calibration.")

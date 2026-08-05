@@ -50,7 +50,7 @@ class BeliefsViewModel @Inject constructor(
     private fun load() = viewModelScope.launch {
         val loaded = beliefDao.allActive(200)
         val evidenceByBelief = loaded.associate { belief ->
-            belief.id to runCatching { evidenceDao.forBelief(belief.id) }.getOrDefault(emptyList())
+            belief.id to runCatching { evidenceDao.forBelief(belief.id) }.onFailure { Log.w("BeliefsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
         }
         // BeliefDao.history is ORDER BY createdAt ASC. "I used to think X"
         // means the value held most recently before now, so the chain is

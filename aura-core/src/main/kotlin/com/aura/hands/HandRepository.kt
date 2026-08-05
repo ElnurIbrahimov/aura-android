@@ -208,25 +208,25 @@ class HandRepository @Inject constructor(
 
     /** Parse the editor/runtime step format, including the legacy stringified args shape. */
     fun parseSteps(stepsJson: String): List<HandStep> =
-        runCatching { decodeSteps(stepsJson) }.getOrDefault(emptyList())
+        runCatching { decodeSteps(stepsJson) }.onFailure { Log.w("HandRepository", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
     fun stepsToJson(steps: List<HandStep>): String = JsonArray(steps.map { it.toJsonObject() }).toString()
 
     fun parseVariables(raw: String): Map<String, String> =
-        runCatching { decodeVariables(raw) }.getOrDefault(emptyMap())
+        runCatching { decodeVariables(raw) }.onFailure { Log.w("HandRepository", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
 
     fun variablesToJson(variables: Map<String, String>): String =
         JsonObject(variables.mapValues { JsonPrimitive(it.value) }).toString()
 
     fun parseConditions(raw: String): List<HandCondition> =
-        runCatching { decodeConditions(raw) }.getOrDefault(emptyList())
+        runCatching { decodeConditions(raw) }.onFailure { Log.w("HandRepository", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
     fun conditionsToJson(conditions: List<HandCondition>): String = json.encodeToString(conditions)
 
     private fun decodeSteps(stepsJson: String): List<HandStep> {
         val array = json.parseToJsonElement(stepsJson).jsonArray
         return array.mapNotNull { element ->
-            val obj = runCatching { element.jsonObject }.getOrNull() ?: return@mapNotNull null
+            val obj = runCatching { element.jsonObject }.onFailure { Log.w("HandRepository", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@mapNotNull null
             val tool = obj["tool"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val rawArgs = obj["args"]
             val args = when (rawArgs) {

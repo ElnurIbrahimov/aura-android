@@ -320,7 +320,7 @@ class SettingsViewModel @Inject constructor(
             val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
             val evolutionAutoApply = runCatching {
                 evolutionSettingsStore.all().any { it.autoApplyApproved }
-            }.getOrDefault(false)
+            }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
@@ -329,7 +329,7 @@ class SettingsViewModel @Inject constructor(
             val triggers = userPreferences.triggers.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
-            val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.getOrDefault(0)
+            val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
             val mcpServersJson = userPreferences.mcpServersJson.first()
             val roleModels = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
@@ -823,7 +823,7 @@ class SettingsViewModel @Inject constructor(
                 val obj = item as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
                 val config = json.decodeFromJsonElement(McpServerConfig.serializer(), obj)
                 // Re-inject auth token from SecureDataStore
-                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.getOrNull()
+                val token = runCatching { secureDataStore.getString("mcp_auth_${config.id}") }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrNull()
                 if (token.isNullOrBlank()) config else config.copy(authToken = token)
             }
         } catch (e: Exception) {

@@ -267,7 +267,7 @@ class OpportunityEngine @Inject constructor(
     private fun parseSummaries(payloadJson: kotlin.String): Int {
         return runCatching {
             json.parseToJsonElement(payloadJson).jsonObject["summariesWritten"]?.toString()?.toIntOrNull() ?: 0
-        }.getOrDefault(0)
+        }.onFailure { Log.w("OpportunityEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
     }
 
 }

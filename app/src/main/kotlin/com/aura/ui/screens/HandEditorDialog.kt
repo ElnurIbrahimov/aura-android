@@ -474,8 +474,8 @@ private fun parseSteps(raw: String, json: Json): List<HandStep> = runCatching {
 
 private fun parseVariables(raw: String, json: Json): Map<String, String> = runCatching {
     json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }
-}.getOrDefault(emptyMap())
+}.onFailure { Log.w("HandEditorDialog", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
 
 private fun parseConditions(raw: String, json: Json): List<HandCondition> = runCatching {
     json.decodeFromString<List<HandCondition>>(raw)
-}.getOrDefault(emptyList())
+}.onFailure { Log.w("HandEditorDialog", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())

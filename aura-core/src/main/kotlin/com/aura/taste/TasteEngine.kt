@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 /**
  * The Taste Twin — learns from user preference signals and
@@ -145,7 +146,7 @@ class TasteEngine @Inject constructor(
             for (signal in categorySignals) {
                 val parsed = runCatching {
                     json.decodeFromString<Map<kotlin.String, kotlin.String>>(signal.attributesJson)
-                }.getOrDefault(emptyMap())
+                }.onFailure { Log.w("TasteEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
 
                 for ((key, value) in parsed) {
                     // Bucket by "<key>:<value>" so "tone:concise" and "style:concise"
@@ -234,7 +235,7 @@ class TasteEngine @Inject constructor(
         val profile = getProfileForScopes(scopes) ?: return ""
         val attrs = runCatching {
             json.decodeFromString<Map<kotlin.String, Map<kotlin.String, Float>>>(profile.attributesJson)
-        }.getOrDefault(emptyMap())
+        }.onFailure { Log.w("TasteEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
         if (attrs.isEmpty()) return ""
 
         val lines = mutableListOf<kotlin.String>()

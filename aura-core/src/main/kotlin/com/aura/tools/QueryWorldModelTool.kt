@@ -11,6 +11,7 @@ import com.aura.world.OpportunityDao
 import com.aura.world.WorldEventDao
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Query the user's accumulated world model (beliefs, events, opportunities).
@@ -54,7 +55,7 @@ class QueryWorldModelTool @Inject constructor(
                 appendLine()
 
                 // Active beliefs
-                val beliefs = runCatching { beliefDao.allActive(10) }.getOrDefault(emptyList())
+                val beliefs = runCatching { beliefDao.allActive(10) }.onFailure { Log.w("QueryWorldModelTool", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 if (beliefs.isNotEmpty()) {
                     appendLine("## Beliefs (${beliefs.size})")
                     beliefs.forEach { b ->
@@ -62,7 +63,7 @@ class QueryWorldModelTool @Inject constructor(
                         // Newest-discarded-first: the most recent prior belief is the
                         // one most relevant to "what did the user used to think".
                         val superseded = runCatching { beliefDao.history(b.subject, b.predicate) }
-                            .getOrDefault(emptyList())
+                            .onFailure { Log.w("QueryWorldModelTool", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                             .filter { it.status == "superseded" }
                             .sortedByDescending { it.createdAt }
                         if (superseded.isNotEmpty()) {
@@ -78,7 +79,7 @@ class QueryWorldModelTool @Inject constructor(
                 }
 
                 // Recent unconsumed events
-                val events = runCatching { worldEventDao.unconsumed(10) }.getOrDefault(emptyList())
+                val events = runCatching { worldEventDao.unconsumed(10) }.onFailure { Log.w("QueryWorldModelTool", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 if (events.isNotEmpty()) {
                     appendLine("## Recent Events (${events.size})")
                     events.forEach { e ->
@@ -89,7 +90,7 @@ class QueryWorldModelTool @Inject constructor(
 
                 // Pending opportunities
                 val now = System.currentTimeMillis()
-                val opportunities = runCatching { opportunityDao.pending(now, 10) }.getOrDefault(emptyList())
+                val opportunities = runCatching { opportunityDao.pending(now, 10) }.onFailure { Log.w("QueryWorldModelTool", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 if (opportunities.isNotEmpty()) {
                     appendLine("## Opportunities (${opportunities.size})")
                     opportunities.forEach { o ->

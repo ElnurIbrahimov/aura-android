@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Runs one debate round: each participating agent generates a stance
@@ -188,6 +189,6 @@ class DebateRoundUseCase @Inject constructor(
             val firstProvider = providers.firstOrNull { it.prefix != "moa" }
             val models = firstProvider?.listModels().orEmpty()
             models.minByOrNull { it.length } ?: "default"
-        }.getOrDefault("default")
+        }.onFailure { Log.w("DebateRoundUseCase", "runCatching failed: ${it.message}", it) }.getOrDefault("default")
     }
 }

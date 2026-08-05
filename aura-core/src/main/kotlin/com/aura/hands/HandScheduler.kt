@@ -12,6 +12,7 @@ import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /** Schedules exactly one next occurrence per hand using unique WorkManager work. */
 @Singleton
@@ -86,7 +87,7 @@ class HandScheduler internal constructor(
                 }
                 HandScheduleType.WEEKLY -> {
                     val target = runCatching { DayOfWeek.of(hand.scheduleDayOfWeek) }
-                        .getOrDefault(DayOfWeek.MONDAY)
+                        .onFailure { Log.w("HandScheduler", "runCatching failed: ${it.message}", it) }.getOrDefault(DayOfWeek.MONDAY)
                     var days = (target.value - now.dayOfWeek.value + 7) % 7
                     if (days == 0 && !base.isAfter(now)) days = 7
                     base.plusDays(days.toLong())

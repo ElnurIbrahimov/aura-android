@@ -3,6 +3,7 @@ package com.aura.evolution
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
 import javax.inject.Inject
+import android.util.Log
 
 /**
  * Reverts an applied evolution proposal. It restores the plaintext snapshot
@@ -87,7 +88,7 @@ class EvolutionRollbackManager @Inject constructor(
             EvolutionAction.UPDATE_MEMORY_CATEGORY -> {
                 val snapshot = proposal.rollbackSnapshotJson.takeIf { it.isNotBlank() && it != "{}" }
                     ?: return RollbackResult.Error("no rollback snapshot")
-                val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.getOrNull()
+                val mem = runCatching { json.decodeFromString<com.aura.memory.MemoryEntity>(snapshot) }.onFailure { Log.w("EvolutionRollbackManager", "runCatching failed: ${it.message}", it) }.getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid MemoryEntity")
                 memoryStore?.update(mem.id, mem.content, mem.category, mem.importance, mem.tags)
                     ?: return RollbackResult.Error("MemoryStore not available")
@@ -167,7 +168,7 @@ class EvolutionRollbackManager @Inject constructor(
                 memoryStore ?: return RollbackResult.Error("MemoryStore not available")
                 val args = runCatching {
                     json.decodeFromString<Map<String, String>>(proposal.patchJson)
-                }.getOrDefault(emptyMap())
+                }.onFailure { Log.w("EvolutionRollbackManager", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
                 val consolidatedContent = args["consolidatedContent"]
                 if (consolidatedContent != null) {
                     // Find and delete the consolidated memory by content match.
@@ -199,7 +200,7 @@ class EvolutionRollbackManager @Inject constructor(
                 beliefDao ?: return RollbackResult.Error("BeliefDao not available")
                 val args = runCatching {
                     json.decodeFromString<Map<String, String>>(proposal.patchJson)
-                }.getOrDefault(emptyMap())
+                }.onFailure { Log.w("EvolutionRollbackManager", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
                 val subject = args["subject"] ?: "user"
                 val predicate = args["predicate"] ?: "property"
                 // Find the belief by subject+predicate (the ID was random).
@@ -268,7 +269,7 @@ class EvolutionRollbackManager @Inject constructor(
                 // contains the original rule data.
                 val args = runCatching {
                     json.decodeFromString<Map<String, String>>(proposal.patchJson)
-                }.getOrDefault(emptyMap())
+                }.onFailure { Log.w("EvolutionRollbackManager", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
                 val title = args["title"] ?: args["correlationTag"] ?: "restored rule"
                 val body = args["body"] ?: ""
                 proactiveEventDao?.insert(

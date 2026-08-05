@@ -3,6 +3,7 @@ package com.aura.agent.council
 import com.aura.agent.state.AgentStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Manages agent mood decay and recovery over time.
@@ -93,7 +94,7 @@ class AgentMoodEngine @Inject constructor(
      */
     suspend fun filterAvailable(agentIds: List<kotlin.String>): List<kotlin.String> {
         return agentIds.filter { id ->
-            runCatching { canParticipate(id) }.getOrDefault(true)
+            runCatching { canParticipate(id) }.onFailure { Log.w("AgentMoodEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(true)
         }
     }
 }

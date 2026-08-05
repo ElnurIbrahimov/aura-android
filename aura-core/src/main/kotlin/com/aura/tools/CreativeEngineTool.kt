@@ -13,6 +13,7 @@ import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 /**
  * Single-entry tool for durable creative production. Reads a project, runs a
@@ -52,7 +53,7 @@ class CreativeEngineTool @Inject constructor(
         val stage = call.arguments["stage"] as? String ?: return ToolResult.Error("stage required")
         val prompt = call.arguments["prompt"] as? String ?: return ToolResult.Error("prompt required")
         val thinkingBudget = call.arguments["thinking_budget"] as? Int
-        val mode = runCatching { CreativeMode.valueOf(stage.uppercase()) }.getOrNull()
+        val mode = runCatching { CreativeMode.valueOf(stage.uppercase()) }.onFailure { Log.w("CreativeEngineTool", "runCatching failed: ${it.message}", it) }.getOrNull()
             ?: return ToolResult.Error("Unknown stage: $stage")
         return try {
             val output = StringBuilder()

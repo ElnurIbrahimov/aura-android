@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.ceil
+import android.util.Log
 
 @Serializable
 data class ModelUsage(
@@ -129,7 +130,7 @@ class UsageTracker private constructor(
     private fun load(): UsageSnapshot {
         val encoded = preferences?.getString(KEY_LEDGER, null) ?: return UsageSnapshot()
         return runCatching { json.decodeFromString<UsageSnapshot>(encoded) }
-            .getOrDefault(UsageSnapshot())
+            .onFailure { Log.w("UsageTracker", "runCatching failed: ${it.message}", it) }.getOrDefault(UsageSnapshot())
     }
 
     private fun estimateTokens(chars: Int): Long =

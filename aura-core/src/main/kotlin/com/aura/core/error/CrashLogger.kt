@@ -11,6 +11,7 @@ import javax.inject.Singleton
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 @Serializable
 data class CrashLogEntry(
@@ -138,7 +139,7 @@ class CrashLogger @Inject constructor(
             val header = legacyHeader ?: return
             val timestamp = runCatching {
                 dateFormat.parse(header.groupValues[1])?.time ?: 0L
-            }.getOrDefault(0L)
+            }.onFailure { Log.w("CrashLogger", "runCatching failed: ${it.message}", it) }.getOrDefault(0L)
             parsed += CrashLogEntry(
                 timestamp = timestamp,
                 code = header.groupValues[2].trim(),

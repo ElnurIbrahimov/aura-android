@@ -2,6 +2,7 @@ package com.aura.ui.components.charts
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import android.util.Log
 
 /**
  * Chart data model. Parsed from fenced code blocks like:
@@ -34,7 +35,7 @@ enum class ChartType(val language: String) {
 fun parseChartData(raw: String): ChartData? = runCatching {
     val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     json.decodeFromString<ChartData>(raw.trim())
-}.getOrNull()?.let {
+}.onFailure { Log.w("ChartRenderer", "runCatching failed: ${it.message}", it) }.getOrNull()?.let {
     if (it.labels.isEmpty() || it.values.isEmpty()) null else it
 }
 

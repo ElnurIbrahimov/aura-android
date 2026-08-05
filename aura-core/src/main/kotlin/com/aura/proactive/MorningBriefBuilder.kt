@@ -71,19 +71,19 @@ class MorningBriefBuilder @Inject constructor(
                 }
                 val newMemoriesDeferred = async {
                     runCatching { memoryStore.recentSince(since24h, 10) }
-                        .getOrDefault(emptyList())
+                        .onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 }
                 val newKgDeferred = async {
                     runCatching { kgRepository.recentSince(since24h, 10) }
-                        .getOrDefault(emptyList())
+                        .onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 }
                 val tasksDeferred = async {
                     runCatching { taskDao.dueInRange(startOfDay, endOfDay) }
-                        .getOrDefault(emptyList())
+                        .onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 }
                 val calendarDeferred = async {
                     runCatching { calendarReadTool.readTodaysEvents() }
-                        .getOrDefault(emptyList())
+                        .onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
                 }
                 BriefContext(
                     decayedMemories = decayedDeferred.await(),
@@ -93,12 +93,12 @@ class MorningBriefBuilder @Inject constructor(
                     calendarToday = calendarDeferred.await(),
                 )
             }
-        }.getOrDefault(BriefContext())
+        }.onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault(BriefContext())
 
         val summary = buildSummary(briefContext)
         val greeting = if (briefContext.isEmpty) "" else runCatching {
             llmGreeting(now)
-        }.getOrDefault("").trim()
+        }.onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrDefault("").trim()
 
         val notificationTitle = "☀️ Good morning"
         val notificationBody = listOf(greeting, summary)
@@ -199,7 +199,7 @@ class MorningBriefBuilder @Inject constructor(
         val packageName = ctx.packageName
         val mainActivityClass = runCatching {
             Class.forName("$packageName.MainActivity")
-        }.getOrNull() ?: android.app.Activity::class.java
+        }.onFailure { Log.w("MorningBriefBuilder", "runCatching failed: ${it.message}", it) }.getOrNull() ?: android.app.Activity::class.java
 
         val chatIntent = Intent(ctx, mainActivityClass).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

@@ -11,6 +11,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import android.util.Log
 
 /**
  * LLM-augmented write gate. Wraps the heuristic [WriteGate] with a
@@ -51,7 +52,7 @@ class LlmWriteGate(
         // 2) LLM gate — best-effort, falls back to heuristic on failure
         val llmDecision = runCatching {
             llmEvaluate(content)
-        }.getOrNull()
+        }.onFailure { Log.w("LlmWriteGate", "runCatching failed: ${it.message}", it) }.getOrNull()
 
         // 3) Merge: LLM decision wins if it parsed, heuristic is the fallback
         return llmDecision ?: heuristicDecision
