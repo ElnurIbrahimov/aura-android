@@ -84,6 +84,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
+    private val responseCache: ResponseCache? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -311,6 +312,29 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // generation, not just the prompt's tone directive. Only adjusts —
         // never overrides an explicit caller choice.
         val effectiveOptions = emotionEngine?.applySampling(options) ?: options
+        // Response cache fast path (ported from Python Aura's response
+        // cache): if this exact short question was answered recently with
+        // a pure text reply (no tool calls), replay it instantly instead
+        // of a full model round-trip. Only fires for short questions in a
+        // fresh conversation — anything tool-driven or context-heavy
+        // misses and runs normally.
+        val lastUserTurn = conversation.turns.lastOrNull { it.user != null }
+        val lastUserText = lastUserTurn?.user.orEmpty()
+        val cacheKey = lastUserText.takeIf { it.length in 2..120 }
+            ?.let { normalizeCacheKey(it) + "|" + model }
+        val cachedAnswer = if (cacheKey != null && conversation.turns.size <= 2 && memoryEnabled) {
+            responseCache?.get(cacheKey)
+        } else null
+        if (cachedAnswer != null) {
+            traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED, redactedPayload = "response_cache_hit")
+            emit(AgentEvent.TextDelta(cachedAnswer))
+            val withReply = conversation.addAssistant(cachedAnswer)
+            emit(AgentEvent.Result(withReply, null))
+            emit(AgentEvent.Done)
+            return@flow
+        }
+        // After a normal run completes, record the answer for repeat
+        // questions (done below where the final text is known).
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()
@@ -1097,6 +1121,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             )
         }.onFailure { android.util.Log.w("AgenticLoop", "routing outcome failed: ${it.message}", it) }
         emit(AgentEvent.Result(finalConv, lastRecall))
+        // Cache the reply for repeat questions: only pure-text answers in
+        // fresh conversations (no tool calls — a tool answer depends on
+        // external state and would go stale; conversation ≤ 3 turns so the
+        // answer is self-contained).
+        if (responseCache != null && cacheKey != null && memoryEnabled) {
+            val lastAssistant = finalConv.turns.lastOrNull()?.assistant.orEmpty()
+            val usedTools = finalConv.turns.lastOrNull()?.toolTurns?.isNotEmpty() == true
+            val originalTurns = conversation.turns.size
+            if (lastAssistant.length >= 40 && !usedTools && originalTurns <= 2) {
+                runCatching { responseCache.put(cacheKey, lastAssistant) }
+                    .onFailure { android.util.Log.w("AgenticLoop", "response cache put failed: ${it.message}", it) }
+            }
+        }
         emit(AgentEvent.Done)
     }
 
