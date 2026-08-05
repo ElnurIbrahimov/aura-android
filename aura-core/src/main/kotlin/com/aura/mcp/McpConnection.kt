@@ -144,21 +144,7 @@ internal class McpConnection(
             try {
                 val argsObj = buildJsonObject {
                     arguments.forEach { (key, value) ->
-                        when (value) {
-                            is kotlin.String -> put(key, value)
-                            is Number -> put(key, value)
-                            is kotlin.Boolean -> put(key, value)
-                            is Map<*, *> -> putJsonObject(key) {
-                                @Suppress("UNCHECKED_CAST")
-                                (value as Map<kotlin.String, Any?>).forEach { (k, v) ->
-                                    when (v) {
-                                        is kotlin.String -> put(k, v)
-                                        is Number -> put(k, v)
-                                        is kotlin.Boolean -> put(k, v)
-                                    }
-                                }
-                            }
-                        }
+                        put(key, toJsonElement(value))
                     }
                 }
                 val request = buildJsonRpcRequest("tools/call", buildJsonObject {
@@ -229,5 +215,30 @@ internal class McpConnection(
             android.util.Log.w("McpConnection", "sendRequest failed for ${config.name}: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Convert a Kotlin value into a JSON element for MCP request arguments.
+     * Handles null, primitives, nested maps, lists, arrays, and collections —
+     * previously Lists/Arrays/nulls were silently dropped.
+     */
+    private fun toJsonElement(value: Any?): kotlinx.serialization.json.JsonElement = when (value) {
+        null -> kotlinx.serialization.json.JsonNull
+        is kotlin.String -> kotlinx.serialization.json.JsonPrimitive(value)
+        is kotlin.Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+        is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+        is Map<*, *> -> kotlinx.serialization.json.buildJsonObject {
+            value.forEach { (k, v) -> put(k.toString(), toJsonElement(v)) }
+        }
+        is List<*> -> kotlinx.serialization.json.buildJsonArray {
+            value.forEach { add(toJsonElement(it)) }
+        }
+        is Array<*> -> kotlinx.serialization.json.buildJsonArray {
+            value.forEach { add(toJsonElement(it)) }
+        }
+        is Collection<*> -> kotlinx.serialization.json.buildJsonArray {
+            value.forEach { add(toJsonElement(it)) }
+        }
+        else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
     }
 }

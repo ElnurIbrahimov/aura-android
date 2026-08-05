@@ -1,6 +1,10 @@
 package com.aura.providers
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -87,6 +91,11 @@ class OllamaCloudProvider(
         }
     }
 
+    private companion object {
+        /** Max concurrent /api/show probes — avoids hammering the Ollama API. */
+        const val MAX_CONCURRENT_PROBES = 8
+    }
+
     override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
         val names = listModels()
         // Probe each model for its real context window. Ollama's
@@ -94,27 +103,40 @@ class OllamaCloudProvider(
         // most modern models. Failures fall through to null context
         // (compactor uses its default), so a single bad model
         // doesn't break the catalog.
-        names.map { name ->
-            val contextWindow = runCatching {
-                val apiKey = providerKeys.keyForAwaiting(prefix).orEmpty()
-                val request = Request.Builder()
-                    .url("$baseUrl/api/show")
-                    .post(
-                        "{\"name\":\"$name\"}"
-                            .toRequestBody("application/json".toMediaType()),
-                    )
-                if (apiKey.isNotEmpty()) request.header("Authorization", "Bearer $apiKey")
-                httpClient.newCall(request.build()).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
-                    val body = response.body?.string() ?: return@use null
-                    showJson.parseToJsonElement(body).jsonObject["model_info"]
-                        ?.jsonObject?.values?.firstOrNull { info ->
-                            info.jsonObject["context_length"] != null
-                        }?.jsonObject?.get("context_length")
-                        ?.jsonPrimitive?.content?.toIntOrNull()
+        //
+        // Parallelized: previously this fired one sequential HTTP call
+        // per model (50 models = 50 round-trips at 200-1000ms each =
+        // 10-50s startup penalty). Now at most 8 probes run concurrently
+        // and the whole batch waits on all of them.
+        return@withContext coroutineScope {
+            val probeSemaphore = Semaphore(MAX_CONCURRENT_PROBES)
+            names.map { name ->
+                async {
+                    probeSemaphore.withPermit {
+                    val contextWindow = runCatching {
+                        val apiKey = providerKeys.keyForAwaiting(prefix).orEmpty()
+                        val request = Request.Builder()
+                            .url("$baseUrl/api/show")
+                            .post(
+                                buildJsonObject { put("name", name) }
+                                    .toString()
+                                    .toRequestBody("application/json".toMediaType()),
+                            )
+                        if (apiKey.isNotEmpty()) request.header("Authorization", "Bearer $apiKey")
+                        httpClient.newCall(request.build()).execute().use { response ->
+                            if (!response.isSuccessful) return@use null
+                            val body = response.body?.string() ?: return@use null
+                            showJson.parseToJsonElement(body).jsonObject["model_info"]
+                                ?.jsonObject?.values?.firstOrNull { info ->
+                                    info.jsonObject["context_length"] != null
+                                }?.jsonObject?.get("context_length")
+                                ?.jsonPrimitive?.content?.toIntOrNull()
+                        }
+                    }.onFailure { Log.w("OllamaCloud", "op failed: ${it.message}", it) }.getOrNull()
+                    ModelInfo(name = name, contextWindow = contextWindow)
+                    }
                 }
-            }.onFailure { Log.w("OllamaCloud", "op failed: ${it.message}", it) }.getOrNull()
-            ModelInfo(name = name, contextWindow = contextWindow)
+            }.map { it.await() }
         }
     }
 }
