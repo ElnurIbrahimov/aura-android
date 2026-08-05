@@ -764,7 +764,7 @@ class BackupManagerTest {
      * excluded).
      */
     @Test
-    fun `snapshot never includes SMTP host port username or from`() = runTest {
+    fun `snapshot includes SMTP config but not password`() = runTest {
         coEvery { memoryDao.allForExport() } returns emptyList()
         coEvery { memoryEditDao.allForBackup() } returns emptyList()
         coEvery { documentDao.allForBackup() } returns emptyList()
@@ -832,13 +832,17 @@ class BackupManagerTest {
         val backup = manager.snapshot(appVersionName = "0.1.0")
         val json = manager.encodeToJson(backup)
 
-        // P1-SEC-F2: nothing SMTP-identity-shaped should leave the device.
-        assertNull(backup.preferences.smtpHost)
-        assertNull(backup.preferences.smtpUsername)
-        assertNull(backup.preferences.smtpFrom)
-        assertEquals(0, backup.preferences.smtpPort)
-        assertFalse(json.contains("mail.example.com"))
-        assertFalse(json.contains("user@example.com"))
-        assertFalse(json.contains("noreply@example.com"))
+        // SMTP config IS in the backup (host, port, username, from) —
+        // only the password stays in SecureDataStore and is NOT exported.
+        assertEquals("mail.example.com", backup.preferences.smtpHost)
+        assertEquals("user@example.com", backup.preferences.smtpUsername)
+        assertEquals("Aura <noreply@example.com>", backup.preferences.smtpFrom)
+        assertEquals(465, backup.preferences.smtpPort)
+        // Verify SMTP values are in the JSON.
+        assertTrue(json.contains("mail.example.com"))
+        assertTrue(json.contains("user@example.com"))
+        // Password must NOT be in the backup JSON.
+        assertFalse(json.contains("smtp_password"))
+        assertFalse(json.contains("password"))
     }
 }

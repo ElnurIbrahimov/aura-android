@@ -120,7 +120,7 @@ class ChatGptSubscriptionProvider(
             .header("OpenAI-Beta", "responses=experimental")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.BUFFERED)
+        val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
         val sourceHolder = EventSourceHolder()
         activeEventSource = sourceHolder
         // P0-AGENTIC-F2: track tool_calls by index so parallel tool-call deltas

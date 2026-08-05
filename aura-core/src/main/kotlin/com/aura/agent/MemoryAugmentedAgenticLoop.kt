@@ -304,7 +304,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          */
         recentTopics: String = "",
     ): Flow<AgentEvent> = flow {
-        val runId = "run_${System.currentTimeMillis()}"
+        val runId = "run_${java.util.UUID.randomUUID()}"
         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
@@ -757,6 +757,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                         currentModel = nextModel
                                         effectiveModel = nextModel
                                         currentConversation = currentConversation.copy(model = nextModel)
+                                        // Clear the UI's accumulated text from the
+                                        // failed model so the user doesn't see
+                                        // garbled concatenated output.
+                                        emit(AgentEvent.ResetText)
                                         throw kotlinx.coroutines.CancellationException("failover")
                                     }
                                 }
@@ -904,7 +908,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // could exceed the model's context window. compactIfNeeded
                 // is a no-op when below threshold (cheap char-sum, no
                 // network), so the call is safe to make every step.
-                currentConversation = conversationCompactor.compactIfNeeded(currentConversation, model)
+                currentConversation = conversationCompactor.compactIfNeeded(currentConversation, effectiveModel)
                 emit(AgentEvent.ToolResult(id, name, args, resultText, needsPerm, permRationale))
             }
         }
@@ -1176,6 +1180,12 @@ private suspend fun extractProfileFromText(text: String) {
 
 sealed class AgentEvent {
     data class TextDelta(val text: String) : AgentEvent()
+    /**
+     * Emitted before a provider failover re-streams from scratch.
+     * The UI must clear any accumulated text/thinking from the failed
+     * model so the user doesn't see garbled concatenated output.
+     */
+    data object ResetText : AgentEvent()
     data class ThinkingDelta(val text: String) : AgentEvent()
     data class ToolCallStart(val id: String, val name: String) : AgentEvent()
     data class ToolCallEnd(val id: String, val name: String, val arguments: String) : AgentEvent()

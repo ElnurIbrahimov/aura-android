@@ -245,6 +245,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 councilEnabled = userPreferences.councilEnabled.first(),
                 councilAutoApply = userPreferences.councilAutoApply.first(),
                 councilActivityLevel = userPreferences.councilActivityLevel.first(),
+                smtpHost = userPreferences.smtpHost.first().takeIf { it.isNotBlank() },
+                smtpPort = userPreferences.smtpPort.first(),
+                smtpUsername = userPreferences.smtpUsername.first().takeIf { it.isNotBlank() },
+                smtpFrom = userPreferences.smtpFrom.first().takeIf { it.isNotBlank() },
             )
 
     suspend fun snapshot(
@@ -308,6 +312,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             creativeSimulations = creativeSimulationDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             evolutionEvidence = evolutionEvidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             evolutionCandidates = evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            evolutionProposals = runCatching { evolutionProposalDao.allForBackup().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution proposals snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
+            evolutionSettings = runCatching { evolutionSettingsDao.all().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution settings snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
+            evolutionRevisions = runCatching { evolutionRevisionDao.allForBackup().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution revisions snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
             proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),

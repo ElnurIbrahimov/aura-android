@@ -16,6 +16,7 @@ data class AgentRunContextSnapshot(
     val approvedRemoteCostTools: Set<String> = emptySet(),
     val memoryEnabled: Boolean = true,
     val activeAgentId: String = "",
+    val toolTimeoutMs: Long = 60_000L,
 ) {
     fun toJson(): String = Json.encodeToString(this)
 

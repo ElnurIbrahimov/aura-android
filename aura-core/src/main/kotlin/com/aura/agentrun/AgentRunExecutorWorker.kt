@@ -186,7 +186,7 @@ class AgentRunExecutorWorker @AssistedInject constructor(
             approvedRemoteCostTools = snapshot.approvedRemoteCostTools,
             memoryEnabled = snapshot.memoryEnabled,
             activeAgentId = snapshot.activeAgentId,
-            timeout = 120_000L,
+            timeout = snapshot.toolTimeoutMs,
         )
         return try {
             executor.get().execute(step.toolName, step.toolArgs, ctx)

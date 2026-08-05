@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -47,6 +49,12 @@ class IntegrationTokenStore @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    // Per-provider mutex to prevent concurrent refresh calls (TOCTOU race).
+    // Without this, N concurrent callers all see "expired" and all invoke
+    // refreshFn, hammering the provider's token endpoint.
+    private val googleRefreshMutex = Mutex()
+    private val microsoftRefreshMutex = Mutex()
+
     private val _googleConnected = MutableStateFlow(false)
     val googleConnected: StateFlow<Boolean> = _googleConnected.asStateFlow()
 
@@ -76,19 +84,20 @@ class IntegrationTokenStore @Inject constructor(
      * Returns null if not connected or refresh failed.
      */
     suspend fun getValidGoogleAccessToken(refreshFn: suspend (String) -> TokenRefreshResult?): String? =
-        getValidToken(KEY_GOOGLE_ACCESS, KEY_GOOGLE_REFRESH, KEY_GOOGLE_EXPIRES, refreshFn)
+        getValidToken(KEY_GOOGLE_ACCESS, KEY_GOOGLE_REFRESH, KEY_GOOGLE_EXPIRES, refreshFn, googleRefreshMutex)
 
     /**
      * Get a valid Microsoft access token, refreshing if necessary.
      */
     suspend fun getValidMicrosoftAccessToken(refreshFn: suspend (String) -> TokenRefreshResult?): String? =
-        getValidToken(KEY_MICROSOFT_ACCESS, KEY_MICROSOFT_REFRESH, KEY_MICROSOFT_EXPIRES, refreshFn)
+        getValidToken(KEY_MICROSOFT_ACCESS, KEY_MICROSOFT_REFRESH, KEY_MICROSOFT_EXPIRES, refreshFn, microsoftRefreshMutex)
 
     private suspend fun getValidToken(
         accessKey: String,
         refreshKey: String,
         expiresKey: String,
         refreshFn: suspend (String) -> TokenRefreshResult?,
+        refreshMutex: Mutex,
     ): String? = withContext(Dispatchers.IO) {
         val accessToken = secureDataStore.getString(accessKey) ?: return@withContext null
         val expiresAt = secureDataStore.getString(expiresKey)?.toLongOrNull() ?: 0L
@@ -98,20 +107,31 @@ class IntegrationTokenStore @Inject constructor(
             return@withContext accessToken
         }
 
-        // Token expired — try to refresh
-        val refreshToken = secureDataStore.getString(refreshKey) ?: return@withContext null
-        val refreshResult = runCatching { refreshFn(refreshToken) }
-            .onFailure { Log.w(TAG, "token refresh failed: ${it.message}", it) }
-            .getOrNull() ?: return@withContext null
+        // Token expired — try to refresh under mutex to prevent
+        // concurrent refresh calls hammering the provider endpoint.
+        refreshMutex.withLock {
+            // Re-check after acquiring the lock — another coroutine
+            // may have already refreshed the token.
+            val refreshedToken = secureDataStore.getString(accessKey)
+            val refreshedExpiry = secureDataStore.getString(expiresKey)?.toLongOrNull() ?: 0L
+            if (refreshedToken != null && now < refreshedExpiry - EXPIRY_MARGIN_SECONDS) {
+                return@withLock refreshedToken
+            }
 
-        if (refreshResult == null) return@withContext null
+            val refreshToken = secureDataStore.getString(refreshKey) ?: return@withLock null
+            val refreshResult = runCatching { refreshFn(refreshToken) }
+                .onFailure { Log.w(TAG, "token refresh failed: ${it.message}", it) }
+                .getOrNull() ?: return@withLock null
 
-        secureDataStore.putString(accessKey, refreshResult.accessToken)
-        secureDataStore.putString(expiresKey, (now + refreshResult.expiresInSeconds).toString())
-        if (refreshResult.refreshToken.isNotBlank()) {
-            secureDataStore.putString(refreshKey, refreshResult.refreshToken)
+            if (refreshResult == null) return@withLock null
+
+            secureDataStore.putString(accessKey, refreshResult.accessToken)
+            secureDataStore.putString(expiresKey, (now + refreshResult.expiresInSeconds).toString())
+            if (refreshResult.refreshToken.isNotBlank()) {
+                secureDataStore.putString(refreshKey, refreshResult.refreshToken)
+            }
+            refreshResult.accessToken
         }
-        refreshResult.accessToken
     }
 
     suspend fun disconnectGoogle() {

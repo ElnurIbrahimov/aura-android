@@ -255,7 +255,7 @@ class GeminiProvider(
         try {
             val key = apiKey()
             val requestBuilder = Request.Builder()
-                .url("$baseUrl/v1beta/models?pageSize=100")
+                .url("$baseUrl/models?pageSize=100")
             if (key.isNotBlank()) {
                 requestBuilder.addHeader("X-Goog-Api-Key", key)
             }

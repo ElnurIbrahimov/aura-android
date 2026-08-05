@@ -329,6 +329,22 @@ class ChatSendController(
                     recentTopics = recentTopics?.invoke() ?: "",
                 ).collect { event ->
                     when (event) {
+                        is AgentEvent.ResetText -> {
+                            responseBuffer.clear()
+                            state.update { old ->
+                                val turns = old.conversation.turns
+                                val last = turns.lastOrNull()
+                                val updatedConversation = if (last != null) {
+                                    old.conversation.replaceLastTurn(
+                                        last.copy(assistant = "")
+                                    )
+                                } else old.conversation
+                                old.copy(
+                                    conversation = updatedConversation,
+                                    streamingThinking = "",
+                                )
+                            }
+                        }
                         is AgentEvent.ThinkingDelta -> {
                             state.update { old ->
                                 old.copy(streamingThinking = old.streamingThinking + event.text)

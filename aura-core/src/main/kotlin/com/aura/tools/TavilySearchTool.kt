@@ -110,13 +110,14 @@ class TavilySearchTool @Inject constructor(
             .header("Authorization", "Bearer $apiKey")
             .post(requestBody.toRequestBody(mediaType))
             .build()
-        val response = httpClient.newCall(req).execute()
-        if (!response.isSuccessful) {
-            val errorBody = response.body?.string() ?: ""
-            throw RuntimeException("Tavily API HTTP ${response.code}: $errorBody")
+        httpClient.newCall(req).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                throw RuntimeException("Tavily API HTTP ${response.code}: $errorBody")
+            }
+            val body = response.body?.string() ?: throw RuntimeException("Empty response body")
+            return parseStructured(body)
         }
-        val body = response.body?.string() ?: throw RuntimeException("Empty response body")
-        return parseStructured(body)
     }
 
     private fun parseStructured(body: kotlin.String): List<WebSearchResult> {
@@ -152,13 +153,14 @@ class TavilySearchTool @Inject constructor(
             .post(requestBody.toRequestBody(mediaType))
             .build()
 
-        val response = httpClient.newCall(req).execute()
-        if (!response.isSuccessful) {
-            val errorBody = response.body?.string() ?: ""
-            throw RuntimeException("Tavily API HTTP ${response.code}: $errorBody")
+        httpClient.newCall(req).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                throw RuntimeException("Tavily API HTTP ${response.code}: $errorBody")
+            }
+            val body = response.body?.string() ?: throw RuntimeException("Empty response body")
+            return parseResponse(body, includeAnswer)
         }
-        val body = response.body?.string() ?: throw RuntimeException("Empty response body")
-        return parseResponse(body, includeAnswer)
     }
 
     private fun buildJsonBody(

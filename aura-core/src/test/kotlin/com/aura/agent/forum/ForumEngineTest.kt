@@ -103,11 +103,18 @@ class ForumEngineTest {
     }
 
     @Test
-    fun hasQuorum_falseWithFewerThan3Voters() = runBlocking {
+    fun hasQuorum_falseWithFewerThan2Voters() = runBlocking {
+        val postId = forum.post("thread_1", "agent_general", "proposal", "Test", "Test")
+        forum.vote(postId, "agent_researcher", "for")
+        assertFalse(forum.hasQuorum(postId))
+    }
+
+    @Test
+    fun hasQuorum_trueWith2Voters() = runBlocking {
         val postId = forum.post("thread_1", "agent_general", "proposal", "Test", "Test")
         forum.vote(postId, "agent_researcher", "for")
         forum.vote(postId, "agent_executive", "for")
-        assertFalse(forum.hasQuorum(postId))
+        assertTrue(forum.hasQuorum(postId))
     }
 
     @Test

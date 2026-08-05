@@ -105,6 +105,9 @@ interface EvolutionProposalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(proposals: List<EvolutionProposalEntity>)
 
+    @Query("SELECT * FROM evolution_proposals ORDER BY createdAt DESC")
+    suspend fun allForBackup(): List<EvolutionProposalEntity>
+
     @Query("DELETE FROM evolution_proposals")
     suspend fun deleteAll()
 }
@@ -128,6 +131,9 @@ interface EvolutionRevisionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(revisions: List<EvolutionRevisionEntity>)
+
+    @Query("SELECT * FROM evolution_revisions ORDER BY createdAt DESC")
+    suspend fun allForBackup(): List<EvolutionRevisionEntity>
 
     @Query("DELETE FROM evolution_revisions")
     suspend fun deleteAll()

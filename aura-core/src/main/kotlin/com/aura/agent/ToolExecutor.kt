@@ -171,6 +171,13 @@ class ToolExecutor @Inject constructor(
             val v = obj[k] ?: continue
             out[k] = coerce(v, prop)
         }
+        // Warn about unknown keys so debugging model-tool interactions is easier.
+        val schemaKeys = schema.properties.keys
+        for (key in obj.keys) {
+            if (key !in schemaKeys) {
+                android.util.Log.w("ToolExecutor", "Dropped unknown arg '$key' not in tool schema")
+            }
+        }
         return out
     }
 

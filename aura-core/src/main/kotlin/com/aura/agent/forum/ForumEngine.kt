@@ -74,11 +74,16 @@ class ForumEngine @Inject constructor(
         return VoteTally(forVotes, against, abstain)
     }
 
-    /** Check if a proposal has reached quorum (≥60% for, minimum 3 voters). */
+    /**
+     * Check if a proposal has reached quorum (≥60% for, minimum 2 voters).
+     * Lowered from 3 to 2 because mood filtering + burnout can reduce
+     * available agents below 3 in most sessions, making the council
+     * functionally inert with a 3-voter minimum.
+     */
     suspend fun hasQuorum(postId: Long): Boolean {
         val tally = tally(postId)
         val total = tally.forVotes + tally.against + tally.abstain
-        if (total < 3) return false
+        if (total < 2) return false
         val forRatio = tally.forVotes.toFloat() / total
         return forRatio >= 0.6f
     }

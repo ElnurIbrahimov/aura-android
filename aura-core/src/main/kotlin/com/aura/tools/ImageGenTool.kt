@@ -99,7 +99,8 @@ class ImageGenTool @Inject constructor(
         val openaiKey = providerKeys.keyFor("openai")
         if (!openaiKey.isNullOrBlank()) {
             try {
-                return generateWithOpenAi(enhancedPrompt, size, openaiKey)
+                val result = generateWithOpenAi(enhancedPrompt, size, openaiKey)
+                if (result != null) return result
             } catch (e: Exception) {
                 // Log the error so the user knows their paid provider failed.
                 // Wrapped in try-catch because android.util.Log is not mocked in unit tests.
@@ -117,8 +118,11 @@ class ImageGenTool @Inject constructor(
     // Response: data[0].url
     // ------------------------------------------------------------------
 
-    private suspend fun generateWithOpenAi(prompt: String, size: String, apiKey: kotlin.String): kotlin.String {
-        val model = userPreferences.imageModel.first() ?: "dall-e-3"
+    private suspend fun generateWithOpenAi(prompt: kotlin.String, size: kotlin.String, key: kotlin.String): kotlin.String? {
+        val model = userPreferences.imageModel.first() ?: run {
+            android.util.Log.w("ImageGenTool", "imageModel not set in preferences — using OpenAI default")
+            "dall-e-3"
+        }
         val body = buildJsonObject {
             put("model", model)
             put("prompt", prompt)
@@ -129,7 +133,7 @@ class ImageGenTool @Inject constructor(
         val requestBody = body.toString().toRequestBody(mediaTypeJson)
         val req = Request.Builder()
             .url("https://api.openai.com/v1/images/generations")
-            .header("Authorization", "Bearer $apiKey")
+            .header("Authorization", "Bearer $key")
             .header("Content-Type", "application/json")
             .post(requestBody)
             .build()

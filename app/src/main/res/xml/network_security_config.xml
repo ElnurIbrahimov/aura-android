@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!--
-        Block all cleartext (HTTP) traffic. All API calls must use HTTPS.
-        This prevents accidental downgrade or MITM on untrusted networks.
+        Block all cleartext (HTTP) traffic globally. All cloud API calls
+        must use HTTPS. This prevents accidental downgrade or MITM on
+        untrusted networks.
+
+        Exception: localhost and 127.0.0.1 are allowed for trusted local
+        connections (MCP servers, local Ollama, local LLM endpoints).
+        These are loopback addresses that never leave the device.
     -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">::1</domain>
+    </domain-config>
 </network-security-config>

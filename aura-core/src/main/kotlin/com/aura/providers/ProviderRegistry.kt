@@ -67,7 +67,7 @@ class ProviderRegistry @Inject constructor(
                 upstream.collect { chunk ->
                     outputChars += chunk.text?.length ?: 0
                     if (chunk.usage != null) exactUsage = chunk.usage
-                    if (chunk.text != null || chunk.toolCall != null || chunk.usage != null || chunk.finishReason != null) {
+                    if (chunk.text != null || chunk.thinking != null || chunk.toolCall != null || chunk.usage != null || chunk.finishReason != null) {
                         billableChunkSeen = true
                     }
                     emit(chunk)

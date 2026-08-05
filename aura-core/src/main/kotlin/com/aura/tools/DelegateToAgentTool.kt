@@ -237,7 +237,20 @@ class DelegateToAgentTool @Inject constructor(
             // that strictly validate message roles (Anthropic) require
             // this. The assistant message is the text + tool call marker.
             for ((toolName, args) in stepToolCalls) {
-                if (tools.none { it.name == toolName }) continue
+                if (tools.none { it.name == toolName }) {
+                    // Signal to the model that the tool is not available
+                    // so it can self-correct rather than silently retrying.
+                    conversation.add(ProviderMessage(
+                        role = ProviderMessage.Role.assistant,
+                        content = stepText.toString().ifBlank { "[calling $toolName]" },
+                    ))
+                    conversation.add(ProviderMessage(
+                        role = ProviderMessage.Role.tool,
+                        content = "Error: tool '$toolName' is not in your allowed tool set. Available tools: ${tools.joinToString { it.name }}",
+                        toolCallId = toolName,
+                    ))
+                    continue
+                }
                 val result = executor.execute(toolName, args, childCtx)
                 val resultText = when (result) {
                     is ToolResult.Ok -> truncateToolResult(result.output)
