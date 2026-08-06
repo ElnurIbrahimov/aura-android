@@ -47,6 +47,8 @@ fun ProviderKeyField(
     verifyResult: String? = null,
     verifying: Boolean = false,
     credentialState: ProviderCredentialState? = null,
+    /** Overrides the generic "Paste API key" hint for non-key credentials. */
+    placeholder: String? = null,
     actionLabel: String = "Save & Test",
     requiresTest: Boolean = true,
     /**
@@ -95,7 +97,11 @@ fun ProviderKeyField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth().testTag("provider-key-$testId"),
-            placeholder = { Text(stringResource(R.string.paste_api_key)) },
+            // Not every credential here is an API key — the ChatGPT
+            // subscription row takes an OAuth session token, and labelling
+            // it "Paste API key" sent people hunting for a key that
+            // doesn't exist for that product.
+            placeholder = { Text(placeholder ?: stringResource(R.string.paste_api_key)) },
             singleLine = true,
             enabled = enabled,
             visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),

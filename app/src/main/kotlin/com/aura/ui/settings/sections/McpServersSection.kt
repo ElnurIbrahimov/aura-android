@@ -33,6 +33,13 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.unit.sp
+import com.aura.ui.components.AuraUnderlinedField
 
 @Composable
 fun McpServersSection(
@@ -87,54 +94,71 @@ fun McpServersSection(
         }
 
         if (showMcpAddDialog) {
+            val colors = AuraThemeTokens.colors
             AlertDialog(
                 onDismissRequest = { showMcpAddDialog = false },
-                title = { Text(stringResource(R.string.add_mcp_server)) },
+                containerColor = colors.surface1,
+                shape = RoundedCornerShape(AuraSpacing.lg),
+                title = {
+                    Text(
+                        text = stringResource(R.string.add_mcp_server),
+                        style = MaterialTheme.typography.displayMedium.copy(
+                            fontSize = 26.sp,
+                            lineHeight = 32.sp,
+                        ),
+                        color = colors.textPrimary,
+                    )
+                },
                 text = {
-                    Column {
-                        OutlinedTextField(
-                            value = mcpDraft.name,
-                            onValueChange = { mcpDraft = mcpDraft.copy(name = it) },
-                            label = { Text(stringResource(R.string.name)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+                    ) {
+                        AuraUnderlinedField(
+                            mcpDraft.name,
+                            { mcpDraft = mcpDraft.copy(name = it) },
+                            stringResource(R.string.name),
                         )
-                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
-                        OutlinedTextField(
-                            value = mcpDraft.url,
-                            onValueChange = { mcpDraft = mcpDraft.copy(url = it) },
-                            label = { Text(stringResource(R.string.url_https_or_trusted_local_http)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
+                        AuraUnderlinedField(
+                            mcpDraft.url,
+                            { mcpDraft = mcpDraft.copy(url = it) },
+                            stringResource(R.string.url_https_or_trusted_local_http),
                         )
-                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
-                        OutlinedTextField(
-                            value = mcpDraft.authToken,
-                            onValueChange = { mcpDraft = mcpDraft.copy(authToken = it) },
-                            label = { Text(stringResource(R.string.auth_token_optional_sent_as_bearer)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
+                        AuraUnderlinedField(
+                            mcpDraft.authToken,
+                            { mcpDraft = mcpDraft.copy(authToken = it) },
+                            stringResource(R.string.auth_token_optional_sent_as_bearer),
                         )
-                        Spacer(modifier = Modifier.height(AuraSpacing.xs))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
                                 checked = mcpDraft.trustedLocal,
                                 onCheckedChange = { mcpDraft = mcpDraft.copy(trustedLocal = it) },
                             )
-                            Text(stringResource(R.string.trusted_local_allows_http))
+                            Text(
+                                text = stringResource(R.string.trusted_local_allows_http),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
                         }
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        onTestConnection(mcpDraft)
-                        mcpDraft = McpServerDraft()
-                        showMcpAddDialog = false
-                    }) { Text(stringResource(R.string.connect)) }
+                    TextButton(
+                        onClick = {
+                            onTestConnection(mcpDraft)
+                            mcpDraft = McpServerDraft()
+                            showMcpAddDialog = false
+                        },
+                        // Connect needs a URL to connect to.
+                        enabled = mcpDraft.url.isNotBlank(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.assistantAccent),
+                    ) { Text(stringResource(R.string.connect)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showMcpAddDialog = false }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(
+                        onClick = { showMcpAddDialog = false },
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.textSecondary),
+                    ) { Text(stringResource(R.string.cancel)) }
                 },
             )
         }

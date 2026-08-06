@@ -57,6 +57,7 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.util.modelDisplayName
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material3.HorizontalDivider
 
 @Composable
 fun ChatHeader(
@@ -191,6 +192,23 @@ fun ChatHeader(
 
             Spacer(Modifier.weight(1f))
 
+            // Past conversations get their own control rather than sitting
+            // fifth in an overflow menu. Reaching earlier chats is a
+            // primary move in any assistant, and buried under "⋮" it read
+            // as though the app simply had no history.
+            AuraIconButton(
+                onClick = onHistory,
+                containerColor = AuraThemeTokens.colors.surface1,
+                contentDescription = "Conversation history",
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.History,
+                    contentDescription = null,
+                    tint = AuraThemeTokens.colors.textPrimary,
+                    modifier = Modifier.size(AuraSpacing.xxl2),
+                )
+            }
+
             AuraIconButton(
                 onClick = onNewConversation,
                 enabled = !streaming,
@@ -250,20 +268,16 @@ fun ChatHeader(
                             onToggleIncognito()
                         },
                     )
+                    // Modes above, everything else below. Nine items ran as
+                    // one undifferentiated column, so toggles, navigation
+                    // and destructive actions all looked alike.
+                    HorizontalDivider(color = AuraThemeTokens.colors.borderSubtle)
                     ChatMenuItem(
                         label = "Agent council",
                         icon = Icons.Filled.Groups,
                         onClick = {
                             overflowExpanded = false
                             onOpenCouncil()
-                        },
-                    )
-                    ChatMenuItem(
-                        label = "Conversation history",
-                        icon = Icons.Filled.History,
-                        onClick = {
-                            overflowExpanded = false
-                            onHistory()
                         },
                     )
                     ChatMenuItem(
@@ -282,9 +296,14 @@ fun ChatHeader(
                             onExport()
                         },
                     )
+                    // Destructive actions sit below their own rule. Both of
+                    // these discard the conversation and were previously
+                    // flush against Export, one slip away from a toggle.
+                    HorizontalDivider(color = AuraThemeTokens.colors.borderSubtle)
                     ChatMenuItem(
                         label = "Clear chat",
                         icon = Icons.Filled.CleaningServices,
+                        destructive = true,
                         onClick = {
                             overflowExpanded = false
                             onClear()

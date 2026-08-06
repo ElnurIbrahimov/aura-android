@@ -41,6 +41,8 @@ data class SettingsCredentialSpec(
     val label: String,
     val helperText: String,
     val testsModelCatalog: Boolean,
+    /** Overrides the generic "Paste API key" hint when the credential is not a key. */
+    val placeholder: String? = null,
     /**
      * True when the user's key is actually consumed by at least one tool
      * or provider registration today. Capability providers whose keys
@@ -65,7 +67,18 @@ val SETTINGS_CREDENTIAL_SPECS: List<SettingsCredentialSpec> = listOf(
     SettingsCredentialSpec("cerebras", "Cerebras", "Get a key at cloud.cerebras.ai", true),
     SettingsCredentialSpec("nvidia", "NVIDIA NIM", "Get a key at build.nvidia.com/explore/discover", true),
     SettingsCredentialSpec("llama", "Meta Llama", "Get a key at llama.developer.meta.com", true),
-    SettingsCredentialSpec("chatgpt", "ChatGPT Subscription", "Paste a token from `codex login` (OpenAI subscription auth)", true),
+    SettingsCredentialSpec(
+        "chatgpt",
+        "ChatGPT Subscription",
+        // This row is not an API key and there is no key to buy. The
+        // subscription authenticates with an OAuth session token that
+        // `codex login` writes on a desktop, so say that plainly rather
+        // than showing "Paste API key" and sending people to look for a
+        // key OpenAI does not sell.
+        "Not an API key. Run `codex login` on a computer, then paste the access_token from ~/.codex/auth.json",
+        true,
+        placeholder = "Paste access_token",
+    ),
     SettingsCredentialSpec("agnes", "Agnes AI", "Get a key at agnes-ai.com/dashboard", true),
     // "Custom Endpoint" is now a dedicated card (CustomEndpointCard) — it
     // needs both a base URL and an API key, so it can't be a single

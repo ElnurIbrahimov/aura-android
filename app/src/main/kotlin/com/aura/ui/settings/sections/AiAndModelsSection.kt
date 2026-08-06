@@ -162,6 +162,7 @@ fun AiAndModelsSection(
                 verifyResult = state.verifyResults[credential.prefix],
                 verifying = state.verifying == credential.prefix,
                 credentialState = state.credentialStates[credential.prefix],
+                placeholder = credential.placeholder,
                 actionLabel = if (credential.testsModelCatalog) "Save & Test" else "Save",
                 requiresTest = credential.testsModelCatalog,
                 enabled = credential.isConsumed,
