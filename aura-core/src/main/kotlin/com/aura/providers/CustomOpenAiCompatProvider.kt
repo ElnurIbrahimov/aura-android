@@ -216,7 +216,7 @@ class CustomOpenAiCompatProvider(
                         put("function", buildJsonObject {
                             put("name", tool.name)
                             put("description", tool.description)
-                            put("parameters", Json.parseToJsonElement(Json.encodeToString(ToolParameters.serializer(), tool.parameters)))
+                            put("parameters", tool.parameters.toJsonSchema())
                         })
                     }
                 }))
@@ -250,7 +250,7 @@ class CustomOpenAiCompatProvider(
                 val code = response?.code ?: 0
                 val retryable = code !in OpenAiCompatProvider.NON_RETRYABLE_STATUS_CODES
                 val retryAfterMs = if (code == 429) OpenAiCompatProvider.parseRetryAfterMs(response) else null
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", OpenAiCompatProvider.failureMessage(t, response, apiKey), retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: okhttp3.sse.EventSource) { channel.close() }

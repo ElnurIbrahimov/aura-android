@@ -4,7 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -93,7 +92,9 @@ open class OpenAiCompatProvider(
                 val code = response?.code ?: 0
                 val retryable = code !in NON_RETRYABLE_STATUS_CODES
                 val retryAfterMs = if (code == 429) parseRetryAfterMs(response) else null
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
+                val message = failureMessage(t, response, key)
+                android.util.Log.w("OpenAiCompat", "$prefix/$model stream failed: $message")
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", message, retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
@@ -237,12 +238,20 @@ open class OpenAiCompatProvider(
                         put("function", buildJsonObject {
                             put("name", tool.name)
                             put("description", tool.description)
-                            put("parameters", Json.parseToJsonElement(Json.encodeToString(ToolParameters.serializer(), tool.parameters)))
+                            put("parameters", tool.parameters.toJsonSchema())
                         })
                     }
                 }))
             }
         }
+        // Log the tuning parameters we put on the wire (never the messages —
+        // those are the user's conversation). When a provider 400s, the
+        // rejected parameter is almost always in here.
+        android.util.Log.d(
+            "OpenAiCompat",
+            "$prefix request: " + JsonObject(body.filterKeys { it != "messages" && it != "tools" }) +
+                " toolCount=${tools.size}",
+        )
         return Request.Builder()
             .url("$baseUrl/chat/completions")
             .addHeader("Authorization", "Bearer $key")
@@ -285,6 +294,46 @@ open class OpenAiCompatProvider(
          */
         internal fun parseRetryAfterMs(response: okhttp3.Response?): Long? =
             response?.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it >= 0 }?.times(1_000L)
+
+        /** Max bytes of a provider error body we surface. Enough for any JSON error envelope. */
+        private const val ERROR_BODY_LIMIT = 2_048L
+
+        /**
+         * Build the user-facing message for a failed stream.
+         *
+         * A bare `"HTTP 400"` is undebuggable — every OpenAI-compatible
+         * provider explains WHY it rejected the request in the response
+         * body ("Invalid max_tokens", "unknown field `thinking`", "model
+         * not found"), and we used to throw that away. `peekBody` reads
+         * without consuming the source, so the SSE machinery is unaffected.
+         *
+         * [apiKey] is redacted out of the body before it is surfaced —
+         * some providers echo the offending Authorization value back in
+         * a 401/403 body, and this message reaches the chat UI and the
+         * error log. Same no-key-leakage contract the catalog path holds
+         * (see OpenAiCompatProviderMockWebServerTest).
+         */
+        internal fun failureMessage(t: Throwable?, response: okhttp3.Response?, apiKey: String = ""): String {
+            val code = response?.code ?: 0
+            val body = response?.let { r ->
+                runCatching { r.peekBody(ERROR_BODY_LIMIT).string() }.getOrNull()
+            }?.trim()?.takeIf { it.isNotEmpty() }?.let { redactKey(it, apiKey) }
+            return when {
+                body != null -> "HTTP $code: $body"
+                t != null -> redactKey(t.message ?: t.toString(), apiKey)
+                else -> "HTTP $code"
+            }
+        }
+
+        /** Replace any echo of the caller's API key with a placeholder. */
+        private fun redactKey(text: String, apiKey: String): String =
+            if (apiKey.length >= MIN_REDACTABLE_KEY_LENGTH) text.replace(apiKey, "***") else text
+
+        /**
+         * Below this length a "key" is more likely a test stub or empty
+         * string, and blind replacement would mangle unrelated text.
+         */
+        private const val MIN_REDACTABLE_KEY_LENGTH = 8
     }
 
 }

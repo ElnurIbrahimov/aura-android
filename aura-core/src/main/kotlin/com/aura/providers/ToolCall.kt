@@ -46,3 +46,62 @@ data class ToolProperty(
     val enum: List<String> = emptyList(),
     @SerialName("default") val defaultValue: kotlinx.serialization.json.JsonElement? = null,
 )
+
+/**
+ * Render [ToolParameters] as a JSON Schema object for the wire.
+ *
+ * This must NOT go through `Json.encodeToString(ToolParameters.serializer())`.
+ * The default `Json` instance has `encodeDefaults = false`, so kotlinx omits
+ * any field still holding its declared default — which silently dropped
+ * `"type": "object"` (and `"properties": {}` on no-argument tools) from every
+ * tool schema. Schema-validating providers reject that outright:
+ *
+ *   HTTP 400 "Invalid schema for function 'image_generate': schema must be a
+ *   JSON Schema of 'type: "object"', got 'type: null'."
+ *
+ * Flipping `encodeDefaults = true` would fix `type` but start emitting
+ * `"enum": []` and `"default": null`, which strict validators also reject
+ * (JSON Schema requires `enum` to be non-empty). So the shape is built
+ * explicitly: required keys always present, optional keys only when they
+ * carry a value.
+ *
+ * Shared by the OpenAI-compatible `function.parameters` and Anthropic's
+ * `input_schema` — both take the same JSON Schema shape.
+ */
+internal fun ToolParameters.toJsonSchema(): kotlinx.serialization.json.JsonObject =
+    kotlinx.serialization.json.buildJsonObject {
+        put("type", kotlinx.serialization.json.JsonPrimitive(type))
+        put(
+            "properties",
+            kotlinx.serialization.json.buildJsonObject {
+                properties.forEach { (name, property) ->
+                    put(
+                        name,
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("type", kotlinx.serialization.json.JsonPrimitive(property.type))
+                            property.description?.let {
+                                put("description", kotlinx.serialization.json.JsonPrimitive(it))
+                            }
+                            if (property.enum.isNotEmpty()) {
+                                put(
+                                    "enum",
+                                    kotlinx.serialization.json.JsonArray(
+                                        property.enum.map { kotlinx.serialization.json.JsonPrimitive(it) },
+                                    ),
+                                )
+                            }
+                            property.defaultValue?.let { put("default", it) }
+                        },
+                    )
+                }
+            },
+        )
+        if (required.isNotEmpty()) {
+            put(
+                "required",
+                kotlinx.serialization.json.JsonArray(
+                    required.map { kotlinx.serialization.json.JsonPrimitive(it) },
+                ),
+            )
+        }
+    }

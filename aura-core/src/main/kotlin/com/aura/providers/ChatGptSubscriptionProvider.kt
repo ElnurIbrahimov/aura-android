@@ -210,7 +210,7 @@ class ChatGptSubscriptionProvider(
                 // (server error) benefit from a delayed retry / failover.
                 val retryable = code == 429 || code in 500..599
                 val retryAfterMs = if (code == 429) OpenAiCompatProvider.parseRetryAfterMs(response) else null
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", OpenAiCompatProvider.failureMessage(t, response, key), retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }

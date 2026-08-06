@@ -83,7 +83,7 @@ class AnthropicProvider(
                     buildJsonObject {
                         put("name", tool.name)
                         put("description", tool.description)
-                        put("input_schema", kotlinx.serialization.json.Json.parseToJsonElement(Json.encodeToString(ToolParameters.serializer(), tool.parameters)))
+                        put("input_schema", tool.parameters.toJsonSchema())
                     }
                 }))
             }
