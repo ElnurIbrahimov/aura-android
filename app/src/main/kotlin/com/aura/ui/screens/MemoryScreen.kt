@@ -30,6 +30,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
@@ -1104,56 +1107,157 @@ private fun AddNoteDialog(
     onDismiss: () -> Unit,
     onAdd: (content: String, category: String, importance: Float) -> Unit,
 ) {
+    val colors = AuraThemeTokens.colors
     var content by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("note") }
-    var importance by remember { mutableStateOf(0.5f) }
+    var importance by remember { mutableStateOf(NOTE_IMPORTANCE_DEFAULT) }
     val categories = listOf("note", "fact", "preference", "person", "episode", "idea", "task")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_note)) },
+        containerColor = colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.lg),
+        title = {
+            // Fraunces, matching the Home greeting and the wordmark. The
+            // serif is the app's one piece of typographic character and a
+            // dialog title is exactly where it should show up.
+            Text(
+                text = stringResource(R.string.add_note),
+                style = MaterialTheme.typography.displayMedium.copy(fontSize = 26.sp, lineHeight = 32.sp),
+                color = colors.textPrimary,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text(stringResource(R.string.note_content)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                )
-                Row(
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+                // A hairline-underlined field, as on Home. The outlined box
+                // with its floating accent label was the heaviest thing in
+                // the dialog and shouted a label the placeholder can carry.
+                Column {
+                    BasicTextField(
+                        value = content,
+                        onValueChange = { content = it },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
+                        cursorBrush = SolidColor(colors.actionPrimary),
+                        minLines = 2,
+                        maxLines = 6,
+                        decorationBox = { inner ->
+                            Box {
+                                if (content.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.note_content),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = colors.textTertiary,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = AuraSpacing.xs),
+                    )
+                    HorizontalDivider(thickness = AuraSpacing.hairline, color = colors.borderDefault)
+                }
+
+                // FlowRow, not Row: seven chips never fit one dialog-width
+                // line, so "Person" was squeezed to one letter per line and
+                // episode/idea/task were pushed off-screen — four of the
+                // seven categories were unreachable.
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     categories.forEach { cat ->
                         AssistChip(
                             onClick = { category = cat },
                             label = { Text(cat.replaceFirstChar { it.uppercase() }) },
-                            colors = if (category == cat)
-                                AssistChipDefaults.assistChipColors()
-                            else
+                            border = null,
+                            // Selected reads as the accent one. It used to
+                            // take the default pale colours while every
+                            // unselected chip was filled dark, so the active
+                            // category looked like the inactive ones.
+                            colors = if (category == cat) {
                                 AssistChipDefaults.assistChipColors(
-                                    containerColor = AuraThemeTokens.colors.surface1,
-                                ),
+                                    containerColor = colors.actionPrimary.copy(alpha = 0.18f),
+                                    labelColor = colors.assistantAccent,
+                                )
+                            } else {
+                                AssistChipDefaults.assistChipColors(
+                                    containerColor = colors.surface2,
+                                    labelColor = colors.textSecondary,
+                                )
+                            },
                         )
                     }
                 }
-                Text("Importance: ${"%.1f".format(importance)}", style = MaterialTheme.typography.labelMedium)
-                Slider(
-                    value = importance,
-                    onValueChange = { importance = it },
-                    valueRange = 0f..1f,
-                )
+
+                // Three named steps instead of a slider reading "0.5".
+                // Importance is a retrieval weight; a bare float asks the
+                // user to guess what 0.5 buys them, and no one can answer
+                // that. The stored value is unchanged.
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                    Text(
+                        text = "How much should this weigh?",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textTertiary,
+                    )
+                    // FlowRow so a chip moves to the next line intact. As a
+                    // Row the three labels overflowed and "Important" broke
+                    // mid-word into "Import / ant".
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        NOTE_IMPORTANCE_STEPS.forEach { (label, value) ->
+                            val selected = importance == value
+                            AssistChip(
+                                onClick = { importance = value },
+                                label = { Text(label, maxLines = 1) },
+                                border = null,
+                                colors = if (selected) {
+                                    AssistChipDefaults.assistChipColors(
+                                        containerColor = colors.actionPrimary.copy(alpha = 0.18f),
+                                        labelColor = colors.assistantAccent,
+                                    )
+                                } else {
+                                    AssistChipDefaults.assistChipColors(
+                                        containerColor = colors.surface2,
+                                        labelColor = colors.textSecondary,
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onAdd(content, category, importance) },
                 enabled = content.isNotBlank(),
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.assistantAccent),
             ) { Text(stringResource(R.string.add)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.textSecondary),
+            ) { Text(stringResource(R.string.cancel)) }
         },
     )
 }
+
+/** Default retrieval weight for a hand-written note — the "Normal" step. */
+private const val NOTE_IMPORTANCE_DEFAULT = 0.5f
+
+/**
+ * Named importance steps. The underlying field stays a 0..1 float that the
+ * RRF retrieval engine reads; only the way it is chosen changes.
+ */
+private val NOTE_IMPORTANCE_STEPS = listOf(
+    "Background" to 0.25f,
+    "Normal" to NOTE_IMPORTANCE_DEFAULT,
+    "Important" to 0.85f,
+)
