@@ -69,18 +69,26 @@ fun EvolutionInboxScreen(
             modifier = Modifier.padding(AuraSpacing.md),
         )
 
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md)) {
+        // FlowRow: three switch-plus-label pairs do not fit one line at
+        // this width, so the last label broke mid-word into "Proact / ive".
+        androidx.compose.foundation.layout.FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        ) {
             for (domain in EvolutionDomain.entries) {
                 val enabled = settings.find { it.domain == domain.name }?.enabled != false
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = { viewModel.setDomainEnabled(domain, it) },
-                    modifier = Modifier.padding(end = AuraSpacing.xs),
-                )
-                Text(
-                    text = domain.name.lowercase().replaceFirstChar { it.uppercase() },
-                    modifier = Modifier.align(Alignment.CenterVertically).padding(end = AuraSpacing.md),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = { viewModel.setDomainEnabled(domain, it) },
+                        modifier = Modifier.padding(end = AuraSpacing.xs),
+                    )
+                    Text(
+                        text = domain.name.lowercase().replaceFirstChar { it.uppercase() },
+                        maxLines = 1,
+                    )
+                }
             }
         }
 

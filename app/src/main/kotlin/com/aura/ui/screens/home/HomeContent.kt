@@ -281,6 +281,8 @@ fun HomeContent(
                             onOpenProduction = onOpenProduction,
 
                             onOpenCapabilities = onOpenCapabilities,
+                            onOpenEvolution = onOpenEvolution,
+                            onOpenCouncil = onOpenCouncil,
                         )
 
                     }
@@ -322,6 +324,8 @@ fun HomeContent(
                             onOpenProduction = onOpenProduction,
 
                 onOpenCapabilities = onOpenCapabilities,
+                onOpenEvolution = onOpenEvolution,
+                onOpenCouncil = onOpenCouncil,
 
                 )
 
@@ -360,6 +364,8 @@ fun HomeContent(
                             onOpenProduction = onOpenProduction,
 
                 onOpenCapabilities = onOpenCapabilities,
+                onOpenEvolution = onOpenEvolution,
+                onOpenCouncil = onOpenCouncil,
 
                 )
 
