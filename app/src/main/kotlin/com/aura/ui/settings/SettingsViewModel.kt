@@ -70,7 +70,11 @@ val SETTINGS_CREDENTIAL_SPECS: List<SettingsCredentialSpec> = listOf(
     // "Custom Endpoint" is now a dedicated card (CustomEndpointCard) — it
     // needs both a base URL and an API key, so it can't be a single
     // ProviderKeyField row. Don't add it back to this list.
-    SettingsCredentialSpec("moa", "Mixture-of-Agents", "Configure MoA presets in code; no API key", true),
+    // Mixture-of-Agents deliberately has no row. It dispatches through the
+    // other providers' keys and takes none of its own — its own helper text
+    // said "no API key" while the row still offered a key field and a
+    // "Save & Test" button that could only ever fail. An input that cannot
+    // accept a valid value should not be shown.
     SettingsCredentialSpec("brave", "Brave Search", "Used by Brave web search tools", false, isConsumed = true),
     SettingsCredentialSpec("tavily", "Tavily Search", "Used by Tavily research tools", false, isConsumed = true),
     SettingsCredentialSpec("firecrawl", "Firecrawl", "Used by Firecrawl page extraction", false, isConsumed = true),
@@ -340,6 +344,14 @@ class SettingsViewModel @Inject constructor(
                 toolPolicyStore.allPolicies.first().forEach { (name, policy) -> this[name] = policy }
             }
             _state.value = SettingsUiState(
+                // Seeded here rather than left to the collector alone.
+                // reload() replaces the whole state object, so whenever it
+                // finished after the credentialStates collector had already
+                // emitted, it reset that map to its empty default. Every
+                // saved key then fell through ProviderKeyField's status
+                // ladder to "Unsaved draft" — DeepSeek and Tavily both
+                // showed their stored keys as unsaved while working fine.
+                credentialStates = providerKeys.credentialStates.value,
                 keyDrafts = ProviderKeys.PREFIXES.associateWith { prefix ->
                     providerKeys.keyFor(prefix).orEmpty()
                 },
