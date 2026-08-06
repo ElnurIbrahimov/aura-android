@@ -52,17 +52,27 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 /**
- * Format a model ID (e.g. "ollama:deepseek-v4-pro:cloud") into a
- * human-friendly display name. Derives everything from the ID —
- * no hardcoded model lists that go go stale.
+ * Format a model ID into a human-friendly display name, including the
+ * provider. Delegates to [com.aura.ui.util.modelDisplayName].
+ *
+ * This was a byte-for-byte reimplementation of that function carrying its
+ * own hardcoded provider map — which would have drifted from the shared
+ * one the moment a provider was added, despite the comment promising "no
+ * hardcoded lists that go stale".
  */
-fun formatModelName(id: String): String {
-    val parts = id.split(":", limit = 2)
-    val model = parts.getOrNull(1) ?: id
-    val provider = parts.getOrNull(0) ?: ""
+fun formatModelName(id: String): String = com.aura.ui.util.modelDisplayName(id)
 
-    val clean = model.replace(Regex(":cloud$|:latest$|:free$"), "")
-    val displayName = clean
+/**
+ * Just the model name, with no provider tag.
+ *
+ * For lists that already group rows under a provider heading: repeating
+ * "· DeepSeek" on every row beneath a "DeepSeek" header is noise, and it
+ * pushes the part that actually distinguishes the rows off the right edge.
+ */
+fun modelNameOnly(id: String): String {
+    val model = id.split(":", limit = 2).getOrNull(1) ?: id
+    return model
+        .replace(Regex(":cloud$|:latest$|:free$"), "")
         .replace("-", " ")
         .replace("_", " ")
         .split(" ")
@@ -70,21 +80,6 @@ fun formatModelName(id: String): String {
             if (word.any { it.isDigit() } || word.length <= 2) word.uppercase()
             else word.replaceFirstChar { it.uppercase() }
         }
-
-    val providerLabel = when (provider) {
-        "ollama" -> "Ollama"
-        "anthropic" -> "Anthropic"
-        "openai" -> "OpenAI"
-        "deepseek" -> "DeepSeek"
-        "gemini" -> "Gemini"
-        "groq" -> "Groq"
-        "openrouter" -> "OpenRouter"
-        "nvidia" -> "NVIDIA"
-        "moa" -> "MoA"
-        else -> provider.replaceFirstChar { it.uppercase() }
-    }
-
-    return "$displayName · $providerLabel"
 }
 
 private fun providerLabel(prefix: String): String = com.aura.providers.providerLabel(prefix)
@@ -356,7 +351,8 @@ fun ModelPickerContent(
                         items(items, key = { it }) { id ->
                             ModelRow(
                                 id = id,
-                                displayName = formatModelName(id),
+                                // Rows sit under a provider header already.
+                                displayName = modelNameOnly(id),
                                 isCurrent = id == currentModel,
                                 statusLabel = if (provider in staleProviderPrefixes) "Cached" else null,
                                 onClick = {

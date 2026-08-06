@@ -42,20 +42,31 @@ data class AuraSemanticColors(
     val scrim: Color,
 )
 
+/**
+ * Warm editorial dark. The neutrals were cold (Zinc: blue-grey) and
+ * pinned to the extremes — #030303 under #F4F4F5 is the harshest pairing
+ * available, which reads clinical rather than calm. These are warm greys
+ * (Stone family) pulled back off pure black and pure white, so the screen
+ * reads as unlit paper rather than a switched-off panel. Teal stays as the
+ * single accent; against a warm ground it now reads as a jewel tone
+ * instead of the only saturated thing in a grey room.
+ */
 val DarkAuraSemanticColors = AuraSemanticColors(
-    background = Color(0xFF030303),
-    surface0 = Color(0xFF09090B),
-    surface1 = Color(0xFF121214),
-    surface2 = Color(0xFF1A1A1D),
-    surface3 = Color(0xFF232326),
-    borderSubtle = Color(0x1FFFFFFF),
-    borderDefault = Color(0x33FFFFFF),
-    borderStrong = Color(0x52FFFFFF),
-    borderFocus = Color(0xFF14B8A6),
-    textPrimary = Color(0xFFF4F4F5),
-    textSecondary = Color(0xFFB5B5BD),
-    textTertiary = Color(0xFF92929B),
-    actionPrimary = Color(0xFF0F766E),
+    background = Color(0xFF0B0A09),
+    surface0 = Color(0xFF12100F),
+    surface1 = Color(0xFF1A1715),
+    surface2 = Color(0xFF241F1C),
+    surface3 = Color(0xFF2E2825),
+    // Borders tinted with the warm text colour, not pure white, so a
+    // hairline never reads as a cold seam against the warm ground.
+    borderSubtle = Color(0x14EDE9E3),
+    borderDefault = Color(0x26EDE9E3),
+    borderStrong = Color(0x47EDE9E3),
+    borderFocus = Color(0xFF2DD4BF),
+    textPrimary = Color(0xFFEDE9E3),
+    textSecondary = Color(0xFFB0A79D),
+    textTertiary = Color(0xFF8A8078),
+    actionPrimary = Color(0xFF14807A),
     onActionPrimary = Color.White,
     actionDisabled = Color(0xFF29292E),
     onActionDisabled = Color(0xFF85858E),
@@ -77,19 +88,23 @@ val DarkAuraSemanticColors = AuraSemanticColors(
     scrim = Color(0xB3000000),
 )
 
+/** Warm editorial light — cream paper, warm ink. Mirror of the dark set. */
 val LightAuraSemanticColors = AuraSemanticColors(
-    background = Color(0xFFF8F8FA),
-    surface0 = Color.White,
-    surface1 = Color(0xFFF1F1F4),
-    surface2 = Color(0xFFE7E7EC),
-    surface3 = Color(0xFFDCDCE3),
-    borderSubtle = Color(0x1F18181B),
-    borderDefault = Color(0x3318181B),
-    borderStrong = Color(0x5218181B),
+    background = Color(0xFFFAF7F2),
+    surface0 = Color(0xFFFFFDFA),
+    surface1 = Color(0xFFF2EDE5),
+    surface2 = Color(0xFFE8E1D6),
+    surface3 = Color(0xFFDBD2C4),
+    borderSubtle = Color(0x141C1917),
+    borderDefault = Color(0x261C1917),
+    borderStrong = Color(0x471C1917),
     borderFocus = Color(0xFF0D9488),
-    textPrimary = Color(0xFF18181B),
-    textSecondary = Color(0xFF44444B),
-    textTertiary = Color(0xFF5E5E66),
+    textPrimary = Color(0xFF1C1917),
+    textSecondary = Color(0xFF57534E),
+    // Stone-500 (#78716C) sits at 4.49:1 on this cream ground — just under
+    // the 4.5 AA floor AuraSemanticColorsTest enforces. Nudged one step
+    // darker to 4.99:1; visually indistinguishable, and it passes.
+    textTertiary = Color(0xFF706A64),
     actionPrimary = Color(0xFF0F766E),
     onActionPrimary = Color.White,
     actionDisabled = Color(0xFFE0E0E5),

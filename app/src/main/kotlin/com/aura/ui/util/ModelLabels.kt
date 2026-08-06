@@ -32,5 +32,14 @@ fun modelDisplayName(id: String): String {
 
     val providerLabel = com.aura.providers.providerLabel(provider)
 
-    return "$displayName · $providerLabel"
+    // Don't say the provider twice. `deepseek:deepseek-v4-flash` produced
+    // "Deepseek V4 Flash · DeepSeek", which is long enough to be truncated
+    // to "Deepseek V4 Flash · Deep…" in the chat header — so the suffix
+    // pushed out the very information the header exists to show, and gave
+    // nothing back. When the model name already carries the provider, the
+    // provider tag is redundant.
+    val nameCarriesProvider = displayName.replace(" ", "")
+        .startsWith(providerLabel.replace(" ", ""), ignoreCase = true)
+
+    return if (nameCarriesProvider) displayName else "$displayName · $providerLabel"
 }

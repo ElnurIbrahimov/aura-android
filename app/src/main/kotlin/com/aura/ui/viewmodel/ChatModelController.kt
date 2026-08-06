@@ -62,12 +62,17 @@ internal class ChatModelController(
      */
     fun applyModelCatalog(catalog: ModelCatalog?) {
         val current = state.value
+        // effectiveModel, not activeModel: an open conversation's own model
+        // is what the header shows and what the send path uses. Reading
+        // activeModel here made the banner claim no model was chosen while
+        // the header displayed one and sending worked fine.
+        val resolved = current.effectiveModel
         if (catalog == null) {
-            val selection = if (current.activeModel.isBlank()) {
+            val selection = if (resolved.isBlank()) {
                 ModelSelectionState.Missing
             } else {
                 ModelSelectionState.Failed(
-                    current.activeModel,
+                    resolved,
                     current.availableModels,
                     "Model catalog is unavailable.",
                 )
@@ -77,7 +82,7 @@ internal class ChatModelController(
         }
 
         val models = catalog.allModels.map { it.id }.distinct().sorted()
-        val selection = resolveModelSelection(current.activeModel, catalog)
+        val selection = resolveModelSelection(resolved, catalog)
         state.update {
             it.copy(
                 availableModels = models,

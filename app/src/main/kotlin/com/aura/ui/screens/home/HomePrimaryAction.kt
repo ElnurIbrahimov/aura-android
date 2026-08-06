@@ -3,36 +3,35 @@ package com.aura.ui.screens.home
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.aura.ui.components.AuraFilterChip
-import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 
@@ -42,6 +41,16 @@ private val quickPrompts = listOf(
     "Remind me" to "Create a reminder",
 )
 
+/**
+ * The ask-Aura entry point.
+ *
+ * Previously a bordered Surface wrapping an OutlinedTextField wrapping a
+ * row of outlined chips — three nested rectangles for one text input. The
+ * repeated container is what made Home read as a form rather than a page.
+ * Here the box is gone entirely: a single hairline under the field carries
+ * the affordance, and the quick prompts are plain text. Separation comes
+ * from spacing.
+ */
 @Composable
 fun HomePrimaryAction(
     onAskAura: (String) -> Unit,
@@ -59,62 +68,68 @@ fun HomePrimaryAction(
         }
     }
 
-    Surface(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        color = colors.surface0,
-        shape = MaterialTheme.shapes.large,
-        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
-        Column(
-            modifier = Modifier.padding(AuraSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = stringResource(R.string.start_with_what_matters_right_now),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textSecondary,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
-            ) {
-                OutlinedTextField(
+            Box(modifier = Modifier.weight(1f)) {
+                BasicTextField(
                     value = draft,
                     onValueChange = { draft = it },
-                    modifier = Modifier.weight(1f).testTag("home-ask-input"),
-                    placeholder = { Text(stringResource(R.string.what_do_you_need)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = AuraSpacing.sm)
+                        .testTag("home-ask-input"),
                     singleLine = true,
-                    shape = RoundedCornerShape(AuraDimensions.controlRadius),
+                    textStyle = LocalTextStyle.current.merge(
+                        MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
+                    ),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(colors.actionPrimary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { send() }),
                 )
-                FilledIconButton(
-                    onClick = { send() },
-                    enabled = draft.isNotBlank(),
-                    modifier = Modifier.testTag("home-ask-send"),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = colors.actionPrimary,
-                        contentColor = colors.onActionPrimary,
-                        disabledContainerColor = colors.actionDisabled,
-                        disabledContentColor = colors.onActionDisabled,
-                    ),
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Ask Aura")
+                if (draft.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.what_do_you_need),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.textTertiary,
+                        modifier = Modifier.padding(vertical = AuraSpacing.sm),
+                    )
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
-                items(quickPrompts, key = { it.first }) { prompt ->
-                    AuraFilterChip(
-                        selected = false,
-                        onClick = { onAskAura(prompt.second) },
-                        label = { Text(prompt.first) },
-                    )
+            IconButton(
+                onClick = { send() },
+                enabled = draft.isNotBlank(),
+                modifier = Modifier.testTag("home-ask-send"),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Ask Aura",
+                    // The accent appears only once the button can actually
+                    // do something — a live control, not a permanent slab.
+                    tint = if (draft.isNotBlank()) colors.actionPrimary else colors.textTertiary,
+                )
+            }
+        }
+        HorizontalDivider(thickness = AuraSpacing.hairline, color = colors.borderDefault)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        ) {
+            for (prompt in quickPrompts) {
+                TextButton(
+                    onClick = { onAskAura(prompt.second) },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = AuraSpacing.xs,
+                        vertical = 0.dp,
+                    ),
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.textSecondary),
+                ) {
+                    Text(prompt.first, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

@@ -285,6 +285,8 @@ fun MessageBubble(
     durationMs: Long = 0L,
     generatedImages: List<String> = emptyList(),
     thinking: String? = null,
+    /** True when the previous message came from the same sender. Tightens spacing. */
+    groupedWithPrevious: Boolean = false,
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
@@ -298,6 +300,7 @@ fun MessageBubble(
         UserBubble(
             text = text,
             animationIndex = animationIndex,
+            groupedWithPrevious = groupedWithPrevious,
             onEdit = onEdit,
         )
     } else {
@@ -331,7 +334,12 @@ fun MessageBubble(
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {}) {
+private fun UserBubble(
+    text: String,
+    animationIndex: Int,
+    groupedWithPrevious: Boolean = false,
+    onEdit: () -> Unit = {},
+) {
     val springEased = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) {
         springEased.animateTo(
@@ -349,17 +357,34 @@ private fun UserBubble(text: String, animationIndex: Int, onEdit: () -> Unit = {
                 translationY = (1f - springEased.value) * 16f
                 alpha = springEased.value
             }
-            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs),
+            // Messages sent back-to-back sit almost flush; a full gap only
+            // opens when the speaker changes. Six messages in a row used to
+            // read as six unrelated events instead of one burst.
+            .padding(
+                horizontal = AuraSpacing.md,
+                vertical = if (groupedWithPrevious) AuraSpacing.tiny else AuraSpacing.xs,
+            ),
         horizontalArrangement = Arrangement.End,
     ) {
         // Pointed-corner bubble: top-left 24, top-right 24,
         // bottom-left 24 (rounded away from sender), bottom-right 4
         // (pointed TOWARD sender). The web is the opposite for
         // the right-aligned user bubble: pointed at the sender.
+        //
+        // A continuation bubble also squares its top-right corner so a run
+        // of messages reads as one stacked column rather than a scatter of
+        // separate lozenges.
         Box(
             modifier = Modifier
                 .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(topStart = AuraSpacing.lg, topEnd = AuraSpacing.lg, bottomStart = AuraSpacing.xxs, bottomEnd = AuraSpacing.lg))
+                .clip(
+                    RoundedCornerShape(
+                        topStart = AuraSpacing.lg,
+                        topEnd = if (groupedWithPrevious) AuraSpacing.xxs else AuraSpacing.lg,
+                        bottomStart = AuraSpacing.xxs,
+                        bottomEnd = AuraSpacing.lg,
+                    ),
+                )
                     .background(AuraThemeTokens.colors.userBubble)
                 .combinedClickable(
                     onClick = {},

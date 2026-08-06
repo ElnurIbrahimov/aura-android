@@ -52,42 +52,65 @@ fun AgentPresence(
     modifier: Modifier = Modifier,
     affinityLevel: String = "",
     affinityProgress: Float = 0f,
+    onTap: (() -> Unit)? = null,
 ) {
     val colors = AuraThemeTokens.colors
     val name = agentName ?: "Aura"
-    val tint = rememberAgentColor(name)
+    // Aura itself is the product, not one agent among many, so it gets a
+    // fixed mark. Named custom agents keep the hashed monogram — there the
+    // colour-per-name behaviour is genuinely useful for telling them apart.
+    val isAura = name.equals("Aura", ignoreCase = true)
+    val tint = if (isAura) colors.actionPrimary else rememberAgentColor(name)
     val pulse = rememberAgentPulse()
 
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .scale(1f + pulse * 0.04f)
-                .alpha(0.9f + pulse * 0.1f),
-            contentAlignment = Alignment.Center,
-        ) {
+        if (isAura) {
+            AuraMark(
+                size = 96.dp,
+                breath = pulse,
+                // Energy is the snapshot field that maps most directly to
+                // "how lit up is she"; default to a calm-but-present 0.6
+                // before the first snapshot arrives rather than to dark.
+                intensity = emotionSnapshot?.energy ?: 0.6f,
+                contentDescription = "Talk to $name",
+                onClick = onTap,
+            )
+        } else {
             Box(
                 modifier = Modifier
                     .size(96.dp)
-                    .background(tint.copy(alpha = 0.12f), CircleShape)
-                    .border(AuraSpacing.tiny, tint.copy(alpha = 0.35f), CircleShape),
-            )
-            Text(
-                text = name.take(1).uppercase(),
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                color = tint,
-                textAlign = TextAlign.Center,
-            )
+                    .scale(1f + pulse * 0.04f)
+                    .alpha(0.9f + pulse * 0.1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .background(tint.copy(alpha = 0.12f), CircleShape)
+                        .border(AuraSpacing.tiny, tint.copy(alpha = 0.35f), CircleShape),
+                )
+                Text(
+                    text = name.take(1).uppercase(),
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = tint,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(AuraSpacing.sm))
+        Spacer(modifier = Modifier.height(AuraSpacing.md))
         Text(
             text = name,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
+            // displayMedium is already Fraunces; sized down to 28sp so the
+            // wordmark sits under the mark without competing with the Home
+            // greeting, which is the screen's one true display-scale line.
+            style = MaterialTheme.typography.displayMedium.copy(
+                fontSize = 28.sp,
+                lineHeight = 34.sp,
+            ),
             color = colors.textPrimary,
             textAlign = TextAlign.Center,
         )

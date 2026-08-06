@@ -35,7 +35,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -310,7 +312,27 @@ data class ChatUiState(
     val ttsState: com.aura.voice.TextToSpeech.State = com.aura.voice.TextToSpeech.State.Idle,
     /** Wall-clock duration of the most recent response. Shown in the response footer. */
     val lastResponseDurationMs: Long = 0L,
-)
+) {
+    /**
+     * The model this chat will actually use, resolved once for the header,
+     * the send path and the "choose a model" banner.
+     *
+     * An open conversation carries the model it was created with, and that
+     * wins over the global default — reopening a chat should not silently
+     * move it to another model. [activeModel] is the fallback for a fresh
+     * conversation that has not picked one yet.
+     *
+     * These three call sites used to disagree. The header already resolved
+     * `conversationModel ?: activeModel`, while the banner and the send
+     * path read `activeModel` alone. [sessionModelOverride] lives only in
+     * memory, so after process death `activeModel` came back blank while
+     * the conversation's own model was still in Room — and the header
+     * displayed "Deepseek V4 Flash" directly above a banner insisting
+     * "Choose a model before sending."
+     */
+    val effectiveModel: String
+        get() = conversation.model?.takeIf(String::isNotBlank) ?: activeModel
+}
 
 /**
  * A tool call that the agentic loop has started but not yet
@@ -555,6 +577,17 @@ class ChatViewModel @Inject constructor(
             viewModelScope.launch {
                 repository.catalog.collect(::applyModelCatalog)
             }
+        }
+        // The conversation loads asynchronously, after the catalog and the
+        // default-model preference have already emitted. Its model is part
+        // of ChatUiState.effectiveModel, so without this the banner kept
+        // whatever verdict it reached before the conversation arrived —
+        // "Choose a model before sending" sitting under a header that
+        // named the model, on a chat that sent perfectly well.
+        viewModelScope.launch {
+            _state.map { it.conversation.model }
+                .distinctUntilChanged()
+                .collect { applyModelCatalog(modelCatalogRepository?.catalog?.value) }
         }
         viewModelScope.launch {
             userPreferences.deepModeModel.collect { model ->

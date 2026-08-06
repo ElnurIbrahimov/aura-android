@@ -7,15 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -29,9 +23,9 @@ import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.SettingsInputComponent
 import com.aura.capabilities.CapabilityKind
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,7 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 
@@ -115,7 +109,7 @@ fun HomeSecondaryActions(
 
     Column(
         modifier = modifier.fillMaxWidth().testTag("home-destinations"),
-        verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.lg),
     ) {
         for (group in groups) {
             Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
@@ -123,61 +117,66 @@ fun HomeSecondaryActions(
                     text = group.title,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
+                    // Wide tracking is what makes a small all-caps label read
+                    // as a considered section marker rather than shrunken body.
+                    letterSpacing = 1.6.sp,
                     color = AuraThemeTokens.colors.textTertiary,
-                    modifier = Modifier.padding(start = AuraSpacing.xxs),
+                    modifier = Modifier.padding(bottom = AuraSpacing.xs),
                 )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
-                ) {
-                    items(group.destinations, key = { it.label }) { destination ->
-                        HomeDestinationCard(destination)
-                    }
+                for (destination in group.destinations) {
+                    HomeDestinationRow(destination)
                 }
             }
         }
     }
 }
 
+/**
+ * One destination as a full-width row: name on the left, its current
+ * state on the right, a hairline between.
+ *
+ * This replaces a 140dp fixed-width card in a horizontal LazyRow. That
+ * layout had two problems. Visually, every entry carried its own filled
+ * surface and border, so Home was a field of boxes inside boxes. And
+ * functionally the row clipped at the screen edge mid-word — Calendar,
+ * Skills and Council rendered as "C", "S", "C", which reads as broken
+ * rendering rather than an invitation to scroll.
+ *
+ * A vertical list fixes both: no clipping is possible, the labels have
+ * room to breathe, and the right-aligned metadata forms a second column
+ * your eye can scan on its own.
+ */
 @Composable
-private fun HomeDestinationCard(destination: HomeDestination) {
+private fun HomeDestinationRow(destination: HomeDestination) {
     val colors = AuraThemeTokens.colors
-    Surface(
-        modifier = Modifier
-            .width(140.dp)
-            .defaultMinSize(minHeight = 78.dp)
-            .clickable(onClick = destination.onClick),
-        color = colors.surface1,
-        shape = MaterialTheme.shapes.medium,
-        border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
-    ) {
-        Column(
-            modifier = Modifier.padding(AuraSpacing.sm),
-            verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = destination.onClick)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = AuraSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = destination.icon,
-                    contentDescription = null,
-                    tint = colors.actionPrimary,
-                    modifier = Modifier.size(AuraSpacing.xxl2),
-                )
-                Text(
-                    text = destination.label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textPrimary,
-                )
-            }
+            Icon(
+                imageVector = destination.icon,
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(AuraSpacing.xxl2),
+            )
+            Text(
+                text = destination.label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 text = destination.metadata,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        HorizontalDivider(thickness = AuraSpacing.hairline, color = colors.borderSubtle)
     }
 }

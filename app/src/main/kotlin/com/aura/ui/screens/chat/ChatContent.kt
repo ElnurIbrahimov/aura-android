@@ -23,6 +23,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +49,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aura.ui.theme.JetBrainsMono
 import androidx.compose.ui.unit.sp
 import com.aura.agent.Specialist
 import com.aura.ui.components.AgentChip
@@ -393,27 +400,63 @@ private fun ErrorBanner(
     onSwitchModel: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val display = typedError?.formatUserMessage() ?: error
+    val colors = AuraThemeTokens.colors
+    val presented = remember(error, typedError) {
+        typedError?.formatUserMessage()?.let { ErrorPresentation(it, error.takeIf { raw -> raw != it }) }
+            ?: presentError(error)
+    }
+    var detailsOpen by remember(error) { mutableStateOf(false) }
+
+    // A tinted surface with a coloured edge, not a saturated slab. The old
+    // banner filled with colors.error at full strength, which made a
+    // recoverable "pick another model" the loudest thing on the screen.
     Surface(
-        color = AuraThemeTokens.colors.error,
+        color = colors.error.copy(alpha = 0.10f),
         modifier = Modifier.fillMaxWidth().padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
         shape = RoundedCornerShape(AuraSpacing.xs),
     ) {
-        Row(
-            Modifier.padding(start = AuraSpacing.sm, end = AuraSpacing.xxs, top = AuraSpacing.small, bottom = AuraSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = display,
-                modifier = Modifier.weight(1f),
-                color = AuraThemeTokens.colors.textPrimary,
-                style = MaterialTheme.typography.bodySmall,
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(
+                Modifier
+                    .width(AuraSpacing.tiny)
+                    .fillMaxHeight()
+                    .background(colors.error),
             )
-            if (retryable || typedError?.retryable == true) {
-                TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
-                TextButton(onClick = onSwitchModel) { Text(stringResource(R.string.switch_model)) }
+            Column(
+                Modifier.padding(
+                    start = AuraSpacing.sm,
+                    end = AuraSpacing.xxs,
+                    top = AuraSpacing.small,
+                    bottom = AuraSpacing.xxs,
+                ),
+            ) {
+                Text(
+                    text = presented.headline,
+                    color = colors.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (detailsOpen && presented.details != null) {
+                    Text(
+                        text = presented.details,
+                        color = colors.textSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = JetBrainsMono,
+                        modifier = Modifier.padding(top = AuraSpacing.xs),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (retryable || typedError?.retryable == true) {
+                        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                        TextButton(onClick = onSwitchModel) { Text(stringResource(R.string.switch_model)) }
+                    }
+                    if (presented.details != null) {
+                        TextButton(onClick = { detailsOpen = !detailsOpen }) {
+                            Text(if (detailsOpen) "Hide details" else "Details")
+                        }
+                    }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
+                }
             }
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
         }
     }
 }

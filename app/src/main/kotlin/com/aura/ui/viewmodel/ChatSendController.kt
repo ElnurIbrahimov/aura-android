@@ -161,7 +161,10 @@ class ChatSendController(
 
         // Deep Mode uses the explicit role selected by the user.
         val useMoa = state.value.deepModeEnabled
-        val model = if (useMoa) current.deepModeModel else current.activeModel
+        // effectiveModel falls back to the open conversation's own model, so
+        // resuming a chat after process death still sends on the model that
+        // chat was started with rather than refusing for a blank activeModel.
+        val model = if (useMoa) current.deepModeModel else current.effectiveModel
         if (model.isBlank()) {
             state.update {
                 it.copy(

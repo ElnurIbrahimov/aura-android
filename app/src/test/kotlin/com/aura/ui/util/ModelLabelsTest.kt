@@ -44,9 +44,27 @@ class ModelLabelsTest {
     @Test
     fun `id with no colon falls back to the raw string`() {
         // Defensive: a malformed id like "garbage" shouldn't crash
-        // the screen. With no colon, the only segment is used as
-        // both provider and model — not pretty, but non-empty and
-        // never throws.
-        assertEquals("Garbage · Garbage", modelDisplayName("garbage"))
+        // the screen. With no colon, the only segment is used as both
+        // provider and model. This used to render "Garbage · Garbage";
+        // the redundant-provider rule now collapses it to one word.
+        assertEquals("Garbage", modelDisplayName("garbage"))
+    }
+
+    @Test
+    fun `provider is not repeated when the model name already carries it`() {
+        // The chat header truncates at ~55% of screen width, and
+        // "Deepseek V4 Flash · DeepSeek" overflowed to
+        // "Deepseek V4 Flash · Deep…" — the suffix pushed out the model
+        // name itself while adding nothing the name didn't already say.
+        assertEquals("Deepseek V4 Flash", modelDisplayName("deepseek:deepseek-v4-flash"))
+        assertEquals("Deepseek V4 Pro", modelDisplayName("deepseek:deepseek-v4-pro"))
+    }
+
+    @Test
+    fun `provider is kept when it adds information`() {
+        // Same model served by a different provider — here the suffix is
+        // the whole point, so it must survive the de-duplication rule.
+        assertEquals("Deepseek V4 Pro · Ollama", modelDisplayName("ollama:deepseek-v4-pro"))
+        assertEquals("Llama 3 70B · Groq", modelDisplayName("groq:llama-3-70b"))
     }
 }

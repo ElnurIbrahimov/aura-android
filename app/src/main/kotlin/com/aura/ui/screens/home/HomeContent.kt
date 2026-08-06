@@ -152,6 +152,7 @@ fun HomeContent(
                     emotionSnapshot = state.emotionSnapshot,
                     affinityLevel = state.affinityLevel,
                     affinityProgress = state.affinityProgress,
+                    onTap = { onAskAura("") },
                     modifier = Modifier.padding(top = AuraSpacing.lg, bottom = AuraSpacing.md),
                 )
             }
@@ -395,7 +396,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
     item(key = "primary") {
 
-        Column(modifier = Modifier.testTag(if (isEmpty) "home-empty" else "home-content")) {
+        Column(
+            modifier = Modifier.testTag(if (isEmpty) "home-empty" else "home-content"),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.lg),
+        ) {
+
+            HomeGreeting(
+                hour = state.hour,
+                userName = state.userName,
+                subtitle = if (state.recentMemories.isNotEmpty()) {
+                    "Pick up where you left off."
+                } else {
+                    "Start with what matters right now."
+                },
+            )
 
             HomePrimaryAction(
                 onAskAura = onAskAura,

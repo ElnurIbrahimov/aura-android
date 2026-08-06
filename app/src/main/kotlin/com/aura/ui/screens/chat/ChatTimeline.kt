@@ -55,7 +55,9 @@ fun ChatTimeline(
             .fillMaxWidth()
             .testTag("chat-timeline"),
         contentPadding = PaddingValues(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
+        // Small, uniform gap: each bubble owns the rest of its own spacing so
+        // a grouped run can close up while a speaker change stays open.
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
     ) {
         itemsIndexed(
             items = state.conversation.turns,
@@ -77,10 +79,16 @@ fun ChatTimeline(
             ) {
                 Column {
                     turn.user?.let {
+                        // A run of user messages happens when you send
+                        // several before Aura answers: the preceding turn
+                        // carries a user message and no reply.
+                        val previous = state.conversation.turns.getOrNull(index - 1)
+                        val continuesRun = previous?.user != null && previous.assistant == null
                         MessageBubble(
                             text = it,
                             isUser = true,
                             timestamp = turn.timestamp,
+                            groupedWithPrevious = continuesRun,
                             onEdit = { onEditMessage(index, it) },
                         )
                     }
