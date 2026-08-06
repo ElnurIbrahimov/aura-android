@@ -48,6 +48,11 @@ import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.SkillsViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.unit.sp
+import com.aura.ui.components.AuraUnderlinedField
+import com.aura.ui.theme.AuraThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -265,24 +270,60 @@ private fun NewSkillDialog(
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
+    val colors = AuraThemeTokens.colors
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.new_skill)) },
+        containerColor = colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.lg),
+        title = {
+            Text(
+                text = stringResource(R.string.new_skill),
+                style = MaterialTheme.typography.displayMedium.copy(fontSize = 26.sp, lineHeight = 32.sp),
+                color = colors.textPrimary,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
-                OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, label = { Text(stringResource(R.string.name)) }, singleLine = true)
-                OutlinedTextField(value = description, onValueChange = { description = it.take(240) }, label = { Text(stringResource(R.string.description_optional)) }, singleLine = true)
-                OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text(stringResource(R.string.body_markdown)) }, minLines = 6, maxLines = 12)
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+            ) {
+                AuraUnderlinedField(name, { name = it.take(80) }, stringResource(R.string.name))
+                AuraUnderlinedField(
+                    description,
+                    { description = it.take(240) },
+                    stringResource(R.string.description_optional),
+                )
+                AuraUnderlinedField(
+                    body,
+                    { body = it },
+                    stringResource(R.string.body_markdown),
+                    minLines = 5,
+                )
+                // A blank markdown box says nothing about what belongs in
+                // it. One line of guidance is the whole difference between
+                // an empty field and a usable one.
+                Text(
+                    text = "The instructions Aura follows when you invoke this skill — steps, rules, examples.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textTertiary,
+                )
             }
         },
         confirmButton = {
+            // Create carries the accent and Cancel is neutral. They were
+            // the other way round, so the highlighted button was the one
+            // that throws the work away.
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = { onCreate(name, description, body) },
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.assistantAccent),
             ) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.textSecondary),
+            ) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

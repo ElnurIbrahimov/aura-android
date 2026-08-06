@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.creative.CreativeProject
 import com.aura.creative.WritingTemplates
 import com.aura.ui.components.AuraScreenShell
+import com.aura.ui.components.AuraUnderlinedField
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.CreativeStudioViewModel
@@ -283,11 +284,11 @@ private fun NewCreativeProjectDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
-                UnderlinedField(name, { name = it }, stringResource(R.string.project_name))
-                UnderlinedField(description, { description = it }, stringResource(R.string.premise), minLines = 2)
+                AuraUnderlinedField(name, { name = it }, stringResource(R.string.project_name))
+                AuraUnderlinedField(description, { description = it }, stringResource(R.string.premise), minLines = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
-                    UnderlinedField(genre, { genre = it }, stringResource(R.string.genre), modifier = Modifier.weight(1f))
-                    UnderlinedField(tone, { tone = it }, stringResource(R.string.tone), modifier = Modifier.weight(1f))
+                    AuraUnderlinedField(genre, { genre = it }, stringResource(R.string.genre), modifier = Modifier.weight(1f))
+                    AuraUnderlinedField(tone, { tone = it }, stringResource(R.string.tone), modifier = Modifier.weight(1f))
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
@@ -356,51 +357,4 @@ private fun NewCreativeProjectDialog(
             ) { Text(stringResource(R.string.cancel)) }
         },
     )
-}
-
-/**
- * A hairline-underlined text field, matching Home's ask input and the Add
- * note dialog.
- *
- * Material's OutlinedTextField draws a full box plus a floating accent
- * label, so a four-field form read as heavier than anything it sat on top
- * of. Here the placeholder carries the label and a hairline carries the
- * affordance.
- */
-@Composable
-private fun UnderlinedField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    minLines: Int = 1,
-) {
-    val colors = AuraThemeTokens.colors
-    Column(modifier = modifier) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
-            cursorBrush = SolidColor(colors.actionPrimary),
-            minLines = minLines,
-            maxLines = if (minLines > 1) 5 else 1,
-            singleLine = minLines == 1,
-            decorationBox = { inner ->
-                Box {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.textTertiary,
-                        )
-                    }
-                    inner()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = AuraSpacing.xs),
-        )
-        HorizontalDivider(thickness = AuraSpacing.hairline, color = colors.borderDefault)
-    }
 }
