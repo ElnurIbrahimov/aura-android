@@ -58,6 +58,8 @@ import com.aura.ui.theme.InterDisplay
 import com.aura.ui.util.modelDisplayName
 import com.aura.ui.theme.AuraSpacing
 import androidx.compose.material3.HorizontalDivider
+import com.aura.ui.components.AuraDropdownMenu
+import com.aura.ui.components.AuraDropdownItem
 
 @Composable
 fun ChatHeader(
@@ -239,7 +241,7 @@ fun ChatHeader(
                         modifier = Modifier.size(AuraSpacing.xxl2),
                     )
                 }
-                DropdownMenu(
+                AuraDropdownMenu(
                     expanded = overflowExpanded,
                     onDismissRequest = { overflowExpanded = false },
                 ) {
@@ -331,24 +333,10 @@ private fun ChatMenuItem(
     supporting: String? = null,
     destructive: Boolean = false,
     onClick: () -> Unit,
-) {
-    val tint = if (destructive) AuraThemeTokens.colors.error else AuraThemeTokens.colors.textPrimary
-    DropdownMenuItem(
-        text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = tint)
-                if (supporting != null) {
-                    Text(
-                        text = " · $supporting",
-                        color = AuraThemeTokens.colors.textSecondary,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-            }
-        },
-        leadingIcon = {
-            Icon(imageVector = icon, contentDescription = null, tint = tint)
-        },
-        onClick = onClick,
-    )
-}
+) = AuraDropdownItem(
+    label = label,
+    icon = icon,
+    onClick = onClick,
+    supporting = supporting,
+    destructive = destructive,
+)

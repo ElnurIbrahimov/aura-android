@@ -282,10 +282,19 @@ fun NavGraph(
             }
             composable(Route.History.path) {
                 HistoryScreen(onSelect = { convId ->
-                    navController.navigate("chat?convId=$convId") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    // No restoreState/saveState here. Those belong to
+                    // bottom-tab switching, where returning to a tab should
+                    // put back exactly what you left. On an
+                    // argument-carrying route they restore the *previous*
+                    // chat entry along with its original arguments, so the
+                    // convId just chosen was discarded and picking a
+                    // conversation from history reopened the current one.
+                    // Matches how onOpenSourceConversation already opens a
+                    // specific chat.
+                    navController.navigate(
+                        "chat?convId=${android.net.Uri.encode(convId)}"
+                    ) {
                         launchSingleTop = true
-                        restoreState = true
                     }
                 })
             }

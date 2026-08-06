@@ -100,6 +100,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.ui.components.AuraDropdownMenu
 
 private val MEMORY_CATEGORIES = listOf("fact", "preference", "episode", "person", "project", "idea", "task")
 
@@ -190,7 +191,7 @@ fun MemoryScreen(
                             tint = AuraThemeTokens.colors.textSecondary,
                         )
                     }
-                    DropdownMenu(
+                    AuraDropdownMenu(
                         expanded = overflowOpen,
                         onDismissRequest = { overflowOpen = false },
                     ) {
@@ -792,7 +793,7 @@ private fun MemoryRow(
                         tint = AuraThemeTokens.colors.textTertiary,
                     )
                 }
-                DropdownMenu(
+                AuraDropdownMenu(
                     expanded = actionsOpen,
                     onDismissRequest = { actionsOpen = false },
                 ) {

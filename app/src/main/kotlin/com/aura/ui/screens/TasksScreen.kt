@@ -80,6 +80,13 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraSpacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.unit.sp
+import com.aura.ui.components.AuraUnderlinedField
 @Composable
 fun TasksScreen(
     viewModel: TasksViewModel = hiltViewModel(),
@@ -658,47 +665,68 @@ private fun TaskEditFields(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(dialogTitle) },
+        containerColor = AuraThemeTokens.colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.lg),
+        title = {
+            Text(
+                text = dialogTitle,
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontSize = 26.sp,
+                    lineHeight = 32.sp,
+                ),
+                color = AuraThemeTokens.colors.textPrimary,
+            )
+        },
         text = {
-            Column {
-                OutlinedTextField(
-                    value = titleState,
-                    onValueChange = { titleState = it },
-                    label = { Text(stringResource(R.string.title)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(AuraSpacing.xs))
-                OutlinedTextField(
-                    value = descriptionState,
-                    onValueChange = { descriptionState = it },
-                    label = { Text(stringResource(R.string.description)) },
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+            ) {
+                AuraUnderlinedField(titleState, { titleState = it }, stringResource(R.string.title))
+                AuraUnderlinedField(
+                    descriptionState,
+                    { descriptionState = it },
+                    stringResource(R.string.description),
                     minLines = 2,
-                    maxLines = 4,
-                    modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(AuraSpacing.xs))
-                OutlinedButton(
+                // The due date reads as a value you can change, not as a
+                // full-width outlined button competing with the fields.
+                TextButton(
                     onClick = { showDatePicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(dateText)
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (selectedDateMs == null) {
+                            AuraThemeTokens.colors.textTertiary
+                        } else {
+                            AuraThemeTokens.colors.assistantAccent
+                        },
+                    ),
+                ) { Text(dateText) }
+
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                    Text(
+                        text = stringResource(R.string.priority),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AuraThemeTokens.colors.textTertiary,
+                    )
+                    // FlowRow: four options do not fit one dialog-width line,
+                    // so the last label was breaking mid-word.
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        PriorityOption(label = "None", selected = priorityState == 0) { priorityState = 0 }
+                        PriorityOption(label = "Low", selected = priorityState == 1) { priorityState = 1 }
+                        PriorityOption(label = "Medium", selected = priorityState == 2) { priorityState = 2 }
+                        PriorityOption(label = "High", selected = priorityState == 3) { priorityState = 3 }
+                    }
                 }
-                Spacer(Modifier.height(AuraSpacing.xs))
-                Text(stringResource(R.string.priority), style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
-                    PriorityOption(label = "None", selected = priorityState == 0) { priorityState = 0 }
-                    PriorityOption(label = "Low", selected = priorityState == 1) { priorityState = 1 }
-                    PriorityOption(label = "Medium", selected = priorityState == 2) { priorityState = 2 }
-                    PriorityOption(label = "High", selected = priorityState == 3) { priorityState = 3 }
-                }
-                Spacer(Modifier.height(AuraSpacing.xs))
-                OutlinedTextField(
-                    value = tagsState,
-                    onValueChange = { tagsState = it },
-                    label = { Text(stringResource(R.string.tags_comma_separated_2)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+
+                AuraUnderlinedField(
+                    tagsState,
+                    { tagsState = it },
+                    stringResource(R.string.tags_comma_separated_2),
                 )
             }
         },
