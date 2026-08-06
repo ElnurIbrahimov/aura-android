@@ -49,6 +49,19 @@ import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.CreativeStudioViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.Box
 
 @Composable
 fun CreativeStudioScreen(
@@ -237,6 +250,7 @@ private fun CreativeProjectCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NewCreativeProjectDialog(
     onDismiss: () -> Unit,
@@ -247,33 +261,146 @@ private fun NewCreativeProjectDialog(
     var genre by remember { mutableStateOf("") }
     var tone by remember { mutableStateOf("") }
     var templateId by remember { mutableStateOf(WritingTemplates.all.first().id) }
+    val colors = AuraThemeTokens.colors
+    val selectedTemplate = WritingTemplates.all.firstOrNull { it.id == templateId }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.new_creative_project)) },
+        containerColor = colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.lg),
+        title = {
+            Text(
+                text = stringResource(R.string.new_creative_project),
+                style = MaterialTheme.typography.displayMedium.copy(fontSize = 26.sp, lineHeight = 32.sp),
+                color = colors.textPrimary,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium)) {
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.project_name)) }, singleLine = true)
-                OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.premise)) }, minLines = 2)
-                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
-                    OutlinedTextField(genre, { genre = it }, label = { Text(stringResource(R.string.genre)) }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(tone, { tone = it }, label = { Text(stringResource(R.string.tone)) }, modifier = Modifier.weight(1f), singleLine = true)
+            // Scrollable: four fields plus the form picker make this taller
+            // than the space left above the keyboard, and Create was pushed
+            // off-screen the moment a field took focus.
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+            ) {
+                UnderlinedField(name, { name = it }, stringResource(R.string.project_name))
+                UnderlinedField(description, { description = it }, stringResource(R.string.premise), minLines = 2)
+                Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+                    UnderlinedField(genre, { genre = it }, stringResource(R.string.genre), modifier = Modifier.weight(1f))
+                    UnderlinedField(tone, { tone = it }, stringResource(R.string.tone), modifier = Modifier.weight(1f))
                 }
-                Text(stringResource(R.string.form), style = MaterialTheme.typography.labelLarge)
-                WritingTemplates.all.forEach { template ->
-                    FilterChip(
-                        selected = template.id == templateId,
-                        onClick = { templateId = template.id },
-                        label = { Text("${template.icon}  ${template.name}") },
+
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                    Text(
+                        text = stringResource(R.string.form),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textTertiary,
                     )
+                    // FlowRow, not a bare forEach in a Column: each template
+                    // used to occupy its own full row, so five forms burned
+                    // five rows of a dialog that was already too tall.
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        WritingTemplates.all.forEach { template ->
+                            val selected = template.id == templateId
+                            AssistChip(
+                                onClick = { templateId = template.id },
+                                // Name only. The emoji prefixes sat beside
+                                // line icons everywhere else in the app and
+                                // read as placeholder art. FilterChip's
+                                // default selected colours were also a blue
+                                // that appears nowhere else in the theme.
+                                label = { Text(template.name, maxLines = 1) },
+                                border = null,
+                                colors = if (selected) {
+                                    AssistChipDefaults.assistChipColors(
+                                        containerColor = colors.actionPrimary.copy(alpha = 0.18f),
+                                        labelColor = colors.assistantAccent,
+                                    )
+                                } else {
+                                    AssistChipDefaults.assistChipColors(
+                                        containerColor = colors.surface2,
+                                        labelColor = colors.textSecondary,
+                                    )
+                                },
+                            )
+                        }
+                    }
+                    // Every template already carries a description of what
+                    // the form does to the writing. The picker discarded it
+                    // and showed an emoji instead.
+                    selectedTemplate?.let {
+                        Text(
+                            text = it.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textTertiary,
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(
+            TextButton(
                 enabled = name.isNotBlank(),
                 onClick = { onCreate(name, description, genre, tone, templateId) },
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.assistantAccent),
             ) { Text(stringResource(R.string.create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.textSecondary),
+            ) { Text(stringResource(R.string.cancel)) }
+        },
     )
+}
+
+/**
+ * A hairline-underlined text field, matching Home's ask input and the Add
+ * note dialog.
+ *
+ * Material's OutlinedTextField draws a full box plus a floating accent
+ * label, so a four-field form read as heavier than anything it sat on top
+ * of. Here the placeholder carries the label and a hairline carries the
+ * affordance.
+ */
+@Composable
+private fun UnderlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    minLines: Int = 1,
+) {
+    val colors = AuraThemeTokens.colors
+    Column(modifier = modifier) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.textPrimary),
+            cursorBrush = SolidColor(colors.actionPrimary),
+            minLines = minLines,
+            maxLines = if (minLines > 1) 5 else 1,
+            singleLine = minLines == 1,
+            decorationBox = { inner ->
+                Box {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textTertiary,
+                        )
+                    }
+                    inner()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = AuraSpacing.xs),
+        )
+        HorizontalDivider(thickness = AuraSpacing.hairline, color = colors.borderDefault)
+    }
 }
