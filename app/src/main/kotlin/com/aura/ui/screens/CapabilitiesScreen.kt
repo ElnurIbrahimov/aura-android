@@ -1,5 +1,6 @@
 package com.aura.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,6 +39,12 @@ import com.aura.ui.viewmodel.CapabilityCardState
 fun CapabilitiesScreen(
     viewModel: CapabilitiesViewModel = hiltViewModel(),
     onBack: () -> Unit,
+    // Deliberately no `= {}` default. A defaulted navigation lambda is
+    // exactly how the Home screen's Council and Evolution rows ended up
+    // silently doing nothing: omitting the argument stayed legal, so
+    // nothing warned and nothing failed. Required means the compiler
+    // catches a missed wiring at the call site.
+    onOpenSettings: () -> Unit,
 ) {
     val cards by viewModel.state.collectAsStateWithLifecycle()
     val colors = AuraThemeTokens.colors
@@ -74,7 +81,7 @@ fun CapabilitiesScreen(
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
             ) {
                 items(cards, key = { it.kind.name }) { card ->
-                    CapabilityCard(card = card)
+                    CapabilityCard(card = card, onClick = onOpenSettings)
                 }
             }
         }
@@ -82,11 +89,14 @@ fun CapabilitiesScreen(
 }
 
 @Composable
-private fun CapabilityCard(card: CapabilityCardState) {
+private fun CapabilityCard(card: CapabilityCardState, onClick: () -> Unit) {
     val colors = AuraThemeTokens.colors
     val icon = card.kind.displayIcon()
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        // Every unconfigured row told you to add a key in Settings and then
+        // did nothing when tapped, six times over. The row is now the way
+        // there.
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         color = if (card.isConfigured) colors.surface1 else colors.surface0,
         shape = RoundedCornerShape(AuraSpacing.md),
         border = androidx.compose.foundation.BorderStroke(
@@ -126,10 +136,14 @@ private fun CapabilityCard(card: CapabilityCardState) {
                     color = colors.textSecondary,
                 )
                 Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+                // Just "Not configured". The old string repeated "add a key
+                // in Settings" on every unconfigured row — six identical
+                // instructions on one screen — and the row now performs
+                // that navigation itself, so the sentence is redundant.
                 val statusText = if (card.isConfigured) {
                     "Active · ${card.providerLabel ?: ""}"
                 } else {
-                    "Not configured — add a key in Settings"
+                    "Not configured"
                 }
                 Text(
                     text = statusText,

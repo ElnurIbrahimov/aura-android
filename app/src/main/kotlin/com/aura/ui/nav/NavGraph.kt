@@ -344,7 +344,10 @@ fun NavGraph(
                 SkillsScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.Capabilities.path) {
-                CapabilitiesScreen(onBack = { navController.popBackStack() })
+                CapabilitiesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenSettings = { navController.navigate(TopLevelRoute.Settings.route) },
+                )
             }
             composable(Route.Production.path) {
                 ProductionPipelineScreen(

@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -28,7 +29,10 @@ fun CapabilityKind.displayIcon(): ImageVector = when (this) {
     CapabilityKind.VideoGeneration -> Icons.Filled.Movie
     CapabilityKind.World3DGeneration -> Icons.Filled.ViewInAr
     CapabilityKind.WebSearch -> Icons.Filled.Language
-    CapabilityKind.Transcription -> Icons.Filled.Audiotrack
+    // Not Audiotrack: TextToSpeech already uses it, so the two opposite
+    // operations — text into audio, audio into text — carried the identical
+    // glyph and were indistinguishable in the list.
+    CapabilityKind.Transcription -> Icons.Filled.Mic
 }
 
 fun CapabilityKind.description(): String = when (this) {
