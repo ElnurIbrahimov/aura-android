@@ -66,6 +66,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import android.util.Log
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.unit.sp
+import com.aura.ui.components.AuraUnderlinedField
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun HandEditorDialog(
@@ -94,36 +97,45 @@ internal fun HandEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = AuraThemeTokens.colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.lg),
         title = {
-            Column {
-                Text(if (initial == null) "New hand" else "Edit hand")
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
+                Text(
+                    text = if (initial == null) "New hand" else "Edit hand",
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontSize = 26.sp,
+                        lineHeight = 32.sp,
+                    ),
+                    color = AuraThemeTokens.colors.textPrimary,
+                )
                 Text(
                     "A repeatable, inspectable tool workflow",
                     style = MaterialTheme.typography.bodySmall,
-                    color = AuraThemeTokens.colors.textPrimary,
+                    // Was textPrimary, so the subtitle carried the same
+                    // weight as the title it sits under.
+                    color = AuraThemeTokens.colors.textTertiary,
                 )
             }
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = trigger,
-                    onValueChange = { trigger = it },
-                    label = { Text(stringResource(R.string.trigger_phrase_optional)) },
-                    supportingText = { Text(stringResource(R.string.saying_this_in_chat_asks_aura)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                AuraUnderlinedField(name, { name = it }, stringResource(R.string.name))
+                Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
+                    AuraUnderlinedField(
+                        trigger,
+                        { trigger = it },
+                        stringResource(R.string.trigger_phrase_optional),
+                    )
+                    Text(
+                        stringResource(R.string.saying_this_in_chat_asks_aura),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textTertiary,
+                    )
+                }
 
                 EditorSection("Steps", "Use {{variable}} inside any text argument") {
                     StepEditor(
@@ -156,19 +168,20 @@ internal fun HandEditorDialog(
                             }
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        AuraUnderlinedField(
                             value = newVariableName,
                             onValueChange = { newVariableName = it.filter { char -> char.isLetterOrDigit() || char == '_' } },
-                            label = { Text(stringResource(R.string.variable)) },
-                            singleLine = true,
+                            placeholder = stringResource(R.string.variable),
                             modifier = Modifier.weight(1f),
                         )
-                        OutlinedTextField(
+                        AuraUnderlinedField(
                             value = newVariableValue,
                             onValueChange = { newVariableValue = it },
-                            label = { Text(stringResource(R.string.s_default)) },
-                            singleLine = true,
+                            placeholder = stringResource(R.string.s_default),
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -288,9 +301,21 @@ internal fun HandEditorDialog(
                         ),
                     )
                 },
+                // Save carries the accent; Cancel is neutral. They were
+                // reversed, so the highlighted button discarded the work.
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AuraThemeTokens.colors.assistantAccent,
+                ),
             ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AuraThemeTokens.colors.textSecondary,
+                ),
+            ) { Text(stringResource(R.string.cancel)) }
+        },
     )
 }
 

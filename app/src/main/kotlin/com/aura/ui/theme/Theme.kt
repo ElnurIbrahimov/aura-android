@@ -70,8 +70,14 @@ private val DarkColors = darkColorScheme(
     onPrimaryContainer = DarkAuraSemanticColors.actionPrimary,
     secondary = DarkAuraSemanticColors.info,
     onSecondary = Color.White,
-    secondaryContainer = DarkAuraSemanticColors.surface2,
-    onSecondaryContainer = DarkAuraSemanticColors.info,
+    // FilterChip's *selected* state and FilledTonalButton both read
+    // secondaryContainer / onSecondaryContainer. Mapping them to `info`
+    // (a blue) meant every selected chip across the app — Hands, Creative,
+    // History, Evolution, Global search, the daemon settings — marked
+    // itself in a colour the theme uses nowhere else. Tonal accent instead,
+    // matching the chips that set their colours explicitly.
+    secondaryContainer = DarkAuraSemanticColors.actionPrimary.copy(alpha = 0.18f),
+    onSecondaryContainer = DarkAuraSemanticColors.assistantAccent,
     tertiary = DarkAuraSemanticColors.success,
     onTertiary = Color.White,
     tertiaryContainer = DarkAuraSemanticColors.surface2,
@@ -103,8 +109,9 @@ private val LightColors = lightColorScheme(
     onPrimaryContainer = LightAuraSemanticColors.actionPrimary,
     secondary = LightAuraSemanticColors.info,
     onSecondary = Color.White,
-    secondaryContainer = LightAuraSemanticColors.surface1,
-    onSecondaryContainer = LightAuraSemanticColors.info,
+    // Same reasoning as the dark scheme above.
+    secondaryContainer = LightAuraSemanticColors.actionPrimary.copy(alpha = 0.14f),
+    onSecondaryContainer = LightAuraSemanticColors.actionPrimary,
     tertiary = LightAuraSemanticColors.success,
     onTertiary = Color.White,
     background = LightAuraSemanticColors.background,
