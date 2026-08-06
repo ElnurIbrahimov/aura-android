@@ -94,12 +94,14 @@ class DreamConsolidatorTest {
     private fun buildConsolidator(
         memoryStore: MemoryStore,
         provider: ProviderRegistry,
+        dreamDao: DreamConsolidationDao = mockDao(),
+        contradictionDao: ContradictionDao = mockk(relaxed = true),
     ): DreamConsolidator = DreamConsolidator(
         memoryStore = memoryStore,
-        dreamDao = mockDao(),
+        dreamDao = dreamDao,
         routineDao = mockk(relaxed = true),
         kgProposalDao = mockk(relaxed = true),
-        contradictionDao = mockk(relaxed = true),
+        contradictionDao = contradictionDao,
         providerRegistry = provider,
         embedder = mockk(relaxed = true),
         crashLogger = mockk<CrashLogger>(relaxed = true).also {
@@ -206,6 +208,96 @@ class DreamConsolidatorTest {
         io.mockk.coVerify(exactly = 0) {
             store.update(any(), any(), any(), any(), any())
         }
+    }
+
+    @Test
+    fun `phase 8 detects a new summary contradicting a stored summary`() = runBlocking {
+        // Regression: detectContradictions required two rows sharing a
+        // clusterId — impossible by construction (unique index on
+        // clusterId + runCycle's skipSet), so the phase NEVER fired and
+        // the COHERENCE drive / NarrativeSelf concerns stayed empty
+        // forever. New summaries must now be compared against EXISTING
+        // stored summaries about similar content.
+        val existingSummary = DreamSummaryEntity(
+            id = "dream_oldcluster",
+            clusterId = "oldcluster",
+            compressedText = "User prefers light mode in every app and website.",
+            sourceMemoryIds = "x,y,z",
+            dominantTags = "",
+            sourceCount = 3,
+            modelUsed = "test:model",
+            createdAt = 1_000L,
+        )
+        val dreamDao = mockDao().also { dao ->
+            // Phase 8 reads all() to find stored summaries; the newly
+            // inserted one is filtered by id, the old one is compared.
+            coEvery { dao.all() } returns listOf(existingSummary)
+            coEvery { dao.allClusterIds() } returns emptyList()
+        }
+        val contradictionDao = mockk<ContradictionDao>(relaxed = true)
+        val inserted = io.mockk.slot<ContradictionEntity>()
+        coEvery { contradictionDao.insert(capture(inserted)) } returns 1L
+
+        val store = mockStore(
+            listOf(
+                mem("a", "User no longer uses light mode", 1),
+                mem("b", "User said light mode hurts their eyes now", 1),
+                mem("c", "User switched every app to dark", 1),
+            )
+        )
+        // The new summary contains a negation trigger ("no longer") and
+        // shares enough tokens with the stored summary to look related.
+        val provider = mockProvider(
+            listOf("User no longer prefers light mode in every app; user now uses dark mode."),
+        )
+
+        val consolidator = buildConsolidator(store, provider, dreamDao = dreamDao, contradictionDao = contradictionDao)
+        val report = consolidator.runCycle()
+
+        assertEquals(1, report.summariesWritten)
+        assertEquals("contradictionsFound should count the detected pair", 1, report.contradictionsFound)
+        io.mockk.coVerify(exactly = 1) { contradictionDao.insert(any()) }
+        val row = inserted.captured
+        assertEquals("dream_oldcluster", row.olderSummaryId)
+        assertTrue("newer side must be this cycle's summary", row.newerSummaryId.startsWith("dream_"))
+        assertEquals("no longer", row.triggerPhrase)
+        assertEquals("UNRESOLVED", row.status)
+    }
+
+    @Test
+    fun `phase 8 stays silent when the new summary is unrelated to stored ones`() = runBlocking {
+        val existingSummary = DreamSummaryEntity(
+            id = "dream_oldcluster",
+            clusterId = "oldcluster",
+            compressedText = "Quarterly financial projections favor the Berlin office.",
+            sourceMemoryIds = "x",
+            dominantTags = "",
+            sourceCount = 3,
+            modelUsed = "test:model",
+            createdAt = 1_000L,
+        )
+        val dreamDao = mockDao().also { dao ->
+            coEvery { dao.all() } returns listOf(existingSummary)
+            coEvery { dao.allClusterIds() } returns emptyList()
+        }
+        val contradictionDao = mockk<ContradictionDao>(relaxed = true)
+
+        val store = mockStore(
+            listOf(
+                mem("a", "User no longer uses light mode", 1),
+                mem("b", "User switched to dark", 1),
+                mem("c", "Dark everywhere", 1),
+            )
+        )
+        // Trigger phrase present but zero topical overlap with the stored
+        // summary — the relatedness prefilter must block the pair.
+        val provider = mockProvider(listOf("User no longer wants notifications at night."))
+
+        val consolidator = buildConsolidator(store, provider, dreamDao = dreamDao, contradictionDao = contradictionDao)
+        val report = consolidator.runCycle()
+
+        assertEquals(0, report.contradictionsFound)
+        io.mockk.coVerify(exactly = 0) { contradictionDao.insert(any()) }
     }
 
     @Test

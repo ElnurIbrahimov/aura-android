@@ -16,7 +16,7 @@ class SilentRunCatchingAuditTest {
         // end of the block — beyond the audit's 40-line scan window. The
         // block IS handled: .onFailure { Log.w(...) }.getOrDefault(false).
         // (Line drifts when the file above it changes; keep in sync.)
-        "DreamConsolidator.kt:597",
+        "DreamConsolidator.kt:600",
     )
 
     @Test

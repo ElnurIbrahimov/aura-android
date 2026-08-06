@@ -29,6 +29,12 @@ class JinaReaderFreeTool @Inject constructor(
     private val httpClient: OkHttpClient,
     private val providerKeys: com.aura.providers.ProviderKeys,
 ) {
+    /**
+     * Base URL of the Jina Reader proxy. Overridable for tests
+     * (MockWebServer); production always talks to r.jina.ai.
+     */
+    internal var readerBaseUrl: String = "https://r.jina.ai/"
+
     fun definition() = ToolDefinition(
         name = "read_url",
         description = "Read any URL and return its content as clean markdown text. " +
@@ -62,7 +68,7 @@ class JinaReaderFreeTool @Inject constructor(
             val safe = ssrfResult as SsrfValidation.Safe
 
             try {
-                val jinaUrl = "https://r.jina.ai/${safe.url}"
+                val jinaUrl = "$readerBaseUrl${safe.url}"
                 val builder = Request.Builder()
                     .url(jinaUrl)
                     .header("Accept", "text/plain")
@@ -75,8 +81,19 @@ class JinaReaderFreeTool @Inject constructor(
                     builder.header("Authorization", "Bearer $jinaKey")
                 }
 
-                val pinnedClient = SsrfGuard.pinnedClient(httpClient, safe)
-                pinnedClient.newCall(builder.build()).execute().use { resp ->
+                // The request goes to r.jina.ai (a fixed, trusted proxy),
+                // NOT to the user's host — so the client must not be
+                // DNS-pinned to the user's host. Pinning to `safe` here
+                // used to make every call fail with "unexpected redirect
+                // host" because resolving r.jina.ai hit the pinned DNS.
+                // The SSRF validation of the USER url above still stands
+                // (the proxy is only ever handed a vetted public URL) and
+                // redirects stay disabled.
+                val client = httpClient.newBuilder()
+                    .followRedirects(false)
+                    .followSslRedirects(false)
+                    .build()
+                client.newCall(builder.build()).execute().use { resp ->
                     if (!resp.isSuccessful) {
                         return@Tool ToolResult.Error("Jina Reader HTTP ${resp.code}", "http_error")
                     }

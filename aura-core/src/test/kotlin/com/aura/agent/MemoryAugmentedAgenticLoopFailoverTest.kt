@@ -42,30 +42,44 @@ class MemoryAugmentedAgenticLoopFailoverTest {
             coEvery { compactor.compactIfNeeded(any(), any()) } answers { firstArg() }
         }
 
-    private fun mockProviderRegistry(): ProviderRegistry {
+    /**
+     * Registry whose [ProviderRegistry.configured] reports the given
+     * prefixes as configured. Failover only targets configured providers,
+     * so tests must declare which backup providers hold a valid key.
+     */
+    private fun mockProviderRegistry(configuredPrefixes: List<String> = listOf("primary", "backup")): ProviderRegistry {
         val provider = mockk<Provider>(relaxed = true)
         every { provider.prefix } returns "primary"
         every { provider.isConfigured() } returns true
         val registry = mockk<ProviderRegistry>(relaxed = true)
         coEvery { registry.parse(any<String>()) } returns (provider to "test-model")
+        every { registry.configured() } returns configuredPrefixes.map { prefix ->
+            mockk<Provider>(relaxed = true).also {
+                every { it.prefix } returns prefix
+                every { it.isConfigured() } returns true
+            }
+        }
         return registry
     }
 
     /** Catalog offering one model from a *different* provider, so failover has a target. */
-    private fun catalogWithBackup(): ModelCatalogRepository {
+    private fun catalogWithBackup(): ModelCatalogRepository = catalogOf(
+        ModelDescriptor(id = "backup:model-b", name = "model-b", providerPrefix = "backup"),
+    )
+
+    private fun catalogOf(vararg models: ModelDescriptor): ModelCatalogRepository {
         val repo = mockk<ModelCatalogRepository>(relaxed = true)
         every { repo.catalog } returns MutableStateFlow(
-            ModelCatalog(
-                providers = emptyMap(),
-                allModels = listOf(
-                    ModelDescriptor(id = "backup:model-b", name = "model-b", providerPrefix = "backup"),
-                ),
-            ),
+            ModelCatalog(providers = emptyMap(), allModels = models.toList()),
         )
         return repo
     }
 
-    private fun loopWith(brain: Brain, catalog: ModelCatalogRepository?): MemoryAugmentedAgenticLoop {
+    private fun loopWith(
+        brain: Brain,
+        catalog: ModelCatalogRepository?,
+        configuredPrefixes: List<String> = listOf("primary", "backup"),
+    ): MemoryAugmentedAgenticLoop {
         val toolRegistry = ToolRegistry()
         val executor = ToolExecutor(toolRegistry, context = mockk(relaxed = true))
         val userProfileStore = mockk<com.aura.profile.UserProfileStore>(relaxed = true)
@@ -80,7 +94,7 @@ class MemoryAugmentedAgenticLoopFailoverTest {
             mockk<com.aura.kg.ConversationKgExtractor>(relaxed = true),
             userProfileStore,
             handRepository,
-            mockProviderRegistry(),
+            mockProviderRegistry(configuredPrefixes),
             passthroughCompactor(),
             modelCatalogRepository = catalog,
         )
@@ -163,5 +177,136 @@ class MemoryAugmentedAgenticLoopFailoverTest {
             .collect { }
 
         assertEquals(2, call, "should try the primary once and exactly one alternate")
+    }
+
+    @Test
+    fun `429 with Retry-After retries the SAME model once before failing over`() = runBlocking {
+        // A rate limit is transient; the server told us exactly how long
+        // to wait. The loop must delay and retry the user's chosen model
+        // once — no provider switch, no Warning — before any failover.
+        val brain = mockk<Brain>(relaxed = true)
+        val modelsCalled = mutableListOf<String>()
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            modelsCalled += firstArg<String>()
+            if (modelsCalled.size == 1) {
+                flowOf(
+                    BrainChunk.Error(
+                        code = "http_error",
+                        message = "HTTP 429",
+                        retryable = true,
+                        error = com.aura.providers.ProviderError(
+                            code = "http_error",
+                            message = "HTTP 429",
+                            retryable = true,
+                            retryAfterMs = 10L,
+                        ),
+                    ),
+                )
+            } else {
+                flowOf(
+                    BrainChunk.Text("answer after backoff"),
+                    BrainChunk.Finished(FinishReason.stop.name),
+                )
+            }
+        }
+
+        val events = mutableListOf<AgentEvent>()
+        loopWith(brain, catalogWithBackup())
+            .run(Conversation().addUser("hello there"), model = "primary:model-a", maxSteps = 1)
+            .collect { events += it }
+
+        assertEquals(listOf("primary:model-a", "primary:model-a"), modelsCalled)
+        val text = events.filterIsInstance<AgentEvent.TextDelta>().joinToString("") { it.text }
+        assertTrue(text.contains("after backoff"), "same-model retry must produce the answer; got '$text'")
+        assertTrue(
+            events.filterIsInstance<AgentEvent.Warning>().isEmpty(),
+            "same-model retry is not a provider switch — no Warning expected",
+        )
+    }
+
+    @Test
+    fun `429 with Retry-After falls over normally when the retry also fails`() = runBlocking {
+        // One honored backoff, then the regular failover path.
+        val brain = mockk<Brain>(relaxed = true)
+        val modelsCalled = mutableListOf<String>()
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            modelsCalled += firstArg<String>()
+            flowOf(
+                BrainChunk.Error(
+                    code = "http_error",
+                    message = "HTTP 429",
+                    retryable = true,
+                    error = com.aura.providers.ProviderError(
+                        code = "http_error", message = "HTTP 429",
+                        retryable = true, retryAfterMs = 10L,
+                    ),
+                ),
+            )
+        }
+
+        loopWith(brain, catalogWithBackup())
+            .run(Conversation().addUser("hello there"), model = "primary:model-a", maxSteps = 1)
+            .collect { }
+
+        assertEquals(
+            listOf("primary:model-a", "primary:model-a", "backup:model-b"),
+            modelsCalled,
+            "one same-model backoff retry, then one failover, then stop",
+        )
+    }
+
+    @Test
+    fun `failover never targets a provider that is not configured`() = runBlocking {
+        // The catalog can carry hydrated cache entries for providers whose
+        // key has since been removed. Failing over to one guarantees a
+        // second failure and burns the single failover slot.
+        val brain = mockk<Brain>(relaxed = true)
+        var call = 0
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            call += 1
+            flowOf(BrainChunk.Error(code = "http_503", message = "unavailable", retryable = true))
+        }
+
+        val events = mutableListOf<AgentEvent>()
+        loopWith(
+            brain,
+            catalogOf(ModelDescriptor(id = "stale:model-s", name = "model-s", providerPrefix = "stale")),
+            configuredPrefixes = listOf("primary"), // "stale" has no key
+        )
+            .run(Conversation().addUser("hello there"), model = "primary:model-a", maxSteps = 5)
+            .collect { events += it }
+
+        assertEquals(1, call, "no configured alternate exists — must not fail over to an unconfigured one")
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.code == "http_503" })
+    }
+
+    @Test
+    fun `failover prefers a configured model of the same family`() = runBlocking {
+        // "primary:llama-3.3-70b" fails; the catalog offers a mistral and a
+        // llama on other configured providers. The llama must win even
+        // though the mistral comes first in catalog order.
+        val brain = mockk<Brain>(relaxed = true)
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            flowOf(BrainChunk.Error(code = "http_503", message = "unavailable", retryable = true))
+        }
+
+        val loop = loopWith(
+            brain,
+            catalogOf(
+                ModelDescriptor(id = "other:mistral-large", name = "mistral-large", providerPrefix = "other"),
+                ModelDescriptor(id = "backup:llama-3.1-8b", name = "llama-3.1-8b", providerPrefix = "backup"),
+            ),
+            configuredPrefixes = listOf("primary", "other", "backup"),
+        )
+
+        assertEquals(
+            "backup:llama-3.1-8b",
+            loop.selectFailoverModel("primary:llama-3.3-70b", setOf("primary:llama-3.3-70b")),
+        )
+        // No same-family candidate → first eligible in catalog order.
+        assertEquals(
+            "other:mistral-large",
+            loop.selectFailoverModel("primary:gpt-4o", setOf("primary:gpt-4o")),
+        )
     }
 }

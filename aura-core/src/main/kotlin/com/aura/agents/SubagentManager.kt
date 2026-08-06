@@ -53,13 +53,17 @@ class SubagentManager @Inject constructor() {
             _progress.emit(SubagentProgress.Completed(task.id, false, timeout))
             result
         } catch (e: kotlinx.coroutines.CancellationException) {
-            val result = SubagentResult(
-                taskId = task.id,
-                success = false,
-                error = "Subagent cancelled",
-            )
-            _progress.emit(SubagentProgress.Cancelled(task.id))
-            result
+            // Parent cancellation must propagate. Converting it into a
+            // "failed" result broke structured concurrency: a cancelled
+            // parent kept collecting fabricated results from children
+            // that were supposed to be dead, and the coroutine machinery
+            // never saw the cancellation complete. (The subagent's own
+            // budget timeout is TimeoutCancellationException, handled
+            // above — that one IS a result.) tryEmit because emit() is a
+            // suspend call and would immediately rethrow in a cancelled
+            // coroutine.
+            _progress.tryEmit(SubagentProgress.Cancelled(task.id))
+            throw e
         }
     }
 

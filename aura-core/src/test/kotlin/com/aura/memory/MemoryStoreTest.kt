@@ -366,6 +366,87 @@ class MemoryStoreTest {
     }
 
     @Test
+    fun `maybeStore semantic dedup scan is bounded to recent embedded rows`() = runTest {
+        // Regression: the dedup scan used to call allWithEmbeddings() —
+        // a full-table load + embedding decode under the insert mutex on
+        // EVERY auto-store. It must now use the bounded
+        // recentWithEmbeddings(SEMANTIC_DEDUP_SCAN_LIMIT) query.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
+        coEvery { dao.existsByContent(any()) } returns 0
+        coEvery { dao.recentWithEmbeddings(any()) } returns emptyList()
+
+        store.maybeStore("I prefer tabs over spaces", "user")
+
+        coVerify(exactly = 1) { dao.recentWithEmbeddings(MemoryStore.SEMANTIC_DEDUP_SCAN_LIMIT) }
+        coVerify(exactly = 0) { dao.allWithEmbeddings() }
+    }
+
+    @Test
+    fun `maybeStore with explicit category and importance skips the heuristic gate`() = runTest {
+        // The agentic loop's LLM write gate already decided store=yes with
+        // its own category/importance. maybeStore must not re-run the
+        // heuristic (which would reject short content the LLM accepted) —
+        // it only dedups and stores with the given classification.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        val captured = slot<MemoryEntity>()
+        coEvery { dao.insert(capture(captured)) } answers { }
+        coEvery { dao.existsByContent(any()) } returns 0
+        coEvery { dao.recentWithEmbeddings(any()) } returns emptyList()
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
+
+        // "ok!" is < 4 chars — the heuristic WriteGate would reject it.
+        val id = store.maybeStore(
+            content = "ok!",
+            source = "user",
+            category = "preference",
+            importance = 0.9f,
+        )
+
+        assertNotNull(id, "explicit category/importance must bypass the heuristic gate")
+        assertEquals("preference", captured.captured.category)
+        assertEquals(0.9f, captured.captured.importance)
+    }
+
+    @Test
+    fun `maybeStore with explicit classification still deduplicates`() = runTest {
+        val dao = mockk<MemoryDao>(relaxed = true)
+        coEvery { dao.existsByContent("I prefer dark mode") } returns 1
+        val store = MemoryStore(
+            dao,
+            FakeEmbedder(384),
+            VectorIndex(384),
+            WriteGate(),
+            memoryEditDao,
+            memoryFeedbackDao
+        )
+
+        val id = store.maybeStore(
+            content = "I prefer dark mode",
+            source = "user",
+            category = "preference",
+            importance = 0.8f,
+        )
+
+        assertNull(id)
+        coVerify(exactly = 0) { dao.insert(any()) }
+    }
+
+    @Test
     fun `store persists exact conversation and turn provenance`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val captured = slot<MemoryEntity>()

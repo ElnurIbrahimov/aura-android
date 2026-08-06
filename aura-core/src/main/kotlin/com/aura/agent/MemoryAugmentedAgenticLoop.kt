@@ -12,6 +12,7 @@ import com.aura.providers.ProviderMessage.Role
 import com.aura.providers.ModelCatalogRepository
 import com.aura.providers.ToolDefinition
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -38,6 +39,13 @@ private const val MAX_TOOL_RESULT_CHARS = 4_000
 
 private const val TOOL_RESULT_TRUNCATION_MARKER =
     "\n\n[...truncated, ask the assistant to retrieve the full result if needed]"
+
+/**
+ * Upper bound on how long the loop honors a 429 Retry-After before
+ * retrying the same model. Servers occasionally send absurd values
+ * (minutes); the user is waiting on a chat, so cap the pause.
+ */
+private const val MAX_RETRY_AFTER_WAIT_MS = 10_000L
 
 /**
  * Truncate a tool result string to fit the conversation-history budget.
@@ -86,6 +94,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val responseCache: ResponseCache? = null,
     private val reasoningTree: ReasoningTree? = null,
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -735,6 +744,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // without consuming another maxSteps slot.
             var currentModel = effectiveModel
             val triedModels = mutableSetOf<String>()
+            var retriedAfterBackoff = false
 
             stream@ while (true) {
                 triedModels.add(currentModel)
@@ -776,20 +786,27 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             is BrainChunk.Finished -> { finishReason = chunk.reason }
                             is BrainChunk.Error -> {
                                 stepError = "${chunk.code}: ${chunk.message}"
+                                val retryAfterMs = chunk.error?.retryAfterMs
+                                if (chunk.retryable && retryAfterMs != null && !retriedAfterBackoff) {
+                                    // The server told us exactly how long to
+                                    // wait (429 Retry-After). Honor it (capped)
+                                    // and retry the SAME model once before
+                                    // falling over — a rate limit is transient
+                                    // and the user's chosen model is still the
+                                    // best model to answer with.
+                                    retriedAfterBackoff = true
+                                    kotlinx.coroutines.delay(minOf(retryAfterMs, MAX_RETRY_AFTER_WAIT_MS))
+                                    emit(AgentEvent.ResetText)
+                                    throw kotlinx.coroutines.CancellationException("failover")
+                                }
                                 if (chunk.retryable && triedModels.size < 2) {
                                     // Failover: pick a model from a DIFFERENT provider
                                     // (not just a different prefix — we want a different
                                     // provider entirely to avoid trying two models from
-                                    // the same provider that might share the same failure mode)
-                                    val triedPrefixes = triedModels.mapTo(mutableSetOf()) {
-                                        it.substringBefore(":")
-                                    }
-                                    val nextModel = modelCatalogRepository
-                                        ?.catalog
-                                        ?.value
-                                        ?.allModels
-                                        ?.firstOrNull { it.providerPrefix !in triedPrefixes && it.id !in triedModels }
-                                        ?.id
+                                    // the same provider that might share the same failure
+                                    // mode), preferring a configured provider that carries
+                                    // a model of the same family as the one that failed.
+                                    val nextModel = selectFailoverModel(currentModel, triedModels)
                                     if (nextModel != null) {
                                         val failedModel = currentModel
                                         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.PROVIDER_FAILOVER, stepId = "step_$step", redactedPayload = "$failedModel→$nextModel")
@@ -1003,13 +1020,20 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         //    call fails, the heuristic decision is used as fallback.
         if (memoryEnabled && lastUserMessage.isNotBlank()) {
             runCatching {
-                // Use the user's default model for the gate. If the default
-                // is MoA (expensive — 3 API calls for a yes/no), fall back to
+                // Model for the gate call: prefer the user's configured
+                // background/cheap model (Settings → "Background tasks") —
+                // a yes/no classification never needs the main model.
+                // Fallback: the user's default model, unless that is MoA
+                // (expensive — 3 API calls for a yes/no), in which case use
                 // the first configured non-MoA provider's first model.
                 // The heuristic gate is the pre-filter; the LLM gate only
                 // runs when the heuristic says "store", so this is one
                 // lightweight call per memorable turn — not per message.
-                val gateModel = if (model.startsWith("moa:")) {
+                val backgroundModel = runCatching { userPreferences?.backgroundModel?.first() }
+                    .getOrNull()
+                val gateModel = if (!backgroundModel.isNullOrBlank()) {
+                    backgroundModel
+                } else if (model.startsWith("moa:")) {
                     modelCatalogRepository
                         ?.catalog
                         ?.value
@@ -1028,13 +1052,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val decision = gate.evaluate(lastUserMessage, "user")
                 if (decision.shouldStore) {
                     val storeScope = if (agentId != null) "agent:$agentId" else "general"
-                    memoryStore.store(
+                    // Route through maybeStore so the auto-store path gets
+                    // exact-content + semantic dedup. The gate decision's
+                    // category/importance are passed through, so maybeStore
+                    // skips its own heuristic gate and only dedups.
+                    memoryStore.maybeStore(
                         content = lastUserMessage,
                         source = "user",
+                        scope = storeScope,
+                        provenance = provenance,
                         category = decision.category,
                         importance = decision.importance,
-                        provenance = provenance,
-                        scope = storeScope,
                     )
                 }
             }.onFailure { android.util.Log.w("AgenticLoop", "memory auto-store failed: ${it.message}", it) }
@@ -1210,6 +1238,48 @@ private suspend fun extractProfileFromText(text: String) {
         }.onFailure {
             android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}", it)
         }.getOrDefault(userModel)
+    }
+
+    /**
+     * Pick the failover target after [failedModel] returned a retryable
+     * error. Only models whose provider is actually CONFIGURED are
+     * eligible — the catalog can carry hydrated cache entries for a
+     * provider whose key has since been removed, and failing over to one
+     * of those guarantees a second failure. Among eligible models on
+     * untried providers, prefer one sharing the failed model's family
+     * (e.g. "groq:llama-3.3-70b" → "openrouter:llama-3.1-8b") so the
+     * conversation continues on a similar model; otherwise take the first
+     * eligible model in catalog order.
+     */
+    internal fun selectFailoverModel(
+        failedModel: String,
+        triedModels: Set<String>,
+    ): String? {
+        val catalog = modelCatalogRepository?.catalog?.value ?: return null
+        val configuredPrefixes = runCatching {
+            providerRegistry.configured().map { it.prefix }.toSet()
+        }.getOrDefault(emptySet())
+        val triedPrefixes = triedModels.mapTo(mutableSetOf()) { it.substringBefore(":") }
+        val eligible = catalog.allModels.filter {
+            it.providerPrefix !in triedPrefixes &&
+                it.id !in triedModels &&
+                it.providerPrefix in configuredPrefixes
+        }
+        if (eligible.isEmpty()) return null
+        val family = modelFamily(failedModel)
+        val sameFamily = family?.let { f -> eligible.firstOrNull { modelFamily(it.id) == f } }
+        return (sameFamily ?: eligible.first()).id
+    }
+
+    /**
+     * The "family" of a model id — the first alphabetic token of the
+     * model name after the provider prefix ("groq:llama-3.3-70b" →
+     * "llama", "openai:gpt-4o" → "gpt"). Used to keep failover on a
+     * similar model when one is available from another provider.
+     */
+    private fun modelFamily(modelId: kotlin.String): kotlin.String? {
+        val name = modelId.substringAfter(":", modelId).lowercase()
+        return Regex("[a-z]{2,}").find(name)?.value
     }
 
     /**

@@ -43,7 +43,9 @@ class AgentIncognitoTest {
         coEvery { conversationCompactor.compactIfNeeded(any(), any()) } answers { firstArg() }
     }
 
-    private fun makeLoop(): MemoryAugmentedAgenticLoop =
+    private fun makeLoop(
+        userPreferences: com.aura.data.UserPreferences? = null,
+    ): MemoryAugmentedAgenticLoop =
         MemoryAugmentedAgenticLoop(
             brain = brain,
             toolRegistry = toolRegistry,
@@ -54,6 +56,7 @@ class AgentIncognitoTest {
             handRepository = handRepository,
             providerRegistry = providerRegistry,
             conversationCompactor = conversationCompactor,
+            userPreferences = userPreferences,
         )
 
     @Test
@@ -81,8 +84,20 @@ class AgentIncognitoTest {
         coVerify { brain.stream(any(), any(), any(), any()) }
         // The LLM gate falls back to heuristic (providerRegistry is a
         // relaxed mock returning empty flow), which says shouldStore=true
-        // for content >= 4 chars. So store() should be called.
+        // for content >= 4 chars. The auto-store routes through
+        // maybeStore() (dedup path) with the gate's category/importance,
+        // never through raw store().
         coVerify {
+            memoryStore.maybeStore(
+                content = any<String>(),
+                source = any<String>(),
+                scope = any<String>(),
+                provenance = any<com.aura.provenance.ConversationProvenance>(),
+                category = any<String>(),
+                importance = any<Float>(),
+            )
+        }
+        coVerify(exactly = 0) {
             memoryStore.store(
                 any<String>(), any<String>(), any<String>(), any<Float>(), any<List<String>>(),
                 any<String>(), any<com.aura.provenance.ConversationProvenance>(),
@@ -94,6 +109,36 @@ class AgentIncognitoTest {
                 match { it.contains("USER:\nhi there") && it.contains("ASSISTANT:\nhello back") },
                 match { it.conversationId == "c1" },
             )
+        }
+    }
+
+    @Test
+    fun `write gate uses the configured background model when set`() = runTest {
+        // The gate call is a yes/no classification — when the user
+        // configured a background/cheap model, that model (not the main
+        // chat model) must serve the LlmWriteGate call.
+        coEvery { brain.stream(any(), any(), any(), any()) } returns flow {
+            emit(BrainChunk.Text("hello back"))
+            emit(BrainChunk.Finished("stop"))
+        }
+        coEvery { memoryStore.query(any(), any()) } returns emptyList()
+        coEvery { kgExtractor.extract(any(), any()) } returns Unit
+        coEvery { handRepository.getEnabled() } returns emptyList()
+        val prefs = mockk<com.aura.data.UserPreferences> {
+            every { backgroundModel } returns kotlinx.coroutines.flow.flowOf("cheap:gate-model")
+        }
+
+        val loop = makeLoop(userPreferences = prefs)
+        loop.run(
+            conversation = Conversation(
+                id = "c1", title = "t", createdAt = 0L, updatedAt = 0L,
+                turns = listOf(Turn(user = "I prefer dark mode everywhere", assistant = null)),
+            ),
+            model = "openai:gpt-4o",
+        ).toList()
+
+        coVerify {
+            providerRegistry.chat("cheap:gate-model", any(), any(), any())
         }
     }
 
@@ -122,6 +167,16 @@ class AgentIncognitoTest {
             memoryStore.store(
                 any<String>(), any<String>(), any<String>(), any<Float>(), any<List<String>>(),
                 any<String>(), any<com.aura.provenance.ConversationProvenance>(),
+            )
+        }
+        coVerify(exactly = 0) {
+            memoryStore.maybeStore(
+                content = any<String>(),
+                source = any<String>(),
+                scope = any<String>(),
+                provenance = any<com.aura.provenance.ConversationProvenance>(),
+                category = any<String>(),
+                importance = any<Float>(),
             )
         }
         coVerify(exactly = 0) { userProfileStore.update(name = any(), traits = any(), preferences = any(), facts = any()) }

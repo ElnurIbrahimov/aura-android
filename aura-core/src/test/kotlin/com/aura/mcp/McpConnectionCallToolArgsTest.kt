@@ -49,23 +49,34 @@ class McpConnectionCallToolArgsTest {
         return McpConnection(config, OkHttpClient())
     }
 
+    /**
+     * JSON-RPC responses must echo the request's id (the connection now
+     * rejects mismatched ids), and request ids are random UUIDs — so the
+     * mock parses each request body and echoes its id back.
+     */
     private fun mockToolResponse() {
-        server.enqueue(
-            MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody(
-                    """
-                    {
-                      "jsonrpc": "2.0",
-                      "id": "1",
-                      "result": {
-                        "content": [{"type": "text", "text": "ok"}],
-                        "isError": false
-                      }
-                    }
-                    """.trimIndent()
-                )
-        )
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                val body = request.body.clone().readUtf8()
+                val id = runCatching {
+                    Json.parseToJsonElement(body).jsonObject["id"]!!.jsonPrimitive.content
+                }.getOrDefault("1")
+                return MockResponse()
+                    .setHeader("Content-Type", "application/json")
+                    .setBody(
+                        """
+                        {
+                          "jsonrpc": "2.0",
+                          "id": "$id",
+                          "result": {
+                            "content": [{"type": "text", "text": "ok"}],
+                            "isError": false
+                          }
+                        }
+                        """.trimIndent()
+                    )
+            }
+        }
     }
 
     @Test

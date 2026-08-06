@@ -244,9 +244,13 @@ class CustomOpenAiCompatProvider(
                 if (finished) channel.close()
             }
             override fun onFailure(eventSource: okhttp3.sse.EventSource, t: Throwable?, response: okhttp3.Response?) {
+                // Same classification as OpenAiCompatProvider: 400/401/403/
+                // 404/422 are permanent client errors; 429/5xx/network are
+                // retryable, and a 429 carries the server's Retry-After.
                 val code = response?.code ?: 0
-                val retryable = code != 401 && code != 400 && code != 403
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
+                val retryable = code !in OpenAiCompatProvider.NON_RETRYABLE_STATUS_CODES
+                val retryAfterMs = if (code == 429) OpenAiCompatProvider.parseRetryAfterMs(response) else null
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: okhttp3.sse.EventSource) { channel.close() }

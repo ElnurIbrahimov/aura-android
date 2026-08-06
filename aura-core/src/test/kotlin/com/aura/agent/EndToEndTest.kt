@@ -185,12 +185,17 @@ class EndToEndTest {
         val conv = Conversation().addUser("my name is Elnur")
         loop.run(conv, model = "test:model", maxSteps = 2).collect { /* discard */ }
 
-        // The LLM write gate should have called store (via the LLM decision)
-        // for the user message containing "Elnur".
+        // The LLM write gate should have routed the store through
+        // maybeStore (dedup path) for the user message containing "Elnur",
+        // passing its category/importance decision through.
         io.mockk.coVerify {
-            memoryStore.store(
-                match { it.contains("Elnur") }, any<String>(), any<String>(), any<Float>(), any<List<String>>(), any<String>(),
+            memoryStore.maybeStore(
+                content = match { it.contains("Elnur") },
+                source = any<kotlin.String>(),
+                scope = any<kotlin.String>(),
                 provenance = match<com.aura.provenance.ConversationProvenance> { it.conversationId == conv.id },
+                category = any<kotlin.String>(),
+                importance = any<Float>(),
             )
         }
     }

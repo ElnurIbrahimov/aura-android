@@ -30,6 +30,13 @@ data class ProviderError(
     val message: String,
     val retryable: Boolean = false,
     val cause: String? = null,
+    /**
+     * Server-requested backoff in milliseconds, parsed from a 429
+     * response's `Retry-After` header. Null when the server sent none.
+     * The agentic loop waits (capped) and retries the SAME model once
+     * before failing over to another provider.
+     */
+    val retryAfterMs: Long? = null,
 ) {
     fun toAuraError(providerId: String? = null): com.aura.core.error.AuraError =
         code.toAuraError(message, retryable, providerId)

@@ -53,13 +53,25 @@ class SubagentManagerTest {
     }
 
     @Test
-    fun spawn_returns_failure_on_cancellation() = runTest {
+    fun spawn_rethrows_cancellation_instead_of_converting_it_to_a_result() = runTest {
+        // Regression: spawn used to swallow CancellationException and
+        // return a fabricated "Subagent cancelled" result — a cancelled
+        // parent kept collecting results from children that were supposed
+        // to be dead, breaking structured concurrency. Cancellation must
+        // propagate. (The subagent's own budget timeout is a different
+        // exception and still becomes a result — see
+        // spawn_returns_failure_on_timeout.)
         val task = makeTask()
-        val result = manager.spawn(task) { _ ->
-            throw kotlinx.coroutines.CancellationException("Parent cancelled")
+        var thrown: Throwable? = null
+        try {
+            manager.spawn(task) { _ ->
+                throw kotlinx.coroutines.CancellationException("Parent cancelled")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            thrown = e
         }
-        assertFalse(result.success)
-        assertTrue(result.error.contains("cancelled"))
+        assertTrue("CancellationException must propagate out of spawn", thrown != null)
+        assertEquals("Parent cancelled", thrown!!.message)
     }
 
     @Test

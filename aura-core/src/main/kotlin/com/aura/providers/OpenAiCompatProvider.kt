@@ -86,11 +86,14 @@ open class OpenAiCompatProvider(
                 if (finished) channel.close()
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
-                // 401/400/403 are not retryable — retrying with the same
-                // key won't help. 429 and 5xx are retryable.
+                // 400/401/403/404/422 are not retryable — a bad request,
+                // bad key, forbidden, unknown model/endpoint, or invalid
+                // payload won't fix itself on retry. 429 and 5xx (and
+                // pure network failures, code 0) are retryable.
                 val code = response?.code ?: 0
-                val retryable = code != 401 && code != 400 && code != 403
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
+                val retryable = code !in NON_RETRYABLE_STATUS_CODES
+                val retryAfterMs = if (code == 429) parseRetryAfterMs(response) else null
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
@@ -271,6 +274,17 @@ open class OpenAiCompatProvider(
         // 5 minutes: long enough for a slow model + max_tokens worth of tokens,
         // short enough that a misbehaving server doesn't hang the agent loop.
         const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
+
+        /** HTTP statuses that won't fix themselves on retry/failover. */
+        internal val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 422)
+
+        /**
+         * Parse a `Retry-After` header (delta-seconds form) into
+         * milliseconds. HTTP-date form is ignored — no provider in the
+         * catalog uses it and parsing dates buys nothing here.
+         */
+        internal fun parseRetryAfterMs(response: okhttp3.Response?): Long? =
+            response?.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it >= 0 }?.times(1_000L)
     }
 
 }

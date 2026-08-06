@@ -200,14 +200,24 @@ interface MemoryDao {
     suspend fun existsByContent(content: String): Int
 
     /**
-     * All memories that have a non-null embedding. Used by the semantic
-     * dedup check in [MemoryStore.maybeStore] — after computing the new
-     * content's embedding, we scan existing embeddings for cosine
-     * similarity > threshold to catch "I like dark mode" vs "I prefer
-     * dark mode" which exact-match would miss.
+     * All memories that have a non-null embedding. Used by
+     * [MemoryDaoContractTest]; production dedup uses the bounded
+     * [recentWithEmbeddings] instead.
      */
     @Query("SELECT * FROM memories WHERE embedding IS NOT NULL ORDER BY createdAt DESC")
     suspend fun allWithEmbeddings(): List<MemoryEntity>
+
+    /**
+     * The most recent [limit] memories with a non-null embedding. Used by
+     * the semantic dedup check in [MemoryStore.maybeStore] — after
+     * computing the new content's embedding, we scan recent embeddings for
+     * cosine similarity > threshold to catch "I like dark mode" vs
+     * "I prefer dark mode" which exact-match would miss. Bounded because
+     * the previous full-table scan decoded every embedding in the DB under
+     * the insert mutex on every auto-store.
+     */
+    @Query("SELECT * FROM memories WHERE embedding IS NOT NULL ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recentWithEmbeddings(limit: Int): List<MemoryEntity>
 
     /**
      * Update the category of all memories currently in [oldCategory].

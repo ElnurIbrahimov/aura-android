@@ -109,31 +109,41 @@ class CloudEmbedder @Inject constructor(
         return if (parts.size == 2 && parts[0] == "ollama") parts[1] else selected
     }
 
-    /** In-memory LRU cache: SHA-256(hex) → FloatArray. */
+    /**
+     * In-memory LRU cache: "modelId:SHA-256(hex)" → FloatArray. The key
+     * includes the model id so switching the embedding model in Settings
+     * never serves a stale vector from the previous model (same text,
+     * different model → different dimension AND different space).
+     */
     private val cache = object : LinkedHashMap<String, FloatArray>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>): Boolean =
             size > MAX_CACHE_ENTRIES
     }
 
     override suspend fun embed(text: String): FloatArray = withContext(Dispatchers.IO) {
-        val cacheKey = sha256Hex(text)
-
-        // 1. Check cache
-        synchronized(cache) {
-            cache[cacheKey]?.let { return@withContext it }
-        }
-
-        // 2. Try cloud only for a selected Ollama catalog model.
+        // 1. Resolve the configured cloud model (if any) so the cache key
+        //    can be scoped to it.
         val apiKey = providerKeys.keyFor("ollama")
         val selected = providerKeys.embeddingModel
         val parts = selected.split(":", limit = 2)
         val model = parts.getOrNull(1)?.takeIf {
             parts.firstOrNull() == "ollama" && it.isNotBlank()
         }
-        if (!apiKey.isNullOrBlank() && model != null) {
+        val cloudConfigured = !apiKey.isNullOrBlank() && model != null
+        val cloudCacheKey = "$selected:${sha256Hex(text)}"
+        val localCacheKey = "$LOCAL_MODEL_ID:${sha256Hex(text)}"
+        val cacheKey = if (cloudConfigured) cloudCacheKey else localCacheKey
+
+        // 2. Check cache under the model-scoped key.
+        synchronized(cache) {
+            cache[cacheKey]?.let { return@withContext it }
+        }
+
+        // 3. Try cloud only for a selected Ollama catalog model.
+        if (cloudConfigured) {
             try {
-                val vec = cloudEmbed(text, apiKey, model)
-                synchronized(cache) { cache[cacheKey] = vec }
+                val vec = cloudEmbed(text, apiKey!!, model!!)
+                synchronized(cache) { cache[cloudCacheKey] = vec }
                 return@withContext vec
             } catch (e: Exception) {
                 // P1 MEMORY B3: pre-fix, every cloud embed
@@ -150,11 +160,17 @@ class CloudEmbedder @Inject constructor(
                 // (see logcat for cause), falling back to local".
                 Log.w("CloudEmbedder", "cloud embed failed for model=$model, falling back to local", e)
             }
+            // Transient cloud failure: return the local-hash vector for
+            // this call but DO NOT cache it — a cached fallback would
+            // permanently masquerade as a cloud vector for this text and
+            // keep degrading recall long after the outage ends.
+            return@withContext localEmbedder.embed(text)
         }
 
-        // 3. Fallback to local
+        // 4. No cloud model configured — the local embedder IS the
+        //    configured embedder; caching under its own model key is safe.
         val vec = localEmbedder.embed(text)
-        synchronized(cache) { cache[cacheKey] = vec }
+        synchronized(cache) { cache[localCacheKey] = vec }
         vec
     }
 
@@ -214,5 +230,7 @@ class CloudEmbedder @Inject constructor(
     companion object {
         private const val EMBEDDINGS_URL = "https://api.ollama.com/api/embeddings"
         private const val MAX_CACHE_ENTRIES = 1000
+        /** Cache-key namespace for vectors produced by [LocalEmbedder]. */
+        private const val LOCAL_MODEL_ID = "local-hash-v2"
     }
 }

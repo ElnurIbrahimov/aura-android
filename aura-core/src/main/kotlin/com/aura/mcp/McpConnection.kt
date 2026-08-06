@@ -66,16 +66,33 @@ internal class McpConnection(
             val response = withTimeoutOrNull(INIT_TIMEOUT_MS) {
                 sendRequest(request)
             }
-            if (response != null) {
+            val error = response?.get("error")
+            if (response != null && (error == null || error is kotlinx.serialization.json.JsonNull)) {
                 _health = _health.copy(
                     state = McpConnectionState.CONNECTED,
                     lastConnectedAt = System.currentTimeMillis(),
                     lastError = "",
                 )
+                // Streamable HTTP handshake: after a successful initialize
+                // the client MUST send notifications/initialized before any
+                // other request. Best-effort — some servers don't require
+                // it, but spec-compliant ones reject tools/list without it.
+                sendNotification("notifications/initialized")
+            } else if (response != null) {
+                // JSON-RPC error member set: the server REFUSED the
+                // initialize (e.g. unsupported protocol version). That is
+                // not a connection.
+                val message = error?.let { err ->
+                    (err as? JsonObject)?.get("message")?.jsonPrimitive?.content ?: err.toString()
+                } ?: "unknown error"
+                _health = _health.copy(
+                    state = McpConnectionState.ERROR,
+                    lastError = "Initialize rejected: $message",
+                )
             } else {
                 _health = _health.copy(
                     state = McpConnectionState.ERROR,
-                    lastError = "Initialize timed out after ${INIT_TIMEOUT_MS / 1000}s",
+                    lastError = "Initialize timed out or returned no valid response",
                 )
             }
         } catch (e: Exception) {
@@ -182,22 +199,63 @@ internal class McpConnection(
         put("params", params)
     }
 
-    private fun sendRequest(
-        requestBody: JsonObject,
-        maxResponseBytes: Int = MAX_META_RESPONSE_BYTES,
-    ): JsonObject? {
-        val body = requestBody.toString().toRequestBody(mediaTypeJson)
-        val builder = Request.Builder().url(config.url).post(body)
+    /**
+     * MCP Streamable HTTP session id, captured from the initialize
+     * response's `Mcp-Session-Id` header and echoed on every subsequent
+     * request. Servers that assign one reject session-less follow-ups
+     * with 400/404.
+     */
+    @Volatile
+    private var sessionId: kotlin.String? = null
+
+    /** Visible for tests. */
+    internal fun currentSessionId(): kotlin.String? = sessionId
+
+    private fun buildHttpRequest(bodyJson: kotlin.String): Request {
+        val builder = Request.Builder().url(config.url)
+            .post(bodyJson.toRequestBody(mediaTypeJson))
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream")
         // Attach auth token if provided by McpClientManager (from SecureDataStore)
         if (!authToken.isNullOrBlank()) {
             builder.header("Authorization", "Bearer $authToken")
         }
+        sessionId?.let { builder.header("Mcp-Session-Id", it) }
+        return builder.build()
+    }
 
+    /**
+     * Fire-and-forget JSON-RPC notification (no id, no response
+     * expected). Failures are logged and swallowed — a server that
+     * doesn't accept notifications/initialized still served a valid
+     * initialize.
+     */
+    private fun sendNotification(method: kotlin.String) {
+        val body = buildJsonObject {
+            put("jsonrpc", "2.0")
+            put("method", method)
+        }
+        try {
+            httpClient.newCall(buildHttpRequest(body.toString())).execute().use { response ->
+                if (!response.isSuccessful) {
+                    android.util.Log.w("McpConnection", "$method returned HTTP ${response.code} for ${config.name}")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("McpConnection", "$method failed for ${config.name}: ${e.message}")
+        }
+    }
+
+    private fun sendRequest(
+        requestBody: JsonObject,
+        maxResponseBytes: Int = MAX_META_RESPONSE_BYTES,
+    ): JsonObject? {
+        val requestId = requestBody["id"]?.jsonPrimitive?.content
         return try {
-            httpClient.newCall(builder.build()).execute().use { response ->
+            httpClient.newCall(buildHttpRequest(requestBody.toString())).execute().use { response ->
                 if (!response.isSuccessful) return null
+                // Capture the server-assigned session id (Streamable HTTP).
+                response.header("Mcp-Session-Id")?.takeIf { it.isNotBlank() }?.let { sessionId = it }
                 // Enforce max response size on metadata calls (initialize/listTools)
                 // to prevent OOM from a malicious server returning huge JSON.
                 // Read as bytes first (not string) so the size check is by
@@ -209,12 +267,59 @@ internal class McpConnection(
                     return null
                 }
                 val raw = bytes.toString(Charsets.UTF_8)
-                json.parseToJsonElement(raw) as? JsonObject
+                val contentType = response.header("Content-Type").orEmpty()
+                val message = if (contentType.startsWith("text/event-stream")) {
+                    // Streamable HTTP servers may frame the JSON-RPC
+                    // response as SSE. Extract the message for our request
+                    // id instead of failing to parse the whole body.
+                    parseSseJsonRpc(raw, requestId)
+                } else {
+                    json.parseToJsonElement(raw) as? JsonObject
+                } ?: return null
+                // JSON-RPC responses MUST echo the request id; a mismatch
+                // means this is a response to something else (or a bogus
+                // server) and treating it as ours corrupts state.
+                val responseId = message["id"]?.jsonPrimitive?.content
+                if (requestId != null && responseId != requestId) {
+                    android.util.Log.w(
+                        "McpConnection",
+                        "JSON-RPC id mismatch from ${config.name}: sent $requestId, got $responseId",
+                    )
+                    return null
+                }
+                message
             }
         } catch (e: Exception) {
             android.util.Log.w("McpConnection", "sendRequest failed for ${config.name}: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Parse an SSE-framed body into the JSON-RPC message matching
+     * [requestId]. Events are separated by blank lines; each event's
+     * `data:` lines are joined per the SSE spec. Server-initiated
+     * notifications (no id) and unrelated ids are skipped — the caller
+     * treats "no matching message" as an error, mirroring the id check
+     * on plain-JSON responses.
+     */
+    internal fun parseSseJsonRpc(raw: kotlin.String, requestId: kotlin.String?): JsonObject? {
+        val events = raw.split("\n\n", "\r\n\r\n")
+        for (event in events) {
+            val data = event.lines()
+                .filter { it.startsWith("data:") }
+                .joinToString("\n") { it.removePrefix("data:").trim() }
+            if (data.isBlank()) continue
+            val obj = runCatching { json.parseToJsonElement(data) as? JsonObject }.getOrNull() ?: continue
+            if (obj["jsonrpc"] == null) continue
+            val id = obj["id"]?.jsonPrimitive?.content
+            if (requestId == null) {
+                if (obj["result"] != null || obj["error"] != null) return obj
+            } else if (id == requestId) {
+                return obj
+            }
+        }
+        return null
     }
 
     /**

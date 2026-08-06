@@ -143,12 +143,54 @@ class NonRetryableStatusCodesTest {
         assertEquals(false, errorFor(anthropic()).retryable)
     }
 
+    @Test
+    fun `404 is not retryable for OpenAI-compatible providers`() {
+        // 404 = unknown model or wrong endpoint path. Retrying the same
+        // request against another provider with the same model id fails
+        // identically — pre-fix this was classified retryable and burned
+        // the failover slot.
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"model not found"}"""))
+        assertEquals(false, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `422 is not retryable for OpenAI-compatible providers`() {
+        // 422 = the request payload is invalid. It won't become valid by
+        // resending it.
+        server.enqueue(MockResponse().setResponseCode(422).setBody("""{"error":"unprocessable"}"""))
+        assertEquals(false, errorFor(openAiCompat()).retryable)
+    }
+
+    // (CustomOpenAiCompatProvider shares OpenAiCompatProvider's
+    // NON_RETRYABLE_STATUS_CODES + parseRetryAfterMs, covered above; its
+    // chat path SSRF-blocks loopback so it cannot be driven against
+    // MockWebServer directly.)
+
     // ── Retryable: transient failures that failover can recover from ────
 
     @Test
     fun `429 is retryable for OpenAI-compatible providers`() {
         server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"rate limited"}"""))
         assertEquals(true, errorFor(openAiCompat()).retryable)
+    }
+
+    @Test
+    fun `429 Retry-After header is surfaced in milliseconds`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setHeader("Retry-After", "7")
+                .setBody("""{"error":"rate limited"}"""),
+        )
+        val error = errorFor(openAiCompat())
+        assertEquals(true, error.retryable)
+        assertEquals(7_000L, error.retryAfterMs)
+    }
+
+    @Test
+    fun `429 without Retry-After leaves retryAfterMs null`() {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"rate limited"}"""))
+        assertEquals(null, errorFor(openAiCompat()).retryAfterMs)
     }
 
     @Test

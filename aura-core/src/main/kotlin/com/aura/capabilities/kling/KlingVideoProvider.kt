@@ -33,6 +33,23 @@ class KlingVideoProvider @Inject constructor(
     private val apiKey: kotlin.String get() = providerKeys.keyFor(prefix).orEmpty()
     override fun isConfigured(): Boolean = apiKey.isNotBlank()
 
+    /**
+     * Kling's API authenticates with a short-lived HS256 JWT minted from
+     * an AccessKey/SecretKey pair. The stored key uses the format
+     * `accessKey:secretKey` (documented in the Settings key field); when
+     * both parts are present we mint a JWT per request. A stored value
+     * without a `:` is treated as a legacy raw token and sent as a plain
+     * Bearer credential so existing setups keep working.
+     */
+    internal fun authorizationHeader(storedKey: kotlin.String = apiKey): kotlin.String {
+        val parts = storedKey.split(":", limit = 2)
+        return if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+            "Bearer ${KlingJwt.mint(accessKey = parts[0], secretKey = parts[1])}"
+        } else {
+            "Bearer $storedKey"
+        }
+    }
+
     override suspend fun generate(req: VideoRequest): VideoResult = withContext(Dispatchers.IO) {
         val model = req.model.ifBlank { "kling-v2-5-turbo" }
         val url = "https://api.klingai.com/v1/videos/text2video"
@@ -44,7 +61,7 @@ class KlingVideoProvider @Inject constructor(
         )
         val request = okhttp3.Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
+            .header("Authorization", authorizationHeader())
             .header("Content-Type", "application/json")
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
@@ -63,7 +80,7 @@ class KlingVideoProvider @Inject constructor(
             currentCoroutineContext().ensureActive()
             val pollReq = okhttp3.Request.Builder()
                 .url("https://api.klingai.com/v1/videos/text2video/$taskId")
-                .header("Authorization", "Bearer $apiKey")
+                .header("Authorization", authorizationHeader())
                 .build()
             val pollResp = client.newCall(pollReq).execute()
             val pollRaw = pollResp.use { it.body?.string().orEmpty() }

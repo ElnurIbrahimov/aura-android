@@ -204,12 +204,13 @@ class ChatGptSubscriptionProvider(
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
                 val code = response?.code ?: 0
-                // 401/400/403 are not retryable — bad key, bad request,
-                // or forbidden won't fix themselves. 429 (rate limit) and
-                // 5xx (server error) benefit from failover to another
-                // configured provider.
+                // 401/400/403/404/422 are not retryable — bad key, bad
+                // request, or forbidden won't fix themselves. 429 (rate
+                // limit, carrying the server's Retry-After) and 5xx
+                // (server error) benefit from a delayed retry / failover.
                 val retryable = code == 429 || code in 500..599
-                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable)))
+                val retryAfterMs = if (code == 429) OpenAiCompatProvider.parseRetryAfterMs(response) else null
+                channel.trySend(ProviderChunk(error = ProviderError("http_error", t?.message ?: "HTTP $code", retryable = retryable, retryAfterMs = retryAfterMs)))
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }

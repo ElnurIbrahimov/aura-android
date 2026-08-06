@@ -103,6 +103,7 @@ class DreamConsolidator @Inject constructor(
             var skippedSmall = clusters.size - clustersAboveMin.size
             var failedLlm = 0
             var totalCharsSaved = 0
+            val writtenThisCycle = mutableListOf<DreamSummaryEntity>()
 
             for (cluster in clustersAboveMin) {
                 val clusterId = clusterIdFor(cluster)
@@ -138,7 +139,9 @@ class DreamConsolidator @Inject constructor(
                     sourceCount = cluster.size,
                     modelUsed = modelUsed,
                 )
-                dreamDao.insert(summary.toEntity())
+                val entity = summary.toEntity()
+                dreamDao.insert(entity)
+                writtenThisCycle.add(entity)
                 tagSourceMemories(cluster, clusterId)
                 summariesWritten++
                 totalCharsSaved += rawText.length - compressed.length
@@ -193,12 +196,12 @@ class DreamConsolidator @Inject constructor(
                 try { android.util.Log.w("DreamConsolidator", "pruneStale: ${t.message}") } catch (_: RuntimeException) {}
             }
 
-            // 8. CONTRADICTION_REPORT -- detect summaries that
-            //    contradict the older version of the same cluster.
-            //    Heuristic: explicit negation tokens in the new
-            //    summary referencing content from the older one.
+            // 8. CONTRADICTION_REPORT -- detect NEW summaries that
+            //    contradict an EXISTING stored summary about the same
+            //    topic. Heuristic: explicit negation tokens in the new
+            //    summary plus tag/content overlap with the older one.
             try {
-                val found = detectContradictions()
+                val found = detectContradictions(writtenThisCycle)
                 report = report.copy(contradictionsFound = found)
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
@@ -696,12 +699,18 @@ class DreamConsolidator @Inject constructor(
     // ---------------------------------------------------------------------
 
     /**
-     * Scan recently-written dream summaries for explicit-contradiction
-     * patterns. The Python implementation reads CONTRADICTS edges
-     * directly from the KG. On Android we don't have a contradiction
-     * extractor yet; this pass detects the most common user-visible
-     * case: a NEW summary that contradicts an OLDER summary of the
-     * same cluster (same clusterId, different versions).
+     * Compare each summary written THIS cycle against previously-stored
+     * summaries about similar content. The Python implementation reads
+     * CONTRADICTS edges directly from the KG; on Android this pass
+     * detects the common user-visible case heuristically.
+     *
+     * The old version required two rows sharing a clusterId — a state
+     * that can never exist: clusterId has a unique index and runCycle's
+     * skipSet refuses to re-summarize a known clusterId, so the phase
+     * never fired. New summaries are now compared against EXISTING
+     * summaries whose dominant tags overlap or whose text shares enough
+     * tokens (Jaccard >= [CONTRADICTION_SIMILARITY]) — deterministic,
+     * no extra LLM calls.
      *
      * Heuristic triggers (case-insensitive):
      *   - "no longer ..."
@@ -710,44 +719,51 @@ class DreamConsolidator @Inject constructor(
      *   - "used to ... but now ..."
      *   - "previously ... now ..."
      *
-     * The trigger phrase plus the first 100 chars of both summaries
-     * is recorded. Confidence is fixed at 0.6 (heuristic); v3 will
-     * have an LLM verifier.
+     * Confidence is fixed at 0.6 (heuristic); v3 will have an LLM
+     * verifier. Insert is IGNORE-on-conflict with a deterministic id,
+     * so re-detections don't duplicate rows.
      */
-    internal suspend fun detectContradictions(): Int {
-        val all = dreamDao.all()
-        if (all.size < 2) return 0
-        // Group by clusterId; for groups > 1, check pairs in
-        // createdAt-ascending order.
-        val byCluster = all.groupBy { it.clusterId }
+    internal suspend fun detectContradictions(newSummaries: List<DreamSummaryEntity>): Int {
+        if (newSummaries.isEmpty()) return 0
+        val newIds = newSummaries.mapTo(mutableSetOf()) { it.id }
+        val existing = dreamDao.all().filter { it.id !in newIds }
+        if (existing.isEmpty()) return 0
         var found = 0
-        for ((_, versions) in byCluster) {
-            if (versions.size < 2) continue
-            val sorted = versions.sortedBy { it.createdAt }
-            for (i in 1 until sorted.size) {
-                val older = sorted[i - 1]
-                val newer = sorted[i]
-                val trigger = detectNegationTrigger(newer.compressedText, older.compressedText)
-                if (trigger != null) {
-                    val id = "contra_${md5Short("${older.id}_${newer.id}_$trigger")}"
-                    contradictionDao.insert(
-                        ContradictionEntity(
-                            id = id,
-                            olderSummaryId = older.id,
-                            newerSummaryId = newer.id,
-                            olderText = older.compressedText,
-                            newerText = newer.compressedText,
-                            triggerPhrase = trigger,
-                            confidence = 0.6f,
-                            status = "UNRESOLVED",
-                            createdAt = System.currentTimeMillis(),
-                        ),
-                    )
-                    found++
-                }
+        for (newer in newSummaries) {
+            for (older in existing) {
+                if (!summariesLookRelated(newer, older)) continue
+                val trigger = detectNegationTrigger(newer.compressedText, older.compressedText) ?: continue
+                val id = "contra_${md5Short("${older.id}_${newer.id}_$trigger")}"
+                contradictionDao.insert(
+                    ContradictionEntity(
+                        id = id,
+                        olderSummaryId = older.id,
+                        newerSummaryId = newer.id,
+                        olderText = older.compressedText,
+                        newerText = newer.compressedText,
+                        triggerPhrase = trigger,
+                        confidence = 0.6f,
+                        status = "UNRESOLVED",
+                        createdAt = System.currentTimeMillis(),
+                    ),
+                )
+                found++
             }
         }
         return found
+    }
+
+    /**
+     * Cheap relatedness signal between two summaries: shared dominant
+     * tags when both carry tags, else token Jaccard over the compressed
+     * texts. No embeddings needed (DreamSummaryEntity stores none) and
+     * no LLM calls.
+     */
+    private fun summariesLookRelated(a: DreamSummaryEntity, b: DreamSummaryEntity): Boolean {
+        val tagsA = a.dominantTags.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val tagsB = b.dominantTags.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        if (tagsA.isNotEmpty() && tagsB.isNotEmpty() && tagsA.intersect(tagsB).isNotEmpty()) return true
+        return jaccard(tokenize(a.compressedText), tokenize(b.compressedText)) >= CONTRADICTION_SIMILARITY
     }
 
     private fun detectNegationTrigger(newer: String, older: String): String? {
@@ -941,6 +957,15 @@ class DreamConsolidator @Inject constructor(
          * element of each pair is the regex; the second is the
          * canonical label that lands in the triggerPhrase column.
          */
+        /**
+         * Minimum token Jaccard between a new and a stored summary for
+         * the pair to be considered "about the same topic" when their
+         * dominant tags don't overlap. Low on purpose: the negation
+         * trigger does the real filtering, this only prunes obviously
+         * unrelated pairs.
+         */
+        internal const val CONTRADICTION_SIMILARITY = 0.2f
+
         internal val CONTRADICTION_PATTERNS: List<Pair<Regex, String>> = listOf(
             Regex("""\bno longer\b""") to "no longer",
             Regex("""\bswitched from\b""") to "switched from",

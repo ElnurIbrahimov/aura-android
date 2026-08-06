@@ -241,6 +241,85 @@ class CloudEmbedderTest {
         verify(exactly = 2) { httpClient.newCall(any()) }
     }
 
+    @Test
+    fun `local fallback on cloud failure is NOT cached - cloud is retried next call`() = runTest {
+        // Regression: a transient cloud failure used to cache the local
+        // 384-dim hash vector under the text's cache key. Every later
+        // embed of that text then served the degraded local vector even
+        // after the outage ended.
+        val failingCall = mockk<Call> {
+            every { execute() } throws RuntimeException("temporary outage")
+        }
+        val okBody = """{"embedding":[${sampleEmbedding.joinToString(",") { it.toString() }}]}"""
+        val okCall = mockk<Call> {
+            every { execute() } returns Response.Builder()
+                .request(Request.Builder().url("https://api.ollama.com/api/embeddings").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200).message("OK")
+                .body(okBody.toResponseBody(jsonMediaType))
+                .build()
+        }
+        val httpClient = mockk<OkHttpClient> {
+            every { newCall(any()) } returnsMany listOf(failingCall, okCall)
+        }
+        val keys = providerKeys(key = "sk-test-key")
+        val local = mockk<LocalEmbedder>(relaxed = true)
+        coEvery { local.embed(any()) } returns FloatArray(384) { 9f }
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+
+        // First call: cloud fails → local fallback returned for this call.
+        val first = sut.embed("same text")
+        assertEquals(384, first.size)
+        assertEquals(9f, first[0])
+
+        // Second call: the fallback must NOT have been cached — the cloud
+        // is retried and its real vector wins.
+        val second = sut.embed("same text")
+        assertEquals(768, second.size, "cloud must be retried after a transient failure, not served from cache")
+        verify(exactly = 2) { httpClient.newCall(any()) }
+    }
+
+    @Test
+    fun `cache is keyed by model - switching the embedding model re-embeds`() = runTest {
+        val body768 = """{"embedding":[${sampleEmbedding.joinToString(",") { it.toString() }}]}"""
+        val body1024 = """{"embedding":[${FloatArray(1024) { 0.25f }.joinToString(",") { it.toString() }}]}"""
+        val call768 = mockk<Call> {
+            every { execute() } returns Response.Builder()
+                .request(Request.Builder().url("https://api.ollama.com/api/embeddings").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200).message("OK")
+                .body(body768.toResponseBody(jsonMediaType))
+                .build()
+        }
+        val call1024 = mockk<Call> {
+            every { execute() } returns Response.Builder()
+                .request(Request.Builder().url("https://api.ollama.com/api/embeddings").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200).message("OK")
+                .body(body1024.toResponseBody(jsonMediaType))
+                .build()
+        }
+        val httpClient = mockk<OkHttpClient> {
+            every { newCall(any()) } returnsMany listOf(call768, call1024)
+        }
+        val keys = mockk<ProviderKeys>(relaxed = true)
+        every { keys.keyFor("ollama") } returns "sk-test-key"
+        every { keys.embeddingModel } returns "ollama:nomic-embed-text"
+        val local = mockk<LocalEmbedder>(relaxed = true)
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        val first = sut.embed("same text")
+        assertEquals(768, first.size)
+
+        // Same text, DIFFERENT model: the cached 768-dim vector must not
+        // be served for a 1024-dim model.
+        every { keys.embeddingModel } returns "ollama:bge-large"
+        val second = sut.embed("same text")
+        assertEquals(1024, second.size, "switching models must bypass the old model's cache entry")
+        verify(exactly = 2) { httpClient.newCall(any()) }
+    }
+
     // ── dimension() regression (MEMORY_AUDIT B2) ────────────────────────
     // Before the fix, dimension() always returned 384 regardless of
     // the configured embedding model. Picking a non-384-dim cloud

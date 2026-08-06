@@ -27,14 +27,33 @@ class MemoryStore @Inject constructor(
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
     private val exactInsertMutex = Mutex()
+
+    /**
+     * Gate + dedup + store. When [category]/[importance] are provided
+     * (e.g. the agentic loop's LLM write gate already decided), the
+     * internal heuristic gate is skipped and only dedup runs — this is
+     * how the loop's auto-store gets exact-match + semantic dedup
+     * without re-litigating the store decision.
+     */
     suspend fun maybeStore(
         content: String,
         source: String = "user",
         scope: String = "general",
         provenance: ConversationProvenance = ConversationProvenance(),
+        category: String? = null,
+        importance: Float? = null,
     ): String? = exactInsertMutex.withLock {
-        val decision = writeGate.evaluate(content, source)
-        if (!decision.shouldStore) return@withLock null
+        val resolvedCategory: String
+        val resolvedImportance: Float
+        if (category != null && importance != null) {
+            resolvedCategory = category
+            resolvedImportance = importance
+        } else {
+            val decision = writeGate.evaluate(content, source)
+            if (!decision.shouldStore) return@withLock null
+            resolvedCategory = decision.category
+            resolvedImportance = decision.importance
+        }
         // Dedup: skip if an identical memory already exists. This
         // prevents "I prefer dark mode" from being stored 3 times
         // across 3 conversations, which would waste recall slots
@@ -42,14 +61,19 @@ class MemoryStore @Inject constructor(
         if (dao.existsByContent(content) > 0) return@withLock null
         val embedding = embedder.embed(content)
 
-        // Semantic dedup: scan existing memories with embeddings for
+        // Semantic dedup: scan recent memories with embeddings for
         // cosine similarity > 0.92. This catches paraphrased versions
         // of the same fact ("I like dark mode" vs "I prefer dark
         // mode") that exact-match misses. When a match is found, we
         // merge — keep the richer (longer) version and re-null its
         // embedding so the next recall re-embeds with the updated text.
-        val existing = runCatching { dao.allWithEmbeddings() }
-            .onFailure { Log.w("MemoryStore", "allWithEmbeddings failed during dedup", it) }
+        // Bounded to the most recent [SEMANTIC_DEDUP_SCAN_LIMIT] embedded
+        // rows: the previous full-table scan decoded every embedding in
+        // the DB under the mutex on every auto-store, an O(N) cost that
+        // grew with install age for a check that only needs to catch
+        // recent rephrasings.
+        val existing = runCatching { dao.recentWithEmbeddings(SEMANTIC_DEDUP_SCAN_LIMIT) }
+            .onFailure { Log.w("MemoryStore", "recentWithEmbeddings failed during dedup", it) }
             .getOrDefault(emptyList())
         if (existing.isNotEmpty()) {
             val match = existing.firstOrNull { mem ->
@@ -76,25 +100,18 @@ class MemoryStore @Inject constructor(
             }
         }
 
-        val id = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        dao.insert(
-            MemoryEntity(
-                id = id,
-                content = content,
-                source = source,
-                category = decision.category,
-                importance = decision.importance,
-                embedding = Embedder.toBytes(embedding),
-                createdAt = now,
-                accessedAt = now,
-                decayScore = 1.0f,
-                sourceConversationId = provenance.conversationId,
-                sourceTurnTimestamp = provenance.turnTimestamp,
-                scope = scope,
-            )
+        // Delegate to store() so maybeStore-inserted rows carry the same
+        // fields (embeddingModel/embeddingVersion) and fire the same
+        // evolution hooks as direct stores. The embedder call inside
+        // store() is a cache hit — embed(content) ran above.
+        store(
+            content = content,
+            source = source,
+            category = resolvedCategory,
+            importance = resolvedImportance,
+            scope = scope,
+            provenance = provenance,
         )
-        id
     }
 
     /**
@@ -339,6 +356,13 @@ class MemoryStore @Inject constructor(
          * matches every row.
          */
         internal const val NO_MATCH_SENTINEL = "\u0000"
+
+        /**
+         * How many recent embedded rows the semantic-dedup scan in
+         * [maybeStore] examines. Bounds the O(N) cosine scan that used
+         * to load the entire table under the insert mutex.
+         */
+        internal const val SEMANTIC_DEDUP_SCAN_LIMIT = 200
     }
 
     /**
