@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.IncomingShareStore
+import com.aura.agent.MemoryAugmentedAgenticLoop
 import com.aura.agent.Specialist
 import com.aura.ui.components.MarkdownText
 import com.aura.ui.components.MoaThinkingIndicator
@@ -624,29 +625,31 @@ fun ChatRoute(
         micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
     }
 
-    PermissionDialog(
-        permission = state.pendingPermission,
-        rationale = state.permissionRationale,
-        onGrant = viewModel::retryAfterPermission,
-        onDismiss = viewModel::dismissPermission,
-    )
-
-    // Tool approval / confirmation dialog
-    state.pendingApproval?.let { (toolName, kind, rationale) ->
-        if (kind == "Approval") {
-            CostApprovalDialog(
-                toolName = toolName,
-                rationale = rationale,
-                onApprove = viewModel::approveRemoteCost,
-                onDismiss = viewModel::dismissApproval,
+    // Gate dialog — the agentic loop paused on a permission,
+    // confirmation, or remote-cost approval. Allow resumes the run
+    // (the loop replays the held tool with the grant); Deny drops it.
+    state.pendingGate?.let { gate ->
+        when (gate.kind) {
+            MemoryAugmentedAgenticLoop.GateKind.PERMISSION -> PermissionDialog(
+                permission = gate.permission,
+                rationale = gate.rationale,
+                // Called after the OS grant callback fires — the tool
+                // re-reads PackageManager state on resume.
+                onGrant = { viewModel.resumeGate() },
+                onDismiss = viewModel::denyGate,
             )
-        } else {
-            ConfirmationDialog(
-                toolName = toolName,
-                level = kind,
-                rationale = rationale,
-                onConfirm = viewModel::confirmTool,
-                onDismiss = viewModel::dismissApproval,
+            MemoryAugmentedAgenticLoop.GateKind.CONFIRMATION -> ConfirmationDialog(
+                toolName = gate.toolName,
+                level = gate.level,
+                rationale = gate.rationale,
+                onConfirm = { viewModel.confirmTool(gate.toolName) },
+                onDismiss = viewModel::denyGate,
+            )
+            MemoryAugmentedAgenticLoop.GateKind.APPROVAL -> CostApprovalDialog(
+                toolName = gate.toolName,
+                rationale = gate.rationale,
+                onApprove = viewModel::approveRemoteCost,
+                onDismiss = viewModel::denyGate,
             )
         }
     }

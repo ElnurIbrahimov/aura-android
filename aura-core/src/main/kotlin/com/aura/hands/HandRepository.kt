@@ -199,6 +199,12 @@ class HandRepository @Inject constructor(
                     result.rationale,
                     index + 1,
                 )
+                is ToolResult.NeedsConfirmation -> return finish(
+                    result,
+                    HandRunStatus.NEEDS_APPROVAL,
+                    result.rationale,
+                    index + 1,
+                )
             }
         }
 

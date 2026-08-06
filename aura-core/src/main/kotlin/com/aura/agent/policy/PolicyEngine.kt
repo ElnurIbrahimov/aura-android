@@ -39,8 +39,15 @@ class PolicyEngine @Inject constructor(
             return PolicyResult.Disabled(tool.name)
         }
 
-        // 3. Confirmation level check
-        if (policy.confirmation != ConfirmationLevel.NONE) {
+        // 3. Confirmation level check — satisfied by the per-conversation
+        // grant recorded when the user confirms the gate dialog. Without
+        // the ctx check this returned NeedsConfirmation unconditionally:
+        // nothing could ever satisfy it, so confirmation-gated tools
+        // (WRITE_REMOTE/PRIVACY/DESTRUCTIVE by default) were permanently
+        // blocked. A confirmed tool falls through to the approval checks
+        // below, so a REMOTE_COST tool with confirmation set still needs
+        // its cost approval.
+        if (policy.confirmation != ConfirmationLevel.NONE && tool.name !in ctx.confirmedTools) {
             return PolicyResult.NeedsConfirmation(policy.confirmation, policy)
         }
 

@@ -90,7 +90,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     /**
      * Tools the loop paused on because they returned
      * [ToolResult.NeedsPermission], keyed by conversation id. The loop stashes
-     * the full run snapshot so [resumeAfterPermission] can continue the
+     * the full run snapshot so [resumeAfterGate] can continue the
      * agentic run after the user grants. Entries are removed on resume and on
      * deny.
      *
@@ -100,19 +100,35 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
      * way to resume. It also meant the last snapshot — which holds an entire
      * [Conversation] — was retained for the process lifetime.
      */
-    private val pendingPermissions = java.util.concurrent.ConcurrentHashMap<String, PendingPermission>()
+    private val pendingGates = java.util.concurrent.ConcurrentHashMap<String, PendingGate>()
+
+    /** Which gate paused the run — drives the dialog kind and the resume grant. */
+    enum class GateKind { PERMISSION, CONFIRMATION, APPROVAL }
+
+    /** Local destructuring helper for building a [PendingGate] from a ToolResult. */
+    internal data class GateDescriptor(
+        val kind: GateKind,
+        val permission: String,
+        val level: String,
+        val rationale: String,
+    )
 
     /**
-     * Snapshot of the run at the moment the loop paused for a permission grant.
-     * Carries everything [resumeAfterPermission] needs to continue the run
-     * from `step + 1`: the held tool, the conversation as-of-pause, the model,
+     * Snapshot of the run at the moment the loop paused on a gate
+     * (runtime permission, policy confirmation, or remote-cost approval).
+     * Carries everything [resumeAfterGate] needs to continue the run from
+     * `step + 1`: the held tool, the conversation as-of-pause, the model,
      * and all options/flags.
      */
-    data class PendingPermission(
+    data class PendingGate(
+        val kind: GateKind,
         val toolName: String,
         val toolCallId: String,
         val args: String,
-        val permission: String,
+        /** Android permission string (PERMISSION kind only). */
+        val permission: String = "",
+        /** ConfirmationLevel name (CONFIRMATION kind only). */
+        val confirmationLevel: String = "",
         val rationale: String,
         val conversation: Conversation,
         val model: String,
@@ -122,32 +138,31 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         val specialist: Specialist?,
         val memoryEnabled: Boolean,
         val approvedRemoteCostTools: Set<String>,
+        val confirmedTools: Set<String>,
         val agentId: String?,
         val runId: String,
         val step: Int,
     )
 
     /**
-     * Read-only view of the permission request held for [conversationId], if
-     * any. UI uses this to drive a permission dialog (Allow / Deny). Returns
-     * null when no tool is waiting for that conversation.
+     * Read-only view of the gate held for [conversationId], if any. UI uses
+     * this to drive the gate dialog (Allow / Deny). Returns null when no
+     * tool is waiting for that conversation.
      */
-    fun peekPendingPermission(conversationId: String): PendingPermission? =
-        pendingPermissions[conversationId]
+    fun peekPendingGate(conversationId: String): PendingGate? =
+        pendingGates[conversationId]
 
     /**
-     * Drop the held permission request for [conversationId] without resuming.
-     * Called by the UI when the user taps Deny.
+     * Drop the held gate for [conversationId] without resuming. Called by
+     * the UI when the user taps Deny. The dangling tool call is dropped
+     * from the wire by Conversation.toMessages, so no strict-provider 400
+     * results from a denial.
      */
-    fun denyPendingPermission(conversationId: String) {
-        val held = pendingPermissions.remove(conversationId) ?: return
-        // Best-effort: the loop is a flow and the conversation lives in the
-        // caller. The UI is expected to update its state and continue with
-        // a follow-up user turn. We log so a future debug session can see
-        // the user explicitly denied.
+    fun denyPendingGate(conversationId: String) {
+        val held = pendingGates.remove(conversationId) ?: return
         android.util.Log.i(
             "AgenticLoop",
-            "permission denied for tool=${held.toolName} permission=${held.permission}",
+            "gate denied for tool=${held.toolName} kind=${held.kind}",
         )
     }
 
@@ -168,13 +183,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
      * conversation cannot both replay the tool — the loser sees null and
      * emits no_pending.
      */
-    fun resumeAfterPermission(conversationId: String): Flow<AgentEvent> = flow {
-        val held = pendingPermissions.remove(conversationId)
+    fun resumeAfterGate(conversationId: String): Flow<AgentEvent> = flow {
+        val held = pendingGates.remove(conversationId)
         if (held == null) {
             emit(
                 AgentEvent.Error(
                     code = "no_pending",
-                    message = "no tool waiting on permission",
+                    message = "no tool waiting on a gate",
                     retryable = false,
                 ),
             )
@@ -182,15 +197,24 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             return@flow
         }
 
-        // Replay the held tool: execute it now that the permission is
-        // granted (the user just allowed it). The tool reads the
-        // runtime permission state via ContextCompat.checkSelfPermission,
-        // so by the time we get here the system reports it as granted.
+        // The grant depends on the gate kind: a confirmation adds the tool
+        // to the per-conversation confirmed set, an approval to the
+        // remote-cost set. A runtime permission needs no ctx grant — the
+        // tool re-reads PackageManager state, which the user just changed.
+        val grantedConfirmed =
+            if (held.kind == GateKind.CONFIRMATION) held.confirmedTools + held.toolName
+            else held.confirmedTools
+        val grantedApproved =
+            if (held.kind == GateKind.APPROVAL) held.approvedRemoteCostTools + held.toolName
+            else held.approvedRemoteCostTools
+
+        // Replay the held tool with the grant in context.
         val resumedCtx = ToolContext(
             conversationId = held.conversation.id,
             userMessage = held.conversation.turns.lastOrNull { it.user != null }?.user ?: "",
             memoryEnabled = held.memoryEnabled,
-            approvedRemoteCostTools = held.approvedRemoteCostTools,
+            approvedRemoteCostTools = grantedApproved,
+            confirmedTools = grantedConfirmed,
         )
         traceSink?.emit(
             held.runId,
@@ -218,6 +242,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             is ToolResult.Error -> "Error: ${resumedResult.message}"
             is ToolResult.NeedsPermission -> "Permission still needed: ${resumedResult.permission}"
             is ToolResult.NeedsApproval -> "Approval needed: ${resumedResult.rationale}"
+            is ToolResult.NeedsConfirmation -> "Confirmation still needed: ${resumedResult.rationale}"
         }
         val truncated = truncateToolResult(resumedText)
         val resumedConversation = held.conversation.setToolResult(held.toolCallId, truncated)
@@ -242,7 +267,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             recallLimit = held.recallLimit,
             specialist = held.specialist,
             memoryEnabled = held.memoryEnabled,
-            approvedRemoteCostTools = held.approvedRemoteCostTools,
+            approvedRemoteCostTools = grantedApproved,
+            confirmedTools = grantedConfirmed,
             agentId = held.agentId,
         )
         // Drain `tail` with one twist: the resumed run's first step is
@@ -285,6 +311,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
          * [ToolExecutor] lets them through without re-prompting.
          */
         approvedRemoteCostTools: Set<String> = emptySet(),
+        /**
+         * Per-conversation set of tool names whose policy confirmation
+         * the user granted. Mirror of [approvedRemoteCostTools] for the
+         * ConfirmationLevel gate.
+         */
+        confirmedTools: Set<String> = emptySet(),
         /**
          * Agent ID for per-agent memory scoping. When set, recall
          * filters to the agent's private scope + shared ("general").
@@ -832,6 +864,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 userMessage = lastUserMessage,
                 memoryEnabled = memoryEnabled,
                 approvedRemoteCostTools = approvedRemoteCostTools,
+                confirmedTools = confirmedTools,
             )
             val toolResults = coroutineScope {
                 toolCalls.map { (id, args) ->
@@ -845,47 +878,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     }
                 }.filterNotNull().awaitAll()
             }
+            // Write completed sibling results FIRST, then pause on a gate.
+            // The tools ran in one parallel batch: pausing before writing
+            // the siblings discarded results whose side effects had
+            // already happened (email sent, event created) — the model
+            // never saw them and could re-issue them after resume.
+            val isGate = { r: ToolResult ->
+                r is ToolResult.NeedsPermission ||
+                    r is ToolResult.NeedsConfirmation ||
+                    r is ToolResult.NeedsApproval
+            }
             for ((id, nameAndArgs, result) in toolResults) {
                 val (name, args) = nameAndArgs
-                // Stash the held permission request and pause the loop on the
-                // first NeedsPermission. Until v0.33.0 the loop appended a
-                // "Permission needed: X" string to the conversation and kept
-                // stepping, which left the model with no real tool result to
-                // act on and stranded the user — the held tool never re-ran
-                // even after the user granted the permission. Now the loop
-                // exits with PermissionRequested, and `resumeAfterPermission`
-                // picks up at step+1 after the UI grants.
-                if (result is ToolResult.NeedsPermission) {
-                    pendingPermissions[currentConversation.id] = PendingPermission(
-                        toolName = name,
-                        toolCallId = id,
-                        args = args,
-                        permission = result.permission,
-                        rationale = result.rationale,
-                        conversation = currentConversation,
-                        model = effectiveModel,
-                        maxSteps = maxSteps,
-                        options = options,
-                        recallLimit = recallLimit,
-                        specialist = specialist,
-                        memoryEnabled = memoryEnabled,
-                        approvedRemoteCostTools = approvedRemoteCostTools,
-                        agentId = agentId,
-                        runId = runId,
-                        step = step,
-                    )
-                    emit(
-                        AgentEvent.PermissionRequested(
-                            toolName = name,
-                            toolCallId = id,
-                            args = args,
-                            permission = result.permission,
-                            rationale = result.rationale,
-                        ),
-                    )
-                    finished = true
-                    break
-                }
+                if (isGate(result)) continue // held (first) or dropped from the wire (rest)
                 val rawResultText = when (result) {
                     is ToolResult.Ok -> {
                         // Record a world event for state-mutating tools.
@@ -904,26 +909,76 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         result.output
                     }
                     is ToolResult.Error -> {
-                    toolErrors.add(name to result.message)
-                    "Error: ${result.message}"
-                }
+                        toolErrors.add(name to result.message)
+                        "Error: ${result.message}"
+                    }
+                    // Unreachable (gates continue above); kept for when-exhaustiveness.
                     is ToolResult.NeedsPermission -> "Permission needed: ${result.permission} — ${result.rationale}"
                     is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
+                    is ToolResult.NeedsConfirmation -> "Confirmation needed: ${result.rationale}"
                 }
                 val resultText = truncateToolResult(rawResultText)
-                val needsPerm = if (result is ToolResult.NeedsPermission) result.permission else null
-                val permRationale = if (result is ToolResult.NeedsPermission) result.rationale else null
                 currentConversation = currentConversation.setToolResult(id, resultText)
                 // Mid-loop compaction: the conversation grows by ~4k chars
                 // per tool result. Without re-compacting, a 10-step run can
                 // blow past the model's input budget and fail on the next
-                // call. Until v0.30.x this was a one-shot at line 164
-                // (before the loop), so step 5+ on a long tool chain
-                // could exceed the model's context window. compactIfNeeded
-                // is a no-op when below threshold (cheap char-sum, no
-                // network), so the call is safe to make every step.
+                // call. compactIfNeeded is a no-op when below threshold
+                // (cheap char-sum, no network), so it is safe every step.
                 currentConversation = conversationCompactor.compactIfNeeded(currentConversation, effectiveModel)
-                emit(AgentEvent.ToolResult(id, name, args, resultText, needsPerm, permRationale))
+                emit(AgentEvent.ToolResult(id, name, args, resultText))
+            }
+            // Pause on the first gated result (permission, confirmation, or
+            // remote-cost approval) — one typed pause/resume path for all
+            // three. The conversation snapshot now includes every sibling
+            // result written above. Additional gated results in the same
+            // batch stay dangling; toMessages drops them from the wire and
+            // the model can re-issue them after resume.
+            val gated = toolResults.firstOrNull { (_, _, r) -> isGate(r) }
+            if (gated != null) {
+                val (id, nameAndArgs, result) = gated
+                val (name, args) = nameAndArgs
+                val (kind, permission, level, rationale) = when (result) {
+                    is ToolResult.NeedsPermission ->
+                        GateDescriptor(GateKind.PERMISSION, result.permission, "", result.rationale)
+                    is ToolResult.NeedsConfirmation ->
+                        GateDescriptor(GateKind.CONFIRMATION, "", result.level, result.rationale)
+                    is ToolResult.NeedsApproval ->
+                        GateDescriptor(GateKind.APPROVAL, "", "", result.rationale)
+                    else -> error("unreachable")
+                }
+                pendingGates[currentConversation.id] = PendingGate(
+                    kind = kind,
+                    toolName = name,
+                    toolCallId = id,
+                    args = args,
+                    permission = permission,
+                    confirmationLevel = level,
+                    rationale = rationale,
+                    conversation = currentConversation,
+                    model = effectiveModel,
+                    maxSteps = maxSteps,
+                    options = options,
+                    recallLimit = recallLimit,
+                    specialist = specialist,
+                    memoryEnabled = memoryEnabled,
+                    approvedRemoteCostTools = approvedRemoteCostTools,
+                    confirmedTools = confirmedTools,
+                    agentId = agentId,
+                    runId = runId,
+                    step = step,
+                )
+                emit(
+                    AgentEvent.GateRequested(
+                        toolName = name,
+                        toolCallId = id,
+                        args = args,
+                        kind = kind,
+                        permission = permission,
+                        level = level,
+                        rationale = rationale,
+                    ),
+                )
+                finished = true
             }
         }
 
@@ -1262,21 +1317,23 @@ sealed class AgentEvent {
     data class ToolExecuting(val id: String, val name: String, val arguments: String = "") : AgentEvent()
     data class ToolResult(val id: String, val name: String, val arguments: String, val result: String, val needsPermission: String? = null, val permissionRationale: String? = null) : AgentEvent()
     /**
-     * Emitted by the loop when a tool returned [ToolResult.NeedsPermission]
-     * and the loop paused. The UI shows a permission dialog and on Allow
-     * calls [MemoryAugmentedAgenticLoop.resumeAfterPermission] to continue
-     * the run. The `toolName` + `args` let the UI render the call for
-     * confirmation, and `toolCallId` correlates the eventual `ToolResult`
-     * with the held request.
-     *
-     * Replaces the previous dead-code `PermissionGranted` event (which was
-     * documented as "UI emits after grant" but the loop never consumed it).
+     * Emitted when the loop paused on a gate — a runtime permission, a
+     * policy confirmation, or a remote-cost approval. The UI shows the
+     * dialog matching [kind] and on Allow calls
+     * [MemoryAugmentedAgenticLoop.resumeAfterGate] (Deny →
+     * [MemoryAugmentedAgenticLoop.denyPendingGate]). `toolName` + `args`
+     * let the UI render the call; `toolCallId` correlates the eventual
+     * `ToolResult` with the held request.
      */
-    data class PermissionRequested(
+    data class GateRequested(
         val toolName: String,
         val toolCallId: String,
         val args: String,
-        val permission: String,
+        val kind: MemoryAugmentedAgenticLoop.GateKind,
+        /** Android permission string (PERMISSION kind only). */
+        val permission: String = "",
+        /** ConfirmationLevel name (CONFIRMATION kind only). */
+        val level: String = "",
         val rationale: String,
     ) : AgentEvent()
     data class Error(val code: String, val message: String, val retryable: Boolean, val typedError: com.aura.core.error.AuraError? = null) : AgentEvent()

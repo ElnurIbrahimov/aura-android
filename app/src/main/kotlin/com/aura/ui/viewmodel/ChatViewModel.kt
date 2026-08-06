@@ -13,12 +13,9 @@ import com.aura.agent.ConversationStore
 import com.aura.agent.recentTopics
 import com.aura.agent.MemoryAugmentedAgenticLoop
 import com.aura.agent.Reaction
-import com.aura.agent.ToolContext
 import com.aura.agent.ToolExecutor
 import com.aura.agent.ToolRegistry
 import com.aura.tools.DelegateToAgentTool
-import com.aura.agent.ToolResult
-import com.aura.agent.toAuraError
 import com.aura.core.error.AuraError
 import com.aura.documents.DocumentTextExtractor
 import com.aura.kg.KnowledgeGraphRepository
@@ -48,13 +45,6 @@ import com.aura.agent.StrategyBandit
 import javax.inject.Inject
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-    private fun formatToolResult(result: ToolResult): String = when (result) {
-    is ToolResult.Ok -> result.output
-    is ToolResult.Error -> "Error: ${result.message}"
-    is ToolResult.NeedsPermission -> "Still needs permission: ${result.permission}"
-    is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
-}
 
     private fun extractCitations(toolName: String, result: String): List<Citation> {
     return when (toolName) {
@@ -240,16 +230,13 @@ data class ChatUiState(
     val availableAgents: List<com.aura.agent.AgentEntity> = emptyList(),
     /** Agent ID for per-agent memory scoping. Derived from [activeAgent]. */
     val activeAgentId: String? = null,
-    val pendingPermission: String? = null,
-    val permissionRationale: String? = null,
-    /** Tool name + args that the permission was requested for. Used to retry after grant. */
-    val pendingToolRetry: Pair<String, String>? = null,
     /**
-     * Tool name + approval kind + rationale when a tool needs user
-     * approval/confirmation. The UI shows a dialog; approveRemoteCost()
-     * adds REMOTE_COST tools to [approvedRemoteCostTools] and re-engages.
+     * The gate the agentic loop paused on (runtime permission, policy
+     * confirmation, or remote-cost approval). The UI shows the dialog
+     * matching [PendingGateUi.kind]; on Allow the send controller calls
+     * the loop's resumeAfterGate, on Deny denyPendingGate.
      */
-    val pendingApproval: Triple<String, String, String>? = null,
+    val pendingGate: PendingGateUi? = null,
     /** URL to open in the in-app browser. Set when a tool returns [BROWSER:url]. */
     val pendingBrowserUrl: String? = null,
     /** Canvas content detected from the model response. Opens CanvasSheet. */
@@ -269,6 +256,13 @@ data class ChatUiState(
      * them through without re-prompting.
      */
     val approvedRemoteCostTools: Set<String> = emptySet(),
+    /**
+     * Per-conversation set of tools whose policy confirmation the user
+     * granted. Mirror of [approvedRemoteCostTools] for the
+     * ConfirmationLevel gate — passed into the loop so later sends in
+     * this conversation carry the grant too.
+     */
+    val confirmedTools: Set<String> = emptySet(),
     val errorRetryable: Boolean = false,
     val kgNodeCount: Int = 0,
     /** True when user has toggled Deep Mode for the next turn. */
@@ -328,6 +322,21 @@ data class InFlightToolCall(
     val name: String,
     val args: String,
     val startedAtMs: Long = System.currentTimeMillis(),
+)
+
+/**
+ * UI mirror of [AgentEvent.GateRequested] — the gate the agentic loop
+ * paused on. [kind] drives which dialog ChatRoute shows; [permission]
+ * is set for PERMISSION gates, [level] for CONFIRMATION gates.
+ */
+data class PendingGateUi(
+    val toolName: String,
+    val toolCallId: String,
+    val args: String,
+    val kind: MemoryAugmentedAgenticLoop.GateKind,
+    val permission: String,
+    val level: String,
+    val rationale: String,
 )
 
 private const val TAG = "ChatViewModel"
@@ -453,7 +462,8 @@ class ChatViewModel @Inject constructor(
             memoryStore = memoryStore,
             proactiveMessageStore = proactiveMessageStore,
             scope = viewModelScope,
-            reSend = { sendController.runSend(viewModelScope) },
+            resumeGate = { sendController.resumeGate(viewModelScope) },
+            denyGate = { sendController.denyGate() },
         )
     }
 
@@ -881,24 +891,30 @@ class ChatViewModel @Inject constructor(
 
     fun deleteCurrentConversation() = conversationController.deleteCurrentConversation()
 
-    fun dismissPermission() = interactionController.dismissPermission()
+    /**
+     * Resume a run paused on a gate (permission, confirmation, or
+     * remote-cost approval). The loop records the grant per gate kind.
+     */
+    fun resumeGate() = sendController.resumeGate(viewModelScope)
+
+    /** Deny the pending gate — drops the held tool without resuming. */
+    fun denyGate() = sendController.denyGate()
 
     /**
-     * User approved a REMOTE_COST tool. Add it to the per-conversation
-     * approved set and re-engage the model so the tool re-executes
-     * with the approved set in ToolContext.
+     * User approved a REMOTE_COST tool. Resumes the paused run — the
+     * loop adds the tool to the per-conversation approved set.
      */
 
     fun approveRemoteCost() = interactionController.approveRemoteCost()
 
     /**
-     * User confirmed an IMPLICIT/BIOMETRIC tool. Dismiss the dialog and
-     * re-engage so the tool executes with the user's confirmation in context.
+     * User confirmed a confirmation-gated tool. Resumes the paused run —
+     * the loop adds the tool to the per-conversation confirmed set.
      */
 
     fun confirmTool(toolName: String) = interactionController.confirmTool(toolName)
 
-    /** User dismissed the REMOTE_COST approval dialog. */
+    /** User dismissed the approval/confirmation dialog. */
 
     fun dismissApproval() = interactionController.dismissApproval()
 
@@ -1048,51 +1064,6 @@ class ChatViewModel @Inject constructor(
             )
         }
         sendController.runSend(viewModelScope, retryUserText = retry.userText)
-    }
-
-    fun retryAfterPermission(@Suppress("UNUSED_PARAMETER") permission: String) {
-        // Re-execute the failed tool directly with the original args, no model round-trip.
-        val (toolName, args) = _state.value.pendingToolRetry ?: ("" to "")
-        _state.update { it.copy(
-            pendingPermission = null,
-            permissionRationale = null,
-            pendingToolRetry = null,
-            streaming = true,
-        ) }
-        if (toolName.isBlank()) {
-            _state.update { it.copy(streaming = false, error = "Lost tool call context") }
-            return
-        }
-        // Cancel any in-flight agent stream so this retry isn't
-        // racing with the loop. The original code stored both
-        // the send loop and the retry in the same runJob field;
-        // now they're separate but cancel() still does the right
-        // thing via the controller.
-        sendController.cancel()
-        viewModelScope.launch {
-            try {
-            val ctx = ToolContext(
-                conversationId = _state.value.conversation.id,
-                memoryEnabled = !_state.value.incognitoMode,
-                approvedRemoteCostTools = _state.value.approvedRemoteCostTools,
-            )
-                val result = toolExecutor.execute(toolName, args, ctx)
-                val resultText = formatToolResult(result)
-                // Add the result as a tool turn so the model sees it in the right format
-                _state.update { old ->
-                    val updated = old.conversation
-                        .addToolCall("retry-$toolName", toolName, args)
-                        .setToolResult("retry-$toolName", resultText)
-                    old.copy(conversation = updated)
-                }
-                saveConversation()
-                // Re-engage the model so it can process the tool result and
-                // continue the conversation. Without this the user had to
-                // manually type a message for the model to see the result.
-                sendController.runSend(viewModelScope)
-            } catch (e: kotlinx.coroutines.CancellationException) { /* cancelled */ }
-            catch (e: Exception) { _state.update { it.copy(streaming = false, error = e.message ?: "unknown error") } }
-        }
     }
 
     fun cancel() {

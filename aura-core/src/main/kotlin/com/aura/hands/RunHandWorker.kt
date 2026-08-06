@@ -104,6 +104,10 @@ class RunHandWorker @AssistedInject constructor(
                 notifications.post("Aura Hand Needs Approval", result.rationale.take(200))
                 Result.success()
             }
+            is com.aura.agent.ToolResult.NeedsConfirmation -> {
+                notifications.post("Aura Hand Needs Confirmation", result.rationale.take(200))
+                Result.success()
+            }
         }
     }
 }

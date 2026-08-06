@@ -15,7 +15,8 @@ class SilentRunCatchingAuditTest {
         // (LLM call + JSON parse + merge). The .onFailure handler is at the
         // end of the block — beyond the audit's 40-line scan window. The
         // block IS handled: .onFailure { Log.w(...) }.getOrDefault(false).
-        "DreamConsolidator.kt:599",
+        // (Line drifts when the file above it changes; keep in sync.)
+        "DreamConsolidator.kt:597",
     )
 
     @Test

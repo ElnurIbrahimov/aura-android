@@ -245,6 +245,7 @@ class ChatSendController(
                             is com.aura.agent.ToolResult.Ok -> r.output
                             is com.aura.agent.ToolResult.Error -> throw IllegalStateException(r.message)
                             is com.aura.agent.ToolResult.NeedsApproval -> throw IllegalStateException(r.rationale)
+                            is com.aura.agent.ToolResult.NeedsConfirmation -> throw IllegalStateException(r.rationale)
                             is com.aura.agent.ToolResult.NeedsPermission -> throw IllegalStateException("Needs permission: ${r.permission}")
                         }
                         state.update { old ->
@@ -276,7 +277,9 @@ class ChatSendController(
         state.update { it.copy(inFlightToolCalls = emptyList()) }
 
         runJob = scope.launch {
-            try {
+            var strategy: ReasoningStrategy? = null
+            var category: ProblemCategory? = null
+            val events = try {
                 val conversation = state.value.conversation
                 // Apply user-defined specialist prompt overrides
                 val resolvedSpecialist = specialist?.let { s ->
@@ -305,9 +308,9 @@ class ChatSendController(
                 // learns which strategies work best for which task types.
                 // Falls back to the existing maxSteps heuristic when the
                 // bandit is disabled or unavailable.
-                val category = ProblemCategory.classify(text, resolvedSpecialist)
-                val strategy = if (strategyBandit != null) {
-                    runCatching { strategyBandit.selectStrategy(category) }
+                category = ProblemCategory.classify(text, resolvedSpecialist)
+                strategy = if (strategyBandit != null) {
+                    runCatching { strategyBandit.selectStrategy(category!!) }
                         .onFailure { Log.w("ChatSendController", "runCatching failed: ${it.message}", it) }.getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
                 } else null
 
@@ -324,10 +327,38 @@ class ChatSendController(
                     specialist = resolvedSpecialist,
                     memoryEnabled = !state.value.incognitoMode,
                     approvedRemoteCostTools = state.value.approvedRemoteCostTools,
+                    confirmedTools = state.value.confirmedTools,
                     agentId = state.value.activeAgentId,
                     planningEnabled = userPreferences.planningEnabled.first(),
                     recentTopics = recentTopics?.invoke() ?: "",
-                ).collect { event ->
+                )
+            } catch (e: CancellationException) {
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
+                throw e
+            } catch (e: Exception) {
+                onError(e.message ?: "unknown error")
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
+                return@launch
+            }
+            collectRunEvents(events, strategy, category)
+        }
+    }
+
+    /**
+     * Collect a run's event stream into UI state. Shared by the
+     * initial send ([runSend]) and gate resumption ([resumeGate]) —
+     * both produce the same `run()`-shaped stream. [strategy] and
+     * [category] are null on resume: the bandit outcome for the
+     * original strategy pick was recorded (or will be) by the send
+     * path that chose it.
+     */
+    private suspend fun collectRunEvents(
+        events: kotlinx.coroutines.flow.Flow<AgentEvent>,
+        strategy: ReasoningStrategy?,
+        category: ProblemCategory?,
+    ) {
+            try {
+                events.collect { event ->
                     when (event) {
                         is AgentEvent.ResetText -> {
                             responseBuffer.clear()
@@ -429,48 +460,23 @@ class ChatSendController(
                                     old.copy(conversation = old.conversation.setCitations(citations))
                                 }
                             }
-                            // Check if the tool result text indicates an
-                            // approval request (formatted by the agentic
-                            // loop as "Approval needed: ..."). Surface it
-                            // as a dialog instead of silently feeding it
-                            // back to the model.
-                            val approvalPrefix = "Approval needed: "
-                            val confirmPrefixRegex = Regex("^(NONE|IMPLICIT|EXPLICIT|BIOMETRIC):confirm:([^:]+)(?::(.*))?$")
-                            when {
-                                event.result.startsWith(approvalPrefix) -> {
-                                    val rationale = event.result.removePrefix(approvalPrefix)
-                                    state.update { old ->
-                                        old.copy(pendingApproval = Triple(event.name, "Approval", rationale))
-                                    }
-                                }
-                                confirmPrefixRegex.matches(event.result) -> {
-                                    val match = confirmPrefixRegex.find(event.result)!!
-                                    val level = match.groupValues[1]
-                                    val tool = match.groupValues[2]
-                                    val rationale = match.groupValues[3].ifBlank { "$level confirmation required" }
-                                    state.update { old ->
-                                        old.copy(pendingApproval = Triple(tool, level, rationale))
-                                    }
-                                }
-                            }
-                            if (event.needsPermission != null) {
-                                state.update { old ->
-                                    old.copy(
-                                        pendingPermission = event.needsPermission,
-                                        permissionRationale = event.permissionRationale,
-                                        pendingToolRetry = event.name to event.arguments,
-                                    )
-                                }
-                            } else if (event.result.startsWith("Still needs permission")) {
-                                // Fallback: parse permission back out of formatted tool result
-                                val perm = event.result.substringAfter("Still needs permission: ").trim()
-                                state.update { old ->
-                                    old.copy(
-                                        pendingPermission = perm,
-                                        permissionRationale = "Permission is still required for ${event.name}.",
-                                        pendingToolRetry = event.name to event.arguments,
-                                    )
-                                }
+                        }
+                        is AgentEvent.GateRequested -> {
+                            // The loop paused on a gate (permission,
+                            // confirmation, or approval). Surface it as a
+                            // dialog; resumeGate/denyGate answer it.
+                            state.update {
+                                it.copy(
+                                    pendingGate = PendingGateUi(
+                                        event.toolName,
+                                        event.toolCallId,
+                                        event.args,
+                                        event.kind,
+                                        event.permission,
+                                        event.level,
+                                        event.rationale,
+                                    ),
+                                )
                             }
                         }
                         is AgentEvent.ToolExecuting -> {
@@ -484,7 +490,7 @@ class ChatSendController(
                         is AgentEvent.Error -> {
                             consecutiveFailures++
                             // Record strategy bandit outcome: failure on max_steps_exceeded
-                            if (strategy != null && event.code == "max_steps_exceeded") {
+                            if (strategy != null && category != null && event.code == "max_steps_exceeded") {
                                 runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             val typed = event.typedError
@@ -508,7 +514,7 @@ class ChatSendController(
                             // Reset failure counter on successful completion.
                             consecutiveFailures = 0
                             // Record strategy bandit outcome: success
-                            if (strategy != null) {
+                            if (strategy != null && category != null) {
                                 runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             // Record wall-clock duration for the response footer.
@@ -549,7 +555,33 @@ class ChatSendController(
             } finally {
                 state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
             }
+    }
+
+    /** Resume a run paused on a gate. Grants are recorded by the loop per gate kind. */
+    fun resumeGate(scope: CoroutineScope) {
+        val gate = state.value.pendingGate ?: return
+        state.update { it.copy(
+            pendingGate = null,
+            streaming = true,
+            // Mirror the loop's grant in UI state so later sends this
+            // conversation carry it too.
+            confirmedTools = if (gate.kind == MemoryAugmentedAgenticLoop.GateKind.CONFIRMATION) it.confirmedTools + gate.toolName else it.confirmedTools,
+            approvedRemoteCostTools = if (gate.kind == MemoryAugmentedAgenticLoop.GateKind.APPROVAL) it.approvedRemoteCostTools + gate.toolName else it.approvedRemoteCostTools,
+        ) }
+        runJob = scope.launch {
+            collectRunEvents(
+                loop.resumeAfterGate(state.value.conversation.id),
+                strategy = null,
+                category = null,
+            )
         }
+    }
+
+    /** Deny the pending gate — drops the held tool without resuming. */
+    fun denyGate() {
+        state.value.pendingGate ?: return
+        loop.denyPendingGate(state.value.conversation.id)
+        state.update { it.copy(pendingGate = null) }
     }
 
     /**
@@ -565,7 +597,8 @@ class ChatSendController(
         if (!state.value.incognitoMode && state.value.conversation.turns.isNotEmpty()) {
             onSaveConversation()
         }
-        // Clear in-flight badges — the stream is being torn down.
-        state.update { it.copy(streaming = false, inFlightToolCalls = emptyList()) }
+        // Clear in-flight badges and any unanswered gate — the stream
+        // is being torn down.
+        state.update { it.copy(streaming = false, inFlightToolCalls = emptyList(), pendingGate = null) }
     }
 }

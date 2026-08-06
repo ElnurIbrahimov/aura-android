@@ -12,9 +12,7 @@ import kotlinx.coroutines.launch
  *
  * Handles the "dismiss/approve/confirm" cluster of one-shot UI state
  * mutations that the agentic loop surfaces:
- * - Permission requests (NeedsPermission)
- * - REMOTE_COST tool approval (pendingApproval)
- * - IMPLICIT/BIOMETRIC tool confirmation
+ * - Gate answers (pendingGate: permission / confirmation / approval)
  * - In-app browser dismissal (pendingBrowserUrl)
  * - Canvas/Artifacts dismissal and save-to-memory
  * - Proactive message loading and dismissal
@@ -23,54 +21,41 @@ import kotlinx.coroutines.launch
  * for I/O). The controller takes [MutableStateFlow] and the few
  * dependencies it needs — not the full ViewModel.
  *
- * The [reSend] callback re-engages the send pipeline after an approval
- * or confirmation, so the approved tool re-executes with the updated
- * ToolContext.
+ * The [resumeGate] callback resumes the paused agentic run after an
+ * approval or confirmation — the loop replays the held tool with the
+ * grant in ToolContext. [denyGate] drops the held tool without
+ * resuming.
  */
 class ChatInteractionController(
     private val state: MutableStateFlow<ChatUiState>,
     private val memoryStore: MemoryStore,
     private val proactiveMessageStore: ProactiveMessageStore?,
     private val scope: CoroutineScope,
-    private val reSend: () -> Unit,
+    private val resumeGate: () -> Unit,
+    private val denyGate: () -> Unit,
 ) {
 
-    // --- Permission / approval ---
-
-    /** Dismiss the permission request dialog and clear the pending retry. */
-    fun dismissPermission() {
-        state.update { it.copy(pendingPermission = null, permissionRationale = null, pendingToolRetry = null) }
-    }
+    // --- Gate answers ---
 
     /**
-     * User approved a REMOTE_COST tool. Add it to the per-conversation
-     * approved set and re-engage the model so the tool re-executes
-     * with the approved set in ToolContext.
+     * User approved a REMOTE_COST tool. Resumes the paused run — the
+     * loop re-executes the held tool with the approval in ToolContext.
      */
     fun approveRemoteCost() {
-        val pending = state.value.pendingApproval ?: return
-        val toolName = pending.first
-        state.update {
-            it.copy(
-                pendingApproval = null,
-                approvedRemoteCostTools = it.approvedRemoteCostTools + toolName,
-            )
-        }
-        reSend()
+        resumeGate()
     }
 
     /**
-     * User confirmed an IMPLICIT/BIOMETRIC tool. Dismiss the dialog and
-     * re-engage so the tool executes with the user's confirmation in context.
+     * User confirmed a confirmation-gated tool. Resumes the paused run —
+     * the loop re-executes the held tool with the confirmation grant.
      */
     fun confirmTool(@Suppress("UNUSED_PARAMETER") toolName: String) {
-        state.update { it.copy(pendingApproval = null) }
-        reSend()
+        resumeGate()
     }
 
-    /** User dismissed the REMOTE_COST approval dialog. */
+    /** User dismissed the approval/confirmation dialog. */
     fun dismissApproval() {
-        state.update { it.copy(pendingApproval = null) }
+        denyGate()
     }
 
     // --- UI surface dismissals ---

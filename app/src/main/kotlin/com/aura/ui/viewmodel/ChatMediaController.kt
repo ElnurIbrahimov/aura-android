@@ -96,6 +96,7 @@ class ChatMediaController(
                 is ToolResult.Error -> "Vision error: ${result.message}"
                 is ToolResult.NeedsPermission -> "Permission needed: ${result.permission}"
                 is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
+                is ToolResult.NeedsConfirmation -> "Confirmation needed: ${result.rationale}"
             }
             state.update { old ->
                 val conv = old.conversation
@@ -174,6 +175,7 @@ class ChatMediaController(
                 is ToolResult.Error -> "Transcription error: ${result.message}"
                 is ToolResult.NeedsPermission -> "Permission needed: ${result.permission}"
                 is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
+                is ToolResult.NeedsConfirmation -> "Confirmation needed: ${result.rationale}"
             }
             state.update { old ->
                 old.copy(

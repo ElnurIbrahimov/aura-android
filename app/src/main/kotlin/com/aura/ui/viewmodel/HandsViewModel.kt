@@ -230,6 +230,7 @@ class HandsViewModel @Inject constructor(
         is ToolResult.Error -> "Error: ${result.message}"
         is ToolResult.NeedsPermission -> "Permission needed: ${result.permission}"
         is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
+        is ToolResult.NeedsConfirmation -> "Confirmation needed: ${result.rationale}"
     }
 
     fun clearHistory() {

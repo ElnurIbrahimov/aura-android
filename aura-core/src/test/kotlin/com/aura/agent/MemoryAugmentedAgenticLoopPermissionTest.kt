@@ -27,15 +27,15 @@ import kotlin.test.assertIs
  * never re-ran even after the user granted the permission.
  *
  * The fix: the loop now pauses on `NeedsPermission`, stashes a
- * `PendingPermission` snapshot, and emits a new `PermissionRequested`
- * event. The UI grants → calls `resumeAfterPermission(convId)` → the held
- * tool re-executes and the agentic loop continues from `step + 1`.
+ * `PendingGate` snapshot, and emits a `GateRequested` event with
+ * kind=PERMISSION. The UI grants → calls `resumeAfterGate(convId)` → the
+ * held tool re-executes and the agentic loop continues from `step + 1`.
  *
  * These tests pin all four contracts:
- * 1. The loop emits `PermissionRequested` and exits on NeedsPermission
- * 2. `resumeAfterPermission` re-executes the held tool and continues
- * 3. `resumeAfterPermission` with nothing pending emits no_pending
- * 4. `denyPendingPermission` clears the field without resuming
+ * 1. The loop emits `GateRequested(kind=PERMISSION)` and exits on NeedsPermission
+ * 2. `resumeAfterGate` re-executes the held tool and continues
+ * 3. `resumeAfterGate` with nothing pending emits no_pending
+ * 4. `denyPendingGate` clears the field without resuming
  *
  * We use `runBlocking` (real time) rather than `runTest` (virtual time)
  * because the loop's tool execution crosses `runInterruptible(Dispatchers.IO)`
@@ -99,7 +99,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
     }
 
     @Test
-    fun `tool returns NeedsPermission - loop pauses, emits PermissionRequested, holds state`() = runBlocking {
+    fun `tool returns NeedsPermission - loop pauses, emits GateRequested, holds state`() = runBlocking {
         val (permissionTool, calls) = permissionThenOkTool(
             permission = "android.permission.READ_CALENDAR",
             rationale = "Calendar access is needed to read events.",
@@ -139,7 +139,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         )
 
         // 1. Run the conversation. The loop should pause on the first
-        //    NeedsPermission and emit PermissionRequested, then Done.
+        //    NeedsPermission and emit GateRequested, then Done.
         // Use a short message (< 20 chars, ≤ 3 words) so the loop's
         // planning step on long messages is skipped. Planning would
         // consume the first brain.stream() call before the tool call,
@@ -149,16 +149,18 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         loop.run(conv, model = "test:model", maxSteps = 5).collect { events += it }
 
         // 2. Assert: the loop paused. No second brain.stream call.
-        val permissionRequested = events.filterIsInstance<AgentEvent.PermissionRequested>().firstOrNull()
-        assertNotNull(permissionRequested)
-        assertEquals("permission_test_tool", permissionRequested!!.toolName)
-        assertEquals("android.permission.READ_CALENDAR", permissionRequested.permission)
-        assertEquals("Calendar access is needed to read events.", permissionRequested.rationale)
+        val gateRequested = events.filterIsInstance<AgentEvent.GateRequested>().firstOrNull()
+        assertNotNull(gateRequested)
+        assertEquals("permission_test_tool", gateRequested!!.toolName)
+        assertEquals(MemoryAugmentedAgenticLoop.GateKind.PERMISSION, gateRequested.kind)
+        assertEquals("android.permission.READ_CALENDAR", gateRequested.permission)
+        assertEquals("Calendar access is needed to read events.", gateRequested.rationale)
 
         // 3. The held request is stashed on the loop for resume.
-        val held = loop.peekPendingPermission(conv.id)
+        val held = loop.peekPendingGate(conv.id)
         assertNotNull(held)
         assertEquals("permission_test_tool", held!!.toolName)
+        assertEquals(MemoryAugmentedAgenticLoop.GateKind.PERMISSION, held.kind)
         assertEquals("android.permission.READ_CALENDAR", held.permission)
         assertEquals("tc1", held.toolCallId)
 
@@ -177,7 +179,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
     }
 
     @Test
-    fun `resumeAfterPermission re-executes held tool and continues the run`() = runBlocking {
+    fun `resumeAfterGate re-executes held tool and continues the run`() = runBlocking {
         val (permissionTool, calls) = permissionThenOkTool(
             permission = "android.permission.READ_CALENDAR",
             rationale = "Calendar access is needed to read events.",
@@ -219,13 +221,13 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         val conv = Conversation().addUser("calendar today")
         val runEvents = mutableListOf<AgentEvent>()
         loop.run(conv, model = "test:model", maxSteps = 5).collect { runEvents += it }
-        assertNotNull("expected pause", loop.peekPendingPermission(conv.id))
+        assertNotNull("expected pause", loop.peekPendingGate(conv.id))
 
         // 2. Resume. The held tool re-runs (second call → Ok), the
         //    loop continues, and the second brain.stream() call returns
         //    the final assistant text.
         val resumeEvents = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission(conv.id).collect { resumeEvents += it }
+        loop.resumeAfterGate(conv.id).collect { resumeEvents += it }
 
         // 3. The resume flow emitted: ToolExecuting → ToolResult → ...
         val toolExec = resumeEvents.filterIsInstance<AgentEvent.ToolExecuting>().firstOrNull()
@@ -247,12 +249,12 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         // 5. The held tool ran twice (once in run, once in resume).
         assertEquals(2, calls[0])
 
-        // 6. pendingPermission is cleared.
-        assertNull("pendingPermission should be cleared after resume", loop.peekPendingPermission(conv.id))
+        // 6. The pending gate is cleared.
+        assertNull("pending gate should be cleared after resume", loop.peekPendingGate(conv.id))
     }
 
     @Test
-    fun `resumeAfterPermission with no pending emits no_pending error`() = runBlocking {
+    fun `resumeAfterGate with no pending emits no_pending error`() = runBlocking {
         val toolRegistry = ToolRegistry()
         val brain = mockk<Brain>(relaxed = true)
         val memoryStore = mockk<MemoryStore>(relaxed = true)
@@ -269,7 +271,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
         )
 
         val events = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission("no-such-conversation").collect { events += it }
+        loop.resumeAfterGate("no-such-conversation").collect { events += it }
 
         val err = events.filterIsInstance<AgentEvent.Error>().firstOrNull()
         assertNotNull(err)
@@ -279,7 +281,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
     }
 
     @Test
-    fun `denyPendingPermission clears the held request`() = runBlocking {
+    fun `denyPendingGate clears the held request`() = runBlocking {
         val (permissionTool, calls) = permissionThenOkTool(
             permission = "android.permission.READ_CALENDAR",
             rationale = "Calendar access is needed to read events.",
@@ -311,17 +313,17 @@ class MemoryAugmentedAgenticLoopPermissionTest {
 
         val conv = Conversation().addUser("calendar today")
         loop.run(conv, model = "test:model", maxSteps = 5).collect { /* drain */ }
-        assertNotNull("expected pause", loop.peekPendingPermission(conv.id))
+        assertNotNull("expected pause", loop.peekPendingGate(conv.id))
 
         // Deny. The held request is cleared; the tool ran exactly once.
-        loop.denyPendingPermission(conv.id)
-        assertNull("deny should clear pendingPermission", loop.peekPendingPermission(conv.id))
+        loop.denyPendingGate(conv.id)
+        assertNull("deny should clear the pending gate", loop.peekPendingGate(conv.id))
         assertEquals(1, calls[0])
 
         // Resuming after deny yields no_pending — the tool does NOT
         // re-execute. The user explicitly chose not to grant.
         val resumeEvents = mutableListOf<AgentEvent>()
-        loop.resumeAfterPermission(conv.id).collect { resumeEvents += it }
+        loop.resumeAfterGate(conv.id).collect { resumeEvents += it }
         val err = resumeEvents.filterIsInstance<AgentEvent.Error>().firstOrNull()
         assertIs<AgentEvent.Error>(err)
         assertEquals("no_pending", err.code)
@@ -333,7 +335,7 @@ class MemoryAugmentedAgenticLoopPermissionTest {
      * every conversation in the app. It used to be a single field: a second
      * conversation hitting a permission gate overwrote the first
      * conversation's snapshot, and the first run could then never be
-     * resumed — `resumeAfterPermission` would replay the *other*
+     * resumed — `resumeAfterGate` would replay the *other*
      * conversation's tool, or find nothing at all.
      *
      * Keying by conversation id fixes that. This test pins it, because
@@ -391,16 +393,16 @@ class MemoryAugmentedAgenticLoopPermissionTest {
 
         // Both are held. Under the old single-field stash, B would have
         // evicted A and this first assertion would fail.
-        val heldA = loop.peekPendingPermission(convA.id)
-        val heldB = loop.peekPendingPermission(convB.id)
+        val heldA = loop.peekPendingGate(convA.id)
+        val heldB = loop.peekPendingGate(convB.id)
         assertNotNull("conversation A's request was evicted", heldA)
         assertNotNull("conversation B's request is missing", heldB)
         assertEquals(convA.id, heldA!!.conversation.id)
         assertEquals(convB.id, heldB!!.conversation.id)
 
         // Denying one must not disturb the other.
-        loop.denyPendingPermission(convA.id)
-        assertNull("deny should clear only conversation A", loop.peekPendingPermission(convA.id))
-        assertNotNull("conversation B must survive A's deny", loop.peekPendingPermission(convB.id))
+        loop.denyPendingGate(convA.id)
+        assertNull("deny should clear only conversation A", loop.peekPendingGate(convA.id))
+        assertNotNull("conversation B must survive A's deny", loop.peekPendingGate(convB.id))
     }
 }

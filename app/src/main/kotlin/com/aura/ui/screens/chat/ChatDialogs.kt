@@ -203,7 +203,7 @@ fun CostApprovalDialog(
 @Composable
 fun ConfirmationDialog(
     toolName: String,
-    level: String,
+    @Suppress("UNUSED_PARAMETER") level: String,
     rationale: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -214,13 +214,6 @@ fun ConfirmationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 Text(rationale)
-                if (level == "EXPLICIT") {
-                    Text(
-                        "Type a new message with \"yes\" to confirm.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AuraThemeTokens.colors.textSecondary,
-                    )
-                }
             }
         },
         confirmButton = {

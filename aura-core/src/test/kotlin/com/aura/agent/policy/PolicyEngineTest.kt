@@ -26,10 +26,12 @@ class PolicyEngineTest {
     private fun ctx(
         memoryEnabled: kotlin.Boolean = true,
         approvedTools: Set<kotlin.String> = emptySet(),
+        confirmedTools: Set<kotlin.String> = emptySet(),
     ) = ToolContext(
         conversationId = "test",
         memoryEnabled = memoryEnabled,
         approvedRemoteCostTools = approvedTools,
+        confirmedTools = confirmedTools,
     )
 
     @Test
@@ -78,6 +80,55 @@ class PolicyEngineTest {
         assertTrue("Expected NeedsConfirmation, got $result", result is PolicyResult.NeedsConfirmation)
         val confirmation = result as PolicyResult.NeedsConfirmation
         assertEquals(ConfirmationLevel.EXPLICIT, confirmation.level)
+    }
+
+    @Test
+    fun confirmation_satisfied_by_ctx_confirmedTools_returns_allowed() = runTest {
+        val tool = makeTool(ToolRisk.READ_ONLY)
+        coEvery { policyStore.getPolicy("test_tool") } returns ToolPolicy(
+            toolName = "test_tool",
+            confirmation = ConfirmationLevel.EXPLICIT,
+        )
+        val result = engine.evaluate(tool, ctx(confirmedTools = setOf("test_tool")))
+        assertTrue("Expected Allowed, got $result", result is PolicyResult.Allowed)
+    }
+
+    @Test
+    fun confirmation_grant_for_other_tool_does_not_satisfy() = runTest {
+        val tool = makeTool(ToolRisk.READ_ONLY)
+        coEvery { policyStore.getPolicy("test_tool") } returns ToolPolicy(
+            toolName = "test_tool",
+            confirmation = ConfirmationLevel.EXPLICIT,
+        )
+        val result = engine.evaluate(tool, ctx(confirmedTools = setOf("some_other_tool")))
+        assertTrue("Expected NeedsConfirmation, got $result", result is PolicyResult.NeedsConfirmation)
+    }
+
+    @Test
+    fun confirmed_remote_cost_tool_still_needs_approval() = runTest {
+        val tool = makeTool(ToolRisk.REMOTE_COST, "web_search")
+        coEvery { policyStore.getPolicy("web_search") } returns ToolPolicy(
+            toolName = "web_search",
+            confirmation = ConfirmationLevel.EXPLICIT,
+        )
+        // The confirmation is granted but the cost approval is not —
+        // a confirmed REMOTE_COST tool falls through to the approval gate.
+        val result = engine.evaluate(tool, ctx(confirmedTools = setOf("web_search")))
+        assertTrue("Expected NeedsApproval, got $result", result is PolicyResult.NeedsApproval)
+    }
+
+    @Test
+    fun confirmed_and_approved_remote_cost_tool_is_allowed() = runTest {
+        val tool = makeTool(ToolRisk.REMOTE_COST, "web_search")
+        coEvery { policyStore.getPolicy("web_search") } returns ToolPolicy(
+            toolName = "web_search",
+            confirmation = ConfirmationLevel.EXPLICIT,
+        )
+        val result = engine.evaluate(
+            tool,
+            ctx(approvedTools = setOf("web_search"), confirmedTools = setOf("web_search")),
+        )
+        assertTrue("Expected Allowed, got $result", result is PolicyResult.Allowed)
     }
 
     @Test

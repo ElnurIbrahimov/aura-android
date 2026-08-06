@@ -156,6 +156,15 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                         )
                         agentRunStore.blockStep(step.id, "Approval required: ${result.rationale}")
                     }
+                    is ToolResult.NeedsConfirmation -> {
+                        agentRunStore.requestApproval(
+                            runId = runId,
+                            stepId = step.id,
+                            toolName = step.toolName,
+                            rationale = result.rationale,
+                        )
+                        agentRunStore.blockStep(step.id, "Confirmation required: ${result.rationale}")
+                    }
                 }
             }
         }
