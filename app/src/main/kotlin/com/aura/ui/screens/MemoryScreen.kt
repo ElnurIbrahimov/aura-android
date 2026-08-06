@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -49,6 +51,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -67,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.collectAsState
@@ -161,7 +165,103 @@ fun MemoryScreen(
             state.memories.size == 1 -> "1 memory$filterText"
             else -> "${state.memories.size} memories$filterText"
         }
-        AuraScreenHeader(title = "Memory", subtitle = subtitle)
+        // Secondary and destructive actions live behind the header's
+        // overflow, not stacked above the list.
+        //
+        // Import, Knowledge graph, Dream summaries, Rebuild embeddings and
+        // Clear all used to be full-width buttons in the main flow, so a
+        // search box, eight filter chips and up to five buttons stood
+        // between you and the first memory — on a screen whose only job is
+        // showing memories. "Clear all memories" is irreversible and had
+        // exactly the same weight as "Import documents".
+        var overflowOpen by remember { mutableStateOf(false) }
+        AuraScreenHeader(
+            title = "Memory",
+            subtitle = subtitle,
+            action = {
+                Box {
+                    IconButton(onClick = { overflowOpen = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "Memory options",
+                            tint = AuraThemeTokens.colors.textSecondary,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = overflowOpen,
+                        onDismissRequest = { overflowOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (documentState.documents.isEmpty()) "Import documents"
+                                    else "Documents · ${documentState.documents.size}",
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                            onClick = { overflowOpen = false; showDocuments = true },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.knowledge_graph)) },
+                            leadingIcon = { Icon(Icons.Filled.AccountTree, contentDescription = null) },
+                            onClick = { overflowOpen = false; onOpenKnowledgeGraph() },
+                        )
+                        if (state.dreamSummaryCount > 0) {
+                            DropdownMenuItem(
+                                text = { Text("${state.dreamSummaryCount} dream summaries") },
+                                leadingIcon = { Icon(Icons.Filled.Star, contentDescription = null) },
+                                onClick = { overflowOpen = false; showDreamSummaries = true },
+                            )
+                        }
+                        if (state.memories.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (state.rebuildInFlight) stringResource(R.string.rebuilding)
+                                        else stringResource(R.string.rebuild_embeddings),
+                                    )
+                                },
+                                enabled = !state.rebuildInFlight,
+                                leadingIcon = { Icon(Icons.Filled.Build, contentDescription = null) },
+                                onClick = { overflowOpen = false; showRebuildConfirm = true },
+                            )
+                            HorizontalDivider()
+                            state.categoryFilter?.let { category ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text("Clear $category memories", color = AuraThemeTokens.colors.error)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = null,
+                                            tint = AuraThemeTokens.colors.error,
+                                        )
+                                    },
+                                    onClick = { overflowOpen = false; showClearCategoryConfirm = true },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(R.string.clear_all_memories),
+                                        color = AuraThemeTokens.colors.error,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = null,
+                                        tint = AuraThemeTokens.colors.error,
+                                    )
+                                },
+                                onClick = { overflowOpen = false; showClearAllConfirm = true },
+                            )
+                        }
+                    }
+                }
+            },
+        )
 
         // Rebuild-embeddings banner — shown after the user has run the
         // action. Dismissible. The text comes from the VM so the
@@ -209,17 +309,23 @@ fun MemoryScreen(
         )
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
-        // Category filter chips
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
+        // Category filters on one scrolling line. As a FlowRow the eight
+        // chips wrapped to two rows and cost ~100dp of vertical space above
+        // the content on every visit, whether or not you filter.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(AuraSpacing.small),
         ) {
             AssistChip(
                 onClick = { viewModel.setCategory(null) },
                 label = { Text(stringResource(R.string.all)) },
                 colors = if (state.categoryFilter == null)
-                    AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
+                    AssistChipDefaults.assistChipColors(
+                        containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.18f),
+                        labelColor = AuraThemeTokens.colors.assistantAccent,
+                    )
                 else AssistChipDefaults.assistChipColors(),
             )
             for (cat in MEMORY_CATEGORIES) {
@@ -227,7 +333,10 @@ fun MemoryScreen(
                     onClick = { viewModel.setCategory(cat) },
                     label = { Text(cat) },
                     colors = if (state.categoryFilter == cat)
-                        AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
+                        AssistChipDefaults.assistChipColors(
+                        containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.18f),
+                        labelColor = AuraThemeTokens.colors.assistantAccent,
+                    )
                     else AssistChipDefaults.assistChipColors(),
                 )
             }
@@ -237,62 +346,24 @@ fun MemoryScreen(
         // Manual note creation — bypasses the write gate so the user
         // can explicitly store anything they want without going through
         // the agent.
+        // Tonal, not a saturated slab. A full-width fill in the accent
+        // colour made a secondary convenience the loudest object on a
+        // screen whose content is the memories below it.
         Button(
             onClick = { showAddNote = true },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(AuraSpacing.xl2),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.16f),
+                contentColor = AuraThemeTokens.colors.assistantAccent,
+            ),
         ) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
             Spacer(Modifier.width(AuraSpacing.small))
             Text(stringResource(R.string.add_note))
         }
-        Spacer(modifier = Modifier.height(AuraSpacing.xs))
-        OutlinedButton(
-            onClick = { showDocuments = true },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(AuraSpacing.xl2),
-        ) {
-            Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
-            Spacer(Modifier.width(AuraSpacing.small))
-            Text(
-                if (documentState.documents.isEmpty()) "Import documents"
-                else "Documents · ${documentState.documents.size}",
-            )
-        }
-        Spacer(modifier = Modifier.height(AuraSpacing.xs))
-        OutlinedButton(
-            onClick = onOpenKnowledgeGraph,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(AuraSpacing.xl2),
-        ) {
-            Icon(Icons.Filled.AccountTree, contentDescription = null, modifier = Modifier.size(AuraSpacing.xl2))
-            Spacer(Modifier.width(AuraSpacing.small))
-            Text(stringResource(R.string.knowledge_graph))
-        }
-
         if (state.memories.isNotEmpty()) {
             Spacer(modifier = Modifier.height(AuraSpacing.xs))
-
-            // Dream summaries stat row. Visible when the count is > 0
-            // (so it doesn't show on a fresh install with no cycles
-            // run). Tappable -> shows the full list of summaries in a
-            // dialog. This is the user-visible signal that the
-            // consolidator is doing its job.
-            if (state.dreamSummaryCount > 0) {
-                OutlinedButton(
-                    onClick = { showDreamSummaries = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        modifier = Modifier.size(AuraSpacing.xl2),
-                    )
-                    Spacer(Modifier.size(AuraSpacing.xs))
-                    Text("${state.dreamSummaryCount} dream summaries")
-                }
-                Spacer(modifier = Modifier.height(AuraSpacing.xs))
-            }
 
             // v2 phase stats: routines + contradictions. Tappable for
             // the future "open routines screen" but for now they're
@@ -334,65 +405,27 @@ fun MemoryScreen(
                 Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }
 
-            // Rebuild embeddings action. Visible only once there is something
-            // to rebuild.
-            OutlinedButton(
-                onClick = { showRebuildConfirm = true },
-                enabled = !state.rebuildInFlight,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (state.rebuildInFlight) {
+            // Rebuild progress stays inline — it's transient state, not an
+            // action, and the overflow item that starts it is hidden while
+            // the menu is closed.
+            if (state.rebuildInFlight) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+                ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(AuraSpacing.md),
                         strokeWidth = AuraSpacing.tiny,
                         color = AuraThemeTokens.colors.actionPrimary,
                     )
-                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
-                    Text(stringResource(R.string.rebuilding))
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.Build,
-                        contentDescription = null,
-                        modifier = Modifier.size(AuraSpacing.xl2),
+                    Text(
+                        text = stringResource(R.string.rebuilding),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textSecondary,
                     )
-                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
-                    Text(stringResource(R.string.rebuild_embeddings))
                 }
             }
-            Spacer(modifier = Modifier.height(AuraSpacing.xs))
-
-            // Bulk delete actions. "Clear category" only shows when a
-            // category filter is active. Both show a confirm dialog.
-            if (state.categoryFilter != null) {
-                OutlinedButton(
-                    onClick = { showClearCategoryConfirm = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(AuraSpacing.xl2),
-                        tint = AuraThemeTokens.colors.error,
-                    )
-                    Spacer(modifier = Modifier.size(AuraSpacing.xs))
-                    Text("Clear ${state.categoryFilter} memories", color = AuraThemeTokens.colors.error)
-                }
-                Spacer(modifier = Modifier.height(AuraSpacing.xs))
-            }
-            OutlinedButton(
-                onClick = { showClearAllConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.size(AuraSpacing.xl2),
-                    tint = AuraThemeTokens.colors.error,
-                )
-                Spacer(modifier = Modifier.size(AuraSpacing.xs))
-                Text(stringResource(R.string.clear_all_memories), color = AuraThemeTokens.colors.error)
-            }
-            Spacer(modifier = Modifier.height(AuraSpacing.xs))
         }
 
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -672,14 +705,25 @@ private fun MemoryRow(
         else -> "${age / 86400}d ago"
     }
 
+    var actionsOpen by remember { mutableStateOf(false) }
+
     Surface(
         color = AuraThemeTokens.colors.surface1,
         shape = RoundedCornerShape(AuraSpacing.medium),
         modifier = Modifier.fillMaxWidth(),
     ) {
+        // Content, then a single overflow control.
+        //
+        // Every action used to sit inline on this row: Source, History,
+        // Edit, Forget, Helpful and Not helpful — six fixed-width children
+        // totalling ~320dp on a 384dp screen. The content Column's
+        // weight(1f) received what was left, roughly 4dp, so memories
+        // rendered one character per line while the buttons themselves
+        // overflowed past the right edge and were clipped away. The screen
+        // whose entire job is showing memories could not show one.
         Row(
             modifier = Modifier.padding(AuraSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             CategoryDot(mem.category)
             Spacer(modifier = Modifier.size(AuraSpacing.medium))
@@ -737,45 +781,60 @@ private fun MemoryRow(
                     )
                 }
             }
-            if (mem.sourceConversationId.isNotBlank()) {
-                TextButton(onClick = onOpenSource) {
-                    Text(stringResource(R.string.source))
+            Box {
+                IconButton(onClick = { actionsOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Memory actions",
+                        tint = AuraThemeTokens.colors.textTertiary,
+                    )
                 }
-            }
-            IconButton(onClick = onShowHistory) {
-                Icon(
-                    imageVector = Icons.Filled.History,
-                    contentDescription = "Edit history",
-                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                )
-            }
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = "Edit",
-                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                )
-            }
-            IconButton(onClick = onForget) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Forget",
-                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                )
-            }
-            IconButton(onClick = { onFeedback(true) }) {
-                Icon(
-                    imageVector = Icons.Filled.ThumbUp,
-                    contentDescription = "Helpful",
-                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                )
-            }
-            IconButton(onClick = { onFeedback(false) }) {
-                Icon(
-                    imageVector = Icons.Filled.ThumbDown,
-                    contentDescription = "Not helpful",
-                    tint = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-                )
+                DropdownMenu(
+                    expanded = actionsOpen,
+                    onDismissRequest = { actionsOpen = false },
+                ) {
+                    if (mem.sourceConversationId.isNotBlank()) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.source)) },
+                            leadingIcon = { Icon(Icons.Filled.OpenInNew, contentDescription = null) },
+                            onClick = { actionsOpen = false; onOpenSource() },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                        onClick = { actionsOpen = false; onEdit() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit history") },
+                        leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
+                        onClick = { actionsOpen = false; onShowHistory() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Helpful") },
+                        leadingIcon = { Icon(Icons.Filled.ThumbUp, contentDescription = null) },
+                        onClick = { actionsOpen = false; onFeedback(true) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Not helpful") },
+                        leadingIcon = { Icon(Icons.Filled.ThumbDown, contentDescription = null) },
+                        onClick = { actionsOpen = false; onFeedback(false) },
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = {
+                            Text("Forget", color = AuraThemeTokens.colors.error)
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = null,
+                                tint = AuraThemeTokens.colors.error,
+                            )
+                        },
+                        onClick = { actionsOpen = false; onForget() },
+                    )
+                }
             }
         }
     }

@@ -151,21 +151,30 @@ fun TasksScreen(
                     onClick = { viewModel.setStatusFilter("all") },
                     label = { Text(stringResource(R.string.all)) },
                     colors = if (state.statusFilter == "all")
-                        AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
+                        AssistChipDefaults.assistChipColors(
+                        containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.18f),
+                        labelColor = AuraThemeTokens.colors.assistantAccent,
+                    )
                     else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("pending") },
                     label = { Text(stringResource(R.string.pending)) },
                     colors = if (state.statusFilter == "pending")
-                        AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
+                        AssistChipDefaults.assistChipColors(
+                        containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.18f),
+                        labelColor = AuraThemeTokens.colors.assistantAccent,
+                    )
                     else AssistChipDefaults.assistChipColors(),
                 )
                 AssistChip(
                     onClick = { viewModel.setStatusFilter("done") },
                     label = { Text(stringResource(R.string.done)) },
                     colors = if (state.statusFilter == "done")
-                        AssistChipDefaults.assistChipColors(containerColor = AuraThemeTokens.colors.actionPrimary, labelColor = AuraThemeTokens.colors.onActionPrimary)
+                        AssistChipDefaults.assistChipColors(
+                        containerColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.18f),
+                        labelColor = AuraThemeTokens.colors.assistantAccent,
+                    )
                     else AssistChipDefaults.assistChipColors(),
                 )
             }

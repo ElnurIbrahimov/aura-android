@@ -4,6 +4,8 @@ import com.aura.ui.theme.AuraSpacing
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -55,6 +57,11 @@ fun SwipeToDeleteContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    // Clipped to the same radius as the row in front of it.
+                    // As a square rect it showed through the row's rounded
+                    // corners as four red slivers on every item, even at
+                    // rest — the list looked permanently mid-swipe.
+                    .clip(RoundedCornerShape(AuraSpacing.medium))
                     .background(AuraThemeTokens.colors.error.copy(alpha = alpha * 0.5f))
                     .padding(horizontal = AuraSpacing.lg),
                 contentAlignment = Alignment.CenterEnd,
