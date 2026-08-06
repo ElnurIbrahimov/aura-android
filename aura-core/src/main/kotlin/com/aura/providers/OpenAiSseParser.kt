@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -60,17 +61,25 @@ internal class OpenAiSseParser {
         // the index->id map as a side effect.
         val toolChunks = parseToolCalls(delta)
 
-        // Text content
-        val text = (delta["content"] as? JsonPrimitive)?.content
+        // Text content.
+        //
+        // contentOrNull, NOT content: JsonNull is itself a JsonPrimitive and
+        // its `.content` is the literal string "null". Servers send
+        // `"content": null` on every reasoning/tool delta, so `.content`
+        // typed the word "null" into the assistant's reply.
+        val text = (delta["content"] as? JsonPrimitive)?.contentOrNull
         val textChunk = if (text != null) ProviderChunk(text = text) else null
 
         // Thinking / reasoning content (DeepSeek: reasoning_content, OpenAI o-series: reasoning)
-        val reasoning = (delta["reasoning_content"] as? JsonPrimitive)?.content
-            ?: (delta["reasoning"] as? JsonPrimitive)?.content
+        val reasoning = (delta["reasoning_content"] as? JsonPrimitive)?.contentOrNull
+            ?: (delta["reasoning"] as? JsonPrimitive)?.contentOrNull
         val thinkingChunk = if (reasoning != null) ProviderChunk(thinking = reasoning) else null
 
-        // Finish reason
-        val finish = (choice["finish_reason"] as? JsonPrimitive)?.content
+        // Finish reason. Same JsonNull trap, but far more damaging here:
+        // ordinary deltas carry `"finish_reason": null`, which read as the
+        // string "null", fell through `when`'s else branch to
+        // FinishReason.stop, and closed the stream on the first chunk.
+        val finish = (choice["finish_reason"] as? JsonPrimitive)?.contentOrNull
         val finishChunk = if (finish != null) {
             val reason = when (finish) {
                 "stop" -> FinishReason.stop
@@ -98,9 +107,11 @@ internal class OpenAiSseParser {
         for (tc in toolCalls) {
             val tco = tc.jsonObject
             val fn = tco["function"]?.jsonObject ?: continue
-            val tcId = (tco["id"] as? JsonPrimitive)?.content ?: ""
-            val name = (fn["name"] as? JsonPrimitive)?.content ?: ""
-            val args = (fn["arguments"] as? JsonPrimitive)?.content ?: ""
+            // contentOrNull throughout — continuation deltas send explicit
+            // nulls for id/name, and "null" ids would break index resolution.
+            val tcId = (tco["id"] as? JsonPrimitive)?.contentOrNull ?: ""
+            val name = (fn["name"] as? JsonPrimitive)?.contentOrNull ?: ""
+            val args = (fn["arguments"] as? JsonPrimitive)?.contentOrNull ?: ""
             val index = (tco["index"] as? JsonPrimitive)?.intOrNull
             // On the first delta for a tool call, OpenAI sends
             // id + name. Subsequent deltas carry index but not
