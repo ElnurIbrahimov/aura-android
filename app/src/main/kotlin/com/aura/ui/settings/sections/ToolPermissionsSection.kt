@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -29,6 +30,28 @@ import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 
+/**
+ * Filter + sort the tool-policy list for display. Pure function so the
+ * completeness and search behavior are unit-testable: a blank query
+ * returns EVERY registered tool (sorted by name); a non-blank query
+ * matches case-insensitively against both the raw tool name
+ * (`web_search`) and its humanized form (`web search`).
+ */
+internal fun filterToolPolicies(
+    toolPolicies: Map<String, ToolPolicy>,
+    query: String,
+): List<Pair<String, ToolPolicy>> {
+    val needle = query.trim().lowercase()
+    return toolPolicies.entries
+        .sortedBy { it.key }
+        .filter { (name, _) ->
+            needle.isEmpty() ||
+                name.lowercase().contains(needle) ||
+                name.replace('_', ' ').lowercase().contains(needle.replace('_', ' '))
+        }
+        .map { it.key to it.value }
+}
+
 @Composable
 fun ToolPermissionsSection(
     toolPolicies: Map<String, ToolPolicy>,
@@ -36,7 +59,7 @@ fun ToolPermissionsSection(
     onSetToolConfirmation: (String, ConfirmationLevel) -> Unit,
 ) {
     var editingToolPolicy by remember { mutableStateOf<String?>(null) }
-    var showAll by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     SettingsSection(
         emoji = "\uD83D\uDEE1\uFE0F",
@@ -50,8 +73,15 @@ fun ToolPermissionsSection(
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
-        val tools = toolPolicies.entries.sortedBy { it.key }
-        val visibleTools = if (showAll) tools else tools.take(8)
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text("Search ${toolPolicies.size} tools\u2026") },
+        )
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
+        val visibleTools = filterToolPolicies(toolPolicies, searchQuery)
         for ((toolName, policy) in visibleTools) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
@@ -75,12 +105,12 @@ fun ToolPermissionsSection(
                 TextButton(onClick = { editingToolPolicy = toolName }) { Text(stringResource(R.string.policy)) }
             }
         }
-        if (toolPolicies.size > 8) {
+        if (visibleTools.isEmpty()) {
             Text(
-                text = "+ ${toolPolicies.size - 8} more tools",
+                text = "No tools match \"${searchQuery.trim()}\"",
                 style = MaterialTheme.typography.bodySmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.padding(start = AuraSpacing.md),
+                modifier = Modifier.padding(vertical = AuraSpacing.xs),
             )
         }
 

@@ -59,6 +59,8 @@ private class FakeProactiveEventDaoForCount : ProactiveEventDao {
 
     override suspend fun recent(limit: Int): List<ProactiveEventEntity> = rows.sortedByDescending { it.timestamp }.take(limit)
 
+    override suspend fun byId(id: Long): ProactiveEventEntity? = rows.firstOrNull { it.id == id }
+
     override suspend fun countSince(since: Long): Int = rows.count { it.timestamp > since }
 
     override suspend fun deleteOlderThan(cutoff: Long): Int {

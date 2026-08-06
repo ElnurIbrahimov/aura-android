@@ -31,5 +31,14 @@ class MorningBriefWorker @AssistedInject constructor(
         const val ACTION_SNOOZE = "com.aura.MORNING_BRIEF_SNOOZE"
         const val REQUEST_CODE_CHAT = 2001
         const val REQUEST_CODE_SNOOZE = 2002
+
+        /**
+         * Intent extra carrying the persisted proactive-event id of the
+         * brief. MainActivity turns it into a nav argument and the chat
+         * screen loads the body from [ProactiveEventDao] — the full brief
+         * text never travels through intent/nav-route extras
+         * (TransactionTooLargeException risk on long briefs).
+         */
+        const val EXTRA_MORNING_BRIEF_ID = "morningBriefId"
     }
 }

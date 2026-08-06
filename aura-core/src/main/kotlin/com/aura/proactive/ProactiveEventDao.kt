@@ -23,6 +23,15 @@ interface ProactiveEventDao {
     suspend fun recent(limit: Int = 100): List<ProactiveEventEntity>
 
     /**
+     * Single-row lookup by primary key. Used by the chat screen to load
+     * a morning brief's body from its event id — the id (not the full
+     * text) is what travels through notification extras and nav-route
+     * arguments, avoiding TransactionTooLargeException on long briefs.
+     */
+    @Query("SELECT * FROM proactive_events WHERE id = :id")
+    suspend fun byId(id: Long): ProactiveEventEntity?
+
+    /**
      * Count of events with timestamp > [since]. Used by
      * [com.aura.proactive.ProactiveEvents.unreadCount] to drive the
      * Home-screen "📬 N today" badge. Pure SQL aggregate — the caller

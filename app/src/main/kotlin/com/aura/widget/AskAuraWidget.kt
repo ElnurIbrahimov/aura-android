@@ -16,10 +16,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -52,29 +49,23 @@ class AskAuraWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
+        // Called from within super.onReceive's dispatch, so goAsync()
+        // (inside refreshWidgets) is still valid here.
         refreshWidgets(context, appWidgetManager, appWidgetIds)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val pendingResult = goAsync()
-        try {
-            super.onReceive(context, intent)
-            // Listen for the broadcast the [ProactiveBootstrap] sends on
-            // cold start so the widget body stays current even if the
-            // system hasn't ticked over 30 minutes yet.
-            if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
-                val mgr = AppWidgetManager.getInstance(context)
-                val component = ComponentName(context, AskAuraWidget::class.java)
-                val ids = mgr.getAppWidgetIds(component)
-                if (ids.isNotEmpty()) {
-                    refreshWidgets(context, mgr, ids)
-                }
+        super.onReceive(context, intent)
+        // Listen for the broadcast the [ProactiveBootstrap] sends on
+        // cold start so the widget body stays current even if the
+        // system hasn't ticked over 30 minutes yet.
+        if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
+            val mgr = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, AskAuraWidget::class.java)
+            val ids = mgr.getAppWidgetIds(component)
+            if (ids.isNotEmpty()) {
+                refreshWidgets(context, mgr, ids)
             }
-        } finally {
-            // finish() is safe here because refreshWidgets starts its own
-            // short-lived coroutine on GlobalScope; the broadcast receiver
-            // itself can be released before the IO work completes.
-            pendingResult.finish()
         }
     }
 
@@ -83,18 +74,17 @@ class AskAuraWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        // Trigger a refresh of every widget instance. We delegate to
-        // a coroutine that reads the most recent memory and updates
-        // the RemoteViews. Use a global scope so the receiver can
-        // finish() while the IO work continues; DO NOT create a new
-        // CoroutineScope per refresh (that leaks a SupervisorJob).
+        // Refresh every widget instance. The goAsync helper keeps the
+        // broadcast's PendingResult open until the IO work completes —
+        // finishing first (the old pattern) let the system kill the
+        // process mid-refresh and drop the update.
         val entry = EntryPointAccessors.fromApplication(
             context.applicationContext,
             WidgetEntryPoint::class.java,
         )
         val memoryStore = entry.memoryStore()
 
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        goAsync {
             val recent = try {
                 memoryStore.recent(1).firstOrNull()
             } catch (e: Exception) {

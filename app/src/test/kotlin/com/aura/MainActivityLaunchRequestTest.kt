@@ -8,11 +8,11 @@ import kotlin.test.assertTrue
 
 class MainActivityLaunchRequestTest {
     @Test
-    fun `brief payload implies chat and increments request sequence`() {
+    fun `brief event id implies chat and increments request sequence`() {
         val request = resolveAuraLaunchRequest(
             openChat = false,
             openMemory = false,
-            morningBriefSummary = "Today: ship the draft",
+            morningBriefEventId = 42L,
             previousSequence = 4,
         )
 
@@ -20,7 +20,7 @@ class MainActivityLaunchRequestTest {
         assertEquals(5, request.sequence)
         assertTrue(request.openChat)
         assertFalse(request.openMemory)
-        assertEquals("Today: ship the draft", request.morningBriefSummary)
+        assertEquals(42L, request.morningBriefEventId)
     }
 
     @Test
@@ -28,7 +28,7 @@ class MainActivityLaunchRequestTest {
         val request = resolveAuraLaunchRequest(
             openChat = false,
             openMemory = true,
-            morningBriefSummary = null,
+            morningBriefEventId = null,
             previousSequence = 8,
         )
 
@@ -36,7 +36,7 @@ class MainActivityLaunchRequestTest {
         assertEquals(9, request.sequence)
         assertFalse(request.openChat)
         assertTrue(request.openMemory)
-        assertNull(request.morningBriefSummary)
+        assertNull(request.morningBriefEventId)
     }
 
     @Test
@@ -45,9 +45,25 @@ class MainActivityLaunchRequestTest {
             resolveAuraLaunchRequest(
                 openChat = false,
                 openMemory = false,
-                morningBriefSummary = "  ",
+                // 0 is the getLongExtra default for "extra absent" —
+                // it must not be treated as a real brief id.
+                morningBriefEventId = 0L,
                 previousSequence = 2,
             ),
         )
+    }
+
+    @Test
+    fun `non-positive brief id is discarded but explicit openChat still wins`() {
+        val request = resolveAuraLaunchRequest(
+            openChat = true,
+            openMemory = false,
+            morningBriefEventId = -1L,
+            previousSequence = 0,
+        )
+
+        requireNotNull(request)
+        assertTrue(request.openChat)
+        assertNull(request.morningBriefEventId)
     }
 }

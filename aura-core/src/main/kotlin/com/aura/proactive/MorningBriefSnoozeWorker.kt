@@ -26,7 +26,7 @@ class MorningBriefSnoozeWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val body = inputData.getString("snooze_body") ?: return Result.failure()
-        val summary = inputData.getString("snooze_summary") ?: return Result.failure()
+        val briefEventId = inputData.getLong("snooze_brief_id", 0L)
 
         val ctx = applicationContext
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -48,7 +48,9 @@ class MorningBriefSnoozeWorker @AssistedInject constructor(
         val chatIntent = Intent(ctx, mainActivityClass).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("openChat", true)
-            putExtra("morningBriefSummary", summary)
+            // Same contract as the original notification: pass the persisted
+            // event id, never the brief text (chat loads the body from Room).
+            if (briefEventId > 0L) putExtra(MorningBriefWorker.EXTRA_MORNING_BRIEF_ID, briefEventId)
         }
         val chatPending = PendingIntent.getActivity(
             ctx, MorningBriefWorker.REQUEST_CODE_CHAT, chatIntent,

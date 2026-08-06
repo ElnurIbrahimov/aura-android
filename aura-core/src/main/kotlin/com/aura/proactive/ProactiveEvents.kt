@@ -163,8 +163,13 @@ class ProactiveEvents(
      * in [latest]/[history], and then re-emits it on the bus *with
      * its DB id* — the init collector's `id != 0L` guard skips
      * re-insertion, so the event is stored exactly once.
+     *
+     * @return the persisted row id (> 0), or -1 if the insert failed.
+     *   Callers that reference the event later (e.g. the morning-brief
+     *   notification putting the id in its intent extras) use this to
+     *   build a stable token instead of shipping the full body around.
      */
-    suspend fun record(event: ProactiveEventBus.Event) {
+    suspend fun record(event: ProactiveEventBus.Event): Long {
         val insertedId = runCatching { dao.insert(event.toEntity()) }
             .onFailure { android.util.Log.w("ProactiveEvents", "record insert failed: ${it.message}", it) }
             .getOrDefault(-1L)
@@ -176,6 +181,7 @@ class ProactiveEvents(
             // id != 0 → the bus collector's guard skips a second insert.
             bus.tryEmit(surfaced)
         }
+        return insertedId
     }
 
     fun dismiss() {

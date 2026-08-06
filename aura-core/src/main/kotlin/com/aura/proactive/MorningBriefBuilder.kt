@@ -48,7 +48,7 @@ class MorningBriefBuilder @Inject constructor(
     private val taskDao: TaskDao,
     private val kgRepository: KnowledgeGraphRepository,
     private val calendarReadTool: CalendarReadTool,
-    private val eventBus: ProactiveEventBus,
+    private val proactiveEvents: ProactiveEvents,
     private val userPreferences: UserPreferences,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
@@ -109,14 +109,21 @@ class MorningBriefBuilder @Inject constructor(
             return androidx.work.ListenableWorker.Result.success()
         }
 
-        eventBus.emit(ProactiveEventBus.Event.MorningBriefReady(notificationTitle, notificationBody))
-        eventBus.emit(ProactiveEventBus.Event.MorningBriefStructured(briefContext))
+        // record() (not bus.emit) — the worker runs in a background wake
+        // where nothing may have constructed the ProactiveEvents singleton,
+        // so a bare bus emission would be dropped. record() persists first
+        // and returns the DB id; the notification carries that id instead
+        // of the brief text so the chat screen loads the body from Room.
+        val briefEventId = proactiveEvents.record(
+            ProactiveEventBus.Event.MorningBriefReady(notificationTitle, notificationBody),
+        )
+        proactiveEvents.record(ProactiveEventBus.Event.MorningBriefStructured(briefContext))
 
         postNotification(
             context,
             title = notificationTitle,
             body = notificationBody,
-            summary = summary,
+            briefEventId = briefEventId,
         )
         runCatching {
             evolutionHooks?.onProactiveDelivered("mb_${now}", "morning_brief")
@@ -184,7 +191,7 @@ class MorningBriefBuilder @Inject constructor(
     }
 
 
-    private fun postNotification(ctx: Context, title: String, body: String, summary: String) {
+    private fun postNotification(ctx: Context, title: String, body: String, briefEventId: Long) {
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val ch = NotificationChannel(
             "aura_morning_brief",
@@ -204,7 +211,10 @@ class MorningBriefBuilder @Inject constructor(
         val chatIntent = Intent(ctx, mainActivityClass).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("openChat", true)
-            putExtra("morningBriefSummary", summary)
+            // Pass the persisted event id, never the brief text — the chat
+            // screen loads the body from Room. If the insert failed
+            // (id ≤ 0) the action degrades to a plain "open chat".
+            if (briefEventId > 0L) putExtra(MorningBriefWorker.EXTRA_MORNING_BRIEF_ID, briefEventId)
         }
         val chatPending = PendingIntent.getActivity(
             ctx, MorningBriefWorker.REQUEST_CODE_CHAT, chatIntent,
@@ -214,7 +224,7 @@ class MorningBriefBuilder @Inject constructor(
         val snoozeIntent = Intent(ctx, MorningBriefReceiver::class.java).apply {
             action = MorningBriefWorker.ACTION_SNOOZE
             putExtra("body", body)
-            putExtra("summary", summary)
+            putExtra(MorningBriefWorker.EXTRA_MORNING_BRIEF_ID, briefEventId)
         }
         val snoozePending = PendingIntent.getBroadcast(
             ctx, MorningBriefWorker.REQUEST_CODE_SNOOZE, snoozeIntent,

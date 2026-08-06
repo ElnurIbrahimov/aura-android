@@ -48,8 +48,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -76,25 +74,30 @@ data class AuraLaunchRequest(
     val sequence: Int = 0,
     val openChat: Boolean = false,
     val openMemory: Boolean = false,
-    val morningBriefSummary: String? = null,
+    /**
+     * Persisted proactive-event id of a morning brief. The chat screen
+     * loads the body from Room by id — the brief text itself never
+     * travels through intent extras or nav-route arguments.
+     */
+    val morningBriefEventId: Long? = null,
     val chatPrefillDraft: String? = null,
 )
 
 internal fun resolveAuraLaunchRequest(
     openChat: Boolean,
     openMemory: Boolean,
-    morningBriefSummary: String?,
+    morningBriefEventId: Long?,
     chatPrefillDraft: String? = null,
     previousSequence: Int,
 ): AuraLaunchRequest? {
-    val brief = morningBriefSummary?.trim()?.takeIf { it.isNotEmpty() }
+    val briefId = morningBriefEventId?.takeIf { it > 0L }
     val draft = chatPrefillDraft?.trim()?.takeIf { it.isNotEmpty() }
-    if (!openChat && !openMemory && brief == null && draft == null) return null
+    if (!openChat && !openMemory && briefId == null && draft == null) return null
     return AuraLaunchRequest(
         sequence = previousSequence + 1,
-        openChat = openChat || brief != null || draft != null,
-        openMemory = openMemory && brief == null && draft == null,
-        morningBriefSummary = brief,
+        openChat = openChat || briefId != null || draft != null,
+        openMemory = openMemory && briefId == null && draft == null,
+        morningBriefEventId = briefId,
         chatPrefillDraft = draft,
     )
 }
@@ -156,9 +159,10 @@ class MainActivity : FragmentActivity() {
     private fun handleDeepLink(intent: Intent) {
         val data = intent.data
         if (data != null && data.scheme == "aura" && data.host == "oauth") {
-            // OAuth redirect — handled asynchronously by OAuthFlow
-            val mainActivity = this
-            CoroutineScope(Dispatchers.Main).launch {
+            // OAuth redirect — handled asynchronously by OAuthFlow.
+            // lifecycleScope (not a bare CoroutineScope) so the work is
+            // cancelled with the activity instead of leaking past onDestroy.
+            lifecycleScope.launch {
                 val entry = EntryPointAccessors.fromApplication(
                     applicationContext, MainActivityEntryPoint::class.java
                 )
@@ -173,7 +177,9 @@ class MainActivity : FragmentActivity() {
         resolveAuraLaunchRequest(
             openChat = intent.getBooleanExtra("openChat", false),
             openMemory = intent.getBooleanExtra("openMemory", false),
-            morningBriefSummary = intent.getStringExtra("morningBriefSummary"),
+            morningBriefEventId = intent.getLongExtra(
+                com.aura.proactive.MorningBriefWorker.EXTRA_MORNING_BRIEF_ID, 0L,
+            ),
             chatPrefillDraft = intent.getStringExtra("chatPrefillDraft"),
             previousSequence = launchRequest.sequence,
         )?.let { launchRequest = it }
@@ -198,8 +204,13 @@ fun AuraRoot() {
     // Collect appLockEnabled as a reactive Flow so enabling it in
     // Settings takes effect immediately in the active session —
     // the user doesn't need to restart the app for the gate to engage.
+    //
+    // Tri-state: null = DataStore hasn't emitted yet. A cold start of a
+    // locked app must NOT render NavGraph while the value is unknown —
+    // the old `initialValue = false` flashed the full UI for a frame or
+    // two before the lock engaged.
     val appLockEnabled by mainEntry.userPreferences().appLockEnabled
-        .collectAsStateWithLifecycle(initialValue = false)
+        .collectAsStateWithLifecycle<Boolean?>(initialValue = null)
 
     // Collect themeMode the same way so Settings theme changes
     // apply live without a restart.
@@ -233,21 +244,29 @@ fun AuraRoot() {
             FirstRunGateEntryPoint::class.java,
         )
         firstRunComplete = entry.firstRunGate().isFirstRunComplete()
-        if (!appLockEnabled) unlocked = true
     }
 
-    // When appLockEnabled transitions to true, lock immediately.
+    // When appLockEnabled transitions (unknown → known, or the user
+    // flips it in Settings), reset to locked. When the value is false
+    // the render branch below ignores `unlocked`, so this only bites
+    // when the lock is actually on — including re-enabling it after a
+    // disable, which must start locked again.
     LaunchedEffect(appLockEnabled) {
-        if (appLockEnabled) {
-            unlocked = false
-        } else {
-            unlocked = true
-        }
+        if (appLockEnabled != null) unlocked = false
     }
 
     DisposableEffect(lifecycleOwner) {
+        // Relock when the app goes to BACKGROUND (ON_STOP), not on
+        // ON_RESUME. The device-credential unlock launches a separate
+        // system activity; when it finishes, MainActivity resumes and
+        // an ON_RESUME relock raced the asynchronous success callback
+        // (observer could fire after the callback set unlocked = true,
+        // re-locking a just-unlocked app). With ON_STOP the order is
+        // deterministic: the credential activity covering us locks
+        // (no-op — we're already locked), and the success callback is
+        // always the last writer.
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && appLockEnabled) {
+            if (event == Lifecycle.Event.ON_STOP && appLockEnabled == true) {
                 unlocked = false
             }
         }
@@ -261,13 +280,16 @@ fun AuraRoot() {
             color = AuraThemeTokens.colors.background,
         ) {
             when {
-                firstRunComplete == null -> AuraStartupState()
+                // Render nothing but the startup surface until BOTH the
+                // first-run flag and the app-lock flag are known — a
+                // locked app must never flash NavGraph on cold start.
+                firstRunComplete == null || appLockEnabled == null -> AuraStartupState()
 
                 firstRunComplete == false -> OnboardingRoute(
                     onComplete = { firstRunComplete = true },
                 )
 
-                appLockEnabled && !unlocked -> AppLockScreen(
+                appLockEnabled == true && !unlocked -> AppLockScreen(
                     onUnlocked = { unlocked = true },
                 )
 

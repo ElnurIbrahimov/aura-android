@@ -16,7 +16,7 @@ fun HomeRoute(
     viewModel: HomeViewModel = hiltViewModel(),
     onOpenSearch: () -> Unit = {},
     onOpenChat: (prefillDraft: String) -> Unit = {},
-    onOpenChatWithBrief: (briefText: String) -> Unit = {},
+    onOpenChatWithBrief: (briefEventId: Long) -> Unit = {},
     onOpenProactive: () -> Unit = {},
     onOpenMemory: () -> Unit = {},
     onOpenTasks: () -> Unit = {},

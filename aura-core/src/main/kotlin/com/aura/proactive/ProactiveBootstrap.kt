@@ -39,9 +39,9 @@ import javax.inject.Singleton
  * in-memory computations) and the benefit is real (a memory that's
  * been unused for 60 days actually gets its score nudged down).
  */
-@Singleton
 private const val TAG = "ProactiveBootstrap"
 
+@Singleton
 class ProactiveBootstrap @Inject constructor(
     @ApplicationContext private val appContext: android.content.Context,
     private val scheduler: ProactiveScheduler,

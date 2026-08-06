@@ -81,9 +81,14 @@ fun NavGraph(
 
     LaunchedEffect(launchRequest.sequence) {
         if (launchRequest.sequence == 0) return@LaunchedEffect
+        val briefEventId = launchRequest.morningBriefEventId
         val route = when {
-            !launchRequest.morningBriefSummary.isNullOrBlank() -> {
-                "chat?brief=${android.net.Uri.encode(launchRequest.morningBriefSummary)}"
+            briefEventId != null && briefEventId > 0L -> {
+                // Only the event id travels through the nav route — the
+                // chat ViewModel loads the brief body from Room. Full
+                // text in a route argument risked
+                // TransactionTooLargeException on long briefs.
+                "chat?briefId=$briefEventId"
             }
             !launchRequest.chatPrefillDraft.isNullOrBlank() -> {
                 "chat?draft=${android.net.Uri.encode(launchRequest.chatPrefillDraft)}"
@@ -153,13 +158,16 @@ fun NavGraph(
                             restoreState = true
                         }
                     },
-                    onOpenChatWithBrief = { brief ->
-                        // Morning-brief proactive card. Pass the brief text
-                        // as `brief` query param so ChatScreen auto-sends
-                        // it as a user message.
-                        navController.navigate(
-                            "chat?brief=${android.net.Uri.encode(brief)}"
-                        ) {
+                    onOpenChatWithBrief = { briefEventId ->
+                        // Morning-brief proactive card. Pass only the
+                        // persisted event id — ChatViewModel loads the
+                        // body from Room and auto-sends it once.
+                        val route = if (briefEventId > 0L) {
+                            "chat?briefId=$briefEventId"
+                        } else {
+                            TopLevelRoute.Chat.route
+                        }
+                        navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -204,22 +212,22 @@ fun NavGraph(
                 )
             }
             composable(
-                route = "chat?convId={convId}&draft={draft}&brief={brief}&focusTurn={focusTurn}",
+                route = "chat?convId={convId}&draft={draft}&briefId={briefId}&focusTurn={focusTurn}",
                 arguments = listOf(
                     navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null },
                     navArgument("draft") { type = NavType.StringType; nullable = true; defaultValue = null },
-                    navArgument("brief") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("briefId") { type = NavType.StringType; nullable = true; defaultValue = null },
                     navArgument("focusTurn") { type = NavType.StringType; nullable = true; defaultValue = null },
                 ),
             ) {
                 val convId = it.arguments?.getString("convId")
-                val summary = it.arguments?.getString("brief")
+                val briefId = it.arguments?.getString("briefId")?.toLongOrNull()
                 val draft = it.arguments?.getString("draft")
                 val focusTurn = it.arguments?.getString("focusTurn")?.toLongOrNull()
                 ChatRoute(
                     navController = navController,
                     resumeConversationId = convId,
-                    morningBriefSummary = summary,
+                    morningBriefEventId = briefId,
                     initialDraft = draft,
                     focusTurnTimestamp = focusTurn,
                     onNavigateHistory = { navController.navigate(Route.History.path) },

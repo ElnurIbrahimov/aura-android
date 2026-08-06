@@ -198,11 +198,14 @@ class ProactiveEventsTest {
         val events = newProactiveEvents()
         advanceUntilIdle()
 
-        events.record(
+        val returnedId = events.record(
             ProactiveEventBus.Event.CalendarEventSoon("Standup", 12, timestamp = 5_000L),
         )
         advanceUntilIdle()
 
+        // record() returns the persisted row id — the morning-brief
+        // notification uses it as the token it puts in intent extras.
+        assertTrue(returnedId > 0L, "record() must return the DB id (was $returnedId)")
         // Exactly one row: the direct insert. The re-emission with the
         // DB id must be skipped by the bus collector's id != 0 guard.
         assertEquals(1, dao.recent(100).size)
@@ -306,6 +309,9 @@ private class FakeProactiveEventDao : ProactiveEventDao {
 
     override suspend fun recent(limit: Int): List<ProactiveEventEntity> =
         rows.sortedByDescending { it.timestamp }.take(limit)
+
+    override suspend fun byId(id: Long): ProactiveEventEntity? =
+        rows.firstOrNull { it.id == id }
 
     override suspend fun countSince(since: Long): Int =
         rows.count { it.timestamp > since }

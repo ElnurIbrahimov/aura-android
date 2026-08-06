@@ -78,8 +78,6 @@ import com.aura.ui.theme.AuraSpacing
 
 import com.aura.ui.theme.AuraThemeTokens
 
-import com.aura.ui.util.toSummary
-
 import com.aura.ui.viewmodel.HomeLoadState
 
 import com.aura.ui.viewmodel.HomeUiState
@@ -102,7 +100,7 @@ fun HomeContent(
 
     onDismissProactive: () -> Unit = {},
 
-    onOpenChatWithBrief: (String) -> Unit = {},
+    onOpenChatWithBrief: (Long) -> Unit = {},
 
     onOpenMemory: () -> Unit = {},
 
@@ -377,7 +375,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
     isEmpty: Boolean,
     onAskAura: (String) -> Unit,
     onDismissProactive: () -> Unit,
-    onOpenChatWithBrief: (String) -> Unit,
+    onOpenChatWithBrief: (Long) -> Unit,
     onOpenMemory: () -> Unit,
     onOpenTasks: () -> Unit,
     onOpenCalendar: () -> Unit,
@@ -420,11 +418,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
                     is HomePriority.Proactive -> when (val event = priority.event) {
 
-                        is ProactiveEventBus.Event.MorningBriefReady -> onOpenChatWithBrief(event.body)
+                        // Pass only the persisted event id — the chat
+                        // ViewModel loads the brief body from Room.
+                        is ProactiveEventBus.Event.MorningBriefReady -> onOpenChatWithBrief(event.id)
 
                         is ProactiveEventBus.Event.MorningBriefStructured ->
 
-                            onOpenChatWithBrief(event.context.toSummary())
+                            onOpenChatWithBrief(event.id)
 
                         is ProactiveEventBus.Event.CalendarEventSoon -> onOpenCalendar()
 

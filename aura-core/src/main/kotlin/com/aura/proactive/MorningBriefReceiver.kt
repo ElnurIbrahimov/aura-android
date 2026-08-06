@@ -23,11 +23,11 @@ class MorningBriefReceiver : BroadcastReceiver() {
         if (intent.action != MorningBriefWorker.ACTION_SNOOZE) return
 
         val body = intent.getStringExtra("body") ?: return
-        val summary = intent.getStringExtra("summary") ?: return
+        val briefEventId = intent.getLongExtra(MorningBriefWorker.EXTRA_MORNING_BRIEF_ID, 0L)
 
         val inputData = androidx.work.workDataOf(
             "snooze_body" to body,
-            "snooze_summary" to summary,
+            "snooze_brief_id" to briefEventId,
         )
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(false)

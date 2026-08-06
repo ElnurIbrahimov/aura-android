@@ -165,7 +165,7 @@ fun ChatRoute(
     navController: androidx.navigation.NavHostController,
     viewModel: ChatViewModel = hiltViewModel(),
     resumeConversationId: String? = null,
-    morningBriefSummary: String? = null,
+    morningBriefEventId: Long? = null,
     initialDraft: String? = null,
     focusTurnTimestamp: Long? = null,
     onNavigateHistory: () -> Unit = {},
@@ -173,11 +173,15 @@ fun ChatRoute(
     LaunchedEffect(resumeConversationId) {
         if (resumeConversationId != null) viewModel.loadConversation(resumeConversationId)
     }
-    LaunchedEffect(morningBriefSummary) {
-        if (!morningBriefSummary.isNullOrBlank()) viewModel.onUserMessage(morningBriefSummary)
+    // Both nav-arg effects re-fire on back-navigation (the back stack
+    // entry keeps its arguments), so the ViewModel enforces
+    // consume-once semantics: a brief is auto-sent at most once per id
+    // and the initial draft never clobbers text the user typed since.
+    LaunchedEffect(morningBriefEventId) {
+        if (morningBriefEventId != null) viewModel.sendMorningBrief(morningBriefEventId)
     }
     LaunchedEffect(initialDraft) {
-        if (!initialDraft.isNullOrBlank()) viewModel.setDraft(initialDraft)
+        if (!initialDraft.isNullOrBlank()) viewModel.applyInitialDraft(initialDraft)
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()

@@ -28,6 +28,7 @@ import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
 import com.aura.taste.TasteEngine
 import com.aura.tools.Citation
+import com.aura.ui.util.toSummary
 import com.aura.voice.TextToSpeech
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -364,6 +365,7 @@ class ChatViewModel @Inject constructor(
     private val strategyBandit: com.aura.agent.StrategyBandit,
     private val proactiveMessageStore: com.aura.proactive.ProactiveMessageStore? = null,
     private val idleTimePreparationEngine: com.aura.proactive.IdleTimePreparationEngine? = null,
+    private val proactiveEventDao: com.aura.proactive.ProactiveEventDao? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -1073,6 +1075,65 @@ class ChatViewModel @Inject constructor(
     fun onUserMessage(text: String) {
         _state.update { it.copy(draft = text) }
         send()
+    }
+
+    // ---- Consume-once nav-argument handling ----
+    //
+    // ChatRoute's LaunchedEffects re-fire whenever the back stack entry
+    // recomposes with its retained nav arguments (e.g. navigating away
+    // and back). These guards live in the ViewModel — which survives
+    // exactly as long as the back stack entry — so a brief is sent at
+    // most once per event id (no duplicate LLM call) and the initial
+    // draft can never clobber text the user typed after it was applied.
+
+    /** Brief event ids already auto-sent by this ViewModel instance. */
+    private val consumedBriefEventIds = mutableSetOf<Long>()
+
+    /** Whether the `draft` nav argument has already been applied. */
+    private var initialDraftConsumed = false
+
+    /**
+     * Load a morning brief's body from the proactive-event store by id
+     * and auto-send it as a user message — once. The id (not the full
+     * text) is what travels through notification extras and nav-route
+     * arguments; the body lives in Room.
+     */
+    fun sendMorningBrief(briefEventId: Long) {
+        if (briefEventId <= 0L) return
+        if (!consumedBriefEventIds.add(briefEventId)) return
+        val dao = proactiveEventDao ?: return
+        viewModelScope.launch {
+            val body = runCatching { loadBriefBody(dao, briefEventId) }
+                .onFailure { Log.w(TAG, "brief load failed: ${it.message}", it) }
+                .getOrNull()
+            if (!body.isNullOrBlank()) onUserMessage(body)
+        }
+    }
+
+    private suspend fun loadBriefBody(
+        dao: com.aura.proactive.ProactiveEventDao,
+        briefEventId: Long,
+    ): String? {
+        val entity = dao.byId(briefEventId) ?: return null
+        return when (entity.eventType) {
+            "MorningBriefReady" -> entity.body.takeIf { it.isNotBlank() }
+            "MorningBriefStructured" -> runCatching {
+                json.decodeFromString(com.aura.proactive.BriefContext.serializer(), entity.body)
+                    .toSummary()
+            }.getOrNull()?.takeIf { it.isNotBlank() }
+            else -> null
+        }
+    }
+
+    /**
+     * Apply the `draft` nav argument to the composer — once. Later
+     * re-fires of the nav effect are no-ops so the user's typed text
+     * survives back-navigation.
+     */
+    fun applyInitialDraft(draft: String) {
+        if (initialDraftConsumed) return
+        initialDraftConsumed = true
+        if (draft.isNotBlank()) setDraft(draft)
     }
 
     fun send() {

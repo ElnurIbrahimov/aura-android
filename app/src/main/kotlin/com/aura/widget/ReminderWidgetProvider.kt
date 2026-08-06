@@ -16,9 +16,6 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 import android.util.Log
@@ -51,13 +48,16 @@ class ReminderWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        CoroutineScope(Dispatchers.IO).launch {
+        // goAsync (not a throwaway CoroutineScope): the PendingResult
+        // keeps the process alive until the Room read and RemoteViews
+        // push complete, so the update isn't dropped on process death.
+        goAsync {
             val dao = runCatching {
                 EntryPointAccessors.fromApplication(
                     context,
                     ReminderWidgetEntryPoint::class.java,
                 ).reminderDao()
-            }.onFailure { Log.w("ReminderWidgetProvider", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@launch
+            }.onFailure { Log.w("ReminderWidgetProvider", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@goAsync
 
             val reminders = dao.allForBackup()
                 .filter { it.triggerAt > System.currentTimeMillis() }
