@@ -74,7 +74,6 @@ open class OpenAiCompatProvider(
         val listener = object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 sourceHolder.source = eventSource
-                activeEventSource = eventSource
                 val chunks = sseParser.parseEvent(data)
                 // P0-AGENTIC-F1: parseEvent returns a list to support parallel
                 // tool calls batched in a single SSE event. Emit every chunk;
@@ -96,7 +95,7 @@ open class OpenAiCompatProvider(
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
         }
-        EventSources.createFactory(httpClient).newEventSource(request, listener)
+        sourceHolder.source = EventSources.createFactory(httpClient).newEventSource(request, listener)
         // Bound the per-request read so a misbehaving server that never sends
         // [DONE] and never closes the stream can't hang the agent forever. The
         // OkHttp read timeout (configured in ProviderModule) is the primary
@@ -109,13 +108,13 @@ open class OpenAiCompatProvider(
             // Synthesize a finish so downstream loops terminate cleanly.
             emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
-            // Cancel the EventSource so the remote stream stops generating
-            // billable tokens. Without this, hitting "stop" in the UI only
-            // stops consuming the channel — the remote model keeps generating
-            // to completion.
-            activeEventSource?.cancel()
-            activeEventSource = null
+            // Cancel only THIS stream's EventSource so the remote stops
+            // generating billable tokens. The shared field is cleared behind
+            // an identity check — this @Singleton serves concurrent streams
+            // (chat + WriteGate + MoA references), and cancelling through the
+            // shared field used to kill whichever stream wrote it last.
             sourceHolder.cancel()
+            if (activeEventSource === sourceHolder) activeEventSource = null
         }
     }
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
@@ -227,12 +226,7 @@ open class OpenAiCompatProvider(
             // reasoning_effort and thinking:{type:enabled}. Ollama uses
             // think:true/high. Subclasses can override injectThinking().
             injectThinking(this, options.thinkingBudget)
-            put("messages", JsonArray(messages.map { msg ->
-                buildJsonObject {
-                    put("role", msg.role.name)
-                    put("content", msg.content)
-                }
-            }))
+            put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->
                     buildJsonObject {

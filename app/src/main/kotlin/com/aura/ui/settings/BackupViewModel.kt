@@ -93,7 +93,9 @@ class BackupViewModel @Inject constructor(
                 val text = bytes.toString(Charsets.UTF_8)
                 // Validate before showing the confirm dialog so the
                 // user doesn't get a parse error after clicking Yes.
-                backupManager.decodeFromJson(text)
+                // Keep the decoded backup so confirmImport doesn't have
+                // to parse the JSON a second time.
+                stagedBackup = withContext(Dispatchers.IO) { backupManager.decodeFromJson(text) }
                 _state.update {
                     it.copy(
                         pendingImportBytes = text,
@@ -107,7 +109,11 @@ class BackupViewModel @Inject constructor(
         }
     }
 
+    /** Decoded staged import, kept off UI state (it can be large). */
+    private var stagedBackup: com.aura.backup.AuraBackup? = null
+
     fun cancelImport() {
+        stagedBackup = null
         _state.update { it.copy(showImportConfirm = false, pendingImportBytes = null) }
     }
 
@@ -124,7 +130,11 @@ class BackupViewModel @Inject constructor(
                 if (purgeFirst) {
                     backupManager.purgeAll()
                 }
-                val backup = withContext(Dispatchers.IO) { backupManager.decodeFromJson(bytes) }
+                // Reuse the backup decoded at stage time; fall back to
+                // decoding only if staging state was lost (process death).
+                val backup = stagedBackup
+                    ?: withContext(Dispatchers.IO) { backupManager.decodeFromJson(bytes) }
+                stagedBackup = null
                 val counts = backupManager.restore(backup)
                 val rowSummary = "${counts.memories} memories, " +
                     "${counts.conversations} convos, " +

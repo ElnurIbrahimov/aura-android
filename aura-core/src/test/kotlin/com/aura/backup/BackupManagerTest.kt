@@ -70,6 +70,74 @@ class BackupManagerTest {
         strategyBanditDao = strategyBanditDao,
     )
 
+    /**
+     * Mock every DAO read + preference flow that [BackupManager.snapshot]
+     * touches. Shared by the snapshot test and the restore-rollback test
+     * (restore() now snapshots current data before writing).
+     */
+    private fun mockSnapshotDeps() {
+        coEvery { memoryDao.allForExport() } returns emptyList()
+        coEvery { memoryEditDao.allForBackup() } returns emptyList()
+        coEvery { documentDao.allForBackup() } returns emptyList()
+        coEvery { creativeProjectDao.allForBackup() } returns emptyList()
+        coEvery { conversationDao.allForExport() } returns emptyList()
+        coEvery { kgDao.allNodes() } returns emptyList()
+        coEvery { kgDao.allEdges() } returns emptyList()
+        coEvery { handDao.getAll() } returns emptyList()
+        coEvery { handDao.allRunsForBackup() } returns emptyList()
+        coEvery { taskDao.all() } returns emptyList()
+        coEvery { reminderDao.allForBackup() } returns emptyList()
+        coEvery { proactiveEventDao.allForBackup() } returns emptyList()
+        coEvery { userProfileDao.get() } returns null
+        coEvery { agentDao.allOnce() } returns emptyList()
+        every { userPreferences.defaultModel } returns flowOf("ollama:deepseek-v4-pro:cloud")
+        every { userPreferences.firstRunComplete } returns flowOf(true)
+        every { userPreferences.appLockEnabled } returns flowOf(false)
+        every { userPreferences.lastSeenProactiveAt } returns flowOf(0L)
+        every { userPreferences.morningBriefEnabled } returns flowOf(true)
+        every { userPreferences.calendarMonitorEnabled } returns flowOf(true)
+        every { userPreferences.ttsEnabled } returns flowOf(true)
+        every { userPreferences.incognitoDefault } returns flowOf(false)
+        every { userPreferences.themeMode } returns flowOf("system")
+        every { userPreferences.customIdentity } returns flowOf("")
+        every { userPreferences.specialistOverrides } returns flowOf("{}")
+        every { userPreferences.morningBriefHour } returns flowOf(7)
+        every { userPreferences.specialistToolOverrides } returns flowOf("{}")
+        every { userPreferences.visionModel } returns flowOf(null)
+        every { userPreferences.backgroundModel } returns flowOf(null)
+        every { userPreferences.deepModeModel } returns flowOf(null)
+        every { userPreferences.moaReferenceModels } returns flowOf(emptyList())
+        every { userPreferences.moaAggregatorModel } returns flowOf(null)
+        every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.smtpHost } returns flowOf("")
+        every { userPreferences.smtpPort } returns flowOf(587)
+        every { userPreferences.smtpUsername } returns flowOf("")
+        every { userPreferences.smtpFrom } returns flowOf("")
+        every { userPreferences.mcpServersJson } returns flowOf("[]")
+        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
+        every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
+        every { userPreferences.daemonEnabled } returns flowOf(false)
+        every { userPreferences.reasoningEnabled } returns flowOf(true)
+        every { userPreferences.reasoningBudget } returns flowOf(32000)
+        every { userPreferences.googleClientId } returns flowOf("")
+        every { userPreferences.microsoftClientId } returns flowOf("")
+        every { userPreferences.dreamLastRunAt } returns flowOf(0L)
+        every { userPreferences.dreamLastRunStats } returns flowOf("")
+        every { userPreferences.evolutionEnabled } returns flowOf(false)
+        every { userPreferences.evolutionIntervalHours } returns flowOf(24)
+        every { userPreferences.dreamEnabled } returns flowOf(true)
+        every { userPreferences.decayEnabled } returns flowOf(true)
+        every { userPreferences.triggersEnabled } returns flowOf(true)
+        every { userPreferences.triggers } returns flowOf(emptyList())
+        every { userPreferences.planningEnabled } returns flowOf(false)
+        every { userPreferences.agentId } returns flowOf(null)
+        every { userPreferences.councilEnabled } returns flowOf(true)
+        every { userPreferences.councilAutoApply } returns flowOf(false)
+        every { userPreferences.councilActivityLevel } returns flowOf(3)
+        every { userPreferences.forRole(any()) } returns flowOf(null)
+        every { providerKeys.embeddingModel } returns "nomic-embed-text"
+    }
+
     @Test
     fun `snapshot exports all six tables plus preferences`() = runTest {
         // Empty tables — the call should not throw and should return a
@@ -390,6 +458,42 @@ class BackupManagerTest {
             )
         }
         assertEquals(1, counts.reminders)
+    }
+
+    @Test
+    fun `failed restore rolls back to pre-existing data instead of purging it`() = runTest {
+        // Regression: any insert failure used to run purgeAll() alone —
+        // destroying the user's PRE-EXISTING data (including tables the
+        // backup never contained) on a corrupt import. Now restore()
+        // snapshots current data first and re-inserts it on failure.
+        mockSnapshotDeps()
+        // Pre-existing data the snapshot will capture.
+        coEvery { memoryDao.allForExport() } returns listOf(
+            com.aura.memory.MemoryEntity(
+                id = "pre1", content = "existing memory", source = "user", category = "fact",
+            ),
+        )
+        // The import blows up mid-insert, AFTER memories are written.
+        coEvery { conversationDao.insertAll(any()) } throws RuntimeException("disk full")
+
+        val importBackup = AuraBackup(
+            exportedAt = 0L,
+            appVersionName = "0.1.0",
+            memories = listOf(
+                MemoryBackup("im1", "imported memory", "user", "fact", "general", 0.5f, 1L, 1L, 0, 1f, "", "{}"),
+            ),
+            conversations = listOf(
+                ConversationBackup("c1", "t", 1L, 2L, null, "m", "{}", "[]"),
+            ),
+        )
+
+        assertFailsWith<RuntimeException> { manager.restore(importBackup) }
+
+        // Purge ran, then the pre-existing memory was re-inserted.
+        coVerify { memoryDao.deleteAll() }
+        coVerify {
+            memoryDao.insertAll(match { rows -> rows.any { it.content == "existing memory" } })
+        }
     }
 
     @Test

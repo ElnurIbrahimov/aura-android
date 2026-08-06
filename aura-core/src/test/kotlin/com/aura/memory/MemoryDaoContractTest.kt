@@ -84,15 +84,31 @@ class MemoryDaoContractTest {
     }
 
     @Test
-    fun `searchByWordsInScopes returns matching word`() = runBlocking {
+    fun `searchByWordsInScopes returns ONLY matching rows with sentinel pads`() = runBlocking {
+        // Regression: unused slots padded with "%%" matched EVERY row, so
+        // recall returned "freshest N in scope" regardless of the query.
+        // The sentinel pad must match nothing.
         dao.insert(memory("I love kotlin programming"))
         dao.insert(memory("I prefer python"))
+        val s = MemoryStore.NO_MATCH_SENTINEL
         val hits = dao.searchByWordsInScopes(
-            word1 = "%kotlin%", word2 = "%%", word3 = "%%",
-            word4 = "%%", word5 = "%%", word6 = "%%",
+            word1 = "%kotlin%", word2 = s, word3 = s,
+            word4 = s, word5 = s, word6 = s,
             scopes = listOf("general"), limit = 10,
         )
-        assertTrue(hits.any { it.content == "I love kotlin programming" })
+        assertEquals(listOf("I love kotlin programming"), hits.map { it.content })
+    }
+
+    @Test
+    fun `searchByWordsInScopes with all sentinel pads matches nothing`() = runBlocking {
+        dao.insert(memory("I love kotlin programming"))
+        val s = MemoryStore.NO_MATCH_SENTINEL
+        val hits = dao.searchByWordsInScopes(
+            word1 = s, word2 = s, word3 = s,
+            word4 = s, word5 = s, word6 = s,
+            scopes = listOf("general"), limit = 10,
+        )
+        assertTrue("sentinel pads must not match any row, got ${hits.map { it.content }}", hits.isEmpty())
     }
 
     // --- CRUD ---

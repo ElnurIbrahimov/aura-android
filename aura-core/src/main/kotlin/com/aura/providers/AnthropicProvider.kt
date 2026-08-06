@@ -77,15 +77,7 @@ class AnthropicProvider(
                 put("temperature", 1.0)
             }
             systemPrompt?.let { put("system", it) }
-            put("messages", kotlinx.serialization.json.JsonArray(anthropicMessages.map { msg ->
-                buildJsonObject {
-                    put("role", msg.role.name)
-                    put("content", kotlinx.serialization.json.JsonArray(listOf(buildJsonObject {
-                        put("type", "text")
-                        put("text", msg.content)
-                    })))
-                }
-            }))
+            put("messages", buildAnthropicMessages(anthropicMessages))
             if (tools.isNotEmpty()) {
                 put("tools", kotlinx.serialization.json.JsonArray(tools.map { tool ->
                     buildJsonObject {
@@ -305,6 +297,68 @@ class AnthropicProvider(
         val rest = messages.filter { it.role != ProviderMessage.Role.system }
         return sys.ifBlank { null } to rest
     }
+
+    /**
+     * Anthropic Messages wire shape. The API accepts only user/assistant
+     * roles: assistant tool calls become `tool_use` content blocks, and
+     * `role=tool` results become `tool_result` blocks inside a user
+     * message. Adjacent same-role messages are merged because the API
+     * requires user/assistant alternation.
+     */
+    private fun buildAnthropicMessages(messages: List<ProviderMessage>): JsonArray {
+        val out = mutableListOf<Pair<String, MutableList<JsonObject>>>() // role -> content blocks
+        fun appendBlocks(role: String, blocks: List<JsonObject>) {
+            if (blocks.isEmpty()) return
+            val last = out.lastOrNull()
+            if (last != null && last.first == role) {
+                last.second += blocks
+            } else {
+                out += role to blocks.toMutableList()
+            }
+        }
+        for (msg in messages) {
+            when (msg.role) {
+                ProviderMessage.Role.tool -> appendBlocks("user", listOf(buildJsonObject {
+                    put("type", "tool_result")
+                    put("tool_use_id", msg.toolCallId ?: "")
+                    put("content", msg.content)
+                }))
+                ProviderMessage.Role.assistant -> {
+                    val blocks = mutableListOf<JsonObject>()
+                    if (msg.content.isNotBlank()) {
+                        blocks += buildJsonObject {
+                            put("type", "text")
+                            put("text", msg.content)
+                        }
+                    }
+                    for (call in msg.toolCalls.orEmpty()) {
+                        blocks += buildJsonObject {
+                            put("type", "tool_use")
+                            put("id", call.id)
+                            put("name", call.name)
+                            put("input", parseArgsObject(call.arguments))
+                        }
+                    }
+                    appendBlocks("assistant", blocks)
+                }
+                else -> appendBlocks("user", listOf(buildJsonObject {
+                    put("type", "text")
+                    put("text", msg.content)
+                }))
+            }
+        }
+        return JsonArray(out.map { (role, blocks) ->
+            buildJsonObject {
+                put("role", role)
+                put("content", JsonArray(blocks))
+            }
+        })
+    }
+
+    /** Tool-call arguments as a JSON object; empty object when unparseable. */
+    private fun parseArgsObject(arguments: String): JsonObject =
+        runCatching { Json.parseToJsonElement(arguments) as? JsonObject }.getOrNull()
+            ?: buildJsonObject {}
 
     companion object {
         private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L

@@ -477,13 +477,11 @@ class DreamConsolidator @Inject constructor(
             val trimmedConsolidated = consolidatedTags.takeLast(MAX_CONSOLIDATED_TAGS - 1)
             val newTags = (nonConsolidatedTags + trimmedConsolidated + tagToAdd)
                 .joinToString(",")
-            memoryStore.update(
-                id = entity.id,
-                content = entity.content,
-                category = entity.category,
-                importance = entity.importance,
-                tags = newTags,
-            )
+            // Tags-only write: the general update() path is the USER-edit
+            // path — it nulls the embedding (killing vector recall until a
+            // manual rebuild), resets the decay clock, and forges a
+            // user-attributed audit row. A dream cycle must do none of that.
+            memoryStore.updateTags(entity.id, newTags)
         }
     }
 

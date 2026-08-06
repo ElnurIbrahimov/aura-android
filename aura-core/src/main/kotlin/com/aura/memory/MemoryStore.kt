@@ -198,19 +198,28 @@ class MemoryStore @Inject constructor(
         // A full-phrase LIKE (%programming languages i enjoy%) would match
         // almost nothing — individual word LIKEs (%kotlin% OR %love% OR %programming%)
         // catch any memory that shares at least one word with the query.
+        // Stopwords are dropped: "the"/"want" LIKE-match nearly every row
+        // and flood the pool with fresh-but-irrelevant candidates.
         val queryWords = retrievalQuery.lowercase()
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() && it.length > 2 }
+            .filter { it !in com.aura.core.util.StopWords.ENGLISH }
             .take(6)
-        val pad = List(6) { i -> if (i < queryWords.size) "%${escapeLikeWildcards(queryWords[i])}%" else "%%" }
+        // Unused slots get a sentinel no content can LIKE-match ("%%" here
+        // matched EVERY row, turning recall into "freshest 15 regardless of
+        // query" and making the vector fallback below unreachable).
+        val pad = List(6) { i -> if (i < queryWords.size) "%${escapeLikeWildcards(queryWords[i])}%" else NO_MATCH_SENTINEL }
+        // Fetch enough candidates that the reranker actually gets its
+        // RERANK_POOL_SIZE pool (limit*3 = 15 used to cap below 20).
+        val candidateLimit = maxOf(limit * 3, RERANK_POOL_SIZE + 5)
         val textHits = if (queryWords.isNotEmpty()) {
             dao.searchByWordsInScopes(
                 word1 = pad[0], word2 = pad[1], word3 = pad[2],
                 word4 = pad[3], word5 = pad[4], word6 = pad[5],
-                scopes = scopes, limit = limit * 3,
+                scopes = scopes, limit = candidateLimit,
             )
         } else {
-            dao.searchByTextInScopes("%$escapedText%", scopes, limit * 3)
+            dao.searchByTextInScopes("%$escapedText%", scopes, candidateLimit)
         }
         val qVec = embedder.embed(retrievalQuery)
 
@@ -323,6 +332,13 @@ class MemoryStore @Inject constructor(
          * miss lexical overlap.
          */
         const val VECTOR_FALLBACK_SCAN_LIMIT = 2000
+        /**
+         * LIKE pattern for unused word slots in searchByWordsInScopes.
+         * Contains no wildcards, so it only matches content exactly equal
+         * to it — which no memory is (a lone NUL byte). Never "%%": that
+         * matches every row.
+         */
+        internal const val NO_MATCH_SENTINEL = "\u0000"
     }
 
     /**
@@ -552,6 +568,18 @@ class MemoryStore @Inject constructor(
      */
     suspend fun updateDecayScore(id: String, decayScore: Float) {
         dao.updateDecayScore(id, decayScore)
+    }
+
+    /**
+     * Set the tags for a single memory without touching other fields
+     * or the edit-audit trail. Used by [DreamConsolidator] to mark
+     * sources as consolidated — routing this through [update] used to
+     * null the embedding (killing vector recall for the row), reset
+     * the decay clock, and forge a `editedBy="user"` audit row on
+     * every dream cycle.
+     */
+    suspend fun updateTags(id: String, tags: String) {
+        dao.updateTags(id, tags)
     }
 }
 

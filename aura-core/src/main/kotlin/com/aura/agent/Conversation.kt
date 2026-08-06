@@ -77,16 +77,31 @@ data class Conversation(
             turn.user?.let { userText ->
                 out += ProviderMessage(role = ProviderMessage.Role.user, content = userText)
             }
-            turn.assistant?.let { assistantText ->
-                out += ProviderMessage(role = ProviderMessage.Role.assistant, content = assistantText)
+            // Tool calls whose results never arrived (aborted run, denied gate)
+            // are dropped from the wire: strict APIs reject a tool call with no
+            // matching result. The full record stays in [Turn.toolTurns] for UI.
+            val completedToolTurns = turn.toolTurns.filter { it.result.isNotEmpty() }
+            if (turn.assistant != null || completedToolTurns.isNotEmpty()) {
+                out += ProviderMessage(
+                    role = ProviderMessage.Role.assistant,
+                    content = turn.assistant ?: "",
+                    toolCalls = completedToolTurns
+                        .map { com.aura.providers.ToolCall(id = it.id, name = it.name, arguments = it.args) }
+                        .ifEmpty { null },
+                )
             }
-            for (toolTurn in turn.toolTurns) {
+            for (toolTurn in completedToolTurns) {
                 val resultForModel = if (toolTurn.result.length > maxToolResultChars) {
                     toolTurn.result.take(maxToolResultChars) + "\n[... truncated]"
                 } else {
                     toolTurn.result
                 }
-                out += ProviderMessage(role = ProviderMessage.Role.tool, content = resultForModel, toolCallId = toolTurn.id)
+                out += ProviderMessage(
+                    role = ProviderMessage.Role.tool,
+                    content = resultForModel,
+                    name = toolTurn.name,
+                    toolCallId = toolTurn.id,
+                )
             }
         }
         return out

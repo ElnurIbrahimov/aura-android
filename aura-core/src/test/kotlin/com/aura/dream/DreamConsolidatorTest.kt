@@ -182,6 +182,33 @@ class DreamConsolidatorTest {
     }
 
     @Test
+    fun `tagging sources uses the tags-only path, never the user-edit path`() = runBlocking {
+        // Regression: tagSourceMemories used to route through
+        // MemoryStore.update() — the USER-edit path — which nulled the
+        // embedding (killing vector recall until a manual rebuild), reset
+        // accessedAt, and wrote a fake editedBy="user" audit row on every
+        // dream cycle.
+        val store = mockStore(
+            listOf(
+                mem("a", "User likes Kotlin", 1),
+                mem("b", "User prefers Kotlin over Java", 1),
+                mem("c", "User codes in Kotlin daily", 1),
+            )
+        )
+        val provider = mockProvider(listOf("User prefers Kotlin and uses it daily"))
+        val consolidator = buildConsolidator(store, provider)
+        val report = consolidator.runCycle()
+        assertEquals(1, report.summariesWritten)
+
+        io.mockk.coVerify(exactly = 3) {
+            store.updateTags(any(), match { it.contains("consolidated:dream_") })
+        }
+        io.mockk.coVerify(exactly = 0) {
+            store.update(any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun `runCycle writes a raw-text fallback when LLM fails`() = runBlocking {
         val store = mockStore(
             listOf(

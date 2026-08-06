@@ -302,18 +302,48 @@ class GeminiProvider(
             })
         }
 
-        // Filter out system messages (already handled above) and map roles
+        // Filter out system messages (already handled above) and map roles.
+        // Assistant tool calls become functionCall parts; role=tool results
+        // become functionResponse parts in a user message — Gemini matches
+        // responses by function NAME (its ids are synthetic, never sent back).
         val chatMessages = messages.filter { it.role != ProviderMessage.Role.system }
         put("contents", JsonArray(chatMessages.map { msg ->
             buildJsonObject {
-                val geminiRole = when (msg.role) {
-                    ProviderMessage.Role.assistant -> "model"
-                    else -> "user"
+                when (msg.role) {
+                    ProviderMessage.Role.assistant -> {
+                        put("role", "model")
+                        val parts = mutableListOf<JsonObject>()
+                        if (msg.content.isNotBlank() || msg.toolCalls.isNullOrEmpty()) {
+                            parts += buildJsonObject { put("text", msg.content) }
+                        }
+                        for (call in msg.toolCalls.orEmpty()) {
+                            parts += buildJsonObject {
+                                put("functionCall", buildJsonObject {
+                                    put("name", call.name)
+                                    put("args", parseArgsObject(call.arguments))
+                                })
+                            }
+                        }
+                        put("parts", JsonArray(parts))
+                    }
+                    ProviderMessage.Role.tool -> {
+                        put("role", "user")
+                        put("parts", JsonArray(listOf(buildJsonObject {
+                            put("functionResponse", buildJsonObject {
+                                put("name", msg.name ?: "")
+                                put("response", buildJsonObject {
+                                    put("result", msg.content)
+                                })
+                            })
+                        })))
+                    }
+                    else -> {
+                        put("role", "user")
+                        put("parts", JsonArray(listOf(buildJsonObject {
+                            put("text", msg.content)
+                        })))
+                    }
                 }
-                put("role", geminiRole)
-                put("parts", JsonArray(listOf(buildJsonObject {
-                    put("text", msg.content)
-                })))
             }
         }))
 
@@ -367,6 +397,11 @@ class GeminiProvider(
             })
         }
     }
+
+    /** Tool-call arguments as a JSON object; empty object when unparseable. */
+    private fun parseArgsObject(arguments: String): JsonObject =
+        runCatching { Json.parseToJsonElement(arguments) as? JsonObject }.getOrNull()
+            ?: buildJsonObject {}
 
     /**
      * Parses usage metadata from the final Gemini response chunk.

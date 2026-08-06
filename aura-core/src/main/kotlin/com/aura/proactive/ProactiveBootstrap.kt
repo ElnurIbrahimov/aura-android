@@ -118,11 +118,17 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
-        // Daemon reconciliation — separate flow to avoid 6-way combine limit
+        // Daemon reconciliation — separate flow to avoid 6-way combine limit.
+        // Combined with the interval so an interval change reschedules live.
         scope.launch {
-            userPreferences.daemonEnabled.distinctUntilChanged().collect { daemonOn ->
-                reconcileDaemon(daemonOn)
-            }
+            kotlinx.coroutines.flow.combine(
+                userPreferences.daemonEnabled,
+                userPreferences.daemonIntervalMinutes,
+            ) { on, interval -> on to interval }
+                .distinctUntilChanged()
+                .collect { (daemonOn, interval) ->
+                    reconcileDaemon(daemonOn, interval)
+                }
         }
 
         // Dream reconciliation — separate flow for the same reason:
@@ -224,10 +230,10 @@ class ProactiveBootstrap @Inject constructor(
         }
     }
 
-    private fun reconcileDaemon(daemonOn: Boolean) {
+    private fun reconcileDaemon(daemonOn: Boolean, intervalMinutes: Int) {
         try {
             if (daemonOn) {
-                DaemonScheduler.schedule(appContext)
+                DaemonScheduler.schedule(appContext, intervalMinutes)
             } else {
                 DaemonScheduler.cancel(appContext)
             }

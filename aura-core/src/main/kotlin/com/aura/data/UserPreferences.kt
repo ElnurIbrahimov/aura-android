@@ -67,6 +67,7 @@ internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interva
 internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
 internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
+internal val KEY_DAEMON_INTERVAL_MINUTES = intPreferencesKey("daemon_interval_minutes")
 internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
@@ -255,6 +256,16 @@ class UserPreferences @Inject constructor(
     val daemonEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DAEMON_ENABLED] ?: false }
 
     /**
+     * How often the daemon thinking worker runs, in minutes. Default 60 —
+     * the old hardcoded 15 meant up to 96 LLM-invoking runs/day on any
+     * network at any battery level. WorkManager floors periodic work at
+     * 15 minutes, so values below that are coerced by the scheduler.
+     */
+    val daemonIntervalMinutes: Flow<Int> = context.auraPrefs.data.map {
+        it[KEY_DAEMON_INTERVAL_MINUTES] ?: DEFAULT_DAEMON_INTERVAL_MINUTES
+    }
+
+    /**
      * Whether the dream consolidator is enabled. Default true (opt-out
      * matches Python's always-on behavior; user can flip off in
      * Settings). When false, the periodic worker is cancelled.
@@ -432,6 +443,12 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         context.auraPrefs.edit { prefs -> prefs[KEY_DAEMON_ENABLED] = enabled }
     }
 
+    suspend fun setDaemonIntervalMinutes(minutes: Int) {
+        context.auraPrefs.edit { prefs ->
+            prefs[KEY_DAEMON_INTERVAL_MINUTES] = minutes.coerceIn(15, 24 * 60)
+        }
+    }
+
     suspend fun setDecayEnabled(enabled: Boolean) {
         context.auraPrefs.edit { prefs -> prefs[KEY_DECAY_ENABLED] = enabled }
     }
@@ -594,11 +611,12 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     }
 
     /**
-     * Whether the overnight council runs during idle/charging.
-     * Default true (opt-out). When disabled, agents do not debate
-     * overnight and no interventions are proposed.
+     * Whether the council debates during daemon runs. Default FALSE —
+     * a multi-agent LLM debate firing on a background schedule is a real
+     * cost/battery center the user should opt INTO, not out of. (Was
+     * default-on until the P0 sweep.)
      */
-    val councilEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_COUNCIL_ENABLED] ?: true }
+    val councilEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_COUNCIL_ENABLED] ?: false }
 
     /**
      * Whether council interventions are auto-applied without user
@@ -625,5 +643,9 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setCouncilActivityLevel(level: Int) {
         context.auraPrefs.edit { it[KEY_COUNCIL_ACTIVITY_LEVEL] = level.coerceIn(1, 5) }
+    }
+
+    companion object {
+        const val DEFAULT_DAEMON_INTERVAL_MINUTES = 60
     }
 }

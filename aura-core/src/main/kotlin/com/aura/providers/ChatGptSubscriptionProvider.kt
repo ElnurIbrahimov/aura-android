@@ -78,12 +78,41 @@ class ChatGptSubscriptionProvider(
                 }
                 put("reasoning_effort", effort)
             }
-            put("input", JsonArray(messages.map { msg ->
-                buildJsonObject {
-                    // The Responses API expects "developer" for system messages,
-                    // not "system". Passing "system" causes a 400 error.
-                    put("role", if (msg.role == ProviderMessage.Role.system) "developer" else msg.role.name)
-                    put("content", msg.content)
+            put("input", JsonArray(messages.flatMap { msg ->
+                when {
+                    // Responses API: tool results are function_call_output items,
+                    // matched to the call by call_id — not role-based messages.
+                    msg.role == ProviderMessage.Role.tool -> listOf(buildJsonObject {
+                        put("type", "function_call_output")
+                        put("call_id", msg.toolCallId ?: "")
+                        put("output", msg.content)
+                    })
+                    // Assistant tool calls replay as function_call items after
+                    // the assistant text (if any).
+                    msg.role == ProviderMessage.Role.assistant && !msg.toolCalls.isNullOrEmpty() -> {
+                        val items = mutableListOf<JsonObject>()
+                        if (msg.content.isNotBlank()) {
+                            items += buildJsonObject {
+                                put("role", "assistant")
+                                put("content", msg.content)
+                            }
+                        }
+                        for (call in msg.toolCalls) {
+                            items += buildJsonObject {
+                                put("type", "function_call")
+                                put("call_id", call.id)
+                                put("name", call.name)
+                                put("arguments", call.arguments)
+                            }
+                        }
+                        items
+                    }
+                    else -> listOf(buildJsonObject {
+                        // The Responses API expects "developer" for system messages,
+                        // not "system". Passing "system" causes a 400 error.
+                        put("role", if (msg.role == ProviderMessage.Role.system) "developer" else msg.role.name)
+                        put("content", msg.content)
+                    })
                 }
             }))
             // Tool declarations (OpenAI function calling format)
@@ -134,7 +163,6 @@ class ChatGptSubscriptionProvider(
         EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 sourceHolder.source = eventSource
-                activeEventSource = eventSource
                 if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
                 val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
                 // The responses API streams "output_text.delta" events. Fall back to chat-completions style for forward compat.
@@ -185,7 +213,7 @@ class ChatGptSubscriptionProvider(
                 channel.close()
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
-        })
+        }).also { sourceHolder.source = it }
         try {
             // 5-min defensive timeout matching OpenAiCompatProvider. The
             // ChatGPT Responses API occasionally stops sending chunks
@@ -198,8 +226,10 @@ class ChatGptSubscriptionProvider(
             // Synthesize a finish so downstream loops terminate cleanly.
             emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
-            activeEventSource?.cancel()
-            activeEventSource = null
+            // Cancel only THIS stream's source; clear the shared field behind
+            // an identity check so a concurrent stream isn't clobbered.
+            sourceHolder.cancel()
+            if (activeEventSource === sourceHolder) activeEventSource = null
         }
     }.flowOn(Dispatchers.IO)
 

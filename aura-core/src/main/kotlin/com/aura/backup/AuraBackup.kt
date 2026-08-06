@@ -416,8 +416,9 @@ data class PreferencesBackup(
     val triggersJson: String = "[]",
     val planningEnabled: Boolean = false,
     val defaultAgentId: String = "",
-    // Schema v16: council preferences.
-    val councilEnabled: Boolean = true,
+    // Schema v16: council preferences. Default matches
+    // UserPreferences.councilEnabled (false since the P0 sweep).
+    val councilEnabled: Boolean = false,
     val councilAutoApply: Boolean = false,
     val councilActivityLevel: Int = 3,
 )

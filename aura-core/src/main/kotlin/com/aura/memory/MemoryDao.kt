@@ -156,6 +156,15 @@ interface MemoryDao {
     @Query("UPDATE memories SET decayScore = :decayScore WHERE id = :id")
     suspend fun updateDecayScore(id: String, decayScore: Float)
 
+    /**
+     * Tags-only update. Unlike the user-edit path this preserves the
+     * embedding, accessedAt, and audit trail — for background
+     * bookkeeping (dream consolidation) that must not look like a user
+     * edit or knock the row out of vector recall.
+     */
+    @Query("UPDATE memories SET tags = :tags WHERE id = :id")
+    suspend fun updateTags(id: String, tags: String)
+
     @Query("DELETE FROM memories WHERE id = :id")
     suspend fun delete(id: String)
 

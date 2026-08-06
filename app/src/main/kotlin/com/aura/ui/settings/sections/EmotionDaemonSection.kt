@@ -30,7 +30,9 @@ fun EmotionDaemonSection(
     emotionSnapshot: EmotionEngine.EmotionSnapshot?,
     daemonEnabled: Boolean,
     daemonThoughtsCount: Int,
+    daemonIntervalMinutes: Int,
     onSetDaemonEnabled: (Boolean) -> Unit,
+    onSetDaemonInterval: (Int) -> Unit,
 ) {
     SettingsSection(
         emoji = "\uD83E\uDDF7",
@@ -96,7 +98,7 @@ fun EmotionDaemonSection(
                     )
                     Text(
                         text = if (daemonEnabled)
-                            "On - Aura reviews recent context every ~8 min and posts insights to proactive history"
+                            "On - Aura reviews recent context every $daemonIntervalMinutes min (needs network, skips low battery) and posts insights to proactive history"
                         else
                             "Off - no background thinking",
                         style = MaterialTheme.typography.bodySmall,
@@ -112,6 +114,27 @@ fun EmotionDaemonSection(
                     }
                 }
                 Switch(checked = daemonEnabled, onCheckedChange = onSetDaemonEnabled)
+            }
+        }
+
+        // Interval picker — each run can make LLM calls, so the cadence is
+        // a real cost knob, not cosmetics.
+        if (daemonEnabled) {
+            Spacer(modifier = Modifier.height(AuraSpacing.small))
+            Text(
+                text = "Thinking interval",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.height(AuraSpacing.tiny))
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.small)) {
+                listOf(15, 30, 60, 180).forEach { minutes ->
+                    androidx.compose.material3.FilterChip(
+                        selected = daemonIntervalMinutes == minutes,
+                        onClick = { onSetDaemonInterval(minutes) },
+                        label = { Text(if (minutes < 60) "${minutes}m" else "${minutes / 60}h") },
+                    )
+                }
             }
         }
     }

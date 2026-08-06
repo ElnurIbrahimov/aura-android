@@ -366,6 +366,61 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * @return the count of rows written per table.
      */
     suspend fun restore(backup: AuraBackup): RestoreCounts = withContext(Dispatchers.IO) {
+        // Snapshot current data FIRST so a failed import rolls back to it.
+        // Pre-fix, any insert failure ran purgeAll() alone — wiping the
+        // user's pre-existing data, including tables the backup never
+        // contained.
+        val preRestore = runCatching { snapshot(appVersionName = "pre-restore-rollback") }
+            .onFailure { android.util.Log.w("BackupManager", "pre-restore snapshot failed (rollback unavailable): ${it.message}", it) }
+            .getOrNull()
+
+        // Non-cancellable write phase: restore runs in a ViewModel scope,
+        // where a config change used to cancel mid-insert and leave the DB
+        // half-imported with no cleanup at all (the CancellationException
+        // rethrow skipped the purge).
+        val counts = withContext(kotlinx.coroutines.NonCancellable) {
+            try {
+                writeRows(backup)
+            } catch (e: Throwable) {
+                // Throwable (not just Exception) so OOM / StackOverflow
+                // also trigger the rollback.
+                android.util.Log.e("BackupManager", "restore failed, rolling back to pre-restore data: ${e.message}", e)
+                try {
+                    purgeAll()
+                    if (preRestore != null) writeRows(preRestore)
+                } catch (rollback: Throwable) {
+                    android.util.Log.e("BackupManager", "rollback failed — database may be incomplete: ${rollback.message}", rollback)
+                }
+                throw e
+            }
+        }
+
+        // Post-restore writes are outside the guarded phase because they
+        // touch different stores (DataStore, not Room). If any of them
+        // fail, the Room data is already committed — preferences/evolution/
+        // council failure is recoverable (user can re-toggle in Settings).
+        runCatching { restorePreferences(backup.preferences) }
+            .onFailure { android.util.Log.w("BackupManager", "restorePreferences failed (non-fatal): ${it.message}", it) }
+        runCatching { usageTracker.restore(backup.usage) }
+            .onFailure { android.util.Log.w("BackupManager", "usageTracker restore failed (non-fatal): ${it.message}", it) }
+        runCatching { restoreEvolution(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreEvolution failed (non-fatal): ${it.message}", it) }
+        // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
+        runCatching { restoreStrategyBandit(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreStrategyBandit failed (non-fatal): ${it.message}", it) }
+        runCatching { restoreCouncil(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreCouncil failed (non-fatal): ${it.message}", it) }
+
+        counts
+    }
+
+    /**
+     * Map + insert every table from [backup]. No internal error handling —
+     * [restore] owns the snapshot/rollback around this. Insert order
+     * matters: KG nodes before edges (FK), proactive events before
+     * interactions.
+     */
+    private suspend fun writeRows(backup: AuraBackup): RestoreCounts {
         // Build ALL entity rows first (no DB calls) so a mapping
         // failure can't leave the DB half-imported.
         val memRows = backup.memories.map { it.toEntity() }
@@ -418,13 +473,6 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val proactiveInteractionRows = backup.proactiveInteractions.map { it.toEntity() }
         val routingOutcomeRows = backup.routingOutcomes.map { it.toEntity() }
 
-        // All DB writes are wrapped in a try block. If ANY insert fails
-        // mid-restore, we call purgeAll() so the DB is never left
-        // half-imported and inconsistent. The user can then re-attempt
-        // the restore from the backup file. Without this guard, a crash
-        // mid-restore leaves memories in but KG nodes missing, breaking
-        // FK relationships at next startup.
-        try {
         if (memRows.isNotEmpty() && editRows.isNotEmpty()) memoryDao.insertAllWithEdits(memRows, editRows)
         else if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
         else if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
@@ -484,38 +532,12 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         } else {
             userProfileDao.deleteAll()
         }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            // Catch Throwable (not just Exception) so OOM / StackOverflow
-            // also trigger the purge. Without this, an Error subclass bypasses
-            // the catch and leaves the DB half-imported.
-            android.util.Log.e("BackupManager", "restore failed, purging partial data: ${e.message}", e)
-            try { purgeAll() } catch (_: Exception) { /* best-effort cleanup */ }
-            throw e
-        }
-
-        // Post-restore writes are outside the try/catch because they touch
-        // different stores (DataStore, not Room). If any of them fail, the
-        // Room data is already committed — preferences/evolution/council
-        // failure is recoverable (user can re-toggle in Settings).
-        runCatching { restorePreferences(backup.preferences) }
-            .onFailure { android.util.Log.w("BackupManager", "restorePreferences failed (non-fatal): ${it.message}", it) }
-        runCatching { usageTracker.restore(backup.usage) }
-            .onFailure { android.util.Log.w("BackupManager", "usageTracker restore failed (non-fatal): ${it.message}", it) }
-        runCatching { restoreEvolution(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreEvolution failed (non-fatal): ${it.message}", it) }
-        // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
-        runCatching { restoreStrategyBandit(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreStrategyBandit failed (non-fatal): ${it.message}", it) }
-        runCatching { restoreCouncil(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreCouncil failed (non-fatal): ${it.message}", it) }
         // Restore custom agents. Builtins are re-seeded on startup
         // so we only insert non-builtin entries from the backup.
         val customAgents = agentRows.filter { !it.isBuiltin }
         if (customAgents.isNotEmpty()) agentDao.insertAll(customAgents)
 
-        RestoreCounts(
+        return RestoreCounts(
             memories = memRows.size,
             memoryEdits = editRows.size,
             documents = documentRows.size,

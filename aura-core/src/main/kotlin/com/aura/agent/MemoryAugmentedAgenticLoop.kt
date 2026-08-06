@@ -734,6 +734,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 toolCallArgs.getOrPut(id) { StringBuilder() }.append(chunk.argumentsDelta)
                             }
                             is BrainChunk.ToolCallEnd -> {
+                                // Providers that deliver a complete call in one chunk
+                                // never emit ToolCallStart — record the name here too,
+                                // or the ToolTurn (and its wire replay) loses it.
+                                if (chunk.name.isNotEmpty()) toolCallStarts[chunk.id] = chunk.name
                                 toolCalls += chunk.id to chunk.arguments
                                 emit(AgentEvent.ToolCallEnd(chunk.id, chunk.name, chunk.arguments))
                             }

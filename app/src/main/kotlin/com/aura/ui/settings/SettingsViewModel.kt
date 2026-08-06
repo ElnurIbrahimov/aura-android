@@ -156,6 +156,8 @@ data class SettingsUiState(
     val evolutionAutoApply: Boolean = false,
     val evolutionShadowEnabled: Boolean = false,
     val daemonEnabled: Boolean = false,
+    /** Daemon thinking-worker cadence in minutes (default 60). */
+    val daemonIntervalMinutes: Int = com.aura.data.UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES,
     /** Whether the dream consolidator is enabled (default true). */
     val dreamEnabled: Boolean = true,
     /** Whether the memory decay worker is enabled (default true). */
@@ -322,6 +324,7 @@ class SettingsViewModel @Inject constructor(
                 evolutionSettingsStore.all().any { it.autoApplyApproved }
             }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
             val daemonEnabled = userPreferences.daemonEnabled.first()
+            val daemonIntervalMinutes = userPreferences.daemonIntervalMinutes.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
@@ -372,6 +375,7 @@ class SettingsViewModel @Inject constructor(
                 evolutionShadowEnabled = evolutionShadowEnabled,
                 evolutionAutoApply = evolutionAutoApply,
                 daemonEnabled = daemonEnabled,
+                daemonIntervalMinutes = daemonIntervalMinutes,
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
                 planningEnabled = planningEnabled,
@@ -549,6 +553,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDaemonEnabled(enabled)
             _state.update { it.copy(daemonEnabled = enabled) }
+        }
+    }
+
+    fun setDaemonIntervalMinutes(minutes: Int) {
+        viewModelScope.launch {
+            userPreferences.setDaemonIntervalMinutes(minutes)
+            _state.update { it.copy(daemonIntervalMinutes = minutes) }
         }
     }
 

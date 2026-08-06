@@ -30,13 +30,12 @@ class BootReceiver : BroadcastReceiver() {
             ExistingPeriodicWorkPolicy.UPDATE,
             decayRequest,
         )
-        // Re-enqueue daemon worker (every 15 min, idempotent)
-        val daemonRequest = PeriodicWorkRequestBuilder<DaemonWorker>(15, TimeUnit.MINUTES).build()
-        wm.enqueueUniquePeriodicWork(
-            DaemonScheduler.WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            daemonRequest,
-        )
+        // Re-enqueue the daemon through its scheduler so its constraints
+        // (network + battery-not-low) survive reboot — an inline
+        // unconstrained request here with UPDATE policy would silently
+        // strip them. The default interval is corrected to the user's
+        // setting by ProactiveBootstrap on next app launch.
+        DaemonScheduler.schedule(context)
         // Re-enqueue morning brief and dream workers. Their exact timing
         // preferences are read inside the workers, so using defaults here
         // is safe until the next ProactiveBootstrap run. This keeps the

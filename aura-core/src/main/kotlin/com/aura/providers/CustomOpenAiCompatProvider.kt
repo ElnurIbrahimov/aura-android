@@ -208,12 +208,7 @@ class CustomOpenAiCompatProvider(
             put("temperature", options.temperature)
             put("top_p", options.topP)
             options.maxTokens?.let { put("max_tokens", it) }
-            put("messages", JsonArray(messages.map { msg ->
-                buildJsonObject {
-                    put("role", msg.role.name)
-                    put("content", msg.content)
-                }
-            }))
+            put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->
                     buildJsonObject {
@@ -266,8 +261,10 @@ class CustomOpenAiCompatProvider(
         } catch (_: TimeoutCancellationException) {
             emit(ProviderChunk(finishReason = FinishReason.stop))
         } finally {
-            activeEventSource?.cancel()
-            activeEventSource = null
+            // Cancel only THIS stream's source; clear the shared field behind
+            // an identity check so a concurrent stream isn't clobbered.
+            src.cancel()
+            if (activeEventSource === src) activeEventSource = null
         }
     }.flowOn(Dispatchers.IO)
 

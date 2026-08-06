@@ -44,6 +44,19 @@ sealed class ToolResult {
     ) : ToolResult()
     data class NeedsPermission(val permission: String, val rationale: String) : ToolResult()
     data class NeedsApproval(val rationale: String) : ToolResult()
+
+    /**
+     * The tool's policy requires user confirmation before running
+     * (ConfirmationLevel IMPLICIT / EXPLICIT / BIOMETRIC). Typed —
+     * this used to be encoded as a `"$level:confirm:$name"` magic
+     * string inside [NeedsApproval], which the UI mis-parsed into
+     * the wrong dialog and could never satisfy.
+     */
+    data class NeedsConfirmation(
+        val level: String,
+        val toolName: String,
+        val rationale: String,
+    ) : ToolResult()
 }
 
 data class ToolContext(
@@ -59,6 +72,14 @@ data class ToolContext(
      * another tool in the same resumed automation.
      */
     val approvedRemoteCostTools: Set<String> = emptySet(),
+    /**
+     * Tool names whose policy confirmation the user granted this
+     * conversation. Mirror of [approvedRemoteCostTools] for the
+     * ConfirmationLevel gate — without it, PolicyEngine returned
+     * NeedsConfirmation forever and confirmation-gated tools could
+     * never run.
+     */
+    val confirmedTools: Set<String> = emptySet(),
     /**
      * Session-level write flag. When false, the tool executor refuses to
      * run tools whose risk >= WRITE_LOCAL — this is the privacy boundary

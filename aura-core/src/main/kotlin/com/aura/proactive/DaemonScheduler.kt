@@ -1,25 +1,45 @@
 package com.aura.proactive
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.aura.data.UserPreferences
 import java.util.concurrent.TimeUnit
 
 /**
  * Schedules the [DaemonWorker] as a periodic WorkManager job.
- * WorkManager enforces a 15-minute minimum floor for periodic work,
- * so the interval is set to 15 minutes directly.
+ *
+ * Every run can make LLM calls, so the request is constrained to
+ * network-connected + battery-not-low (mirrors EvolutionScheduler).
+ * The interval is user-configurable (default 60 min); WorkManager
+ * floors periodic work at 15 minutes.
+ *
+ * BootReceiver MUST re-enqueue through [schedule] too — an inline
+ * unconstrained request with UPDATE policy would silently strip
+ * these constraints on every reboot.
  */
 object DaemonScheduler {
 
     const val WORK_NAME = "aura_daemon_thinking"
-    internal const val INTERVAL_MINUTES = 15L
 
-    fun schedule(context: Context) {
+    fun schedule(
+        context: Context,
+        intervalMinutes: Int = UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES,
+    ) {
         val request = PeriodicWorkRequestBuilder<DaemonWorker>(
-            INTERVAL_MINUTES, TimeUnit.MINUTES,
-        ).build()
+            intervalMinutes.coerceAtLeast(15).toLong(), TimeUnit.MINUTES,
+        )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .setRequiresBatteryNotLow(true)
+                    .build(),
+            )
+            .addTag("daemon-thinking")
+            .build()
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }

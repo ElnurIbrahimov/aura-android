@@ -160,7 +160,9 @@ fun SettingsScreen(
             emotionSnapshot = emotionSnapshot,
             daemonEnabled = state.daemonEnabled,
             daemonThoughtsCount = daemonThoughtsCount,
+            daemonIntervalMinutes = state.daemonIntervalMinutes,
             onSetDaemonEnabled = viewModel::setDaemonEnabled,
+            onSetDaemonInterval = viewModel::setDaemonIntervalMinutes,
         )
 
         TriggersSection(
