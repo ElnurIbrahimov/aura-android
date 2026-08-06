@@ -19,6 +19,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aura.memory.MemoryEditEntity
@@ -42,6 +43,9 @@ internal fun MemoryHistoryDialog(
     loading: Boolean,
     onDismiss: () -> Unit,
 ) {
+    // Read the locale observably so a system locale change recomposes with
+    // the new formatting (Locale.getDefault() in composition is not observable).
+    val locale: Locale = LocalConfiguration.current.locales[0]
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.edit_history)) },
@@ -82,7 +86,7 @@ internal fun MemoryHistoryDialog(
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                     Text(
-                                        SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault())
+                                        SimpleDateFormat("MMM d, yyyy · HH:mm", locale)
                                             .format(Date(edit.editedAt)),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AuraThemeTokens.colors.textPrimary,

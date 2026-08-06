@@ -24,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 @ExperimentalCoroutinesApi
 class ProactiveOutcomeRecordingTest {
@@ -56,7 +57,7 @@ class ProactiveOutcomeRecordingTest {
     }
 
     @Test
-    fun `recordInteraction writes interaction row and emits proactive_dismissed evidence`() = runTest(testDispatcher, dispatchTimeoutMs = 10_000) {
+    fun `recordInteraction writes interaction row and emits proactive_dismissed evidence`() = runTest(testDispatcher, timeout = 10.seconds) {
         val captured = mutableListOf<EvolutionEvidenceEntity>()
         coEvery { evidenceDao.upsert(capture(captured)) } returns Unit
 

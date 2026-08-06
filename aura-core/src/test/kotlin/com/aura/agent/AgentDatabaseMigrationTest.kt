@@ -23,14 +23,21 @@ class AgentDatabaseMigrationTest {
         FrameworkSQLiteOpenHelperFactory(),
     )
 
+    // Room 2.7+ validates that the name the SQLite driver was configured with
+    // matches the path actually opened; passing the resolved database path
+    // keeps both sides identical (a bare name fails under Robolectric).
+    private val dbPath: String =
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getDatabasePath("agents").path
+
     @Test
     fun migrate1To2_createsStateRelationshipsObservationsTables() {
-        val db = helper.createDatabase("agents", 1)
+        val db = helper.createDatabase(dbPath, 1)
         db.execSQL("INSERT INTO agents (id, name, icon, description, identity, toolsAllowed, memoryScope, personalityJson, isBuiltin, isDefault, createdAt, updatedAt, color) VALUES ('test', 'test', 'test', 'desc', 'identity', '', 'shared', '{}', 1, 0, 0, 0, 0)")
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "agents",
+            dbPath,
             2,
             true,
             AgentDatabase.MIGRATION_1_2,
@@ -53,12 +60,12 @@ class AgentDatabaseMigrationTest {
     @Test
     fun migrate2To3_createsForumTables() {
         // Start at v2 (create with v1 first, migrate to v2, then migrate to v3)
-        val db = helper.createDatabase("agents", 1)
+        val db = helper.createDatabase(dbPath, 1)
         db.execSQL("INSERT INTO agents (id, name, icon, description, identity, toolsAllowed, memoryScope, personalityJson, isBuiltin, isDefault, createdAt, updatedAt, color) VALUES ('test', 'test', 'test', 'desc', 'identity', '', 'shared', '{}', 1, 0, 0, 0, 0)")
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "agents",
+            dbPath,
             3,
             true,
             AgentDatabase.MIGRATION_1_2,

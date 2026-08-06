@@ -618,9 +618,11 @@ fun ChatRoute(
                 onStreamingDone = { !viewModel.state.value.streaming },
             )
         }
-        // Update last response when streaming completes
-        LaunchedEffect(viewModel.state.value.streaming) {
-            if (!viewModel.state.value.streaming && viewModel.state.value.conversation.turns.isNotEmpty()) {
+        // Update last response when streaming completes. Keyed on the
+        // collected state (not StateFlow.value, which composition can't
+        // observe) so the effect actually re-runs when streaming flips.
+        LaunchedEffect(state.streaming) {
+            if (!state.streaming && state.conversation.turns.isNotEmpty()) {
                 continuousVoiceViewModel.setLastResponse(viewModel.lastAssistantText())
             }
         }

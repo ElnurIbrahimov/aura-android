@@ -1,5 +1,10 @@
 # Aura proguard rules
--keep class com.aura.** { *; }
+#
+# Philosophy: no blanket keeps. R8 sees direct references (Hilt/Room/WorkManager
+# codegen, Compose) on its own; only genuinely reflective entry points get
+# narrow, documented keep rules.
+
+# --- kotlinx.serialization (targeted; @Serializable classes in com.aura) ---
 -keepclassmembers class * {
     @kotlinx.serialization.Serializable <fields>;
 }
@@ -12,7 +17,20 @@
 -keepclasseswithmembers class com.aura.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep class kotlinx.coroutines.** { *; }
+
+# --- JavaMail (com.sun.mail:android-mail / android-activation) ---
+# Session.getTransport("smtp") resolves the transport implementation from the
+# META-INF/javamail.default.providers resource and instantiates it reflectively.
+-keep class com.sun.mail.smtp.** { *; }
+# MIME DataContentHandlers (text/plain, message/rfc822, ...) are resolved from
+# mailcap resource files and instantiated reflectively by javax.activation.
+-keep class com.sun.mail.handlers.** { *; }
+# javax.activation's command map / data handler machinery is resource-driven;
+# its classes are looked up by name at runtime.
+-keep class javax.activation.** { *; }
+-dontwarn java.awt.**
+
+# --- OkHttp optional security providers (never on Android) ---
 -dontwarn org.bouncycastle.**
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**

@@ -76,6 +76,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -555,6 +556,9 @@ fun MemoryScreen(
             onDismissRequest = { showDreamSummaries = false },
             title = { Text("Dream summaries (${state.dreamSummaryCount})") },
             text = {
+                // Observable locale read: recomposes on system locale change,
+                // unlike Locale.getDefault() called directly in composition.
+                val dialogLocale: java.util.Locale = LocalConfiguration.current.locales[0]
                 if (state.dreamSummariesLoading) {
                     Text(stringResource(R.string.loading))
                 } else if (state.dreamSummaries.isEmpty()) {
@@ -569,7 +573,7 @@ fun MemoryScreen(
                                 )
                                 Text(
                                     text = "${summary.sourceCount} sources · " +
-                                        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                                        java.text.SimpleDateFormat("MMM d, HH:mm", dialogLocale)
                                             .format(java.util.Date(summary.createdAt)),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = AuraThemeTokens.colors.textSecondary,

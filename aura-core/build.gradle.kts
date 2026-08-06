@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.aura.core"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26
@@ -18,8 +18,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "consumer-rules.pro")
+            // Never shrink the library on its own: the app's R8 run does
+            // whole-program shrinking with full visibility of what the app
+            // actually uses. A standalone library pass only has
+            // consumer-rules.pro to go by (which keeps just com.aura.core.**,
+            // i.e. BuildConfig) and strips the com.aura.* classes the app
+            // needs — under AGP 9 the app consumes those stripped classes.
+            isMinifyEnabled = false
         }
         debug {
             isMinifyEnabled = false
@@ -29,10 +34,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf("-Xjvm-default=all")
     }
     buildFeatures {
         buildConfig = true
@@ -56,6 +57,14 @@ android {
     }
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        // Interface methods get default implementations directly (was -Xjvm-default=all).
+        jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
     }
 }
 
@@ -91,8 +100,8 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.okhttp.mockwebserver)
-    testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.24")
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.test.junit)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.androidx.room.testing)

@@ -1,14 +1,32 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
 
+// Release signing configuration is read from local.properties (gitignored),
+// falling back to environment variables of the same name. Neither the keystore
+// nor its passwords ever live in the repo.
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun signingValue(name: String): String? =
+    localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+
+val auraKeystorePath = signingValue("AURA_KEYSTORE_PATH")
+val hasReleaseSigning = auraKeystorePath != null && file(auraKeystorePath).exists()
+
 android {
     namespace = "com.aura"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.aura"
@@ -20,18 +38,38 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(auraKeystorePath!!)
+                storePassword = signingValue("AURA_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("AURA_KEY_ALIAS") ?: "aura-upload"
+                keyPassword = signingValue("AURA_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // For production distribution, create a keystore and set these
-            // environment variables. The debug key is used as a fallback
-            // so `assembleRelease` works for testing without a real key.
-            // To ship: create a release keystore (`keytool -genkey`),
-            // set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
-            // env vars, and uncomment the signingConfigs block below.
-            signingConfig = signingConfigs.getByName("debug")
+            // Real upload keystore when AURA_KEYSTORE_* values are present in
+            // local.properties or the environment; otherwise fall back to the
+            // debug key so CI and keyless checkouts can still run
+            // assembleRelease (R8 coverage), with a warning so nobody ships it.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "WARNING: release build is using the DEBUG signing key. " +
+                        "Set AURA_KEYSTORE_PATH/AURA_KEYSTORE_PASSWORD/" +
+                        "AURA_KEY_ALIAS/AURA_KEY_PASSWORD in local.properties " +
+                        "or the environment to sign with the upload keystore. " +
+                        "Do NOT distribute this APK."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -44,19 +82,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf("-Xjvm-default=all")
-    }
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
     }
     packaging {
         resources {
@@ -67,6 +98,14 @@ android {
             excludes += "META-INF/LICENSE.md"
             excludes += "META-INF/{NOTICE,LICENSE}*"
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        // Interface methods get default implementations directly (was -Xjvm-default=all).
+        jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
     }
 }
 
@@ -114,8 +153,8 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.okhttp.mockwebserver)
-    testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.24")
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.test.junit)
 
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.core)

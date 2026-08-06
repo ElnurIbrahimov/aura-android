@@ -19,36 +19,30 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Cold builds on the free 2-core runner exceed 45m: 1857 unit tests +
+    # Cold builds on the free 2-core runner exceed 45m: 2014 unit tests +
     # lintDebug on both modules + assembleRelease (R8). 90m gives a full
     # cold run room; cached runs finish in ~10m.
     timeout-minutes: 90
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@9704b39bf258b59bc04b50fa2dd55e9ed76b47a8 # v4.1.0
+      # AGP 9.3 requires JDK 17+; 21 matches local development.
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
+      # setup-android v4 restored the `packages` input, so the SDK components
+      # the build needs are installed directly here instead of via a separate
+      # sdkmanager step. Match what the modules pin (compileSdk 37; AGP 9.3
+      # default build-tools 36.0.0).
       - name: Setup Android SDK
-        uses: android-actions/setup-android@d24156dbc98afec1657d3bb4948a729ce8407815 # v3.1.0
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          cmdline-tools-version: '13114758'
-
-      # android-actions/setup-android v3 only installs cmdline-tools; the
-      # `packages` input it used to accept is gone. Without this step the
-      # platform/build-tools are auto-downloaded by AGP on every cold run —
-      # slow and dependent on network. Install them explicitly so the build
-      # starts with the SDK it needs. Match what app/build.gradle.kts pins
-      # (compileSdk 35, build-tools 35.0.0).
-      - name: Install Android SDK components
-        run: |
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          sdkmanager --licenses > /dev/null 2>&1 || true
+          packages: 'platform-tools platforms;android-37 build-tools;36.0.0'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -57,18 +51,18 @@ jobs:
         run: bash scripts/lint-logging.sh
 
       - name: Cache Gradle wrapper distribution
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/wrapper/dists
           key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Cache Gradle home (dependencies and caches)
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches/modules-2
             ~/.gradle/caches/transforms-4
-            ~/.gradle/caches/8.10.2
+            ~/.gradle/caches/9.7.0
             ~/.gradle/caches/jars-9
           # Cache key includes all build files so dependency changes
           # bust the cache. The fallback restore-keys let a partial
@@ -87,12 +81,15 @@ jobs:
       # rotted to the point of failing outright on a missing pdfbox class —
       # meaning no shippable APK could be produced at all, discoverable only
       # at ship time. Keep this step so that cannot recur.
+      # No signing secrets in CI: app/build.gradle.kts falls back to the debug
+      # key (with a warning) when AURA_KEYSTORE_* values are absent, so this
+      # step exercises R8 without needing the upload keystore.
       - name: Build release (R8 / minification)
         run: ./gradlew :app:assembleRelease
 
       - name: Upload debug APK
         if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -101,7 +98,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results
           path: |

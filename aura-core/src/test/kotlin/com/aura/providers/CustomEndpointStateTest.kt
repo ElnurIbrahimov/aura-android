@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 class CustomEndpointStateTest {
 
@@ -90,7 +91,7 @@ class CustomEndpointStateTest {
     }
 
     @Test
-    fun `reload reads persisted state on init`() = runTest(dispatchTimeoutMs = 10_000) {
+    fun `reload reads persisted state on init`() = runTest(timeout = 10.seconds) {
         val store = mockk<SecureDataStore>()
         coEvery { store.getString(CustomEndpointState.KEY_BASE_URL) } returns "https://api.example.com/v1"
         coEvery { store.getString(CustomEndpointState.KEY_API_KEY) } returns "sk-restored"

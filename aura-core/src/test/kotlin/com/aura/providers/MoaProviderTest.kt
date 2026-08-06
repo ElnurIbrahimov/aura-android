@@ -21,6 +21,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Unit tests for [MoaProvider] focused on cancellation and structure.
@@ -108,7 +109,7 @@ class MoaProviderTest {
     }
 
     @Test
-    fun `starting a new MoA run cancels the previous run`() = runTest(dispatchTimeoutMs = 10_000) {
+    fun `starting a new MoA run cancels the previous run`() = runTest(timeout = 10.seconds) {
         val started = Channel<Unit>(Channel.UNLIMITED)
         val hangFlow: Flow<ProviderChunk> = flow {
             started.send(Unit)
