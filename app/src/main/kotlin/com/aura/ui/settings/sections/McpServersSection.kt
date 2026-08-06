@@ -31,6 +31,8 @@ import com.aura.ui.settings.McpServerDraft
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun McpServersSection(
@@ -43,7 +45,7 @@ fun McpServersSection(
     var mcpDraft by remember { mutableStateOf(McpServerDraft()) }
 
     SettingsSection(
-        emoji = "\uD83D\uDD17",
+        icon = Icons.Filled.Link,
         title = "MCP Servers",
         subtitle = "External Model Context Protocol tool servers",
         initialExpanded = false,

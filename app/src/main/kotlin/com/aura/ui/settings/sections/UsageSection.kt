@@ -25,6 +25,8 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
 import com.aura.usage.UsageSnapshot
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun UsageSection(
@@ -32,7 +34,7 @@ fun UsageSection(
     onReset: () -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83D\uDCCA",
+        icon = Icons.Filled.BarChart,
         title = "Usage",
         subtitle = "${usage.totalTokens} tokens across ${usage.calls} model calls",
         initialExpanded = false,

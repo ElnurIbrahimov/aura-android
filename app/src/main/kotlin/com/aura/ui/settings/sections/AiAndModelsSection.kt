@@ -39,6 +39,8 @@ import com.aura.ui.settings.SmtpConfigCard
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.Icons
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -69,7 +71,7 @@ fun AiAndModelsSection(
     var activeModelRole by remember { mutableStateOf<String?>(null) }
 
     SettingsSection(
-        emoji = "\uD83E\uDD16",
+        icon = Icons.Filled.SmartToy,
         title = "AI & Models",
         subtitle = "Providers, API keys, default and embedding models",
         initialExpanded = true,

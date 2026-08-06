@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun CouncilSettingsSection(
@@ -29,7 +31,7 @@ fun CouncilSettingsSection(
     onActivityLevelChange: (Int) -> Unit,
 ) {
     SettingsSection(
-        emoji = "=",
+        icon = Icons.Filled.Groups,
         title = "Council",
         subtitle = "Agent society debates and interventions",
         initialExpanded = false,

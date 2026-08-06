@@ -25,6 +25,8 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun DataAndBackupSection(
@@ -42,7 +44,7 @@ fun DataAndBackupSection(
     ) { uri: android.net.Uri? -> if (uri != null) onStageImport(uri) }
 
     SettingsSection(
-        emoji = "\uD83D\uDCBE",
+        icon = Icons.Filled.Backup,
         title = "Data & Backup",
         subtitle = "Export, restore, and inspect local diagnostics",
         initialExpanded = false,

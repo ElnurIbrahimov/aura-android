@@ -45,6 +45,8 @@ import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun SettingsScreen(
@@ -241,6 +243,7 @@ fun SettingsScreen(
             title = "Agents",
             subtitle = "Create custom AI agents with their own personality, tools, and memory",
             onClick = onNavigateAgentEditor,
+            icon = Icons.Filled.Groups,
         )
 
         EvolutionSettingsSection(

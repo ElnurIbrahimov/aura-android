@@ -16,6 +16,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun SmtpConfigCard(
@@ -34,7 +36,7 @@ fun SmtpConfigCard(
     onSave: () -> Unit,
 ) {
     SettingsSection(
-        emoji = "\u2709",
+        icon = Icons.Filled.Email,
         title = "Background email (SMTP)",
         subtitle = "Configure SMTP to enable send_email_background tool.",
         initialExpanded = true,

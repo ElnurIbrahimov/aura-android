@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Palette
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -32,7 +33,7 @@ fun AppearanceSection(
     onSetThemeMode: (String) -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83C\uDFA8",
+        icon = Icons.Filled.Palette,
         title = "Appearance",
         subtitle = "Light, dark, or follow the system theme",
         initialExpanded = false,

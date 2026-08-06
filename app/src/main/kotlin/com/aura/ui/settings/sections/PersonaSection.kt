@@ -34,6 +34,8 @@ import com.aura.ui.theme.AuraSpacing
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun PersonaSection(
@@ -43,7 +45,7 @@ fun PersonaSection(
     onSetSpecialistOverrides: (String) -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83E\uDDD8",
+        icon = Icons.Filled.Face,
         title = "Persona",
         subtitle = "Aura identity and specialist overrides",
         initialExpanded = false,

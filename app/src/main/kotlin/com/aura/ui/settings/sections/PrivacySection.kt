@@ -31,6 +31,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.Icons
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +50,7 @@ fun PrivacySection(
     onNavigateProfile: () -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83D\uDD12",
+        icon = Icons.Filled.Lock,
         title = "Privacy",
         subtitle = "Biometric lock, proactive worker toggles",
         initialExpanded = false,

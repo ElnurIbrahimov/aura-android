@@ -24,6 +24,8 @@ import com.aura.emotion.EmotionEngine
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun EmotionDaemonSection(
@@ -35,7 +37,7 @@ fun EmotionDaemonSection(
     onSetDaemonInterval: (Int) -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83E\uDDF7",
+        icon = Icons.Filled.Favorite,
         title = "Emotion & Daemon",
         subtitle = "Emotional state tracking and background thinking",
         initialExpanded = false,

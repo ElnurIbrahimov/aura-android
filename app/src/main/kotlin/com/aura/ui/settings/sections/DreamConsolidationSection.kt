@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.Icons
 
 /**
  * Settings card for the dream-consolidator worker. Surfaces the
@@ -46,7 +48,7 @@ fun DreamConsolidationSection(
     onRunNow: () -> Unit,
 ) {
     SettingsSection(
-        emoji = "\uD83C\uDF1F", // 🌟 "star" emoji for dream / sleep theme
+        icon = Icons.Filled.Bedtime, // 🌟 "star" emoji for dream / sleep theme
         title = "Memory consolidation (Dream)",
         subtitle = "Cluster paraphrases into single summaries while charging",
         initialExpanded = false,

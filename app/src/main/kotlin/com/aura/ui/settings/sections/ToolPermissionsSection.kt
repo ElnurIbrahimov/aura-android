@@ -29,6 +29,8 @@ import com.aura.agent.policy.ToolPolicy
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.Icons
 
 /**
  * Filter + sort the tool-policy list for display. Pure function so the
@@ -62,7 +64,7 @@ fun ToolPermissionsSection(
     var searchQuery by remember { mutableStateOf("") }
 
     SettingsSection(
-        emoji = "\uD83D\uDEE1\uFE0F",
+        icon = Icons.Filled.Shield,
         title = "Tool Permissions",
         subtitle = "Disable tools or require confirmation before they run",
         initialExpanded = false,

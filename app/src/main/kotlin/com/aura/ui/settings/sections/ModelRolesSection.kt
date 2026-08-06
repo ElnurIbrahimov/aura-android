@@ -26,6 +26,8 @@ import com.aura.providers.ModelRole
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun ModelRolesSection(
@@ -36,7 +38,7 @@ fun ModelRolesSection(
     var editingRole by remember { mutableStateOf<ModelRole?>(null) }
 
     SettingsSection(
-        emoji = "\uD83C\uDFAF",
+        icon = Icons.Filled.Tune,
         title = "Model Roles",
         subtitle = "Pick a model for each kind of task",
         initialExpanded = false,

@@ -27,6 +27,8 @@ import com.aura.triggers.TriggerCondition
 import com.aura.ui.settings.SettingsSection
 import com.aura.ui.theme.AuraSpacing
 import java.util.UUID
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun TriggersSection(
@@ -40,7 +42,7 @@ fun TriggersSection(
     var cron by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf("") }
 
-    SettingsSection(emoji = "⏰", title = "Triggers", subtitle = "Schedule-based hands and prompts", initialExpanded = false) {
+    SettingsSection(icon = Icons.Filled.Alarm, title = "Triggers", subtitle = "Schedule-based hands and prompts", initialExpanded = false) {
         Column(modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {

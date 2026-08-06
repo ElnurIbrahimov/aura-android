@@ -37,10 +37,21 @@ import androidx.compose.ui.unit.dp
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.util.modelDisplayName
 import com.aura.ui.theme.AuraSpacing
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.size
 
+/**
+ * A collapsible Settings section.
+ *
+ * [icon] is a vector, not an emoji string. Every section header used an
+ * emoji while the rest of the app draws Material line icons, so Settings
+ * read as a different product — and two of them were not emoji at all:
+ * Council passed `"="` and Evolution passed `"*"`, rendering as stray
+ * punctuation where an icon belonged.
+ */
 @Composable
 fun SettingsSection(
-    emoji: String,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     initialExpanded: Boolean,
@@ -62,8 +73,13 @@ fun SettingsSection(
                     .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.large),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = emoji, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.width(AuraSpacing.medium))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = AuraThemeTokens.colors.textSecondary,
+                    modifier = Modifier.size(AuraSpacing.lg),
+                )
+                Spacer(Modifier.width(AuraSpacing.md))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = title,
@@ -106,11 +122,21 @@ fun SettingsSection(
     }
 }
 
+/**
+ * A Settings row that navigates instead of expanding.
+ *
+ * [icon] is null for rows nested inside an expanded section, where the
+ * parent already carries the icon and indentation shows the relationship.
+ * Top-level rows should pass one so they line up with the sections around
+ * them — "Agents" sat in the System group with no icon while every
+ * sibling had one.
+ */
 @Composable
 fun SettingsClickableRow(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    icon: ImageVector? = null,
 ) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
@@ -124,6 +150,15 @@ fun SettingsClickableRow(
             modifier = Modifier.padding(AuraSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = AuraThemeTokens.colors.textSecondary,
+                    modifier = Modifier.size(AuraSpacing.lg),
+                )
+                Spacer(Modifier.width(AuraSpacing.md))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f))

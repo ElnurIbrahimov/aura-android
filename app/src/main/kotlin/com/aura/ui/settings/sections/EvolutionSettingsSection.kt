@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import com.aura.ui.settings.SettingsClickableRow
 import com.aura.ui.settings.SettingsEvolutionSection
 import com.aura.ui.settings.SettingsSection
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.Icons
 
 @Composable
 fun EvolutionSettingsSection(
@@ -15,7 +17,7 @@ fun EvolutionSettingsSection(
     onNavigateTasteProfile: () -> Unit = {},
 ) {
     SettingsSection(
-        emoji = "*",
+        icon = Icons.Filled.AutoAwesome,
         title = "Evolution",
         subtitle = "Review and control self-improvement proposals",
         initialExpanded = false,
