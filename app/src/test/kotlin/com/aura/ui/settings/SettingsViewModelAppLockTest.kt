@@ -106,7 +106,6 @@ class SettingsViewModelAppLockTest {
         }
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         every { userPreferences.evolutionIntervalHours } returns flowOf(24)
-        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.ttsEnabled } returns flowOf(true)
         every { userPreferences.incognitoDefault } returns flowOf(false)
         every { userPreferences.imageModel } returns flowOf("")
@@ -154,6 +153,7 @@ class SettingsViewModelAppLockTest {
             io.mockk.mockk<com.aura.dream.DreamConsolidationDao>(relaxed = true),
             io.mockk.mockk<com.aura.emotion.EmotionEngine>(relaxed = true),
             io.mockk.mockk<com.aura.evolution.EvolutionSettingsStore>(relaxed = true),
+            com.aura.evolution.EvolutionSafetyGuard(),
             io.mockk.mockk<com.aura.proactive.ProactiveEventDao>(relaxed = true),
             io.mockk.mockk<com.aura.integrations.OAuthFlow>(relaxed = true),
             io.mockk.mockk<com.aura.integrations.IntegrationTokenStore>(relaxed = true),

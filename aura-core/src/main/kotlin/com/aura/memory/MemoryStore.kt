@@ -268,11 +268,11 @@ class MemoryStore @Inject constructor(
             // P1 MEMORY B1: vector-fallback recall path
             // skipped evolutionHooks.onMemoryRecalled until
             // now. The main path (BM25+vector) at line ~289
-            // calls it, so the EvolutionShadowEvaluator's
-            // recall telemetry was half-wired — it saw
-            // BM25-hits but never saw fallback hits. Now
-            // both paths fire the same telemetry so the
-            // Evolution engine can rank memories honestly.
+            // calls it, so evolution recall telemetry was
+            // half-wired — it saw BM25-hits but never saw
+            // fallback hits. Now both paths fire the same
+            // telemetry so the Evolution engine can rank
+            // memories honestly.
             for ((index, mem) in results.withIndex()) {
                 runCatching {
                     evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)

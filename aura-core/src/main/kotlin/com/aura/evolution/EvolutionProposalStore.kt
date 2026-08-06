@@ -89,7 +89,7 @@ class EvolutionProposalStore @Inject constructor(
      */
     suspend fun pastOutcomes(domain: kotlin.String): List<ProposalOutcome> {
         return proposalDao.byDomain(domain)
-            .filter { it.status == ProposalStatus.APPLIED.name }
+            .filter { it.status == ProposalStatus.APPLIED.name || it.status == ProposalStatus.ROLLED_BACK.name }
             .mapNotNull { proposal ->
                 val note = proposal.outcomeNote
                 if (note.isBlank() || !note.startsWith("{")) return@mapNotNull null
@@ -100,16 +100,23 @@ class EvolutionProposalStore @Inject constructor(
     }
 
     /**
-     * Find applied proposals that have no outcome recorded yet.
-     * Used by the coordinator's post-apply outcome recording loop.
+     * Find resolved (applied or rolled-back) proposals that have no outcome
+     * recorded yet. Used by the coordinator's outcome-scoring loop: applied
+     * proposals are scored from evidence ≥7d post-apply; rollbacks score 0.1.
+     *
+     * "No outcome yet" means [EvolutionProposalEntity.outcomeNote] does not
+     * hold outcome JSON — apply/rollback leave a human-readable note there
+     * (e.g. "patched skill x"), which recordOutcome later replaces with the
+     * `{"score":…}` JSON blob that [pastOutcomes] parses.
      */
-    suspend fun appliedWithoutOutcomes(): List<EvolutionProposalEntity> {
+    suspend fun unscoredResolved(): List<EvolutionProposalEntity> {
         val all = mutableListOf<EvolutionProposalEntity>()
         for (domain in EvolutionDomain.entries) {
             all += proposalDao.byDomain(domain.name)
         }
         return all.filter {
-            it.status == ProposalStatus.APPLIED.name && it.outcomeNote.isBlank()
+            (it.status == ProposalStatus.APPLIED.name || it.status == ProposalStatus.ROLLED_BACK.name) &&
+                !it.outcomeNote.trimStart().startsWith("{")
         }
     }
 

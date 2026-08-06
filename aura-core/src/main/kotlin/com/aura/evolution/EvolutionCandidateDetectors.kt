@@ -6,13 +6,18 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Log
 
 /**
  * Deterministic, offline detectors that produce evolution candidates from
  * recorded evidence. These run entirely on the device; no model call is made
- * here. The outputs are [EvolutionCandidateEntity] rows for the reflection
+ * here. The outputs are [EvolutionCandidateEntity] rows for the patch-authoring
  * engine to consider.
+ *
+ * Dedup (D5): candidates are keyed on (domain, action, targetId). Re-detection
+ * of the same key refreshes the existing PENDING row in place, is skipped
+ * entirely while a resolved row is inside the [COOLDOWN_MS] window, and resets
+ * the same row back to PENDING once the cooldown has passed. No unique
+ * constraint — the invariant is enforced here against the indexed lookup.
  */
 @Singleton
 class EvolutionCandidateDetectors @Inject constructor(
@@ -68,7 +73,7 @@ class EvolutionCandidateDetectors @Inject constructor(
 
     /**
      * Memory domain: detect memories with many recalls (≥ 10 in 30 days) —
-     * candidate to consolidate into a belief or merge duplicates.
+     * candidate to consolidate with related memories.
      */
     suspend fun detectMemoryConsolidationCandidates(): List<EvolutionCandidateEntity> {
         val cutoff = System.currentTimeMillis() - 30L * DAY_MS
@@ -89,70 +94,65 @@ class EvolutionCandidateDetectors @Inject constructor(
     }
 
     /**
-     * Proactive domain: detect proactive events that were delivered but
-     * repeatedly dismissed without action (≥ 3 dismissals in 14 days) —
-     * candidate to disable or rewrite the rule/message.
-     */
-    suspend fun detectProactiveDismissalCandidates(): List<EvolutionCandidateEntity> {
-        val cutoff = System.currentTimeMillis() - 14L * DAY_MS
-        val dismissals = evidenceDao.byKind(EvolutionDomain.PROACTIVE.name, "proactive_dismissed", 500)
-            .filter { it.createdAt >= cutoff }
-            .groupBy { it.sourceEntityId }
-            .filter { it.value.size >= 3 }
-        return dismissals.map { (eventId, events) ->
-            EvolutionCandidateEntity(
-                id = UUID.randomUUID().toString(),
-                domain = EvolutionDomain.PROACTIVE.name,
-                action = EvolutionAction.REWRITE_RULE_MESSAGE.name,
-                targetId = eventId,
-                score = (events.size / 10f).coerceIn(0.1f, 0.9f),
-                rationale = "Proactive event dismissed ${events.size} times in 14 days",
-            )
-        }
-    }
-
-    /**
-     * Proactive domain: detect proactive events with high engagement
-     * (≥ 3 actions in 7 days) — candidate to double down / add similar rule.
-     */
-    suspend fun detectProactiveEngagementCandidates(): List<EvolutionCandidateEntity> {
-        val cutoff = System.currentTimeMillis() - 7L * DAY_MS
-        val actions = evidenceDao.byKind(EvolutionDomain.PROACTIVE.name, "proactive_action_taken", 500)
-            .filter { it.createdAt >= cutoff }
-            .groupBy { it.sourceEntityId }
-            .filter { it.value.size >= 3 }
-        return actions.map { (eventId, events) ->
-            EvolutionCandidateEntity(
-                id = UUID.randomUUID().toString(),
-                domain = EvolutionDomain.PROACTIVE.name,
-                action = EvolutionAction.NEW_PROACTIVE_RULE.name,
-                targetId = eventId,
-                score = (events.size / 10f).coerceIn(0.1f, 0.9f),
-                rationale = "Proactive event drove ${events.size} actions in 7 days",
-            )
-        }
-    }
-
-    /**
-     * Run all detectors, persist candidates, and return the new/updated ones.
+     * Run all detectors and persist candidates with dedup on
+     * (domain, action, targetId). Returns only the rows that are actionable
+     * this run (new, refreshed, or cooldown-expired resets) — skipped
+     * cooldown rows are not returned so the coordinator never re-authors them.
      */
     suspend fun runAll(): List<EvolutionCandidateEntity> {
-        val all = detectSkillPatchCandidates() +
+        val detected = detectSkillPatchCandidates() +
             detectSkillPromotionCandidates() +
-            detectMemoryConsolidationCandidates() +
-            detectProactiveDismissalCandidates() +
-            detectProactiveEngagementCandidates()
-        for (candidate in all) {
-            candidateDao.upsert(candidate)
+            detectMemoryConsolidationCandidates()
+        val now = System.currentTimeMillis()
+        val out = mutableListOf<EvolutionCandidateEntity>()
+        for (candidate in detected) {
+            val existing = candidateDao.findByKey(candidate.domain, candidate.action, candidate.targetId)
+            when {
+                existing == null -> {
+                    candidateDao.upsert(candidate)
+                    out += candidate
+                }
+                existing.status == CandidateStatus.PENDING.name -> {
+                    // Refresh in place: same row, fresher score/rationale.
+                    val refreshed = existing.copy(
+                        score = candidate.score,
+                        rationale = candidate.rationale,
+                        evidenceIdsJson = candidate.evidenceIdsJson,
+                        updatedAt = now,
+                    )
+                    candidateDao.upsert(refreshed)
+                    out += refreshed
+                }
+                now - existing.updatedAt < COOLDOWN_MS -> {
+                    // Resolved recently (rejected/promoted/applied) — skip.
+                }
+                else -> {
+                    // Cooldown expired: reset the SAME row back to pending.
+                    val reset = existing.copy(
+                        status = CandidateStatus.PENDING.name,
+                        score = candidate.score,
+                        rationale = candidate.rationale,
+                        evidenceIdsJson = candidate.evidenceIdsJson,
+                        reflectionResult = "",
+                        updatedAt = now,
+                    )
+                    candidateDao.upsert(reset)
+                    out += reset
+                }
+            }
         }
-        return all
+        return out
     }
 
     private fun parsePayload(json: kotlin.String): Map<kotlin.String, kotlin.String> = runCatching {
         Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), json)
-    }.onFailure { Log.w("EvolutionCandidateDetect", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())
+    }.onFailure { android.util.Log.w("EvolutionCandidateDetect", "payload parse failed: ${it.message}", it) }
+        .getOrDefault(emptyMap())
 
     private companion object {
         const val DAY_MS = 24L * 60L * 60L * 1000L
+
+        /** D5: resolved candidates are not re-created for 14 days. */
+        const val COOLDOWN_MS = 14L * DAY_MS
     }
 }

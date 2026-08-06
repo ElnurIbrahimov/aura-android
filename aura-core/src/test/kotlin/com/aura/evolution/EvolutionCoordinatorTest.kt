@@ -28,11 +28,13 @@ class EvolutionCoordinatorTest {
             .build()
         val detectors = EvolutionCandidateDetectors(db.evidenceDao(), db.candidateDao())
         val metrics = EvolutionMetricsRecorder(db.settingsDao())
-        val reflection = mockk<EvolutionReflectionExecutor>(relaxed = true)
+        val patchAuthor = mockk<EvolutionPatchAuthor>(relaxed = true)
         val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)
         val candidateDao = db.candidateDao()
         val settingsDao = db.settingsDao()
-        coordinator = EvolutionCoordinator(detectors, metrics, reflection, proposalStore, candidateDao, settingsDao)
+        coordinator = EvolutionCoordinator(
+            detectors, metrics, patchAuthor, proposalStore, candidateDao, settingsDao, EvolutionSafetyGuard(),
+        )
     }
 
     @After

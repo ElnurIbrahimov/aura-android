@@ -48,6 +48,14 @@ interface EvolutionCandidateDao {
     @Query("SELECT * FROM evolution_candidates WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): EvolutionCandidateEntity?
 
+    /**
+     * Dedup lookup (D5): one candidate row per (domain, action, targetId).
+     * Backed by index_evolution_candidates_domain_action_targetId; the v3→v4
+     * migration collapsed historic duplicates so at most one row matches.
+     */
+    @Query("SELECT * FROM evolution_candidates WHERE domain = :domain AND action = :action AND targetId = :targetId ORDER BY createdAt DESC LIMIT 1")
+    suspend fun findByKey(domain: kotlin.String, action: kotlin.String, targetId: kotlin.String): EvolutionCandidateEntity?
+
     @Query("UPDATE evolution_candidates SET status = :status, updatedAt = :timestamp, reflectionResult = :reflection WHERE id = :id")
     suspend fun setStatus(id: kotlin.String, status: kotlin.String, reflection: kotlin.String = "", timestamp: kotlin.Long = System.currentTimeMillis())
 

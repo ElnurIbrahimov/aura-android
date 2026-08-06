@@ -154,7 +154,6 @@ data class SettingsUiState(
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
     val evolutionAutoApply: Boolean = false,
-    val evolutionShadowEnabled: Boolean = false,
     val daemonEnabled: Boolean = false,
     /** Daemon thinking-worker cadence in minutes (default 60). */
     val daemonIntervalMinutes: Int = com.aura.data.UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES,
@@ -214,6 +213,7 @@ class SettingsViewModel @Inject constructor(
     private val dreamConsolidationDao: com.aura.dream.DreamConsolidationDao,
     private val emotionEngine: com.aura.emotion.EmotionEngine,
     private val evolutionSettingsStore: com.aura.evolution.EvolutionSettingsStore,
+    private val evolutionSafetyGuard: com.aura.evolution.EvolutionSafetyGuard,
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao,
 
     private val oauthFlow: com.aura.integrations.OAuthFlow,
@@ -319,7 +319,6 @@ class SettingsViewModel @Inject constructor(
             val smtpFrom = userPreferences.smtpFrom.first()
             val evolutionEnabled = userPreferences.evolutionEnabled.first()
             val evolutionIntervalHours = userPreferences.evolutionIntervalHours.first()
-            val evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first()
             val evolutionAutoApply = runCatching {
                 evolutionSettingsStore.all().any { it.autoApplyApproved }
             }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
@@ -372,7 +371,6 @@ class SettingsViewModel @Inject constructor(
                 smtpFrom = smtpFrom,
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
-                evolutionShadowEnabled = evolutionShadowEnabled,
                 evolutionAutoApply = evolutionAutoApply,
                 daemonEnabled = daemonEnabled,
                 daemonIntervalMinutes = daemonIntervalMinutes,
@@ -511,21 +509,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * D4: the safety guard is enforced at settings-write time as well as in
+     * the coordinator's auto-apply path. `true` is persisted only for domains
+     * the guard allows — SKILL can never be flagged for auto-apply, so even a
+     * stale/imported DB row cannot enable it.
+     */
     fun setEvolutionAutoApply(enabled: Boolean) {
         viewModelScope.launch {
             runCatching {
                 for (domain in com.aura.evolution.EvolutionDomain.entries) {
-                    evolutionSettingsStore.setAutoApplyApproved(domain, enabled)
+                    val allowed = enabled && evolutionSafetyGuard.canAutoApply(domain.name)
+                    evolutionSettingsStore.setAutoApplyApproved(domain, allowed)
                 }
             }.onFailure { Log.w("SettingsVM", "op failed: ${it.message}", it) }
             _state.update { it.copy(evolutionAutoApply = enabled) }
-        }
-    }
-
-    fun setEvolutionShadowEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferences.setEvolutionShadowEnabled(enabled)
-            _state.update { it.copy(evolutionShadowEnabled = enabled) }
         }
     }
 

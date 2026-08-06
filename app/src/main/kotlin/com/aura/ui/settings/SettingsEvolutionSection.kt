@@ -45,7 +45,7 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
                 Switch(checked = autoApply, onCheckedChange = { viewModel.setEvolutionAutoApply(it) })
             }
             Text(
-                "When enabled, evolution proposals that pass evaluation are applied automatically without requiring manual approval from the inbox.",
+                "When enabled, memory evolution proposals that pass evaluation are applied automatically without requiring manual approval from the inbox. Skill changes always require manual approval.",
                 style = MaterialTheme.typography.labelSmall,
                 color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
                 modifier = Modifier.padding(top = AuraSpacing.xxs),

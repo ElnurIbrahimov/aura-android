@@ -62,6 +62,10 @@ data class EvolutionEvidenceEntity(
         Index(value = ["score"]),
         Index(value = ["createdAt"]),
         Index(value = ["domain", "status", "score"]),
+        // D5 dedup key — no unique constraint (the detector enforces the
+        // one-row-per-key invariant via findByKey; a unique index would make
+        // the v3→v4 migration hazardous for installs with historic dups).
+        Index(value = ["domain", "action", "targetId"]),
     ],
 )
 data class EvolutionCandidateEntity(
