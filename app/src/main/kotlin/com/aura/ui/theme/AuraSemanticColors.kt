@@ -77,8 +77,14 @@ val DarkAuraSemanticColors = AuraSemanticColors(
     riskReadOnly = Color(0xFF60A5FA),
     riskWriteLocal = Color(0xFFFBBF24),
     riskWriteRemote = Color(0xFFF87171),
-    userBubble = Color(0xFF0F766E),
-    onUserBubble = Color.White,
+    // Your own message is context, not content — you already know what you
+    // wrote. A full-saturation teal slab made it the loudest object on the
+    // screen while Aura's actual answer sat in plain text beside it. A warm
+    // raised surface still reads unmistakably as "mine" (right-aligned,
+    // bubbled) without shouting, and it gives the accent back to things
+    // that are genuinely accents.
+    userBubble = Color(0xFF2E2825),
+    onUserBubble = Color(0xFFEDE9E3),
     assistantAccent = Color(0xFF2DD4BF),
     aiThinking = Color(0x402DD4BF),
     aiToolCall = Color(0x403B82F6),
@@ -116,8 +122,9 @@ val LightAuraSemanticColors = AuraSemanticColors(
     riskReadOnly = Color(0xFF1D4ED8),
     riskWriteLocal = Color(0xFF92400E),
     riskWriteRemote = Color(0xFFB91C1C),
-    userBubble = Color(0xFF0D9488),
-    onUserBubble = Color.White,
+    // Warm raised surface, matching the dark theme's reasoning above.
+    userBubble = Color(0xFFE8E1D6),
+    onUserBubble = Color(0xFF1C1917),
     assistantAccent = Color(0xFF0D9488),
     aiThinking = Color(0x260D9488),
     aiToolCall = Color(0x261D4ED8),

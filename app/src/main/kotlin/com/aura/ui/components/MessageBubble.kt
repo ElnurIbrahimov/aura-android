@@ -448,7 +448,7 @@ private fun AssistantMessage(
             onCopiedChange(false)
         }
     }
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -456,16 +456,25 @@ private fun AssistantMessage(
                 alpha = springEased.value
             }
             .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
-        // Avatar: 32dp — proportional to 16sp body text, matches Claude mobile.
-        AuraAiAvatar(
-            isThinking = isStreaming,
-            isProactive = isProactive,
-            size = AuraSpacing.xl,
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            // Role label
+        // Avatar and role label share one header line, and the body runs
+        // beneath them at full width.
+        //
+        // The avatar used to hold its own column beside the text for the
+        // whole message, so every line of every answer was indented past
+        // it — roughly 60dp of permanent gutter, costing ~16% of the
+        // reading width and forcing early wraps on a prose-heavy screen.
+        // The avatar only needs to identify the speaker once.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        ) {
+            // Avatar: 32dp — proportional to 16sp body text, matches Claude mobile.
+            AuraAiAvatar(
+                isThinking = isStreaming,
+                isProactive = isProactive,
+                size = AuraSpacing.xl,
+            )
             Text(
                 text = agentName ?: "AURA",
                 fontFamily = InterDisplay,
@@ -474,6 +483,8 @@ private fun AssistantMessage(
                 letterSpacing = 0.5.sp,
                 color = AuraThemeTokens.colors.textPrimary,
             )
+        }
+        Column(modifier = Modifier.fillMaxWidth()) {
             if (isProactive) {
                 Spacer(Modifier.height(AuraSpacing.xxs))
                 Surface(

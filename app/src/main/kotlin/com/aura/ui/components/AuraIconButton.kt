@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -31,6 +32,13 @@ fun AuraIconButton(
     enabled: Boolean = true,
     containerColor: Color = Color.Transparent,
     contentDescription: String? = null,
+    /**
+     * Container shape. Defaults to the rounded square used across
+     * toolbars; pass [androidx.compose.foundation.shape.CircleShape] when
+     * the button sits inside a pill, where a rounded square's corners
+     * collide with the surrounding curve.
+     */
+    shape: Shape = RoundedCornerShape(AuraDimensions.controlRadius),
     content: @Composable () -> Unit,
 ) {
     val colors = AuraThemeTokens.colors
@@ -47,8 +55,15 @@ fun AuraIconButton(
     ) {
         Surface(
             modifier = Modifier.size(AuraDimensions.iconButtonVisualSize),
-            shape = RoundedCornerShape(AuraDimensions.controlRadius),
-            color = if (enabled) containerColor else colors.actionDisabled,
+            shape = shape,
+            // A button drawn with no container while enabled should not
+            // grow a filled grey slab the moment it is disabled — that
+            // invents a control where the design had only an icon.
+            color = when {
+                enabled -> containerColor
+                containerColor == Color.Transparent -> Color.Transparent
+                else -> colors.actionDisabled
+            },
         ) {
             Box(contentAlignment = Alignment.Center) { content() }
         }
