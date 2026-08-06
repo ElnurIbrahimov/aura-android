@@ -30,7 +30,7 @@ import javax.inject.Singleton
  * are on for a fresh install) — the toggles are opt-out. When a
  * toggle flips to false, the matching cancel path runs so any
  * in-flight work is removed and the user-visible signal
- * (notification, foreground service) goes away.
+ * (notification, scheduled worker) goes away.
  *
  * Also runs a one-shot memory decay pass on startup. This is what the
  * Python codebase used to do via a daily cron; the Kotlin port skipped
@@ -97,8 +97,8 @@ class ProactiveBootstrap @Inject constructor(
         }
         // Keep one long-lived reconciliation collector.
         // their persisted defaults immediately and every Settings mutation
-        // thereafter, so schedules and the foreground service converge in
-        // the active process instead of waiting for a restart.
+        // thereafter, so the worker schedules converge in the active
+        // process instead of waiting for a restart.
         if (preferenceJob?.isActive != true) {
             preferenceJob = scope.launch {
                 combine(
@@ -193,21 +193,14 @@ class ProactiveBootstrap @Inject constructor(
     }
 
     private fun reconcile(gates: ProactiveGates) {
-        val decisions = applyGates(gates.morningBriefOn, gates.calendarMonitorOn, gates.briefHour)
+        applyGates(gates.morningBriefOn, gates.calendarMonitorOn, gates.briefHour)
         try {
-            if (decisions.calendarMonitorShouldRun) {
-                CalendarMonitorService.start(appContext)
-            } else {
-                appContext.stopService(
-                    Intent(appContext, CalendarMonitorService::class.java),
-                )
-            }
             val refresh = Intent(ACTION_REFRESH_WIDGET).apply {
                 setPackage(appContext.packageName)
             }
             appContext.sendBroadcast(refresh)
         } catch (e: Throwable) {
-            android.util.Log.w("ProactiveBootstrap", "calendar monitor reconcile failed: ${e.message}")
+            android.util.Log.w("ProactiveBootstrap", "widget refresh broadcast failed: ${e.message}")
         }
     }
 
@@ -309,18 +302,21 @@ class ProactiveBootstrap @Inject constructor(
      * no Context, no Android framework — this is the seam the unit
      * tests exercise.
      *
-     * Morning brief is scheduled (or cancelled) via the scheduler.
-     * Calendar monitor is a foreground service, so its gating is a
-     * decision rather than a call: the actual start/stop lives in
-     * [start] because it needs a real Context. Returning the gate
-     * decision lets the caller dispatch the FGS side effect without
-     * duplicating the boolean math.
+     * Both features are WorkManager jobs now: the morning brief runs
+     * daily, the calendar check every 15 minutes ([CalendarCheckWorker]
+     * replaced the old permanent foreground service). Each gate
+     * schedules or cancels its worker via the scheduler.
      */
     internal fun applyGates(morningBriefOn: Boolean, calendarMonitorOn: Boolean, briefHour: Int = 7): GatedDecisions {
         if (morningBriefOn) {
             scheduler.scheduleMorningBrief(briefHour)
         } else {
             scheduler.cancelMorningBrief()
+        }
+        if (calendarMonitorOn) {
+            scheduler.scheduleCalendarChecks()
+        } else {
+            scheduler.cancelCalendarChecks()
         }
         return GatedDecisions(
             morningBriefScheduled = morningBriefOn,

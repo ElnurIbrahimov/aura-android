@@ -205,8 +205,8 @@ class CustomOpenAiCompatProvider(
         val body = kotlinx.serialization.json.buildJsonObject {
             put("model", model)
             put("stream", true)
-            put("temperature", options.temperature)
-            put("top_p", options.topP)
+            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
+            put("top_p", options.topP ?: ChatOptions.DEFAULT_TOP_P)
             options.maxTokens?.let { put("max_tokens", it) }
             put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {

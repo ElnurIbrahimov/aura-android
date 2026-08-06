@@ -64,7 +64,7 @@ class AnthropicProvider(
             put("model", model)
             put("stream", true)
             put("max_tokens", options.maxTokens ?: 4096)
-            put("temperature", options.temperature)
+            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
             // Extended thinking: when budget is set, add the thinking block.
             // Anthropic requires max_tokens >= budget_tokens + 1, and
             // temperature must be 1.0 when thinking is enabled.

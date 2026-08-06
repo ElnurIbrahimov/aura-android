@@ -221,8 +221,8 @@ open class OpenAiCompatProvider(
         val body = buildJsonObject {
             put("model", model)
             put("stream", stream)
-            put("temperature", options.temperature)
-            put("top_p", options.topP)
+            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
+            put("top_p", options.topP ?: ChatOptions.DEFAULT_TOP_P)
             options.maxTokens?.let { put("max_tokens", it) }
             // Extended thinking — provider-specific injection.
             // OpenAI o-series uses reasoning_effort. DeepSeek uses both

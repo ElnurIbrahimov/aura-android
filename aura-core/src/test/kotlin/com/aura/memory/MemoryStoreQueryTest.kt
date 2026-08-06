@@ -34,7 +34,6 @@ class MemoryStoreQueryTest {
         store = MemoryStore(
             db.memoryDao(),
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             db.memoryEditDao(),
             db.memoryFeedbackDao(),

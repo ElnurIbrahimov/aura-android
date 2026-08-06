@@ -16,14 +16,14 @@ import javax.inject.Singleton
  *
  * Ported from Python Aura's `narrative_self.py`. The narrative is a
  * ~400-600 token self-model loaded into every system prompt and updated
- * after significant interactions and during Dream consolidation.
+ * during Dream consolidation (see [updateFromDream]).
  *
  * Unlike the static [Brain.IDENTITY] (which is the core persona), the
  * NarrativeSelf captures what Aura has learned about itself and its
  * relationship with the user. It evolves over time.
  *
  * Persistence: JSON file at `files/narrative_self.json`. Loaded on
- * app start by [ProactiveBootstrap], updated after agentic loop runs.
+ * app start by [ProactiveBootstrap], saved after dream-cycle updates.
  *
  * ## Structure
  *
@@ -94,39 +94,11 @@ class NarrativeSelf @Inject constructor(
     fun snapshot(): NarrativeState = state
 
     /**
-     * Update the narrative after a significant interaction.
-     *
-     * This is a lightweight heuristic update — it shifts the recent_growth
-     * text and rotates active concerns. The full LLM-driven update
-     * happens during Dream consolidation (phase 6).
-     *
-     * @param userMessage The user's last message
-     * @param assistantResponse The assistant's last response
-     */
-    fun updateFromInteraction(userMessage: String, assistantResponse: String) {
-        val s = state
-        // Heuristic: if the user's message is long (>200 chars) or contains
-        // question marks, it's "significant" — update the growth note.
-        val isSignificant = userMessage.length > 200 || userMessage.count { it == '?' } >= 2
-        if (!isSignificant) return
-
-        val growthNote = buildString {
-            append("Discussed: ")
-            append(userMessage.take(100).replace("\n", " "))
-            append(" → ")
-            append(assistantResponse.take(100).replace("\n", " "))
-        }.take(300)
-
-        state = s.copy(
-            recentGrowth = growthNote,
-            lastUpdated = System.currentTimeMillis(),
-            version = s.version + 1,
-        )
-    }
-
-    /**
-     * Update from dream consolidation. The LLM-generated summary
-     * replaces the recent_growth field.
+     * Update from dream consolidation — the only writer of recentGrowth,
+     * activeConcerns, and unresolvedQuestions. Called by
+     * [com.aura.dream.DreamConsolidator]'s narrative phase with the
+     * cycle's LLM-written cluster summaries as growth and unresolved
+     * contradictions as concerns; zero extra LLM calls.
      */
     fun updateFromDream(growthSummary: String, concerns: List<String>, questions: List<String>) {
         state = state.copy(

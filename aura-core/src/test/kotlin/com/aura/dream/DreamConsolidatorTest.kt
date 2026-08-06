@@ -96,12 +96,14 @@ class DreamConsolidatorTest {
         provider: ProviderRegistry,
         dreamDao: DreamConsolidationDao = mockDao(),
         contradictionDao: ContradictionDao = mockk(relaxed = true),
+        narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     ): DreamConsolidator = DreamConsolidator(
         memoryStore = memoryStore,
         dreamDao = dreamDao,
         routineDao = mockk(relaxed = true),
         kgProposalDao = mockk(relaxed = true),
         contradictionDao = contradictionDao,
+        narrativeSelf = narrativeSelf,
         providerRegistry = provider,
         embedder = mockk(relaxed = true),
         crashLogger = mockk<CrashLogger>(relaxed = true).also {
@@ -298,6 +300,76 @@ class DreamConsolidatorTest {
 
         assertEquals(0, report.contradictionsFound)
         io.mockk.coVerify(exactly = 0) { contradictionDao.insert(any()) }
+    }
+
+    @Test
+    fun `narrative phase updates the self-model from this cycle's summaries`() = runBlocking {
+        // First production caller of NarrativeSelf.updateFromDream: a cycle
+        // that wrote >=1 summary feeds its LLM-written compressedText into
+        // recentGrowth and unresolved contradictions into activeConcerns.
+        val ns = mockk<com.aura.consciousness.NarrativeSelf>(relaxed = true)
+        io.mockk.every { ns.snapshot() } returns com.aura.consciousness.NarrativeState(
+            unresolvedQuestions = listOf("What is the user's deadline?"),
+        )
+        val contradictionDao = mockk<ContradictionDao>(relaxed = true)
+        coEvery { contradictionDao.byStatus("UNRESOLVED") } returns listOf(
+            ContradictionEntity(
+                id = "contra_1",
+                olderSummaryId = "dream_a",
+                newerSummaryId = "dream_b",
+                olderText = "User prefers light mode in every app.",
+                newerText = "User switched every app to dark mode.",
+                triggerPhrase = "switched",
+                confidence = 0.6f,
+                status = "UNRESOLVED",
+                createdAt = 1_000L,
+            ),
+        )
+        val store = mockStore(
+            listOf(
+                mem("a", "User likes Kotlin", 1),
+                mem("b", "User prefers Kotlin over Java", 1),
+                mem("c", "User codes in Kotlin daily", 1),
+            )
+        )
+        val provider = mockProvider(listOf("User prefers Kotlin and uses it daily"))
+        val consolidator = buildConsolidator(store, provider, contradictionDao = contradictionDao, narrativeSelf = ns)
+
+        val report = consolidator.runCycle()
+
+        assertEquals(1, report.summariesWritten)
+        assertTrue("report should record the narrative update", report.narrativeUpdated)
+        io.mockk.verify(exactly = 1) {
+            ns.updateFromDream(
+                growthSummary = match { it.isNotBlank() && it.contains("Kotlin") },
+                concerns = match { it.size == 1 && it[0].startsWith("Conflicting: ") },
+                questions = listOf("What is the user's deadline?"),
+            )
+        }
+        io.mockk.coVerify(exactly = 1) { ns.save() }
+    }
+
+    @Test
+    fun `narrative phase does not fire when no summaries were written`() = runBlocking {
+        // An empty cycle must not blank the narrative. Two singleton
+        // clusters stay below MIN_CLUSTER_SIZE, so the cycle proceeds
+        // through the later phases with summariesWritten == 0.
+        val ns = mockk<com.aura.consciousness.NarrativeSelf>(relaxed = true)
+        val store = mockStore(
+            listOf(
+                mem("a", "User likes Kotlin", 1),
+                mem("b", "Lives in Baku", 2),
+            )
+        )
+        val provider = mockProvider(emptyList())
+        val consolidator = buildConsolidator(store, provider, narrativeSelf = ns)
+
+        val report = consolidator.runCycle()
+
+        assertEquals(0, report.summariesWritten)
+        assertEquals(false, report.narrativeUpdated)
+        io.mockk.verify(exactly = 0) { ns.updateFromDream(any(), any(), any()) }
+        io.mockk.coVerify(exactly = 0) { ns.save() }
     }
 
     @Test

@@ -17,6 +17,7 @@ object ProactiveModule {
     @Singleton
     fun provideCalendarMonitor(
         @ApplicationContext context: Context,
-        eventBus: ProactiveEventBus,
-    ): CalendarMonitor = CalendarMonitor(context, eventBus)
+        proactiveEvents: ProactiveEvents,
+        userPreferences: com.aura.data.UserPreferences,
+    ): CalendarMonitor = CalendarMonitor(context, proactiveEvents, userPreferences)
 }

@@ -66,8 +66,8 @@ class ChatGptSubscriptionProvider(
         val body = buildJsonObject {
             put("model", model)
             put("stream", true)
-            put("temperature", options.temperature)
-            put("top_p", options.topP)
+            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
+            put("top_p", options.topP ?: ChatOptions.DEFAULT_TOP_P)
             options.maxTokens?.let { put("max_tokens", it) }
             // ChatGPT Responses API supports reasoning_effort
             options.thinkingBudget?.let { budget ->

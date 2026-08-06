@@ -182,12 +182,17 @@ class EmotionEngine @Inject constructor(
         )
     }
 
-    /** Applies [samplingAdjustments] to a [com.aura.providers.ChatOptions]. */
+    /**
+     * Applies [samplingAdjustments] to a [com.aura.providers.ChatOptions].
+     * Fills only unset (null) fields — an explicit caller temperature or
+     * topP is never overridden (compactor 0.1, write gate 0.1, evolution
+     * 0.0, ... all mean it).
+     */
     fun applySampling(options: com.aura.providers.ChatOptions): com.aura.providers.ChatOptions {
         val adj = samplingAdjustments()
         return options.copy(
-            temperature = adj.temperature,
-            topP = adj.topP,
+            temperature = options.temperature ?: adj.temperature,
+            topP = options.topP ?: adj.topP,
         )
     }
 

@@ -207,11 +207,35 @@ class EmotionEngineTest {
     }
 
     @Test
-    fun `applySampling adjusts options without overriding explicit maxTokens`() {
-        val opts = com.aura.providers.ChatOptions(temperature = 0.7, topP = 1.0, maxTokens = null)
-        val adjusted = engine.applySampling(opts)
-        assertTrue("temperature should be adjusted by emotion", adjusted.temperature != 0.7)
-        // explicit caller maxTokens is preserved
+    fun `applySampling preserves explicit temperature and topP verbatim`() {
+        // An explicit caller choice (compactor 0.1, write gate 0.1,
+        // evolution 0.0, ...) must never be overridden by mood.
+        val explicit = com.aura.providers.ChatOptions(temperature = 0.7, topP = 1.0)
+        val result = engine.applySampling(explicit)
+        assertEquals(0.7, result.temperature)
+        assertEquals(1.0, result.topP)
+    }
+
+    @Test
+    fun `applySampling fills unset temperature and topP from mood`() {
+        val defaults = com.aura.providers.ChatOptions() // both null = unset
+        val adj = engine.samplingAdjustments()
+        val result = engine.applySampling(defaults)
+        assertEquals(adj.temperature, result.temperature)
+        assertEquals(adj.topP, result.topP)
+    }
+
+    @Test
+    fun `applySampling fills only the null field when the other is explicit`() {
+        val mixed = com.aura.providers.ChatOptions(temperature = null, topP = 0.42)
+        val adj = engine.samplingAdjustments()
+        val result = engine.applySampling(mixed)
+        assertEquals(adj.temperature, result.temperature)
+        assertEquals(0.42, result.topP)
+    }
+
+    @Test
+    fun `applySampling never touches maxTokens`() {
         val explicit = com.aura.providers.ChatOptions(maxTokens = 150)
         val preserved = engine.applySampling(explicit)
         assertEquals(150, preserved.maxTokens)

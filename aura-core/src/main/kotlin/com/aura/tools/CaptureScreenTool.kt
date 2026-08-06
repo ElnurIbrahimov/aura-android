@@ -24,7 +24,7 @@ class CaptureScreenTool @Inject constructor(
 ) {
     fun definition() = ToolDefinition(
         name = "capture_screen",
-        description = "Capture the device screen and return it as a base64 JPEG. Requires screen-capture permission; if not granted, the tool returns instructions for the user to allow it.",
+        description = "Capture the device screen and return it as a base64 JPEG. Shows a one-time system consent dialog for each capture; the user must confirm it.",
         parameters = ToolParameters(
             properties = mapOf(
                 "width" to ToolProperty(type = "integer", description = "Capture width (default 1080)"),
@@ -41,21 +41,24 @@ class CaptureScreenTool @Inject constructor(
         risk = ToolRisk.PRIVACY,
         parameters = definition().parameters,
         execute = { call, _ ->
-            if (screenCaptureHolder.pendingResult.value != true) {
-                screenCaptureHolder.requestPermission()
-                return@Tool ToolResult.Ok(
-                    "Screen-capture permission requested. Please confirm the system dialog, then ask me to capture again."
-                )
-            }
             val width = (call.arguments["width"] as? Int) ?: 1080
             val height = (call.arguments["height"] as? Int) ?: 1920
             val quality = ((call.arguments["quality"] as? Int) ?: 80).coerceIn(1, 100)
 
-            val bitmap = screenCaptureHolder.capture(width, height)
-                ?: return@Tool ToolResult.Error("Screen capture failed. Re-grant permission and try again.", "capture_failed")
-
-            val base64 = bitmapToBase64(bitmap, quality)
-            ToolResult.Ok("data:image/jpeg;base64,$base64")
+            // One-shot suspend flow: consent dialog → foreground
+            // capture service → first frame. Fresh consent every
+            // time (tokens are single-use on Android 14+).
+            try {
+                val bitmap = screenCaptureHolder.captureOnce(width, height)
+                ToolResult.Ok("data:image/jpeg;base64,${bitmapToBase64(bitmap, quality)}")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ToolResult.Error(
+                    "Screen capture failed: ${e.message ?: e.javaClass.simpleName}",
+                    "capture_failed",
+                )
+            }
         },
         category = "device",
     )

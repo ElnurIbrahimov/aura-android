@@ -40,28 +40,6 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `VectorIndex returns empty for empty input`() {
-        val idx = VectorIndex(384)
-        val results = idx.search(FloatArray(384), emptyList(), 5)
-        assertEquals(0, results.size)
-    }
-
-    @Test
-    fun `VectorIndex ranks closer vectors higher`() = runTest {
-        val idx = VectorIndex(384)
-        val emb = LocalEmbedder(384)
-        val q = emb.embed("I love Kotlin")
-        val v1 = emb.embed("I love Kotlin coroutines")
-        val v2 = emb.embed("The weather is nice today")
-        val results = idx.search(q, listOf("v1" to v1, "v2" to v2), 2)
-        // At least one result should come back, and the first should
-        // be the closer vector (v1). Unrelated text may fall below the
-        // 0.05 cosine threshold, so we only assert on ordering.
-        assertTrue(results.isNotEmpty(), "should have at least one result")
-        assertEquals("v1", results[0].memoryId, "closer vector should be ranked first")
-    }
-
-    @Test
     fun `WriteGate classifies preferences correctly`() {
         val gate = WriteGate()
         val d = gate.evaluate("I prefer dark mode", "user")
@@ -116,7 +94,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -148,7 +125,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -175,7 +151,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -192,7 +167,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             embedder,
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -215,7 +189,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -235,7 +208,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -254,7 +226,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             embedder,
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -280,7 +251,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -315,7 +285,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             embedder,
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -336,7 +305,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             embedder,
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -354,7 +322,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             embedder,
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -375,7 +342,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -403,7 +369,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -429,7 +394,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -454,7 +418,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             memoryEditDao,
             memoryFeedbackDao
@@ -480,7 +443,6 @@ class MemoryStoreTest {
         val store = MemoryStore(
             dao,
             FakeEmbedder(384),
-            VectorIndex(384),
             WriteGate(),
             editDao,
             memoryFeedbackDao
@@ -540,7 +502,7 @@ class MemoryStoreTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val embedder = mockk<Embedder>(relaxed = true)
         val localStore = MemoryStore(
-            dao, embedder, VectorIndex(384), WriteGate(),
+            dao, embedder, WriteGate(),
             memoryEditDao, memoryFeedbackDao,
         )
         coEvery { dao.allWithEmbeddings() } throws RuntimeException("db locked")
@@ -563,7 +525,7 @@ class MemoryStoreTest {
             coEvery { onMemoryStored(any(), any(), any(), any(), any()) } throws RuntimeException("hook down")
         }
         val localStore = MemoryStore(
-            dao, embedder, VectorIndex(384), WriteGate(),
+            dao, embedder, WriteGate(),
             memoryEditDao, memoryFeedbackDao, evolutionHooks = hooks,
         )
         coEvery { embedder.embed(any()) } returns FloatArray(384) { 0.1f }

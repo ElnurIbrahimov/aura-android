@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +56,13 @@ internal val KEY_LAST_SEEN_PROACTIVE_AT = longPreferencesKey("last_seen_proactiv
  */
 internal val KEY_MORNING_BRIEF_ENABLED = booleanPreferencesKey("morning_brief_enabled")
 internal val KEY_CALENDAR_MONITOR_ENABLED = booleanPreferencesKey("calendar_monitor_enabled")
+/**
+ * Instance keys ("eventId:begin") of calendar occurrences the
+ * [com.aura.proactive.CalendarMonitor] has already announced.
+ * Persisted so process death can't cause duplicate announcements;
+ * pruned by the monitor to occurrences that began within 24 h.
+ */
+internal val KEY_ANNOUNCED_CALENDAR_INSTANCES = stringSetPreferencesKey("announced_calendar_instances")
 internal val KEY_TTS_ENABLED = booleanPreferencesKey("tts_enabled")
 internal val KEY_INCOGNITO_DEFAULT = booleanPreferencesKey("incognito_default")
 internal val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
@@ -166,6 +174,15 @@ class UserPreferences @Inject constructor(
      */
     val calendarMonitorEnabled: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_CALENDAR_MONITOR_ENABLED] ?: true
+    }
+
+    /**
+     * Announced calendar instance keys ("eventId:begin") — the
+     * calendar monitor's persisted dedup set. Not user-facing;
+     * excluded from backup like other transient bookkeeping.
+     */
+    val announcedCalendarInstances: Flow<Set<String>> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_ANNOUNCED_CALENDAR_INSTANCES] ?: emptySet()
     }
 
     /**
@@ -401,6 +418,10 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setCalendarMonitorEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_CALENDAR_MONITOR_ENABLED] = enabled }
+    }
+
+    suspend fun setAnnouncedCalendarInstances(keys: Set<String>) {
+        context.auraPrefs.edit { it[KEY_ANNOUNCED_CALENDAR_INSTANCES] = keys }
     }
 
     suspend fun setTtsEnabled(enabled: Boolean) {

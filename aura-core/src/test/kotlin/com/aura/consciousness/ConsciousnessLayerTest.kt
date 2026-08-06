@@ -34,24 +34,6 @@ class ConsciousnessLayerTest {
     }
 
     @Test
-    fun `NarrativeSelf updateFromInteraction only on significant messages`() {
-        val ns = NarrativeSelf(mockk(relaxed = true))
-        // Short message — not significant
-        ns.updateFromInteraction("hi", "hello")
-        assertEquals("", ns.toPrompt())
-        // Long message with 2+ question marks — significant
-        ns.updateFromInteraction("Can you explain how the memory consolidation pipeline works in detail? I need to understand the full flow from clustering through summarization to belief promotion. What do you think? How does it compare?", "Sure!")
-        assertTrue(ns.toPrompt().contains("Recent growth"))
-    }
-
-    @Test
-    fun `NarrativeSelf updateFromInteraction with question marks is significant`() {
-        val ns = NarrativeSelf(mockk(relaxed = true))
-        ns.updateFromInteraction("What is this? How does it work? Why?", "Answer")
-        assertTrue(ns.toPrompt().contains("Recent growth"))
-    }
-
-    @Test
     fun `NarrativeSelf updateRelationshipState sets note`() {
         val ns = NarrativeSelf(mockk(relaxed = true))
         ns.updateRelationshipState("Strong, collaborative")
@@ -138,6 +120,30 @@ class ConsciousnessLayerTest {
     fun `IntrinsicMotivation toPrompt returns empty when no urgent drive`() {
         val im = IntrinsicMotivation()
         assertEquals("", im.toPrompt())
+    }
+
+    // ── AffinityLevel.fromScore ────────────────────────────────────
+
+    @Test
+    fun `fromScore boundaries have no gaps`() {
+        // Regression: the old (min, max) ranges left holes (10-11, 25-26,
+        // ...) where fractional scores like 10.5 matched nothing and
+        // silently fell back to ACQUAINTANCE.
+        assertEquals(AffinityTracker.AffinityLevel.ACQUAINTANCE, AffinityTracker.AffinityLevel.fromScore(10f))
+        assertEquals(AffinityTracker.AffinityLevel.ACQUAINTANCE, AffinityTracker.AffinityLevel.fromScore(10.5f))
+        assertEquals(AffinityTracker.AffinityLevel.ACQUAINTANCE, AffinityTracker.AffinityLevel.fromScore(10.9f))
+        assertEquals(AffinityTracker.AffinityLevel.FAMILIAR, AffinityTracker.AffinityLevel.fromScore(11f))
+        assertEquals(AffinityTracker.AffinityLevel.FAMILIAR, AffinityTracker.AffinityLevel.fromScore(25.5f))
+        assertEquals(AffinityTracker.AffinityLevel.CONNECTED, AffinityTracker.AffinityLevel.fromScore(26f))
+        assertEquals(AffinityTracker.AffinityLevel.TRUSTED, AffinityTracker.AffinityLevel.fromScore(51f))
+        assertEquals(AffinityTracker.AffinityLevel.CLOSE, AffinityTracker.AffinityLevel.fromScore(76f))
+        assertEquals(AffinityTracker.AffinityLevel.CLOSE, AffinityTracker.AffinityLevel.fromScore(100f))
+    }
+
+    @Test
+    fun `fromScore clamps out-of-range scores`() {
+        assertEquals(AffinityTracker.AffinityLevel.ACQUAINTANCE, AffinityTracker.AffinityLevel.fromScore(-1f))
+        assertEquals(AffinityTracker.AffinityLevel.CLOSE, AffinityTracker.AffinityLevel.fromScore(101f))
     }
 
     // ── TheoryOfMind ───────────────────────────────────────────────

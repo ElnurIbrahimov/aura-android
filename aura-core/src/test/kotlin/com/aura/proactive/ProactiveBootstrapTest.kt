@@ -90,6 +90,22 @@ class ProactiveBootstrapTest {
     }
 
     @Test
+    fun `calendar gate on schedules the calendar check worker`() {
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
+        bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)
+        verify(exactly = 1) { scheduler.scheduleCalendarChecks() }
+        verify(exactly = 0) { scheduler.cancelCalendarChecks() }
+    }
+
+    @Test
+    fun `calendar gate off cancels the calendar check worker`() {
+        val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
+        bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = false)
+        verify(exactly = 0) { scheduler.scheduleCalendarChecks() }
+        verify(exactly = 1) { scheduler.cancelCalendarChecks() }
+    }
+
+    @Test
     fun `applyGates returns the morning brief decision`() {
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
         val decisions = bootstrap.applyGates(morningBriefOn = true, calendarMonitorOn = true)

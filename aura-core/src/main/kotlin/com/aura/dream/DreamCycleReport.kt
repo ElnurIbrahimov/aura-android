@@ -42,6 +42,8 @@ data class DreamCycleReport(
     val profileUpdated: Boolean = false,
     // Phase 10: promote reinforced KG edges into world-model beliefs
     val beliefsPromoted: Int = 0,
+    // Phase 8b: narrative-self update from this cycle's summaries
+    val narrativeUpdated: Boolean = false,
 ) {
     /** A one-line summary suitable for the Settings UI. */
     fun statsLine(): String = buildString {

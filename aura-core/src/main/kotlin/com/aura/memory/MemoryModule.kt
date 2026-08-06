@@ -689,9 +689,5 @@ object MemoryModule {
 
     @Provides
     @Singleton
-    fun provideVectorIndex(): VectorIndex = VectorIndex()
-
-    @Provides
-    @Singleton
     fun provideWriteGate(): WriteGate = WriteGate()
 }

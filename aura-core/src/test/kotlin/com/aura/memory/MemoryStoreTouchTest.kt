@@ -46,14 +46,11 @@ class MemoryStoreTouchTest {
         )
         val embedder = mockk<Embedder>(relaxed = true)
         coEvery { embedder.embed(any()) } returns FloatArray(384) { 0f }
-        val vectorIndex = mockk<VectorIndex>(relaxed = true)
-        coEvery { vectorIndex.search(any(), any(), any()) } returns emptyList()
 
         val writeGate = mockk<WriteGate>(relaxed = true)
         val store = MemoryStore(
             dao,
             embedder,
-            vectorIndex,
             writeGate,
             memoryEditDao,
             memoryFeedbackDao
@@ -80,7 +77,6 @@ class MemoryStoreTouchTest {
         val store = MemoryStore(
             dao,
             embedder,
-            mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -102,7 +98,6 @@ class MemoryStoreTouchTest {
         val store = MemoryStore(
             dao,
             mockk<Embedder>(relaxed = true),
-            mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
@@ -120,7 +115,6 @@ class MemoryStoreTouchTest {
         val store = MemoryStore(
             dao,
             mockk<Embedder>(relaxed = true),
-            mockk<VectorIndex>(relaxed = true),
             mockk<WriteGate>(relaxed = true),
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,

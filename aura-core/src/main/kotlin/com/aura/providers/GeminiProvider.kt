@@ -348,8 +348,8 @@ class GeminiProvider(
         }))
 
         put("generationConfig", buildJsonObject {
-            put("temperature", options.temperature)
-            put("topP", options.topP)
+            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
+            put("topP", options.topP ?: ChatOptions.DEFAULT_TOP_P)
             options.maxTokens?.let { put("maxOutputTokens", it) }
             if (options.stop.isNotEmpty()) {
                 put("stopSequences", JsonArray(options.stop.map { JsonPrimitive(it) }))

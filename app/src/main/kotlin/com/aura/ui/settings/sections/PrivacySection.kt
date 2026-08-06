@@ -166,8 +166,8 @@ fun PrivacySection(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = stringResource(R.string.calendar_monitor), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text = if (calendarMonitorEnabled) "On - runs in background, shows notification"
-                    else "Off - stops the persistent foreground service",
+                    text = if (calendarMonitorEnabled) "On - checks every 15 min for events starting soon"
+                    else "Off - no upcoming-event alerts",
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
                 )

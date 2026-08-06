@@ -64,6 +64,7 @@ class DreamConsolidator @Inject constructor(
     private val beliefPromoter: BeliefPromoter? = null,
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
     private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
+    private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val providerRegistry: ProviderRegistry,
     private val embedder: Embedder,
     private val crashLogger: CrashLogger,
@@ -207,6 +208,26 @@ class DreamConsolidator @Inject constructor(
                 throw cancelled
             } catch (t: Throwable) {
                 try { android.util.Log.w("DreamConsolidator", "detectContradictions: ${t.message}") } catch (_: RuntimeException) {}
+            }
+
+            // 8b. NARRATIVE_SELF -- update the agent's evolving self-model
+            //     from this cycle's output: the LLM-written cluster
+            //     summaries become "recent growth" and unresolved
+            //     contradictions become "active concerns". Reuses text the
+            //     cycle already produced — zero extra LLM calls. This is
+            //     the phase the Python pipeline calls NARRATIVE_SELF; it
+            //     runs after phase 8 so it sees this cycle's
+            //     contradictions. Only fires when summaries were written —
+            //     an empty cycle must not blank the narrative.
+            if (report.summariesWritten > 0) {
+                try {
+                    val updated = updateNarrativeSelf(writtenThisCycle)
+                    report = report.copy(narrativeUpdated = updated)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (t: Throwable) {
+                    try { android.util.Log.w("DreamConsolidator", "narrativeSelf: ${t.message}") } catch (_: RuntimeException) {}
+                }
             }
 
             // 9. DENSIFY_GRAPH -- propose new KG edges via Jaccard
@@ -774,6 +795,46 @@ class DreamConsolidator @Inject constructor(
             }
         }
         return null
+    }
+
+    // ---------------------------------------------------------------------
+    // Phase 8b: NARRATIVE_SELF
+    // ---------------------------------------------------------------------
+
+    /**
+     * Best-effort narrative-self update from this cycle's output — the
+     * first (and only) production caller of
+     * [com.aura.consciousness.NarrativeSelf.updateFromDream].
+     *
+     *  - growth: the newest 1-3 LLM-written cluster summaries of THIS
+     *    cycle, joined and capped at 500 chars.
+     *  - concerns: up to 3 unresolved contradictions rendered as
+     *    "Conflicting: <older> vs <newer>".
+     *  - questions: passed through unchanged (a CuriosityScanner feed is
+     *    a possible later enhancement).
+     *
+     * Returns true when the narrative was updated and saved. No LLM
+     * calls — everything here was already written by phases 3 and 8.
+     */
+    internal suspend fun updateNarrativeSelf(written: List<DreamSummaryEntity>): Boolean {
+        val ns = narrativeSelf ?: return false
+        val growth = written
+            .sortedByDescending { it.createdAt }
+            .take(3)
+            .joinToString(" ") { it.compressedText }
+            .take(500)
+        if (growth.isBlank()) return false
+        val concerns = runCatching { contradictionDao.byStatus("UNRESOLVED") }
+            .getOrDefault(emptyList())
+            .take(3)
+            .map { "Conflicting: ${it.olderText.take(60)} vs ${it.newerText.take(60)}" }
+        ns.updateFromDream(
+            growthSummary = growth,
+            concerns = concerns,
+            questions = ns.snapshot().unresolvedQuestions,
+        )
+        ns.save()
+        return true
     }
 
     // ---------------------------------------------------------------------

@@ -194,6 +194,43 @@ class ProactiveEventsTest {
     }
 
     @Test
+    fun `record persists exactly once and surfaces the event with its DB id`() = runTest(testDispatcher) {
+        val events = newProactiveEvents()
+        advanceUntilIdle()
+
+        events.record(
+            ProactiveEventBus.Event.CalendarEventSoon("Standup", 12, timestamp = 5_000L),
+        )
+        advanceUntilIdle()
+
+        // Exactly one row: the direct insert. The re-emission with the
+        // DB id must be skipped by the bus collector's id != 0 guard.
+        assertEquals(1, dao.recent(100).size)
+        // latest/history carry the persisted id so the UI can record
+        // interactions against a real row.
+        val latest = events.latest.value
+        assertTrue(
+            latest is ProactiveEventBus.Event.CalendarEventSoon && latest.id > 0L,
+            "record() must surface the event with its DB id (was $latest)",
+        )
+        assertEquals(1, events.history.value.size)
+        assertEquals(1, events.unreadCount.value)
+    }
+
+    @Test
+    fun `record works without any bus collector racing it — no double insert`() = runTest(testDispatcher) {
+        val events = newProactiveEvents()
+        advanceUntilIdle()
+
+        events.record(ProactiveEventBus.Event.CalendarEventSoon("A", 5, timestamp = 1_000L))
+        events.record(ProactiveEventBus.Event.CalendarEventSoon("B", 10, timestamp = 2_000L))
+        advanceUntilIdle()
+
+        assertEquals(2, dao.recent(100).size)
+        assertEquals(2, events.unreadCount.value)
+    }
+
+    @Test
     fun `markSeen is idempotent and never increases the count`() = runTest(testDispatcher) {
         val events = newProactiveEvents()
         advanceUntilIdle()

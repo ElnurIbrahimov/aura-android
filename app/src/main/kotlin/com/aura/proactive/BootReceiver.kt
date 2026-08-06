@@ -15,9 +15,9 @@ import java.util.concurrent.TimeUnit
  *
  * WorkManager persists work across reboots by default, but some OEMs
  * clear WorkManager state on cold boot. This receiver re-enqueues the
- * decay and daemon workers directly (they don't need DI — just
- * WorkManager scheduling). Morning brief and calendar monitor are
- * rescheduled by ProactiveBootstrap on the next app launch.
+ * decay, daemon, and calendar-check workers directly (they don't need
+ * DI — just WorkManager scheduling). Exact preferences are corrected
+ * by ProactiveBootstrap on the next app launch.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -36,6 +36,17 @@ class BootReceiver : BroadcastReceiver() {
         // strip them. The default interval is corrected to the user's
         // setting by ProactiveBootstrap on next app launch.
         DaemonScheduler.schedule(context)
+        // Re-enqueue the calendar check worker (15 min). The worker
+        // no-ops if the calendar monitor preference is off, so this
+        // unconditional re-enqueue is safe — same pattern as decay.
+        val calendarRequest = PeriodicWorkRequestBuilder<CalendarCheckWorker>(
+            CalendarCheckWorker.INTERVAL_MINUTES, TimeUnit.MINUTES,
+        ).build()
+        wm.enqueueUniquePeriodicWork(
+            CalendarCheckWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            calendarRequest,
+        )
         // Re-enqueue morning brief and dream workers. Their exact timing
         // preferences are read inside the workers, so using defaults here
         // is safe until the next ProactiveBootstrap run. This keeps the

@@ -18,7 +18,6 @@ import android.util.Log
 class MemoryStore @Inject constructor(
     private val dao: MemoryDao,
     private val embedder: Embedder,
-    private val vectorIndex: VectorIndex,
     private val writeGate: WriteGate,
     private val memoryEditDao: MemoryEditDao,
     private val memoryFeedbackDao: MemoryFeedbackDao,

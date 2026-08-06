@@ -154,6 +154,30 @@ class ProactiveEvents(
         scope.cancel()
     }
 
+    /**
+     * Reliable-delivery path for background producers (WorkManager
+     * workers). [ProactiveEventBus.emit] alone silently drops events
+     * when nothing has constructed this singleton yet — a background
+     * wake has no ViewModel, so the bus collector may not exist in
+     * that process. record() persists the event first, surfaces it
+     * in [latest]/[history], and then re-emits it on the bus *with
+     * its DB id* — the init collector's `id != 0L` guard skips
+     * re-insertion, so the event is stored exactly once.
+     */
+    suspend fun record(event: ProactiveEventBus.Event) {
+        val insertedId = runCatching { dao.insert(event.toEntity()) }
+            .onFailure { android.util.Log.w("ProactiveEvents", "record insert failed: ${it.message}", it) }
+            .getOrDefault(-1L)
+        val surfaced = if (insertedId > 0L) event.withId(insertedId) else event
+        _latest.value = surfaced
+        _history.value = (_history.value + surfaced).takeLast(100)
+        _refreshTick.value = event.timestamp
+        if (insertedId > 0L) {
+            // id != 0 → the bus collector's guard skips a second insert.
+            bus.tryEmit(surfaced)
+        }
+    }
+
     fun dismiss() {
         _latest.value = null
     }

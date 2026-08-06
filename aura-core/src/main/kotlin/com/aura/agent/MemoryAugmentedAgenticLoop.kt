@@ -41,6 +41,20 @@ private const val TOOL_RESULT_TRUNCATION_MARKER =
     "\n\n[...truncated, ask the assistant to retrieve the full result if needed]"
 
 /**
+ * Tools whose execution counts as genuine information-seeking for the
+ * CURIOSITY drive. Checked against [Conversation.ToolTurn.name] after a
+ * completed turn. Deliberately excludes `recall` — reading existing
+ * memory is not new-information seeking — and action tools (calendar,
+ * email, timers), which used to satisfy CURIOSITY under the old
+ * "any tool ran" rule.
+ */
+private val CURIOSITY_TOOLS = setOf(
+    "web_search", "web_search_capability", "deep_research", "parallel_research",
+    "brave_search", "tavily_search", "ddg_instant_answer", "searxng_search",
+    "wikipedia_search", "fetch_url", "read_url", "kg_query", "knowledge_graph_extract",
+)
+
+/**
  * Upper bound on how long the loop honors a 429 Retry-After before
  * retrying the same model. Servers occasionally send absurd values
  * (minutes); the user is waiting on a chat, so cap the pause.
@@ -95,6 +109,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val responseCache: ResponseCache? = null,
     private val reasoningTree: ReasoningTree? = null,
     private val userPreferences: com.aura.data.UserPreferences? = null,
+    private val driveSignals: com.aura.consciousness.DriveSignals? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -621,16 +636,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     runCatching { theoryOfMind?.updateFromMessage(lastUserMessage) }
                         .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}", it) }
                     // Intrinsic motivation: assess drives from observable signals.
-                    // Uses lightweight heuristics — no LLM, no DB queries.
+                    // No LLM; DB cost is bounded by DriveSignals' TTL cache —
+                    // at most 3 indexed COUNT queries per 5 minutes, so the
+                    // hot path almost always reads an in-memory snapshot.
                     runCatching {
                         val hoursSince = if (currentConversation.turns.isNotEmpty()) {
                             ((System.currentTimeMillis() - currentConversation.turns.last().timestamp) / (1000f * 60 * 60)).coerceAtLeast(0f)
                         } else 0f
+                        val signals = driveSignals?.let { ds -> runCatching { ds.get() }.getOrNull() }
                         intrinsicMotivation?.assess(
-                            kgGapCount = 0,
-                            lowConfidenceSkillCount = 0,
+                            kgGapCount = signals?.kgGapCount ?: 0,
+                            lowConfidenceSkillCount = signals?.lowConfidenceSkillCount ?: 0,
                             hoursSinceLastInteraction = hoursSince,
-                            contradictionCount = 0,
+                            contradictionCount = signals?.contradictionCount ?: 0,
                         )
                     }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}", it) }
                 }
@@ -1146,21 +1164,28 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             runCatching { emotionEngine.save() }
                 .onFailure { android.util.Log.w("AgenticLoop", "emotion save failed: ${it.message}", it) }
         }
-        // Consciousness: update narrative self from the completed interaction.
+        // Consciousness: post-turn bookkeeping. The narrative self is NOT
+        // updated per turn anymore — the old "Discussed: X → Y" heuristic
+        // wrote conversation snippets into every future system prompt; the
+        // real narrative update happens during Dream consolidation
+        // (DreamConsolidator's narrative phase calls updateFromDream).
         if (memoryEnabled) {
-            runCatching {
-                val assistantText = currentConversation.turns.lastOrNull()?.assistant.orEmpty()
-                narrativeSelf?.updateFromInteraction(lastUserMessage, assistantText)
-                narrativeSelf?.save()
-            }.onFailure { android.util.Log.w("AgenticLoop", "narrative self update failed: ${it.message}", it) }
             // Record affinity: increase score per turn.
             runCatching { affinityTracker?.recordTurn() }
                 .onFailure { android.util.Log.w("AgenticLoop", "affinity record failed: ${it.message}", it) }
-            // Intrinsic motivation: if tools were called this turn, curiosity was satisfied.
-            if (currentConversation.turns.lastOrNull()?.toolTurns?.isNotEmpty() == true) {
+            // Intrinsic motivation: CURIOSITY is satisfied only when a
+            // genuinely information-seeking tool ran this turn ("any tool
+            // ran" let a calendar read scratch the curiosity itch).
+            val ranCuriosityTool = currentConversation.turns.lastOrNull()
+                ?.toolTurns?.any { it.name in CURIOSITY_TOOLS } == true
+            if (ranCuriosityTool) {
                 runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.CURIOSITY) }
                     .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
             }
+            // Every completed user turn IS social contact — satisfy SOCIAL
+            // honestly instead of letting it climb between daemon cycles.
+            runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.SOCIAL) }
+                .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
         }
 
         // Persist the recall summary on the conversation's last

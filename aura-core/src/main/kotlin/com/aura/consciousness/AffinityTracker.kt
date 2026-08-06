@@ -52,16 +52,23 @@ class AffinityTracker @Inject constructor(
         val progressToNext: Float = 0f,
     )
 
-    enum class AffinityLevel(val min: Float, val max: Float, val label: String, val directive: String) {
-        ACQUAINTANCE(0f, 10f, "Acquaintance", "Keep responses helpful and informative. You are still getting to know the user."),
-        FAMILIAR(11f, 25f, "Familiar", "Remember user preferences. Use their name occasionally. Be warm but professional."),
-        CONNECTED(26f, 50f, "Connected", "Be proactive in suggestions. Reference past conversations. Show genuine interest."),
-        TRUSTED(51f, 75f, "Trusted", "Offer deeper insights. Challenge assumptions respectfully. Use shared context freely."),
-        CLOSE(76f, 100f, "Close", "Be emotionally present. Check in on wellbeing. Use warm, personal language. Share observations about the relationship.");
+    /**
+     * Min-threshold semantics: a level applies from its [min] up to (but
+     * not including) the next level's min. Continuous by construction —
+     * the old (min, max) ranges had gaps (10-11, 25-26, ...) where a
+     * fractional score like 10.5 matched nothing and silently fell back
+     * to ACQUAINTANCE.
+     */
+    enum class AffinityLevel(val min: Float, val label: String, val directive: String) {
+        ACQUAINTANCE(0f, "Acquaintance", "Keep responses helpful and informative. You are still getting to know the user."),
+        FAMILIAR(11f, "Familiar", "Remember user preferences. Use their name occasionally. Be warm but professional."),
+        CONNECTED(26f, "Connected", "Be proactive in suggestions. Reference past conversations. Show genuine interest."),
+        TRUSTED(51f, "Trusted", "Offer deeper insights. Challenge assumptions respectfully. Use shared context freely."),
+        CLOSE(76f, "Close", "Be emotionally present. Check in on wellbeing. Use warm, personal language. Share observations about the relationship.");
 
         companion object {
             fun fromScore(score: Float): AffinityLevel =
-                entries.firstOrNull { score >= it.min && score <= it.max } ?: ACQUAINTANCE
+                entries.last { score.coerceIn(0f, 100f) >= it.min }
         }
     }
 

@@ -75,6 +75,31 @@ class ProactiveScheduler @Inject constructor(
     }
 
     /**
+     * Enqueue the periodic calendar-check worker (every 15 minutes,
+     * 30-minute lookahead inside [CalendarMonitor]). Mirrors
+     * [scheduleDecay]: UPDATE policy so re-scheduling on each app
+     * start is idempotent, and no network constraint — the check is
+     * a local ContentProvider query.
+     */
+    fun scheduleCalendarChecks() {
+        val request = PeriodicWorkRequestBuilder<CalendarCheckWorker>(
+            CalendarCheckWorker.INTERVAL_MINUTES, TimeUnit.MINUTES,
+        )
+            .addTag("calendar-check")
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                CalendarCheckWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request,
+            )
+    }
+
+    fun cancelCalendarChecks() {
+        WorkManager.getInstance(context).cancelUniqueWork(CalendarCheckWorker.UNIQUE_NAME)
+    }
+
+    /**
      * Enqueue a periodic dream-consolidation worker that runs the
      * [com.aura.dream.DreamConsolidator] every 24h. The two
      * constraints — battery-not-low + charging — match the Python

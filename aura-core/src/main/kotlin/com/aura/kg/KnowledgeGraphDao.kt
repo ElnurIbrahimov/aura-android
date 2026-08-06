@@ -73,6 +73,21 @@ interface KnowledgeGraphDao {
     @Query("SELECT COUNT(*) FROM kg_nodes")
     suspend fun nodeCount(): Int
 
+    /**
+     * Nodes with fewer than 2 incident edges — "knowledge gaps" feeding
+     * the CURIOSITY drive (see [com.aura.consciousness.DriveSignals]).
+     * The correlated COUNT is index-backed: kg_edges is indexed on both
+     * sourceId and targetId, so each inner count is two index lookups.
+     * O(nodes) overall, and only ever run behind DriveSignals' 5-min TTL.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM kg_nodes n WHERE
+            (SELECT COUNT(*) FROM kg_edges e WHERE e.sourceId = n.id OR e.targetId = n.id) < 2
+        """
+    )
+    suspend fun gapNodeCount(): Int
+
     @Query("SELECT COUNT(*) FROM kg_edges")
     suspend fun edgeCount(): Int
 
