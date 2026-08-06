@@ -20,7 +20,11 @@ import kotlin.test.assertTrue
  *
  * Tool execution crosses an interruptible `Dispatchers.IO` boundary. These
  * tests therefore use real coroutine time: virtual `runTest` time would
- * advance the outer timeout independently of the worker thread.
+ * advance the outer timeout independently of the worker thread, and the
+ * nested `runBlocking` bridge parks a real thread that no TestDispatcher
+ * can fast-forward. Determinism comes from margins instead: every
+ * elapsed-time assertion has at least a 5-second gap between the pass and
+ * fail bound, so a cold or heavily-loaded CI runner cannot flip the result.
  */
 class ToolExecutorTimeoutTest {
 
@@ -64,7 +68,9 @@ class ToolExecutorTimeoutTest {
         val result = executor.execute(
             name = "fast_tool",
             argumentsJson = """{}""",
-            ctx = ToolContext(conversationId = "c1", timeout = 1_000L),
+            // Generous budget: a 10ms tool must never time out, even on a
+            // runner where thread scheduling stalls for whole seconds.
+            ctx = ToolContext(conversationId = "c1", timeout = 10_000L),
         )
         assertTrue(result is ToolResult.Ok, "expected Ok, got $result")
     }
@@ -99,8 +105,12 @@ class ToolExecutorTimeoutTest {
 
     @Test
     fun `blocking tool is interrupted when timeout expires`() = runBlocking {
+        // The sleep must be much longer than the pass threshold below: if
+        // interruption were broken, execute() would only return after the
+        // full sleep, so elapsed >= 10s fails; if it works, elapsed is
+        // ~100ms plus scheduling noise, far under 5s even on a cold runner.
         val blocking = makeSuspendingTool("blocking_tool") {
-            Thread.sleep(3_000L)
+            Thread.sleep(10_000L)
             ToolResult.Ok("finished")
         }
         io.mockk.every { registry.get("blocking_tool") } returns blocking
@@ -116,6 +126,6 @@ class ToolExecutorTimeoutTest {
 
         assertTrue(result is ToolResult.Error, "expected timeout error, got $result")
         assertEquals("tool_timeout", (result as ToolResult.Error).code)
-        assertTrue(elapsedMs < 1_000L, "blocking timeout took ${elapsedMs}ms")
+        assertTrue(elapsedMs < 5_000L, "blocking timeout took ${elapsedMs}ms — thread was not interrupted promptly")
     }
 }

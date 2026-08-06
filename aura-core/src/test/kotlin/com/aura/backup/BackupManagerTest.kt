@@ -114,7 +114,6 @@ class BackupManagerTest {
         every { userPreferences.smtpUsername } returns flowOf("")
         every { userPreferences.smtpFrom } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("[]")
-        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
         every { userPreferences.daemonEnabled } returns flowOf(false)
         every { userPreferences.reasoningEnabled } returns flowOf(true)
@@ -181,7 +180,6 @@ class BackupManagerTest {
         every { userPreferences.smtpUsername } returns flowOf("")
         every { userPreferences.smtpFrom } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("[]")
-        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
         
         every { userPreferences.daemonEnabled } returns flowOf(false)
@@ -712,7 +710,6 @@ class BackupManagerTest {
         every { userPreferences.smtpUsername } returns flowOf("")
         every { userPreferences.smtpFrom } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("[]")
-        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
         
         every { userPreferences.daemonEnabled } returns flowOf(false)
@@ -909,7 +906,6 @@ class BackupManagerTest {
         every { userPreferences.smtpUsername } returns flowOf("user@example.com")
         every { userPreferences.smtpFrom } returns flowOf("Aura <noreply@example.com>")
         every { userPreferences.mcpServersJson } returns flowOf("[]")
-        every { userPreferences.evolutionShadowEnabled } returns flowOf(false)
         every { userPreferences.evolutionOnboardingShown } returns flowOf(false)
         
         every { userPreferences.daemonEnabled } returns flowOf(false)

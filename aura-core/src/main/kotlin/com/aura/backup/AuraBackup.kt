@@ -389,9 +389,8 @@ data class PreferencesBackup(
     val smtpUsername: String? = null,
     val smtpFrom: String? = null,
     val mcpServersJson: String = "[]",
-    val evolutionShadowEnabled: Boolean = false,
     val evolutionOnboardingShown: Boolean = false,
-    // Daemon thinking worker (every 8 min) — Settings toggle exists in the
+    // Daemon thinking worker (configurable interval) — Settings toggle exists in the
     // UI but was previously lost on backup/restore. Default off; users
     // who have enabled it explicitly will get their preference back.
     val daemonEnabled: Boolean = false,

@@ -8,9 +8,9 @@ This is my personal copy.
 
 ## Status
 
-**v0.62.0** (versionCode 77).
+**v0.65.0** (versionCode 80) — after the 2026-08-06/07 A-grade sweep (P0 correctness, reliability, consciousness wiring, evolution rebuild, calendar/capture rework, UI fixes, toolchain upgrade, verification pass).
 
-- 75 tools (web search dispatcher over Tavily/Brave/DDG, vision, image gen x2, deep research, firecrawl fetch, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, MCP tools, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, agent council, schedule task, run council, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive)
+- 76 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
 - Prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite — operate on selected text)
 - Voice calibration (learn user's prose style, mirror in generated content)
@@ -29,10 +29,10 @@ This is my personal copy.
 - 17 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Mixture-of-Agents, Mistral, xAI Grok, Together AI, Cerebras, NVIDIA NIM, Meta Llama, Agnes AI, ChatGPT subscription, Custom OpenAI-compatible endpoint)
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
-- Consciousness layer (NarrativeSelf evolving identity, IntrinsicMotivation 4 drives, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence emotional continuity)
+- Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach)
 - 4-tab bottom nav (Home, Chat, Memory, Settings) + 21 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode, voice call UI)
-- Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 5-min calendar monitor (foreground service) + daemon thinking worker (every ~15 min, background model)
+- Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 15-min calendar check worker (Calendar Instances API, 30-min lookahead, persisted dedup — no foreground service) + daemon thinking worker (configurable interval, default 60 min, network-connected + battery-not-low constraints, background model; council debates off by default)
 - Emotional state engine (4 dimensions: tension, connection, energy, focus — with inertia, decay, and heuristic signal detection)
 - Adaptive response profiles (tone adapts based on emotional state)
 - Affinity tracker (5-level relationship progression, injected into system prompt)
@@ -42,7 +42,7 @@ This is my personal copy.
 - Onboarding wizard (paste API key + verify connectivity)
 - Biometric gate for sensitive tools and app lock (BIOMETRIC_STRONG)
 - MCP client (connect external tool servers, auto-registers discovered tools into ToolRegistry, persists server configs, auth token support via SecureDataStore)
-- Evolution system (self-improvement proposals, 19 EvolutionAction handlers, approve/reject from inbox, apply saga, rollback manager, safety guard, shadow evaluator)
+- Evolution system (LLM-authored patches over 4 action types — PATCH_SKILL, RETIRE_SKILL, PROMOTE_TO_HAND, CONSOLIDATE_MEMORIES; detector → author → validate → propose → apply → outcome pipeline, approve/reject from inbox, typed rollback snapshots, enforced safety guard — skills never auto-apply, deterministic evidence-based outcome scoring)
 - Agent runs (durable, resumable, DAG-resolved step execution via WorkManager, checkpoint/resume, approval flow)
 - World model (beliefs, evidence, events, opportunities in separate Room tables, surfaced in system prompt)
 - Taste engine (preference signal recording, style profiling, model routing, prompt enhancer)
@@ -53,9 +53,9 @@ This is my personal copy.
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v15, 11 Room databases)
-- 305 unit test files, 1,821 tests, 0 failures
-- 12 connected-device tests passing (10 Room migrations + 2 app smoke tests)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v16, 11 Room databases, snapshot-rollback when a restore fails mid-import — pre-existing data survives)
+- 326 unit test files, 2,014 tests, 0 failures
+- 64 instrumented test methods (Room migration chains + app smoke tests) — run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
 Note: the app uses **cloud providers only** — there is no on-device model.
@@ -94,7 +94,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 - **Calendar** — for `calendar_read` / `calendar_write`
 - **Contacts** — for `contacts_search`
 - **Notifications** — for posting reminders + the morning brief
-- **Foreground service** — for the calendar monitor
+- **Foreground service (mediaProjection)** — for screen capture; consent is requested fresh for every capture
 - **Biometric** — for the biometric gate tool
 - **Boot completed** — to reschedule proactive workers after reboot
 
@@ -102,25 +102,27 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 
 ```
 +--------------------------------------------+
-| :app  (Compose UI, 4 tabs + 20 routes)     |
+| :app  (Compose UI, 4 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   22 screens + 27 ViewModels               |
+|   29 screens + 33 ViewModels               |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+
 | :aura-core  (logic library, no Compose)    |
 |   MemoryAugmentedAgenticLoop -> Brain      |
-|   ToolRegistry (69) -> ToolExecutor        |
-|     -> PolicyEngine (layered precedence)   |
+|   ToolRegistry (76) -> ToolExecutor        |
+|     -> PolicyEngine (typed gate            |
+|        pause/resume for permission /       |
+|        confirmation / cost approval)       |
 |   ProviderRegistry (17 providers)          |
 |   Memory (Room + RRF + FadeMem + WriteGate)|
 |   KnowledgeGraph (Room, 11+18 types)       |
 |   Hands + Tasks + Reminders (Room)         |
-|   Proactive (Brief + Decay + Calendar      |
+|   Proactive (Brief + Decay + CalendarCheck |
 |     + Daemon + EmotionEngine)              |
 |   Creative (Engine + Council + Pipelines)  |
-|   Evolution (Proposals + ApplySaga         |
-|     + Rollback + ShadowEval)               |
+|   Evolution (PatchAuthor + Validator       |
+|     + ApplySaga + Rollback + Outcome)      |
 |   AgentRun (DAG + Checkpoint + Resume)     |
 |   MCP Client (JSON-RPC + tool bridge)      |
 |   Capabilities (Exa/Jina/Stability/Kling   |
@@ -152,12 +154,14 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Evolution Inbox** — review self-improvement proposals, approve/reject.
 - **Evolution Rollback** — revert applied evolution changes.
 - **Knowledge Graph** — browse extracted entities and edges.
-- **Tools** — browse all 63 registered tools with risk levels.
+- **Tools** — browse all 76 registered tools with risk levels (complete, searchable list).
 - **Diagnostics** — provider health, model catalog, usage tracking.
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.
 
-## Tool catalog (70)
+## Tool catalog (76 built-in)
+
+All 76 registered tools (plus any MCP-discovered ones) are browsable in-app on the Tools screen with risk levels. The tables below cover the full built-in set.
 
 ### Web & research
 | Tool | What it does | Risk |
@@ -165,11 +169,17 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 | `web_search` | DuckDuckGo HTML search (free, no key) | READ_ONLY |
 | `brave_search` | Brave Search API (needs key) | READ_ONLY |
 | `tavily_search` | Tavily Search API (needs key, key in header) | READ_ONLY |
+| `ddg_instant_answer` | DuckDuckGo Instant Answer API (free) | READ_ONLY |
+| `searxng_search` | SearXNG metasearch (self-hosted instance) | READ_ONLY |
+| `wikipedia_search` | Wikipedia article search (free) | READ_ONLY |
+| `wikipedia_read` | Read a Wikipedia article (free) | READ_ONLY |
 | `web_search_capability` | Capability-routed search (Exa if configured) | READ_ONLY |
 | `fetch_url` | Firecrawl fetch (needs key, SSRF-guarded) | READ_ONLY |
+| `read_url` | Jina Reader page-to-markdown (free tier) | READ_ONLY |
 | `http_file_read` | HTTP GET with DNS-pinned client | READ_ONLY |
 | `http_file_write` | HTTP PUT/POST with DNS-pinned client | WRITE_REMOTE |
 | `deep_research` | Multi-source synthesis with citations | REMOTE_COST |
+| `parallel_research` | Parallel multi-query research fan-out | REMOTE_COST |
 | `vision` | Describe an image (Gemini, key in header) | REMOTE_COST |
 | `image_gen` | Generate an image (configurable model) | WRITE_REMOTE |
 | `image_generate` | Capability-routed image gen (Stability) | WRITE_REMOTE |
@@ -185,12 +195,10 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 | `recall` | Retrieve memories (BM25 + RRF + cross-encoder reranking) | READ_ONLY |
 | `query_world_model` | Query beliefs, events, opportunities | READ_ONLY |
 | `canon_query` | Ask questions about a creative project's canon | READ_ONLY |
-| `kg_add` | Add knowledge graph node/edge | WRITE_LOCAL |
-| `code_interpreter` | Execute JavaScript in a sandboxed WebView | REMOTE_COST |
+| `knowledge_graph_extract` | Add knowledge graph nodes/edges | WRITE_LOCAL |
 | `kg_query` | Query the knowledge graph | READ_ONLY |
-| `query_world_model` | Query beliefs/events/opportunities | READ_ONLY |
+| `code_interpreter` | Execute JavaScript in a sandboxed WebView | REMOTE_COST |
 | `query_taste` | Query taste profile + routing outcomes | READ_ONLY |
-| `canon_query` | Query creative project canon facts | READ_ONLY |
 | `index_document` | Import + chunk + embed a document | WRITE_LOCAL |
 | `run_hand` | Execute a named hand (automation macro) | WRITE_LOCAL |
 | `use_skill` | Dispatch a skill-backed tool call | WRITE_LOCAL |
@@ -214,6 +222,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 | `dnd_mode` | Do-Not-Disturb | WRITE_LOCAL |
 | `set_reminder` | Schedule a notification reminder | WRITE_LOCAL |
 | `manage_tasks` | Create/list/complete/delete tasks | WRITE_LOCAL |
+| `schedule_task` | Schedule a future task/reminder (notify or start a chat, optional recurrence) | WRITE_LOCAL |
 | `post_notification` | System notification | WRITE_LOCAL |
 | `notification_list` | Read active notifications | PRIVACY |
 | `location_now` | Last-known GPS | PRIVACY |
@@ -221,7 +230,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 | `calendar_write` | Create event (two-phase confirmation) | PRIVACY |
 | `contacts_search` | Find contact by name | PRIVACY |
 | `photo_library` | List recent photos | PRIVACY |
-| `capture_screen` | Screenshot via MediaProjection | PRIVACY |
+| `capture_screen` | Screenshot via MediaProjection FGS — fresh consent per capture | PRIVACY |
 | `clipboard_read` | Read clipboard | READ_ONLY |
 | `clipboard_write` | Write clipboard | WRITE_LOCAL |
 | `share` | Android share sheet | WRITE_LOCAL |
@@ -264,6 +273,7 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 |---|---|---|
 | `delegate_to_agent` | Hand a task to another agent and return its result | REMOTE_COST |
 | `run_council` | Run the multi-role council review over a draft | REMOTE_COST |
+| `run_life_council` | Run the life-advice council debate | REMOTE_COST |
 
 ## Providers (17 prefixes)
 
@@ -289,7 +299,7 @@ The model picker routes by `prefix:model` string. Keys are stored locally via Se
 | `chatgpt` | ChatGPT | Subscription-based OAuth |
 | `custom` | Custom | Any OpenAI-compatible endpoint |
 
-`moa:default` uses `glm-5.2` + `kimi-k2.7-code` as references and `deepseek-v4-pro` as aggregator. Presets are loaded from app assets; see `MoaPresetRepository`.
+MoA ships with no built-in presets (`moa_presets.json` is empty). Configure a custom mixture in Settings → AI & Models by picking 2+ reference models and an aggregator; the picker then exposes `moa:custom`. See `MoaPresetRepository`.
 
 ## Specialists (7)
 
@@ -309,8 +319,8 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 - `MorningBriefWorker` — daily at user-configured time (default 7am). Pulls last 10 memories, asks the configured provider for a 3-5 line brief, posts as a notification.
 - `DecayWorker` — every 6h. Runs a memory decay pass via `MemoryStore.runDecayPass`.
-- `CalendarMonitorService` — 5-min foreground service. Polls upcoming events, surfaces to `ProactiveEventBus`.
-- `DaemonWorker` — every ~15 min. Reviews recent conversation, if the background model generates something substantive, posts as a proactive event. Respects `daemonEnabled` preference.
+- `CalendarCheckWorker` — every 15 min. Queries the Calendar Instances API with a 30-min lookahead (recurring events expand correctly), dedups announced instances persistently, records events via `ProactiveEvents` so delivery survives background wakes. Replaced the old permanent `CalendarMonitorService` foreground service.
+- `DaemonWorker` — configurable interval (default 60 min, options down to the 15-min WorkManager floor), constrained to network-connected + battery-not-low. Reviews recent conversation; if the background model generates something substantive, posts as a proactive event. Respects `daemonEnabled`; council debates are a separate opt-in (`councilEnabled`, default off).
 - `ReminderWorker` — fires per `set_reminder` request.
 - `EvolutionWorker` — runs self-improvement cycle when triggered. Respects `evolutionEnabled` preference.
 
@@ -318,20 +328,20 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v14 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
+| MemoryDatabase | v16 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v5 | Proactive events with structured payload |
 | TaskDatabase | v5 | Tasks + reminders |
-| EvolutionDatabase | v3 | Proposals, skill revisions, metrics |
+| EvolutionDatabase | v4 | Candidates, proposals, evidence, outcomes (dedup index on domain/action/target) |
 | DreamConsolidationDatabase | v3 | Dream summaries, routines, contradictions, KG edge proposals |
+| AgentDatabase | v3 | Agent definitions and personality profiles |
 | HandDatabase | v2 | User-defined automation macros |
 | UserProfileDatabase | v2 | User profile (name, traits, facts) |
-| AgentDatabase | v1 | Agent definitions and personality profiles |
 | AgentRunDatabase | v1 | Agent runs, goals, steps, events, approvals, checkpoints |
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-15, all committed — migration tests cover
+schema exports span versions 1-16, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -343,13 +353,21 @@ the largest file in the project.
 
 ```bash
 ./gradlew :app:assembleDebug            # debug APK
-./gradlew :app:assembleRelease          # release APK (currently signed with debug key — sideload only)
+./gradlew :app:assembleRelease          # release APK — R8-minified + resource-shrunk
 ./gradlew :aura-core:testDebugUnitTest  # unit tests (aura-core)
 ./gradlew :app:testDebugUnitTest        # unit tests (app)
 ./gradlew :app:assembleDebug connectedAndroidTest  # androidTests (needs device)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `assembleDebug` + unit tests + lint on every push and PR to `main` and `feat/tier-1-friction`.
+Release builds are R8-minified with targeted keep rules and signed with a real
+upload keystore when `AURA_KEYSTORE_PATH` / `AURA_KEYSTORE_PASSWORD` /
+`AURA_KEY_ALIAS` / `AURA_KEY_PASSWORD` are set in `local.properties` (gitignored)
+or the environment. Without those values the build falls back to the debug key
+with a loud warning — fine for local R8 verification, not for distribution.
+
+CI (`.github/workflows/ci.yml`) runs `assembleDebug` + unit tests + lint for both
+modules, plus an `assembleRelease` step (real R8 coverage), on every push and PR
+to `main` and `feat/tier-1-friction`.
 
 ## Project layout
 
@@ -373,12 +391,12 @@ aura-android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 69 tool implementations + ToolsModule
+│       ├── tools/        # 76 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
-│       ├── proactive/    # MorningBrief + Decay + CalendarMonitor + DaemonWorker + ProactiveEventBus + ProactiveScheduler
+│       ├── proactive/    # MorningBrief + Decay + CalendarCheckWorker + DaemonWorker + ProactiveEvents + ProactiveScheduler
 │       ├── emotion/      # EmotionEngine (4-dimension state) + ResponseProfile
 │       ├── profile/      # UserProfile (learned from conversations)
-│       ├── evolution/    # EvolutionCoordinator + ApplySaga + RollbackManager + SafetyGuard + ShadowEvaluator + 19 EvolutionAction handlers
+│       ├── evolution/    # Coordinator + PatchAuthor + PatchValidator + ApplySaga + RollbackManager + SafetyGuard + OutcomeScorer (4 EvolutionActions)
 │       ├── creative/     # CreativeEngine + CreativeCouncil (10 roles) + ProductionPipelineEngine + WorldBible + ProseCraftTools + VoiceCalibration + TensionAnalyzer + CharacterProgressionTracker + SmartCodexInjector + GenreCraftPrompts + stores
 │       ├── pipeline/     # ProductionPipeline (6 pipeline types)
 │       ├── capabilities/ # CapabilityRouter + Exa/Jina/Stability/Kling/WorldLabs/ElevenLabs providers
@@ -387,7 +405,7 @@ aura-android/
 │       ├── search/       # GlobalSearchRepository (6-source parallel search)
 │       ├── skills/       # Skill definitions + SkillsStore
 │       ├── documents/    # Document chunking + repository
-│       ├── security/     # SecureDataStore, KeyManager, BiometricActivityHolder, ScreenCaptureHolder
+│       ├── security/     # SecureDataStore, KeyManager, BiometricActivityHolder, ScreenCaptureHolder + ScreenCaptureService
 │       ├── integrations/ # Google Workspace + Microsoft Graph (OAuth, token store, tools)
 │       ├── backup/       # BackupManager + AuraBackup
 │       ├── data/         # RoomConfig (centralized DB config) + UserPreferences
@@ -397,22 +415,23 @@ aura-android/
 
 ## Tech stack
 
-- Kotlin 1.9.24, AGP 8.2.2, JVM target 17
-- Jetpack Compose (BOM 2024.10.01), Material 3, Navigation Compose
-- Hilt 2.51 (DI) + Hilt Work (for WorkManager injection)
-- Room 2.6.1 (11 databases, 49 entities, 33 migrations, schema export)
-- WorkManager 2.9.1 (proactive workers, agent run executor, reminders)
+- Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
+- Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
+- Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
+- Room 2.8.4 (11 databases, 54 entities, 37 migrations, schema export)
+- WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
-- kotlinx-serialization 1.6.3, kotlinx-coroutines 1.9.0
+- kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0
 - DataStore Preferences 1.1.1, Biometric 1.2.0-alpha05
 - PDFBox Android (document text extraction)
 - javax.mail (SMTP email sending)
-- Testing: JUnit 4, MockK, Turbine, Robolectric, kotlinx-coroutines-test, OkHttp MockWebServer
-- minSdk 26 (Android 8.0), targetSdk/compileSdk 35
+- Testing: JUnit 4, MockK, Turbine, Robolectric 4.16.1, kotlinx-coroutines-test, OkHttp MockWebServer
+- minSdk 26 (Android 8.0), targetSdk 35, compileSdk 37
+- Release: R8 minification + resource shrinking with targeted keep rules; upload-keystore signing via `local.properties`
 
 ## Changelog
 
-`git log --oneline` is the changelog. 665 commits across the full development history.
+`git log --oneline` is the changelog. 750+ commits across the full development history.
 
 ## Engineering history
 

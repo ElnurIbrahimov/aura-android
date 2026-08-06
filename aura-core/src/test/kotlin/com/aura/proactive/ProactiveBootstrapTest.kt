@@ -13,6 +13,8 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertFalse
@@ -25,12 +27,16 @@ import kotlin.test.assertTrue
  * worker when the gate is on. When the gate is off, any
  * previously-scheduled worker is cancelled.
  *
- * The FGS start/stop and widget-refresh broadcast paths in
- * [ProactiveBootstrap.start] need a real Android Context and
- * are not unit-tested here — they're exercised in instrumented
- * tests or on-device. The pure-Kotlin gate decision is the
- * thing this PR adds, and that's what applyGates covers.
+ * The widget-refresh broadcast path in [ProactiveBootstrap.start]
+ * needs a real Android Context and is not unit-tested here — it's
+ * exercised in instrumented tests or on-device. The pure-Kotlin
+ * gate decision is what applyGates covers.
+ *
+ * The start()-based tests inject `backgroundScope` so every
+ * bootstrap coroutine runs on the runTest scheduler — fully
+ * deterministic, no real-time polling.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ProactiveBootstrapTest {
 
     private lateinit var context: Context
@@ -132,21 +138,21 @@ class ProactiveBootstrapTest {
     }
 
     @Test
-    fun `start reads both prefs and applies the gates`() {
+    fun `start reads both prefs and applies the gates`() = runTest {
         // End-to-end via start(), but with a fully-stubbed Context
         // so the broadcast / FGS calls don't trip AbstractMethodError.
         // The Throwable-catch in start() absorbs any stub blowups,
-        // so the gate decision itself is what we verify.
+        // so the gate decision itself is what we verify. All bootstrap
+        // coroutines run on the test scheduler (backgroundScope), so
+        // runCurrent() is deterministic — no real-time polling.
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
-        bootstrap.start()
-        awaitVerification("scheduleMorningBrief was not called within 2s") {
-            verify(exactly = 1) { scheduler.scheduleMorningBrief() }
-        }
+        bootstrap.start(scope = backgroundScope)
+        runCurrent()
         verify(exactly = 1) { scheduler.scheduleMorningBrief() }
     }
 
     @Test
-    fun `start reacts to schedule preference changes without process restart`() {
+    fun `start reacts to schedule preference changes without process restart`() = runTest {
         val morningEnabled = MutableStateFlow(true)
         val calendarEnabled = MutableStateFlow(true)
         val briefHour = MutableStateFlow(7)
@@ -155,55 +161,35 @@ class ProactiveBootstrapTest {
         every { userPreferences.morningBriefHour } returns briefHour
 
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
-        bootstrap.start()
-        awaitVerification("initial morning brief was not scheduled") {
-            verify(atLeast = 1) { scheduler.scheduleMorningBrief(7) }
-        }
+        bootstrap.start(scope = backgroundScope)
+        runCurrent()
+        verify(atLeast = 1) { scheduler.scheduleMorningBrief(7) }
 
         briefHour.value = 9
-        awaitVerification("updated morning brief hour was not applied") {
-            verify(atLeast = 1) { scheduler.scheduleMorningBrief(9) }
-        }
+        runCurrent()
+        verify(atLeast = 1) { scheduler.scheduleMorningBrief(9) }
 
         morningEnabled.value = false
-        awaitVerification("disabled morning brief was not cancelled") {
-            verify(atLeast = 1) { scheduler.cancelMorningBrief() }
-        }
+        runCurrent()
+        verify(atLeast = 1) { scheduler.cancelMorningBrief() }
     }
 
     @Test
-    fun `evolution enabled schedules evolution worker`() {
+    fun `evolution enabled schedules evolution worker`() = runTest {
         every { userPreferences.evolutionEnabled } returns flowOf(true)
         every { userPreferences.evolutionIntervalHours } returns flowOf(12)
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
-        bootstrap.start()
-        awaitVerification("evolution scheduler was not called within 2s") {
-            verify(atLeast = 1) { evolutionScheduler.schedule(12L) }
-        }
+        bootstrap.start(scope = backgroundScope)
+        runCurrent()
+        verify(atLeast = 1) { evolutionScheduler.schedule(12L) }
     }
 
     @Test
-    fun `evolution disabled cancels evolution worker`() {
+    fun `evolution disabled cancels evolution worker`() = runTest {
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         val bootstrap = ProactiveBootstrap(context, scheduler, memoryStore, userPreferences, evolutionScheduler, mcpClientManager, mcpToolBridge, secureDataStore, null, null, agentStore, conversationStore)
-        bootstrap.start()
-        awaitVerification("evolution cancel was not called within 2s") {
-            verify(atLeast = 1) { evolutionScheduler.cancel() }
-        }
-    }
-
-    private fun awaitVerification(message: kotlin.String, assertion: () -> Unit) {
-        val deadline = System.currentTimeMillis() + 2_000L
-        var lastFailure: AssertionError? = null
-        while (System.currentTimeMillis() < deadline) {
-            try {
-                assertion()
-                return
-            } catch (failure: AssertionError) {
-                lastFailure = failure
-                Thread.sleep(20)
-            }
-        }
-        throw AssertionError(message, lastFailure)
+        bootstrap.start(scope = backgroundScope)
+        runCurrent()
+        verify(atLeast = 1) { evolutionScheduler.cancel() }
     }
 }

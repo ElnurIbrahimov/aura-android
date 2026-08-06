@@ -221,7 +221,6 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
                 imageModel = userPreferences.imageModel.first()?.takeIf { it.isNotBlank() },
                 mcpServersJson = userPreferences.mcpServersJson.first(),
-                evolutionShadowEnabled = userPreferences.evolutionShadowEnabled.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
                 daemonEnabled = userPreferences.daemonEnabled.first(),
                 reasoningEnabled = userPreferences.reasoningEnabled.first(),
@@ -618,7 +617,6 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (p.mcpServersJson.isNotBlank() && p.mcpServersJson != "[]") {
             userPreferences.setMcpServersJson(p.mcpServersJson)
         }
-        userPreferences.setEvolutionShadowEnabled(p.evolutionShadowEnabled)
         userPreferences.setEvolutionOnboardingShown(p.evolutionOnboardingShown)
         userPreferences.setDaemonEnabled(p.daemonEnabled)
         userPreferences.setReasoningEnabled(p.reasoningEnabled)

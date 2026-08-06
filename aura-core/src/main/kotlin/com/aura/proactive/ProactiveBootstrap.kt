@@ -70,7 +70,15 @@ class ProactiveBootstrap @Inject constructor(
 
     private var preferenceJob: kotlinx.coroutines.Job? = null
 
-    fun start() {
+    /**
+     * @param scope the scope every bootstrap coroutine is launched in.
+     *   Production callers use the default (SupervisorJob on IO); unit
+     *   tests pass a `TestScope`/`backgroundScope` so the reconciliation
+     *   flows run on virtual time instead of real IO threads (the old
+     *   tests polled with `Thread.sleep`, which was flaky on cold CI
+     *   runners).
+     */
+    fun start(scope: kotlinx.coroutines.CoroutineScope = this.scope) {
         // Load persisted emotion state so it survives cold starts.
         emotionEngine?.let { engine ->
             scope.launch { runCatching { engine.load() }.onFailure { Log.w("Bootstrap", "emotion load failed: ${it.message}", it) } }

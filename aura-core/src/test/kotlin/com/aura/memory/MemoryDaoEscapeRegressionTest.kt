@@ -84,16 +84,20 @@ class MemoryDaoEscapeRegressionTest {
         dao.insert(memory("I love kotlin programming"))
         dao.insert(memory("I prefer python"))
 
-        // Note: unused word slots are padded with "%%" by design (MemoryStore
-        // builds the candidate pool for RRF fusion), so the query returns all
-        // rows; the kotlin-matching row must be among them.
+        // Unused word slots are padded with a NUL-byte sentinel that can
+        // never LIKE-match content (MemoryStore.NO_MATCH_SENTINEL). The old
+        // "%%" pads matched every row — that regression is covered in
+        // MemoryDaoContractTest; here we just exercise the query shape
+        // against real SQLite.
+        val pad = MemoryStore.NO_MATCH_SENTINEL
         val hits = dao.searchByWordsInScopes(
-            word1 = "%kotlin%", word2 = "%%", word3 = "%%",
-            word4 = "%%", word5 = "%%", word6 = "%%",
+            word1 = "%kotlin%", word2 = pad, word3 = pad,
+            word4 = pad, word5 = pad, word6 = pad,
             scopes = listOf("general"), limit = 10,
         )
 
         assertTrue(hits.any { it.content == "I love kotlin programming" })
+        assertTrue("sentinel pads must not match unrelated rows", hits.none { it.content == "I prefer python" })
     }
 
     @Test

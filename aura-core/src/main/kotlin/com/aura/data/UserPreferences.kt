@@ -72,7 +72,6 @@ internal val KEY_MORNING_BRIEF_HOUR = intPreferencesKey("morning_brief_hour")
 internal val KEY_SPECIALIST_TOOL_OVERRIDES = stringPreferencesKey("specialist_tool_overrides")
 internal val KEY_EVOLUTION_ENABLED = booleanPreferencesKey("evolution_enabled")
 internal val KEY_EVOLUTION_INTERVAL_HOURS = intPreferencesKey("evolution_interval_hours")
-internal val KEY_EVOLUTION_SHADOW_ENABLED = booleanPreferencesKey("evolution_shadow_enabled")
 internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_onboarding_shown")
 internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
 internal val KEY_DAEMON_INTERVAL_MINUTES = intPreferencesKey("daemon_interval_minutes")
@@ -264,12 +263,6 @@ class UserPreferences @Inject constructor(
         prefs[KEY_EVOLUTION_INTERVAL_HOURS] ?: 24
     }
 
-    /** Whether approved evolutions run in shadow mode first. */
-    val evolutionShadowEnabled: Flow<Boolean> = context.auraPrefs.data.map { prefs ->
-        prefs[KEY_EVOLUTION_SHADOW_ENABLED] ?: false
-    }
-
-    /** Whether the user has seen the evolution onboarding screen. */
     val daemonEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DAEMON_ENABLED] ?: false }
 
     /**
@@ -454,10 +447,6 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setEvolutionIntervalHours(hours: Int) {
         context.auraPrefs.edit { it[KEY_EVOLUTION_INTERVAL_HOURS] = hours.coerceIn(1, 168) }
-    }
-
-    suspend fun setEvolutionShadowEnabled(enabled: Boolean) {
-        context.auraPrefs.edit { it[KEY_EVOLUTION_SHADOW_ENABLED] = enabled }
     }
 
     suspend fun setDaemonEnabled(enabled: Boolean) {
