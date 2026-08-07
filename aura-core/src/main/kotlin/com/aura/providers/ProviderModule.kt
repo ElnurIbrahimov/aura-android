@@ -191,8 +191,15 @@ object ProviderModule {
     @Provides
     @IntoMap
     @StringKey("chatgpt")
-    fun provideChatGptSubscription(client: OkHttpClient, keys: ProviderKeys): Provider =
-        ChatGptSubscriptionProvider(providerKeys = keys, httpClient = client)
+    fun provideChatGptSubscription(
+        client: OkHttpClient,
+        keys: ProviderKeys,
+        tokenStore: com.aura.integrations.IntegrationTokenStore,
+        oauthFlow: com.aura.integrations.OAuthFlow,
+    ): Provider = ChatGptSubscriptionProvider(
+        providerKeys = keys, httpClient = client,
+        tokenStore = tokenStore, oauthFlow = oauthFlow,
+    )
 
     @Provides
     @IntoMap

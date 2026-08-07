@@ -693,15 +693,38 @@ class ChatViewModel @Inject constructor(
         _state.update { it.copy(draft = text) }
     }
 
-    /** Pick a model for this chat only; global default belongs to Settings. */
-
+    /**
+     * Pick a model for this chat only; global default belongs to Settings.
+     *
+     * This has to write the conversation's own model, not just [activeModel].
+     * Everything that matters — the header, the send path, the "choose a
+     * model" banner — reads [ChatUiState.effectiveModel], which is
+     * `conversation.model ?: activeModel`. A conversation acquires a model as
+     * soon as it is first sent to, so from the second message onward that
+     * fallback never fires: updating `activeModel` alone changed nothing
+     * visible and nothing real. The picker would mark the new model
+     * "current" while the header kept naming the old one and every message
+     * still went to it — picking gpt-5.6-sol in a chat begun on DeepSeek
+     * quietly kept using DeepSeek.
+     *
+     * The precedence itself is right: reopening an old chat should not drag
+     * it onto whatever the global default has since become. But an explicit
+     * pick is not the silent drift that rule exists to prevent.
+     */
     fun setModel(model: String) {
         _state.update {
             it.copy(
                 activeModel = model,
                 sessionModelOverride = model,
+                conversation = it.conversation.copy(model = model),
                 modelSelection = ModelSelectionState.Ready(model, it.availableModels),
             )
+        }
+        // Persist now instead of waiting for the next send, so leaving the
+        // chat straight after switching doesn't discard the choice.
+        viewModelScope.launch {
+            runCatching { conversationStore.save(_state.value.conversation) }
+                .onFailure { android.util.Log.w("ChatViewModel", "could not persist model choice: ${it.message}", it) }
         }
     }
 

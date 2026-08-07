@@ -46,6 +46,14 @@ import androidx.compose.material.icons.Icons
 @Composable
 fun AiAndModelsSection(
     state: SettingsUiState,
+    /**
+     * The ChatGPT sign-in card. Passed as a slot rather than eight more
+     * parameters on a function that already carries twenty, and deliberately
+     * without a default — an empty default here would silently render nothing
+     * at a call site that forgot it, which is how the Council and Evolution
+     * buttons ended up dead.
+     */
+    chatGptCard: @Composable () -> Unit,
     onCustomBaseUrlChange: (String) -> Unit,
     onCustomApiKeyChange: (String) -> Unit,
     onCustomTest: () -> Unit,
@@ -121,6 +129,10 @@ fun AiAndModelsSection(
             onTest = onCustomTest,
             onClear = onCustomClear,
         )
+
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
+
+        chatGptCard()
 
         Spacer(modifier = Modifier.height(AuraSpacing.sm))
 

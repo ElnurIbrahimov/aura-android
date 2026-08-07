@@ -59,6 +59,30 @@ class OAuthFlow @Inject constructor(
         private const val MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
         private const val MS_REDIRECT = "aura://oauth/microsoft"
         private const val MS_SCOPE = "Mail.ReadWrite Mail.Send Calendars.ReadWrite Files.ReadWrite.All offline_access"
+
+        // ChatGPT subscription. There is no authorize URL here on purpose —
+        // see refreshChatGptToken.
+        private const val CHATGPT_TOKEN_URL = "https://auth.openai.com/oauth/token"
+
+        /**
+         * Codex CLI's first-party OAuth client id.
+         *
+         * OpenAI does not offer self-serve client registration for ChatGPT
+         * *subscription* auth, so there is no id Aura could register for
+         * itself, and `aura://oauth/chatgpt` would be rejected as an
+         * unregistered redirect. A refresh_token grant requires the client id
+         * the token was minted for, so using this one is unavoidable if the
+         * session is to be renewable at all.
+         *
+         * Public client — no secret is involved, which is why this is a
+         * constant rather than user-supplied config. (Google and Microsoft ids
+         * come from UserPreferences only because the user registers those apps
+         * themselves; here they cannot.)
+         */
+        private const val CHATGPT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+
+        /** Bodies are logged on failure; cap it so a stray HTML error page can't flood logcat. */
+        private const val ERROR_BODY_LIMIT = 512
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -302,6 +326,56 @@ class OAuthFlow @Inject constructor(
                 val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: return@withContext null
                 val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
                 val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+                IntegrationTokenStore.TokenRefreshResult(accessToken, newRefresh, expiresIn)
+            }
+        }
+
+    /**
+     * Renew a ChatGPT subscription grant.
+     *
+     * Aura performs **no authorize flow** for ChatGPT — the grant is minted on
+     * the desktop by Codex, the client it actually belongs to, and pasted in.
+     * This is the narrowest use of another client's id that still keeps the
+     * session alive, and it is why there is no `launchChatGptAuth` beside the
+     * Google and Microsoft ones.
+     *
+     * Unlike its siblings, failure is logged with the status and the server's
+     * reply. A refresh that quietly returns null looks exactly like "no
+     * credentials" from the outside, and telling those two apart is most of
+     * the work when someone reports being signed out.
+     */
+    suspend fun refreshChatGptToken(refreshToken: String): IntegrationTokenStore.TokenRefreshResult? =
+        withContext(Dispatchers.IO) {
+            val body = FormBody.Builder()
+                .add("grant_type", "refresh_token")
+                .add("refresh_token", refreshToken)
+                .add("client_id", CHATGPT_CLIENT_ID)
+                .build()
+
+            val response = runCatching {
+                httpClient.newCall(Request.Builder().url(CHATGPT_TOKEN_URL).post(body).build()).execute()
+            }.onFailure { Log.w(TAG, "chatgpt token refresh could not reach the server: ${it.message}", it) }
+                .getOrNull() ?: return@withContext null
+
+            response.use { resp ->
+                val responseBody = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    Log.w(TAG, "chatgpt token refresh rejected: HTTP ${resp.code} ${responseBody.take(ERROR_BODY_LIMIT)}")
+                    return@withContext null
+                }
+                val parsed = runCatching { json.parseToJsonElement(responseBody).jsonObject }
+                    .onFailure { Log.w(TAG, "chatgpt token refresh returned unparseable body", it) }
+                    .getOrNull() ?: return@withContext null
+                val accessToken = parsed["access_token"]?.jsonPrimitive?.content ?: run {
+                    Log.w(TAG, "chatgpt token refresh succeeded but carried no access_token")
+                    return@withContext null
+                }
+                // Rotation is optional; keep the existing token when the
+                // server doesn't send a new one, or the next refresh has
+                // nothing to present.
+                val newRefresh = parsed["refresh_token"]?.jsonPrimitive?.content ?: refreshToken
+                val expiresIn = parsed["expires_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 3600L
+                Log.i(TAG, "chatgpt access token refreshed, valid for ${expiresIn}s")
                 IntegrationTokenStore.TokenRefreshResult(accessToken, newRefresh, expiresIn)
             }
         }

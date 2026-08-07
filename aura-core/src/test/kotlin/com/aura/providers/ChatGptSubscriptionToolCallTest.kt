@@ -17,11 +17,13 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Regression test for ChatGPT subscription provider SSE tool-call parsing.
+ * Catalog behaviour for the ChatGPT subscription provider.
  *
- * The ChatGPT Responses API uses a different SSE format than the standard
- * OpenAI Chat Completions API. Tool calls arrive as `function_call` events
- * or as `tool_calls` in the delta. This test verifies both paths.
+ * The SSE tests that lived here described a format the backend does not use —
+ * "tool calls arrive as `function_call` events or as `tool_calls` in the
+ * delta" was written from the Chat Completions API, not from this one. They
+ * have moved to [ChatGptSubscriptionParallelToolCallTest] and now use payloads
+ * captured off the live stream.
  */
 class ChatGptSubscriptionToolCallTest {
 
@@ -40,6 +42,8 @@ class ChatGptSubscriptionToolCallTest {
         provider = ChatGptSubscriptionProvider(
             providerKeys = keys,
             httpClient = OkHttpClient(),
+            tokenStore = chatGptTokenStore("test-session-token"),
+            oauthFlow = chatGptOAuthFlow(),
             baseUrl = server.url("/").toString().removeSuffix("/"),
         )
     }
@@ -47,35 +51,6 @@ class ChatGptSubscriptionToolCallTest {
     @After
     fun tearDown() {
         server.shutdown()
-    }
-
-    @Test
-    fun `function_call event emits ToolCall with name and arguments`() = runBlocking {
-        val sseData = listOf(
-            """{"type":"response.output_text.delta","delta":{"text":"Let me search for that."}}""",
-            """{"type":"response.function_call","delta":{"tool_call":{"id":"call_1","name":"web_search","arguments":"{\"q\":\"test\"}"}}}""",
-            """{"type":"response.completed"}""",
-        )
-        val sseBody = sseData.joinToString("") { "data: $it\n\n" }
-
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "text/event-stream")
-                .setBody(sseBody),
-        )
-
-        val chunks = withTimeout(10_000L) {
-            provider.chat("gpt-4o", listOf(
-                ProviderMessage(role = ProviderMessage.Role.user, content = "search for test"),
-            ), ChatOptions(), emptyList()).toList()
-        }
-
-        val toolChunks = chunks.filter { it.toolCall != null }
-        assertTrue(toolChunks.isNotEmpty(), "Should have at least 1 tool-call chunk")
-        val tc = toolChunks[0].toolCall!!
-        assertEquals("web_search", tc.name)
-        assertTrue(tc.arguments.contains("test"))
     }
 
     @Test
@@ -99,33 +74,5 @@ class ChatGptSubscriptionToolCallTest {
             models.none { it in setOf("gpt-4o", "o3", "gpt-4.1") },
             "stale hardcoded ids must not reappear",
         )
-    }
-
-    @Test
-    fun `text delta events emit Text chunks`() = runBlocking {
-        val sseData = listOf(
-            """{"delta":{"text":"Hello "}}""",
-            """{"delta":{"text":"world!"}}""",
-            """{"type":"response.completed"}""",
-        )
-        val sseBody = sseData.joinToString("") { "data: $it\n\n" }
-
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "text/event-stream")
-                .setBody(sseBody),
-        )
-
-        val chunks = withTimeout(10_000L) {
-            provider.chat("gpt-4o", listOf(
-                ProviderMessage(role = ProviderMessage.Role.user, content = "hi"),
-            ), ChatOptions(), emptyList()).toList()
-        }
-
-        val textChunks = chunks.filter { it.text != null }
-        assertTrue(textChunks.size >= 2, "Should have at least 2 text chunks")
-        assertEquals("Hello ", textChunks[0].text)
-        assertEquals("world!", textChunks[1].text)
     }
 }

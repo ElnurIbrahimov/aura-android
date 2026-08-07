@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.BuildConfig
 import com.aura.ui.settings.BackupViewModel
+import com.aura.ui.settings.ChatGptAccountCard
 import com.aura.ui.settings.SettingsClickableRow
 import com.aura.ui.settings.SettingsViewModel
 import com.aura.ui.settings.UsageViewModel
@@ -98,6 +99,23 @@ fun SettingsScreen(
 
         AiAndModelsSection(
             state = state,
+            chatGptCard = {
+                val chatgptConnected by viewModel.chatgptConnected.collectAsStateWithLifecycle()
+                val chatgptAccount by viewModel.chatgptAccount.collectAsStateWithLifecycle()
+                val chatgptExpired by viewModel.chatgptSessionExpired.collectAsStateWithLifecycle()
+                val chatgptPaste by viewModel.chatgptPaste.collectAsStateWithLifecycle()
+                val chatgptError by viewModel.chatgptSignInError.collectAsStateWithLifecycle()
+                ChatGptAccountCard(
+                    connected = chatgptConnected,
+                    account = chatgptAccount,
+                    sessionExpired = chatgptExpired,
+                    paste = chatgptPaste,
+                    error = chatgptError,
+                    onPasteChange = viewModel::updateChatGptPaste,
+                    onSignIn = viewModel::signInChatGpt,
+                    onDisconnect = viewModel::disconnectChatGpt,
+                )
+            },
             onCustomBaseUrlChange = viewModel::updateCustomBaseUrl,
             onCustomApiKeyChange = viewModel::updateCustomApiKey,
             onCustomTest = viewModel::saveAndTestCustomEndpoint,

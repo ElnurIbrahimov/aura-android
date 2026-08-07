@@ -67,18 +67,11 @@ val SETTINGS_CREDENTIAL_SPECS: List<SettingsCredentialSpec> = listOf(
     SettingsCredentialSpec("cerebras", "Cerebras", "Get a key at cloud.cerebras.ai", true),
     SettingsCredentialSpec("nvidia", "NVIDIA NIM", "Get a key at build.nvidia.com/explore/discover", true),
     SettingsCredentialSpec("llama", "Meta Llama", "Get a key at llama.developer.meta.com", true),
-    SettingsCredentialSpec(
-        "chatgpt",
-        "ChatGPT Subscription",
-        // This row is not an API key and there is no key to buy. The
-        // subscription authenticates with an OAuth session token that
-        // `codex login` writes on a desktop, so say that plainly rather
-        // than showing "Paste API key" and sending people to look for a
-        // key OpenAI does not sell.
-        "Not an API key. Run `codex login` on a computer, then paste the access_token from ~/.codex/auth.json",
-        true,
-        placeholder = "Paste access_token",
-    ),
+    // ChatGPT Subscription has a dedicated card (ChatGptAccountCard) and
+    // deliberately no row here. Its credential is an OAuth grant, not a key:
+    // it expires hourly and has to be renewed with a refresh token. A
+    // single-field row could only ever capture the access token — which is
+    // exactly what happened, and why sign-ins died an hour later.
     SettingsCredentialSpec("agnes", "Agnes AI", "Get a key at agnes-ai.com/dashboard", true),
     // "Custom Endpoint" is now a dedicated card (CustomEndpointCard) — it
     // needs both a base URL and an API key, so it can't be a single
@@ -1119,6 +1112,61 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun disconnectMicrosoft() = configController.disconnectMicrosoft()
+
+    // ---- ChatGPT subscription ----
+
+    val chatgptConnected: StateFlow<Boolean> = integrationTokenStore.chatgptConnected
+    val chatgptAccount: StateFlow<String?> = integrationTokenStore.chatgptAccount
+    val chatgptSessionExpired: StateFlow<Boolean> = integrationTokenStore.chatgptSessionExpired
+
+    private val _chatgptPaste = MutableStateFlow("")
+    val chatgptPaste: StateFlow<String> = _chatgptPaste.asStateFlow()
+
+    private val _chatgptSignInError = MutableStateFlow<String?>(null)
+    val chatgptSignInError: StateFlow<String?> = _chatgptSignInError.asStateFlow()
+
+    fun updateChatGptPaste(value: String) {
+        _chatgptPaste.value = value
+        _chatgptSignInError.value = null
+    }
+
+    /**
+     * Accept a `~/.codex/auth.json` paste as a ChatGPT sign-in.
+     *
+     * The paste is parsed rather than stored verbatim so the refresh token
+     * comes with it. Aura previously kept only the access token, which lasts
+     * about an hour and cannot be renewed on its own — that is the reason this
+     * card exists instead of the API-key row it replaced.
+     */
+    fun signInChatGpt() {
+        val parsed = com.aura.integrations.ChatGptAuthImport.parse(_chatgptPaste.value)
+        if (parsed == null) {
+            _chatgptSignInError.value =
+                "No access token in that paste. Copy the whole contents of ~/.codex/auth.json."
+            return
+        }
+        viewModelScope.launch {
+            integrationTokenStore.storeChatGptTokens(
+                accessToken = parsed.accessToken,
+                refreshToken = parsed.refreshToken,
+                expiresInSeconds = parsed.expiresInSeconds,
+                accountLabel = parsed.accountLabel,
+            )
+            _chatgptPaste.value = ""
+            _chatgptSignInError.value = null
+            reload()
+        }
+    }
+
+    fun disconnectChatGpt() {
+        viewModelScope.launch {
+            integrationTokenStore.disconnectChatGpt()
+            // Clear the legacy API-key slot too, or the provider's migration
+            // path would quietly sign the user back in on the next request.
+            providerKeys.set("chatgpt", "")
+            reload()
+        }
+    }
 
     // ---- Reasoning / Extended Thinking ----
 

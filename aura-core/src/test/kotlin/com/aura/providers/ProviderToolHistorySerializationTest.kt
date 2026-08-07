@@ -192,6 +192,8 @@ class ProviderToolHistorySerializationTest {
         val provider = ChatGptSubscriptionProvider(
             providerKeys = keys("chatgpt"),
             httpClient = OkHttpClient(),
+            tokenStore = chatGptTokenStore("token"),
+            oauthFlow = chatGptOAuthFlow(),
             baseUrl = server.url("/").toString().removeSuffix("/"),
         )
         withTimeout(10_000L) {

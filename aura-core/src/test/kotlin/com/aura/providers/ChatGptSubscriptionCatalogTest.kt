@@ -3,6 +3,7 @@ package com.aura.providers
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -39,9 +40,11 @@ class ChatGptSubscriptionCatalogTest {
         every { keyFor("chatgpt") } returns "sess-token"
     }
 
-    private fun provider() = ChatGptSubscriptionProvider(
+    private fun provider(token: String? = "sess-token") = ChatGptSubscriptionProvider(
         providerKeys = keys(),
         httpClient = OkHttpClient(),
+        tokenStore = chatGptTokenStore(token),
+        oauthFlow = chatGptOAuthFlow(),
         baseUrl = server.url("/").toString().removeSuffix("/"),
     )
 
@@ -119,17 +122,112 @@ class ChatGptSubscriptionCatalogTest {
         }
     }
 
+    /**
+     * Send a chat and hand back the request body the server saw.
+     *
+     * Every assertion below was established by probing the live endpoint one
+     * field at a time with a real subscription token — not read off a doc.
+     * Each rejected field produced a 400 that killed the message while the
+     * model picker looked perfectly healthy, so they are worth pinning.
+     */
+    private fun chatBody(options: ChatOptions = ChatOptions(), tools: List<ToolDefinition> = emptyList()): String {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"type\":\"response.completed\"}\n\n"),
+        )
+        runBlocking {
+            provider().chat(
+                "gpt-5.6-sol",
+                listOf(ProviderMessage(role = ProviderMessage.Role.user, content = "hi")),
+                options,
+                tools,
+            ).toList()
+        }
+        return server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)!!.body.readUtf8()
+    }
+
+    @Test
+    fun `sampling parameters the backend rejects are not sent`() {
+        val body = chatBody(ChatOptions(temperature = 0.7, topP = 0.9, maxTokens = 256))
+
+        // Live endpoint: 400 "Unsupported parameter: <name>" for each.
+        // Sampling is the server's decision on a subscription.
+        assertTrue("temperature" !in body, "temperature is rejected: $body")
+        assertTrue("top_p" !in body, "top_p is rejected: $body")
+        assertTrue("max_tokens" !in body, "max_tokens is rejected: $body")
+    }
+
+    @Test
+    fun `reasoning effort is nested, not top-level`() {
+        val body = chatBody(ChatOptions(thinkingBudget = 24_000))
+
+        // Top-level reasoning_effort → 400. reasoning:{effort} → 200.
+        assertTrue("\"reasoning\":{\"effort\":\"high\"}" in body, "got $body")
+        assertTrue("\"reasoning_effort\"" !in body, "top-level form is rejected: $body")
+    }
+
+    @Test
+    fun `tools use the Responses shape, with the name at the top level`() {
+        val body = chatBody(
+            tools = listOf(
+                ToolDefinition(
+                    name = "web_search",
+                    description = "search the web",
+                    parameters = ToolParameters(
+                        properties = mapOf("q" to ToolProperty(type = "string", description = "query")),
+                        required = listOf("q"),
+                    ),
+                ),
+            ),
+        )
+
+        // Chat-Completions nesting → 400 "Missing required parameter:
+        // 'tools[0].name'". Aura always declares tools, so this failed
+        // every single message.
+        assertTrue("\"name\":\"web_search\"" in body, "got $body")
+        assertTrue("\"function\":{" !in body, "must not nest under 'function': $body")
+        // The omission that caused the original DeepSeek 400.
+        assertTrue("\"type\":\"object\"" in body, "parameters schema needs its type: $body")
+    }
+
+    @Test
+    fun `every chat request opts out of storage`() = runBlocking {
+        // The subscription backend answers 400 "store must be set to false"
+        // when the field is absent, because the API default is true and it
+        // will not persist responses for this client. Omitting it made every
+        // message fail while the model list looked perfectly healthy.
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"type\":\"response.completed\"}\n\n"),
+        )
+
+        provider().chat(
+            "gpt-5.6-sol",
+            listOf(ProviderMessage(role = ProviderMessage.Role.user, content = "hi")),
+            ChatOptions(),
+            emptyList(),
+        ).toList()
+
+        val body = server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)!!.body.readUtf8()
+        assertTrue("\"store\":false" in body, "chat body must send store=false, got $body")
+    }
+
     @Test
     fun `no token means no catalog request at all`() = runBlocking {
-        val noKey = mockk<ProviderKeys> {
-            coEvery { keyForAwaiting("chatgpt") } returns null
-            every { keyFor("chatgpt") } returns null
-        }
-        val models = ChatGptSubscriptionProvider(
-            providerKeys = noKey,
+        val signedOut = ChatGptSubscriptionProvider(
+            providerKeys = mockk {
+                coEvery { keyForAwaiting("chatgpt") } returns null
+                every { keyFor("chatgpt") } returns null
+            },
             httpClient = OkHttpClient(),
+            tokenStore = chatGptTokenStore(null),
+            oauthFlow = chatGptOAuthFlow(),
             baseUrl = server.url("/").toString().removeSuffix("/"),
-        ).listModels()
+        )
+
+        val models = signedOut.listModels()
 
         assertTrue(models.isEmpty())
         assertEquals(0, server.requestCount)

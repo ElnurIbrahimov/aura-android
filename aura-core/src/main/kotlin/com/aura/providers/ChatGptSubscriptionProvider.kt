@@ -1,5 +1,7 @@
 package com.aura.providers
 
+import com.aura.integrations.IntegrationTokenStore
+import com.aura.integrations.OAuthFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -19,6 +21,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody.Companion.asResponseBody
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -30,21 +33,24 @@ import kotlin.coroutines.cancellation.CancellationException
 /**
  * ChatGPT subscription auth via OAuth bearer token.
  *
- * The user gets a ChatGPT Plus/Pro/Go subscription token by running
- * `codex login` on a machine with a browser, then exporting the resulting
- * token (or CODEX_AUTH_JSON) to Aura via the Settings UI. The token is
- * then routed through OpenAI's ChatGPT Responses API as a Bearer token
- * (Authorization: Bearer <access_token>), which is what the Codex CLI does.
+ * The user signs in with `codex login` on a machine with a browser and pastes
+ * the resulting `auth.json` into Settings. Requests then go to OpenAI's
+ * ChatGPT Responses API as `Authorization: Bearer <access_token>`, which is
+ * what the Codex CLI does.
  *
- * Model ids for this provider are derived from the openai catalog (the
- * user can also use a model catalog cached by the openai provider) but
- * routed through the subscription token. We treat the live token from
- * the user as the source of truth; if the user wants to use their
- * OpenAI API key instead, they can use the regular `openai` provider.
+ * This is an OAuth grant, not an API key, and it used to be stored as one —
+ * a bare access token in the `chatgpt_api_key` slot, with nowhere to keep the
+ * `refresh_token` sitting beside it in that same file. Access tokens last
+ * about an hour, so the provider went dead an hour after every sign-in and the
+ * only fix was to paste a fresh token. The grant now lives in
+ * [IntegrationTokenStore] alongside its refresh token and expiry, and is
+ * renewed on demand.
  */
 class ChatGptSubscriptionProvider(
     private val providerKeys: ProviderKeys,
     private val httpClient: OkHttpClient,
+    private val tokenStore: IntegrationTokenStore,
+    private val oauthFlow: OAuthFlow,
     /**
      * Base URL for the OpenAI ChatGPT backend. Override in tests; default
      * is the production Codex/ChatGPT endpoint.
@@ -53,10 +59,37 @@ class ChatGptSubscriptionProvider(
 ) : Provider {
     override val prefix = "chatgpt"
     override val displayName = "ChatGPT Subscription"
-    private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix).orEmpty()
     @Volatile private var activeEventSource: EventSource? = null
 
-    override fun isConfigured(): Boolean = providerKeys.keyFor(prefix).orEmpty().isNotBlank()
+    /**
+     * A currently-valid bearer token, refreshing it first if it has expired.
+     *
+     * The legacy branch adopts a token pasted into the old API-key field so an
+     * upgrading user isn't silently signed out. It can only ever be reached
+     * once: the token moves into the OAuth store and the old slot is cleared.
+     * If that token is already dead we still return it rather than an empty
+     * string — a real 401 from OpenAI names the problem, a blank `Bearer`
+     * header just produces a malformed-request error that explains nothing.
+     */
+    private suspend fun apiKey(): String {
+        tokenStore.getValidChatGptAccessToken { oauthFlow.refreshChatGptToken(it) }?.let { return it }
+
+        val legacy = providerKeys.keyForAwaiting(prefix).orEmpty()
+        if (legacy.isBlank()) return ""
+        if (tokenStore.migrateLegacyChatGptToken(legacy)) {
+            providerKeys.set(prefix, "")
+        }
+        return tokenStore.getValidChatGptAccessToken { oauthFlow.refreshChatGptToken(it) } ?: legacy
+    }
+
+    /**
+     * The OAuth store is the source of truth; the API-key slot is only
+     * consulted so a not-yet-migrated install stays visible to
+     * [ProviderRegistry] — which short-circuits the model catalog before any
+     * network call when a provider reports itself unconfigured.
+     */
+    override fun isConfigured(): Boolean =
+        tokenStore.chatgptConnected.value || providerKeys.keyFor(prefix).orEmpty().isNotBlank()
 
     override fun chat(
         model: String,
@@ -68,17 +101,28 @@ class ChatGptSubscriptionProvider(
         val body = buildJsonObject {
             put("model", model)
             put("stream", true)
-            put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
-            put("top_p", options.topP ?: ChatOptions.DEFAULT_TOP_P)
-            options.maxTokens?.let { put("max_tokens", it) }
-            // ChatGPT Responses API supports reasoning_effort
+            // Required, and rejected with 400 "store must be set to false" if
+            // omitted — the default is true. The subscription backend will not
+            // persist responses for this client, so it refuses rather than
+            // silently ignoring the request. Nothing infers it from the
+            // absence of the field.
+            put("store", false)
+            // No temperature, top_p or max_tokens. The subscription backend
+            // rejects each with 400 "Unsupported parameter: <name>" — checked
+            // one at a time against the live endpoint, because sending them
+            // meant every message failed while the model list looked fine.
+            // Sampling is the server's to decide on a subscription.
+            //
+            // Reasoning effort is a nested object here. Top-level
+            // `reasoning_effort`, which this used to send, is rejected the
+            // same way; `reasoning: {effort}` is accepted.
             options.thinkingBudget?.let { budget ->
                 val effort = when {
                     budget >= 20_000 -> "high"
                     budget >= 8_000 -> "medium"
                     else -> "low"
                 }
-                put("reasoning_effort", effort)
+                put("reasoning", buildJsonObject { put("effort", effort) })
             }
             put("input", JsonArray(messages.flatMap { msg ->
                 when {
@@ -117,29 +161,24 @@ class ChatGptSubscriptionProvider(
                     })
                 }
             }))
-            // Tool declarations (OpenAI function calling format)
+            // Tool declarations, Responses-API shape: name, description and
+            // parameters sit at the top of each entry. The Chat Completions
+            // shape this used to send — wrapping them in a nested "function"
+            // object — is rejected with 400 "Missing required parameter:
+            // 'tools[0].name'". Aura's agent loop always declares tools, so
+            // that alone failed every message.
+            //
+            // Schema comes from the shared toJsonSchema() rather than being
+            // rebuilt here; the hand-rolled version dropped everything except
+            // type and description, and omitting "type":"object" is what
+            // caused the original HTTP 400 on DeepSeek.
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->
                     buildJsonObject {
                         put("type", "function")
-                        put("function", buildJsonObject {
-                            put("name", tool.name)
-                            put("description", tool.description)
-                            put("parameters", buildJsonObject {
-                                put("type", "object")
-                                put("properties", buildJsonObject {
-                                    tool.parameters.properties.forEach { (key, prop) ->
-                                        put(key, buildJsonObject {
-                                            put("type", prop.type)
-                                            prop.description?.let { put("description", it) }
-                                        })
-                                    }
-                                })
-                                if (tool.parameters.required.isNotEmpty()) {
-                                    put("required", JsonArray(tool.parameters.required.map { JsonPrimitive(it) }))
-                                }
-                            })
-                        })
+                        put("name", tool.name)
+                        put("description", tool.description)
+                        put("parameters", tool.parameters.toJsonSchema())
                     }
                 }))
             }
@@ -154,55 +193,66 @@ class ChatGptSubscriptionProvider(
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
         val sourceHolder = EventSourceHolder()
         activeEventSource = sourceHolder
-        // P0-AGENTIC-F2: track tool_calls by index so parallel tool-call deltas
-        // route to the correct ToolCall. The responses API may send multiple
-        // function_call events in one response; chat-completions-style deltas
-        // include an `index` field.
-        val toolCallsByIndex = mutableMapOf<Int, ToolCallBuilder>()
-        // Per-stream counter for synthetic tool call ids to prevent
-        // id collisions when parallel calls arrive in the same millisecond.
-        var toolCallCounter = 0
-        EventSources.createFactory(httpClient).newEventSource(request, object : EventSourceListener() {
+        EventSources.createFactory(sseClient).newEventSource(request, object : EventSourceListener() {
+            /**
+             * Dispatch on the event type the backend actually sends.
+             *
+             * This previously looked for Chat-Completions-shaped payloads —
+             * `delta.text`, `delta.tool_calls[]` with an `index` — none of
+             * which this API emits. Verified against the live stream: text
+             * arrives as `response.output_text.delta` whose `delta` is a
+             * **bare string**, and a completed tool call arrives whole in
+             * `response.output_item.done`.
+             */
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 sourceHolder.source = eventSource
                 if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
                 val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
-                // The responses API streams "output_text.delta" events. Fall back to chat-completions style for forward compat.
-                val text = (obj["delta"] as? JsonObject)?.get("text").let { (it as? JsonPrimitive)?.content }
-                    ?: (obj["output_text"] as? JsonPrimitive)?.content
-                if (text != null) channel.trySend(ProviderChunk(text = text))
-                // Parse tool calls from the Responses API, index-aware.
-                val delta = obj["delta"] as? JsonObject
-                val toolCallArray = delta?.get("tool_calls")?.jsonArray
-                if (toolCallArray != null) {
-                    for (item in toolCallArray) {
-                        val toolCallObj = item.jsonObject
-                        val idx = toolCallObj["index"]?.jsonPrimitive?.intOrNull ?: 0
-                        val builder = toolCallsByIndex.getOrPut(idx) { ToolCallBuilder() }
-                        toolCallObj["id"]?.jsonPrimitive?.content?.let { builder.id = it }
-                        val fnObj = toolCallObj["function"]?.jsonObject
-                        fnObj?.get("name")?.jsonPrimitive?.content?.let { builder.name = it }
-                        fnObj?.get("arguments")?.jsonPrimitive?.content?.let { builder.arguments.append(it) }
-                        if (builder.isComplete()) {
-                            channel.trySend(ProviderChunk(toolCall = builder.toToolCall()))
-                            toolCallsByIndex.remove(idx)
+                when ((obj["type"] as? JsonPrimitive)?.contentOrNull) {
+                    "response.output_text.delta" ->
+                        (obj["delta"] as? JsonPrimitive)?.contentOrNull
+                            ?.let { channel.trySend(ProviderChunk(text = it)) }
+
+                    "response.reasoning_summary_text.delta" ->
+                        (obj["delta"] as? JsonPrimitive)?.contentOrNull
+                            ?.let { channel.trySend(ProviderChunk(thinking = it)) }
+
+                    // Emitted once per tool call, carrying the finished
+                    // arguments. The per-token
+                    // `response.function_call_arguments.delta` events are
+                    // deliberately ignored — accumulating them only risks
+                    // dropping or double-counting fragments to arrive at the
+                    // string this event already provides complete.
+                    "response.output_item.done" -> {
+                        val item = obj["item"] as? JsonObject
+                        if ((item?.get("type") as? JsonPrimitive)?.contentOrNull == "function_call") {
+                            val name = (item["name"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                            val callId = (item["call_id"] as? JsonPrimitive)?.contentOrNull
+                                ?: (item["id"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                            val arguments = (item["arguments"] as? JsonPrimitive)?.contentOrNull
+                                ?.takeIf { it.isNotBlank() } ?: "{}"
+                            if (name.isNotBlank()) {
+                                channel.trySend(
+                                    ProviderChunk(toolCall = ToolCall(id = callId, name = name, arguments = arguments)),
+                                )
+                            }
                         }
                     }
-                } else {
-                    val toolCallObj = delta?.get("tool_call")?.jsonObject
-                        ?: obj["tool_call"]?.jsonObject
-                    if (toolCallObj != null) {
-                        val fnName = (toolCallObj["name"] ?: toolCallObj["function"]?.jsonObject?.get("name"))?.jsonPrimitive?.content ?: ""
-                        val fnArgs = (toolCallObj["arguments"] ?: toolCallObj["function"]?.jsonObject?.get("arguments"))?.jsonPrimitive?.content ?: "{}"
-                        val callId = toolCallObj["id"]?.jsonPrimitive?.content
-                            ?: "chatgpt_${System.currentTimeMillis()}_${toolCallCounter++}_${fnName.hashCode()}"
-                        if (fnName.isNotBlank()) {
-                            channel.trySend(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
-                        }
+
+                    "response.completed", "response.done" ->
+                        channel.trySend(ProviderChunk(finishReason = FinishReason.stop))
+
+                    // Terminal states that are not successes. Without these
+                    // the stream would just stop and look like a short reply.
+                    "response.failed", "response.incomplete" -> {
+                        val reason = ((obj["response"] as? JsonObject)?.get("error") as? JsonObject)
+                            ?.get("message").let { (it as? JsonPrimitive)?.contentOrNull }
+                        channel.trySend(
+                            ProviderChunk(error = ProviderError("stream_failed", reason ?: "The response ended early.")),
+                        )
+                        channel.close()
                     }
                 }
-                val done = (obj["type"] as? JsonPrimitive)?.content in setOf("response.completed", "response.done")
-                if (done) channel.trySend(ProviderChunk(finishReason = FinishReason.stop))
             }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
                 val code = response?.code ?: 0
@@ -250,9 +300,49 @@ class ChatGptSubscriptionProvider(
          * grant this provider rides on.
          */
         private const val CLIENT_VERSION = "0.146.1"
+
+        /** The header the subscription backend omits on its SSE responses. */
+        private const val SSE_MEDIA_TYPE = "text/event-stream"
     }
 
     private val catalogJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /**
+     * The client used for streaming, with one job: label the response body as
+     * `text/event-stream`.
+     *
+     * The subscription backend returns the SSE stream with **no Content-Type
+     * header at all** (verified on the wire). OkHttp's `EventSource` requires
+     * that header and, when it is missing, calls `onFailure` — with the 200
+     * response still attached. So a perfectly good stream was reported as a
+     * failure, and the error path dumped the entire raw body into the chat as
+     * "HTTP 200: event: response.created data: {…}".
+     *
+     * A network interceptor is the narrow fix: it only fills in a header the
+     * server omitted, and only for this provider's calls, leaving the shared
+     * client and all the existing cancellation machinery untouched.
+     */
+    private val sseClient: OkHttpClient by lazy {
+        httpClient.newBuilder()
+            .addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                val body = response.body
+                if (body != null && response.header("Content-Type") == null) {
+                    // Rebuilding the body is the part that counts: EventSource
+                    // reads `body.contentType()`, which is fixed when the body
+                    // is created, so setting the header alone changes nothing.
+                    // Wrapping the existing source keeps this streaming rather
+                    // than buffering the whole response.
+                    response.newBuilder()
+                        .header("Content-Type", SSE_MEDIA_TYPE)
+                        .body(body.source().asResponseBody(SSE_MEDIA_TYPE.toMediaType(), body.contentLength()))
+                        .build()
+                } else {
+                    response
+                }
+            }
+            .build()
+    }
 
     override suspend fun listModels(): List<String> =
         fetchCatalog().map { it.name }
