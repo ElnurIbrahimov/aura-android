@@ -209,17 +209,24 @@ class OpenAiCompatProviderTest {
         }
     }
 
-    // ── Default models shortcut ──
+    // ── No hardcoded-catalog escape hatch ──
 
     @Test
-    fun `listModels returns defaultModels when set without calling network`() = runBlocking<Unit> {
+    fun `listModels always queries the network — there is no baked-in list`() {
+        // Replaces a test that asserted the opposite: that a `defaultModels`
+        // constructor parameter could short-circuit /models and return a
+        // hardcoded list. That parameter has been removed. No provider ever
+        // passed it, and the one provider that did hardcode its catalog by
+        // other means (ChatGPT Subscription) ended up advertising nine model
+        // ids the backend no longer offered. Discovery must be the only path.
         val prov = OpenAiCompatProvider(
             prefix = "test", displayName = "Test",
+            // Nothing is listening here, so any answer other than a thrown
+            // network error would mean a catalog came from somewhere local.
             baseUrl = "http://localhost:1",
             providerKeys = mockk { coEvery { keyForAwaiting("test") } returns "key"; every { isConfigured("test") } returns true },
             httpClient = OkHttpClient(),
-            defaultModels = listOf("built-in-model"),
         )
-        assertEquals(listOf("built-in-model"), prov.listModels())
+        assertFailsWith<ProviderCatalogException> { runBlocking { prov.listModels() } }
     }
 }

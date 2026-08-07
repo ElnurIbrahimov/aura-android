@@ -30,8 +30,12 @@ import okhttp3.sse.EventSources
  * construction time, so changes the user makes in the Settings UI take
  * effect immediately without restarting the app.
  *
- * Subclasses can override [defaultModels] to provide a hardcoded list instead
- * of fetching from the `/models` endpoint.
+ * Models are always discovered live from `/models`. There is deliberately no
+ * hardcoded-list escape hatch: a `defaultModels` constructor parameter used
+ * to exist for that, went unused by every one of the fifteen providers built
+ * on this class, and existed only as an invitation to bake in ids that rot.
+ * The one provider that did hardcode its catalog — ChatGPT Subscription —
+ * ended up advertising nine model ids that the backend no longer offered.
  */
 open class OpenAiCompatProvider(
     override val prefix: String,
@@ -39,7 +43,6 @@ open class OpenAiCompatProvider(
     protected val baseUrl: String,
     protected val providerKeys: ProviderKeys,
     protected val httpClient: OkHttpClient,
-    protected val defaultModels: List<String> = emptyList(),
 ) : Provider {
 
     @Volatile private var activeEventSource: EventSource? = null
@@ -122,7 +125,6 @@ open class OpenAiCompatProvider(
         }
     }
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
-        if (defaultModels.isNotEmpty()) return@withContext defaultModels
         val key = apiKey()
         try {
             val request = Request.Builder()

@@ -24,6 +24,8 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.json.contentOrNull
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * ChatGPT subscription auth via OAuth bearer token.
@@ -239,23 +241,86 @@ class ChatGptSubscriptionProvider(
         // tokens, short enough that a misbehaving server doesn't hang
         // the agent loop. Mirrors OpenAiCompatProvider.STREAM_READ_TIMEOUT_MS.
         const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
+
+        /**
+         * Sent as `client_version` on the catalog request. The backend
+         * requires it — without it `/models` returns 400 — and each model
+         * advertises a `minimal_client_version`, so the server gates its
+         * catalog on this value. It tracks the Codex CLI release whose
+         * grant this provider rides on.
+         */
+        private const val CLIENT_VERSION = "0.146.1"
     }
 
-    override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
-        // The ChatGPT subscription token authenticates against
-        // chatgpt.com/backend-api/codex, NOT api.openai.com. The
-        // /v1/models endpoint will always 401 with a subscription
-        // token because it's a session token, not an API key.
-        // The chatgpt.com backend doesn't expose a models-listing
-        // endpoint, so we return the known ChatGPT Plus/Pro/Go model
-        // set directly. Users who want the full OpenAI catalog should
-        // use the regular `openai` provider with an API key.
-        listOf(
-            "gpt-5", "gpt-5-mini", "gpt-5-nano",
-            "gpt-4.1", "gpt-4.1-mini",
-            "gpt-4o", "gpt-4o-mini",
-            "o3", "o4-mini",
-        )
+    private val catalogJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    override suspend fun listModels(): List<String> =
+        fetchCatalog().map { it.name }
+
+    /**
+     * Live model catalog from the ChatGPT backend, with real context windows.
+     *
+     * The previous implementation returned a hardcoded list — `gpt-5`,
+     * `gpt-4.1`, `gpt-4o`, `o3` and friends — behind a comment asserting
+     * that "the chatgpt.com backend doesn't expose a models-listing
+     * endpoint". That was wrong on both counts: the endpoint exists, and
+     * by the time anyone checked, **not one** of those nine ids was still
+     * offered to a subscription. Users saw a picker full of models the
+     * backend would refuse.
+     *
+     * `GET /models` needs a `client_version` query parameter — omitting it
+     * returns 400, which is presumably how it came to be read as
+     * unavailable. It answers with `{"models":[{slug, display_name,
+     * context_window, visibility, …}]}`.
+     *
+     * `visibility` filters the list: entries marked anything other than
+     * `list` are internal (a watermarking variant, the auto-review model)
+     * and are not user-selectable.
+     */
+    override suspend fun listModelsWithContext(): List<ModelInfo> = fetchCatalog()
+
+    private suspend fun fetchCatalog(): List<ModelInfo> = withContext(Dispatchers.IO) {
+        val key = apiKey()
+        if (key.isBlank()) return@withContext emptyList()
+        val request = Request.Builder()
+            .url("$baseUrl/models?client_version=$CLIENT_VERSION")
+            .header("Authorization", "Bearer $key")
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "codex_cli_rs/$CLIENT_VERSION")
+            .build()
+        runCatching {
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw ProviderCatalogException.NetworkException(
+                        message = "ChatGPT model catalog request failed with HTTP ${response.code}.",
+                        statusCode = response.code,
+                    )
+                }
+                val body = response.body?.string().orEmpty()
+                val models = catalogJson.parseToJsonElement(body)
+                    .jsonObject["models"] as? JsonArray
+                    ?: throw ProviderCatalogException.MalformedResponseException(
+                        "Missing models[] in ChatGPT catalog response.",
+                    )
+                models.mapNotNull { entry ->
+                    val model = entry as? JsonObject ?: return@mapNotNull null
+                    val slug = (model["slug"] as? JsonPrimitive)?.contentOrNull
+                        ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    val visibility = (model["visibility"] as? JsonPrimitive)?.contentOrNull
+                    if (visibility != null && visibility != "list") return@mapNotNull null
+                    ModelInfo(
+                        name = slug,
+                        contextWindow = (model["context_window"] as? JsonPrimitive)?.intOrNull,
+                    )
+                }.ifEmpty { throw ProviderCatalogException.EmptyCatalogException() }
+            }
+        }.getOrElse { error ->
+            when (error) {
+                is ProviderCatalogException -> throw error
+                is CancellationException -> throw error
+                else -> throw ProviderCatalogException.NetworkException(cause = error as? Exception)
+            }
+        }
     }
 
     override suspend fun cancel() {

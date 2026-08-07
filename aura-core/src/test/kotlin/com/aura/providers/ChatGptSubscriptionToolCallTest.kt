@@ -79,16 +79,26 @@ class ChatGptSubscriptionToolCallTest {
     }
 
     @Test
-    fun `listModels returns hardcoded ChatGPT model list without network call`() = runBlocking {
-        // listModels should return the hardcoded list immediately
-        // without making any HTTP request. We don't enqueue any response
-        // on the server — if the provider tries to call the network,
-        // the test will time out.
+    fun `listModels queries the backend instead of returning a hardcoded list`() = runBlocking {
+        // This previously asserted the opposite — that listModels returned a
+        // baked-in list with no network call, and specifically that it
+        // contained gpt-4o, o3 and gpt-4.1. The backend offers none of those
+        // to a subscription; the live catalog is gpt-5.6-sol, gpt-5.6-terra,
+        // gpt-5.6-luna, gpt-5.5, gpt-5.4 and gpt-5.4-mini. Asserting the
+        // stale ids is part of what kept the bug invisible.
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"models":[{"slug":"gpt-5.6-sol","context_window":272000,"visibility":"list"}]}""",
+            ),
+        )
+
         val models = provider.listModels()
-        assertTrue(models.isNotEmpty(), "Should return a non-empty model list")
-        assertTrue(models.contains("gpt-4o"), "Should include gpt-4o")
-        assertTrue(models.contains("o3"), "Should include o3")
-        assertTrue(models.contains("gpt-4.1"), "Should include gpt-4.1")
+
+        assertEquals(listOf("gpt-5.6-sol"), models)
+        assertTrue(
+            models.none { it in setOf("gpt-4o", "o3", "gpt-4.1") },
+            "stale hardcoded ids must not reappear",
+        )
     }
 
     @Test

@@ -43,6 +43,21 @@ class IntegrationTokenStore @Inject constructor(
         private const val KEY_MICROSOFT_REFRESH = "microsoft_refresh_token"
         private const val KEY_MICROSOFT_EXPIRES = "microsoft_expires_at"
 
+        // ChatGPT subscription. Unlike Google/Microsoft this grant is not
+        // minted here — the user runs `codex login` on a desktop and pastes
+        // the result. Aura only keeps it alive. See OAuthFlow.refreshChatGptToken.
+        private const val KEY_CHATGPT_ACCESS = "chatgpt_access_token"
+        private const val KEY_CHATGPT_REFRESH = "chatgpt_refresh_token"
+        private const val KEY_CHATGPT_EXPIRES = "chatgpt_expires_at"
+
+        /**
+         * Human-readable account label ("elnur@example.com · Plus") lifted
+         * from the id_token at paste time. Stored so Settings can show who
+         * is signed in without decoding a JWT on every recomposition, and
+         * without displaying the token itself.
+         */
+        private const val KEY_CHATGPT_ACCOUNT = "chatgpt_account_label"
+
         /** Clock skew margin in seconds — refresh a bit before actual expiry. */
         private const val EXPIRY_MARGIN_SECONDS = 60L
     }

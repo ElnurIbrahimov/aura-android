@@ -38,7 +38,6 @@ class OpenAiCompatCancelRaceTest {
             displayName = "Test",
             baseUrl = server.url("/").toString().removeSuffix("/"),
             providerKeys = keys,
-            defaultModels = emptyList(),
             httpClient = OkHttpClient.Builder().build(),
         )
     }
