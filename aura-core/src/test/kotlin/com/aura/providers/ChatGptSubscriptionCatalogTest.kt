@@ -191,6 +191,72 @@ class ChatGptSubscriptionCatalogTest {
         assertTrue("\"type\":\"object\"" in body, "parameters schema needs its type: $body")
     }
 
+    /** Send with a given history and hand back the request body. */
+    private fun bodyForHistory(messages: List<ProviderMessage>): String {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"type\":\"response.completed\"}\n\n"),
+        )
+        runBlocking { provider().chat("gpt-5.6-sol", messages, ChatOptions(), emptyList()).toList() }
+        return server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)!!.body.readUtf8()
+    }
+
+    @Test
+    fun `a tool call with no result is dropped from the history`() {
+        // Live endpoint: 400 "No tool output found for function call <id>".
+        // A half-pair happens for ordinary reasons — stop pressed mid-tool,
+        // app killed — and replaying it verbatim rejects every later message
+        // in that conversation, permanently.
+        val body = bodyForHistory(
+            listOf(
+                ProviderMessage(role = ProviderMessage.Role.user, content = "search please"),
+                ProviderMessage(
+                    role = ProviderMessage.Role.assistant,
+                    content = "I'll check the docs.",
+                    toolCalls = listOf(ToolCall(id = "call_orphan", name = "web_search", arguments = "{}")),
+                ),
+                ProviderMessage(role = ProviderMessage.Role.user, content = "and?"),
+            ),
+        )
+
+        assertTrue("call_orphan" !in body, "unanswered call must not be replayed: $body")
+        // The assistant's words are still worth keeping.
+        assertTrue("I'll check the docs." in body, "assistant text should survive: $body")
+    }
+
+    @Test
+    fun `a tool result with no matching call is dropped from the history`() {
+        // The mirror case: 400 "No tool call found for function call output".
+        val body = bodyForHistory(
+            listOf(
+                ProviderMessage(role = ProviderMessage.Role.user, content = "hi"),
+                ProviderMessage(role = ProviderMessage.Role.tool, content = "stale", toolCallId = "call_gone"),
+            ),
+        )
+
+        assertTrue("call_gone" !in body, "unmatched output must not be replayed: $body")
+    }
+
+    @Test
+    fun `a complete tool exchange is replayed intact`() {
+        val body = bodyForHistory(
+            listOf(
+                ProviderMessage(role = ProviderMessage.Role.user, content = "search please"),
+                ProviderMessage(
+                    role = ProviderMessage.Role.assistant,
+                    content = "",
+                    toolCalls = listOf(ToolCall(id = "call_ok", name = "web_search", arguments = """{"q":"x"}""")),
+                ),
+                ProviderMessage(role = ProviderMessage.Role.tool, content = "found it", toolCallId = "call_ok"),
+            ),
+        )
+
+        assertTrue("\"type\":\"function_call\"" in body, "got $body")
+        assertTrue("\"type\":\"function_call_output\"" in body, "got $body")
+        assertTrue("found it" in body, "got $body")
+    }
+
     @Test
     fun `every chat request opts out of storage`() = runBlocking {
         // The subscription backend answers 400 "store must be set to false"

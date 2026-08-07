@@ -130,6 +130,32 @@ class ChatGptSubscriptionParallelToolCallTest {
     }
 
     @Test
+    fun `a response containing a tool call does not report itself finished`() {
+        stream(
+            """{"type":"response.output_text.delta","delta":"I'll check the docs."}""",
+            """{"type":"response.output_item.done","item":{"type":"function_call","arguments":"{}","call_id":"call_A","name":"web_search"}}""",
+            """{"type":"response.completed"}""",
+        )
+
+        val finish = collect().mapNotNull { it.finishReason }
+
+        // MemoryAugmentedAgenticLoop ends the turn on "stop". Reporting stop
+        // here is why the model announced "I'll check the docs" and then
+        // nothing happened — and why the orphaned call bricked the chat.
+        assertEquals(listOf(FinishReason.tool_calls), finish)
+    }
+
+    @Test
+    fun `a plain response still reports stop`() {
+        stream(
+            """{"type":"response.output_text.delta","delta":"done"}""",
+            """{"type":"response.completed"}""",
+        )
+
+        assertEquals(listOf(FinishReason.stop), collect().mapNotNull { it.finishReason })
+    }
+
+    @Test
     fun `message output items are not mistaken for tool calls`() {
         stream(
             """{"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[]}}""",

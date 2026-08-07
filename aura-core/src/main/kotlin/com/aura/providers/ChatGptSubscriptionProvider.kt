@@ -124,15 +124,33 @@ class ChatGptSubscriptionProvider(
                 }
                 put("reasoning", buildJsonObject { put("effort", effort) })
             }
+            // This API insists that function calls and their outputs come in
+            // pairs, and rejects the whole request otherwise:
+            //   a call with no output    -> 400 No tool output found for function call <id>
+            //   an output with no call   -> 400 No tool call found for function call output <id>
+            // A history can hold a half-pair for ordinary reasons — the user
+            // hit stop mid-tool, the app was killed, or a bug ended the turn
+            // before the tool ran. Replaying it verbatim then rejects every
+            // future message in that conversation, permanently. Dropping the
+            // unmatched half costs one turn of context and keeps the chat
+            // usable.
+            val answeredCallIds = messages.filter { it.role == ProviderMessage.Role.tool }
+                .mapNotNull { it.toolCallId }.toSet()
+            val issuedCallIds = messages.flatMap { it.toolCalls.orEmpty() }.map { it.id }.toSet()
             put("input", JsonArray(messages.flatMap { msg ->
                 when {
                     // Responses API: tool results are function_call_output items,
                     // matched to the call by call_id — not role-based messages.
-                    msg.role == ProviderMessage.Role.tool -> listOf(buildJsonObject {
-                        put("type", "function_call_output")
-                        put("call_id", msg.toolCallId ?: "")
-                        put("output", msg.content)
-                    })
+                    msg.role == ProviderMessage.Role.tool ->
+                        listOfNotNull(
+                            msg.toolCallId?.takeIf { it in issuedCallIds }?.let { callId ->
+                                buildJsonObject {
+                                    put("type", "function_call_output")
+                                    put("call_id", callId)
+                                    put("output", msg.content)
+                                }
+                            },
+                        )
                     // Assistant tool calls replay as function_call items after
                     // the assistant text (if any).
                     msg.role == ProviderMessage.Role.assistant && !msg.toolCalls.isNullOrEmpty() -> {
@@ -143,7 +161,7 @@ class ChatGptSubscriptionProvider(
                                 put("content", msg.content)
                             }
                         }
-                        for (call in msg.toolCalls) {
+                        for (call in msg.toolCalls.filter { it.id in answeredCallIds }) {
                             items += buildJsonObject {
                                 put("type", "function_call")
                                 put("call_id", call.id)
@@ -193,6 +211,13 @@ class ChatGptSubscriptionProvider(
         val channel = kotlinx.coroutines.channels.Channel<ProviderChunk>(capacity = kotlinx.coroutines.channels.Channel.UNLIMITED)
         val sourceHolder = EventSourceHolder()
         activeEventSource = sourceHolder
+        // Whether this response asked for a tool. The agent loop stops on
+        // `finishReason == "stop"` (MemoryAugmentedAgenticLoop), so reporting
+        // stop after a tool call ends the turn with the call recorded and
+        // never executed — the model says "I'll check the docs" and then
+        // nothing happens. Worse, that leaves a function_call in the history
+        // with no output, which the API rejects outright on the next message.
+        var sawToolCall = false
         EventSources.createFactory(sseClient).newEventSource(request, object : EventSourceListener() {
             /**
              * Dispatch on the event type the backend actually sends.
@@ -206,7 +231,7 @@ class ChatGptSubscriptionProvider(
              */
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 sourceHolder.source = eventSource
-                if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = FinishReason.stop)); channel.close(); return }
+                if (data == "[DONE]") { channel.trySend(ProviderChunk(finishReason = finishReason(sawToolCall))); channel.close(); return }
                 val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return }
                 when ((obj["type"] as? JsonPrimitive)?.contentOrNull) {
                     "response.output_text.delta" ->
@@ -232,6 +257,7 @@ class ChatGptSubscriptionProvider(
                             val arguments = (item["arguments"] as? JsonPrimitive)?.contentOrNull
                                 ?.takeIf { it.isNotBlank() } ?: "{}"
                             if (name.isNotBlank()) {
+                                sawToolCall = true
                                 channel.trySend(
                                     ProviderChunk(toolCall = ToolCall(id = callId, name = name, arguments = arguments)),
                                 )
@@ -240,7 +266,7 @@ class ChatGptSubscriptionProvider(
                     }
 
                     "response.completed", "response.done" ->
-                        channel.trySend(ProviderChunk(finishReason = FinishReason.stop))
+                        channel.trySend(ProviderChunk(finishReason = finishReason(sawToolCall)))
 
                     // Terminal states that are not successes. Without these
                     // the stream would just stop and look like a short reply.
@@ -303,6 +329,13 @@ class ChatGptSubscriptionProvider(
 
         /** The header the subscription backend omits on its SSE responses. */
         private const val SSE_MEDIA_TYPE = "text/event-stream"
+
+        /**
+         * `tool_calls` when the response asked for a tool, so the agent loop
+         * dispatches it instead of treating the turn as finished.
+         */
+        private fun finishReason(sawToolCall: Boolean): FinishReason =
+            if (sawToolCall) FinishReason.tool_calls else FinishReason.stop
     }
 
     private val catalogJson = Json { ignoreUnknownKeys = true; isLenient = true }

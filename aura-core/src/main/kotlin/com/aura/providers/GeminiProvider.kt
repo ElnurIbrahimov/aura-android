@@ -16,6 +16,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -218,7 +219,8 @@ class GeminiProvider(
                             e,
                         )
                     }
-                    models.mapNotNull { (it as? JsonObject)?.get("name")?.let { n -> (n as? JsonPrimitive)?.content } }
+                    models.filter { it.supportsChat() }
+                        .mapNotNull { (it as? JsonObject)?.get("name")?.let { n -> (n as? JsonPrimitive)?.content } }
                         .mapNotNull { fullName ->
                             fullName.removePrefix("models/").takeIf { it.isNotBlank() }
                         }.ifEmpty { throw ProviderCatalogException.EmptyCatalogException() }
@@ -237,6 +239,27 @@ class GeminiProvider(
                 e,
             )
         }
+    }
+
+    /**
+     * Whether this catalog entry can hold a conversation.
+     *
+     * Gemini's catalog is not a list of chat models — of 58 entries, 16 are
+     * embedders, Imagen, Veo, or live audio/streaming models that reject
+     * `generateContent` outright. Offering them in a chat picker put
+     * "Imagen 4.0 Ultra Generate" in the model list, where selecting it
+     * produced a conversation that could never answer.
+     *
+     * Each entry declares what it supports, so ask rather than pattern-match
+     * on the name: new families keep arriving and a name-based filter would
+     * silently drop real chat models or admit new image ones.
+     */
+    private fun JsonElement.supportsChat(): Boolean {
+        val methods = (this as? JsonObject)?.get("supportedGenerationMethods") as? JsonArray
+        // An entry that declares nothing is kept: better a model that errors
+        // on use than a silently missing one, and older responses omitted it.
+            ?: return true
+        return methods.any { (it as? JsonPrimitive)?.content == "generateContent" }
     }
 
     override suspend fun cancel() {
@@ -267,6 +290,7 @@ class GeminiProvider(
                     ?: return@use emptyList<ModelInfo>()
                 models.mapNotNull { item ->
                     val obj = item as? JsonObject ?: return@mapNotNull null
+                    if (!obj.supportsChat()) return@mapNotNull null
                     val fullName = (obj["name"] as? JsonPrimitive)?.content
                         ?: return@mapNotNull null
                     val name = fullName.removePrefix("models/").takeIf { it.isNotBlank() }
