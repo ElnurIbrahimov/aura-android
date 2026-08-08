@@ -1,9 +1,16 @@
 package com.aura.consciousness
 
+import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,19 +31,38 @@ import javax.inject.Singleton
  *
  * Injected into the system prompt so the agent adapts its communication
  * style to the user's predicted level and emotional state.
+ *
+ * Persistence: JSON file at `files/theory_of_mind.json`, same shape as
+ * [NarrativeSelf]. Loaded on app start by `ProactiveBootstrap`, saved after
+ * each update.
+ *
+ * The model held its state only in memory until 2026-08-08. Because
+ * [toPrompt] stays silent until `commStyle.sampleCount >= 3`, and Android kills
+ * the process between sessions, the counter almost never survived long enough
+ * to reach three — so the class did its work and then discarded it before it
+ * could be used. This is the same defect ENGINEERING_HISTORY §2.4 records
+ * fixing for `EmotionEngine` ("save()/load() existed but were never called; 4D
+ * emotional state reset every cold start"); it survived here and in
+ * [IntrinsicMotivation].
  */
 @Singleton
-class TheoryOfMind @Inject constructor() {
+class TheoryOfMind @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val file: File get() = File(context.filesDir, "theory_of_mind.json")
 
+    @Serializable
     data class TopicKnowledge(
-        val topic: String,
-        val level: Float,      // 0=novice, 0.5=intermediate, 1=expert
-        val confidence: Float,  // 0-1, decays over time
-        val interactions: Int,
-        val lastSeen: Long,
+        val topic: String = "",
+        val level: Float = 0.5f,      // 0=novice, 0.5=intermediate, 1=expert
+        val confidence: Float = 0.3f, // 0-1, decays over time
+        val interactions: Int = 0,
+        val lastSeen: Long = 0L,
         val signals: List<String> = emptyList(),
     )
 
+    @Serializable
     data class EmotionalState(
         val valence: Float = 0f,    // -1 (negative) to +1 (positive)
         val arousal: Float = 0f,     // 0 (calm) to 1 (excited)
@@ -45,6 +71,7 @@ class TheoryOfMind @Inject constructor() {
         val confidence: Float = 0.3f, // how sure we are
     )
 
+    @Serializable
     data class CommStyle(
         val verbosity: Float = 0.5f,      // 0 (terse) to 1 (verbose)
         val formality: Float = 0.5f,      // 0 (casual) to 1 (formal)
@@ -53,6 +80,7 @@ class TheoryOfMind @Inject constructor() {
         val sampleCount: Int = 0,
     )
 
+    @Serializable
     data class UserModel(
         val topics: Map<String, TopicKnowledge> = emptyMap(),
         val emotionalState: EmotionalState = EmotionalState(),
@@ -62,6 +90,29 @@ class TheoryOfMind @Inject constructor() {
 
     private val _model = MutableStateFlow(UserModel())
     val model: StateFlow<UserModel> = _model.asStateFlow()
+
+    /**
+     * Load the persisted user model. Called from `ProactiveBootstrap` on app
+     * start. A missing or corrupt file leaves the in-memory model untouched
+     * rather than clobbering it — bootstrap loads concurrently with the first
+     * turn's update, and losing that update to a no-op load would reintroduce
+     * the very reset this persistence exists to prevent.
+     */
+    suspend fun load() = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!file.exists()) return@runCatching
+            _model.value = json.decodeFromString(UserModel.serializer(), file.readText())
+        }.onFailure { Log.w("TheoryOfMind", "load failed: ${it.message}", it) }
+        Unit
+    }
+
+    /** Persist the current user model. Called after each mutation. */
+    suspend fun save() = withContext(Dispatchers.IO) {
+        runCatching {
+            file.writeText(json.encodeToString(UserModel.serializer(), _model.value))
+        }.onFailure { Log.w("TheoryOfMind", "save failed: ${it.message}", it) }
+        Unit
+    }
 
     /**
      * Update the user model from a message.

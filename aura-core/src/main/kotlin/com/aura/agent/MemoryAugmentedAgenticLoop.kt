@@ -55,6 +55,20 @@ private val CURIOSITY_TOOLS = setOf(
 )
 
 /**
+ * Tools whose execution counts as exercising a skill, for the COMPETENCE
+ * drive. Checked against [Conversation.ToolTurn.name] after a completed turn.
+ *
+ * COMPETENCE's intensity comes from `DriveSignals.lowConfidenceSkillCount`, so
+ * it rises whenever weak skills exist. Nothing satisfied it before 2026-08-08,
+ * which left it monotonically increasing and permanently at the top of
+ * `mostUrgent()`. Running a skill — directly, through a hand, or via a
+ * delegated agent — is the observable act of practising one.
+ */
+private val COMPETENCE_TOOLS = setOf(
+    "use_skill", "run_hand", "delegate_to_agent", "code_interpreter",
+)
+
+/**
  * Upper bound on how long the loop honors a 429 Retry-After before
  * retrying the same model. Servers occasionally send absurd values
  * (minutes); the user is waiting on a chat, so cap the pause.
@@ -643,9 +657,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 if (step == 1) {
                     emotionEngine.update(lastUserMessage)
                     emotionEngine.decay()
-                    // Consciousness: update user mental model from message
-                    runCatching { theoryOfMind?.updateFromMessage(lastUserMessage) }
-                        .onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}", it) }
+                    // Consciousness: update user mental model from message, then
+                    // persist. Without the save the model is discarded on every
+                    // process death, and toPrompt() stays silent until
+                    // sampleCount >= 3 — which it could almost never reach.
+                    runCatching {
+                        theoryOfMind?.updateFromMessage(lastUserMessage)
+                        theoryOfMind?.save()
+                    }.onFailure { android.util.Log.w("AgenticLoop", "ToM update failed: ${it.message}", it) }
                     // Intrinsic motivation: assess drives from observable signals.
                     // No LLM; DB cost is bounded by DriveSignals' TTL cache —
                     // at most 3 indexed COUNT queries per 5 minutes, so the
@@ -661,6 +680,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             hoursSinceLastInteraction = hoursSince,
                             contradictionCount = signals?.contradictionCount ?: 0,
                         )
+                        intrinsicMotivation?.save()
                     }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}", it) }
                 }
                 val mood = emotionEngine.moodString()
@@ -1220,16 +1240,30 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // Intrinsic motivation: CURIOSITY is satisfied only when a
             // genuinely information-seeking tool ran this turn ("any tool
             // ran" let a calendar read scratch the curiosity itch).
-            val ranCuriosityTool = currentConversation.turns.lastOrNull()
-                ?.toolTurns?.any { it.name in CURIOSITY_TOOLS } == true
+            val turnTools = currentConversation.turns.lastOrNull()?.toolTurns.orEmpty()
+            val ranCuriosityTool = turnTools.any { it.name in CURIOSITY_TOOLS }
             if (ranCuriosityTool) {
                 runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.CURIOSITY) }
+                    .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
+            }
+            // COMPETENCE is satisfied by actually exercising a skill. Until
+            // 2026-08-08 nothing called satisfy() for it, so its intensity —
+            // driven by DriveSignals.lowConfidenceSkillCount — could only ever
+            // rise, and its lastSatisfiedAt never moved. A drive that cannot be
+            // satisfied is not a drive; it is a constant that eventually wins
+            // mostUrgent() and stays there.
+            if (turnTools.any { it.name in COMPETENCE_TOOLS }) {
+                runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.COMPETENCE) }
                     .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
             }
             // Every completed user turn IS social contact — satisfy SOCIAL
             // honestly instead of letting it climb between daemon cycles.
             runCatching { intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.SOCIAL) }
                 .onFailure { android.util.Log.w("AgenticLoop", "motivation satisfy failed: ${it.message}", it) }
+            // satisfy() mutates in-memory state; persist once for the whole
+            // post-turn block rather than after each call.
+            runCatching { intrinsicMotivation?.save() }
+                .onFailure { android.util.Log.w("AgenticLoop", "motivation save failed: ${it.message}", it) }
         }
 
         // Persist the recall summary on the conversation's last

@@ -56,6 +56,11 @@ class ProactiveBootstrap @Inject constructor(
     private val agentStore: com.aura.agent.AgentStore,
     private val conversationStore: com.aura.agent.ConversationStore,
     private val integrationTokenStore: com.aura.integrations.IntegrationTokenStore? = null,
+    // Appended, not inserted: ProactiveBootstrapTest constructs this class
+    // positionally with every argument, so a parameter added mid-list is a
+    // compile break for reasons unrelated to what the test checks.
+    private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
+    private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -86,6 +91,15 @@ class ProactiveBootstrap @Inject constructor(
         // Load persisted narrative self so it survives cold starts.
         narrativeSelf?.let { ns ->
             scope.launch { runCatching { ns.load() }.onFailure { Log.w("Bootstrap", "narrative load failed: ${it.message}", it) } }
+        }
+        // Same for the other two consciousness components. Both held their
+        // state in memory only until 2026-08-08, so every cold start wiped the
+        // drive timestamps and the user model — see the class KDocs.
+        intrinsicMotivation?.let { im ->
+            scope.launch { runCatching { im.load() }.onFailure { Log.w("Bootstrap", "motivation load failed: ${it.message}", it) } }
+        }
+        theoryOfMind?.let { tom ->
+            scope.launch { runCatching { tom.load() }.onFailure { Log.w("Bootstrap", "theory-of-mind load failed: ${it.message}", it) } }
         }
         // Seed builtin agents on first run.
         scope.launch { agentStore.seedBuiltins() }

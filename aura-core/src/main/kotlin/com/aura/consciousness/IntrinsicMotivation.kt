@@ -1,9 +1,17 @@
 package com.aura.consciousness
 
+import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,17 +33,35 @@ import javax.inject.Singleton
  *
  * Drive intensity ranges from 0 (fully satisfied) to 1 (highly motivated).
  * Urgency combines intensity with time-since-last-satisfied (builds over 24h).
+ *
+ * Persistence: JSON file at `files/intrinsic_motivation.json`, same shape as
+ * [NarrativeSelf]. Loaded on app start by `ProactiveBootstrap`, saved after
+ * each [assess] and [satisfy].
+ *
+ * The drives lived only in memory until 2026-08-08, which made
+ * [DriveState.urgency]'s time-pressure term dead code: `lastSatisfiedAt` was
+ * re-stamped to *now* on every process start, so the "builds over 24h" ramp
+ * could only run while the process stayed alive — and Android reclaims it long
+ * before that. Every cold start reset the drives to their 0.3 defaults. This is
+ * the same defect ENGINEERING_HISTORY §2.4 records fixing for `EmotionEngine`;
+ * it survived here and in [TheoryOfMind].
  */
 @Singleton
-class IntrinsicMotivation @Inject constructor() {
+class IntrinsicMotivation @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val file: File get() = File(context.filesDir, "intrinsic_motivation.json")
 
+    @Serializable
     enum class DriveType { CURIOSITY, COMPETENCE, SOCIAL, COHERENCE }
 
+    @Serializable
     data class DriveState(
-        val drive: DriveType,
-        val intensity: Float,     // 0 = satisfied, 1 = highly motivated
-        val satisfaction: Float,  // 0 = unsatisfied, 1 = fully satisfied
-        val lastSatisfiedAt: Long, // epoch ms
+        val drive: DriveType = DriveType.CURIOSITY,
+        val intensity: Float = 0.3f,     // 0 = satisfied, 1 = highly motivated
+        val satisfaction: Float = 0.7f,  // 0 = unsatisfied, 1 = fully satisfied
+        val lastSatisfiedAt: Long = 0L,  // epoch ms
         val triggers: List<String> = emptyList(),
     ) {
         /** How urgent this drive is (0-1). Combines intensity with time pressure. */
@@ -47,14 +73,39 @@ class IntrinsicMotivation @Inject constructor() {
             }
     }
 
-    data class DriveAction(
-        val drive: DriveType,
-        val description: String,
-        val priority: Float, // 0-1
-    )
-
     private val _drives = MutableStateFlow<Map<DriveType, DriveState>>(defaultDrives())
     val drives: StateFlow<Map<DriveType, DriveState>> = _drives.asStateFlow()
+
+    /**
+     * Load the persisted drives. Called from `ProactiveBootstrap` on app start.
+     *
+     * Stored as a list rather than a `Map<DriveType, DriveState>`: each element
+     * already carries its own `drive`, and a list avoids relying on enum-keyed
+     * map encoding. Any drive missing from the file keeps its default, so a
+     * future new [DriveType] loads cleanly against an older file.
+     *
+     * A missing or corrupt file leaves the in-memory drives untouched rather
+     * than resetting them — bootstrap runs concurrently with the first turn's
+     * [assess], and clobbering that would reintroduce the reset this exists to
+     * prevent.
+     */
+    suspend fun load() = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!file.exists()) return@runCatching
+            val stored = json.decodeFromString(ListSerializer(DriveState.serializer()), file.readText())
+            if (stored.isEmpty()) return@runCatching
+            _drives.value = defaultDrives() + stored.associateBy { it.drive }
+        }.onFailure { Log.w("IntrinsicMotivation", "load failed: ${it.message}", it) }
+        Unit
+    }
+
+    /** Persist the current drives. Called after each [assess] and [satisfy]. */
+    suspend fun save() = withContext(Dispatchers.IO) {
+        runCatching {
+            file.writeText(json.encodeToString(ListSerializer(DriveState.serializer()), _drives.value.values.toList()))
+        }.onFailure { Log.w("IntrinsicMotivation", "save failed: ${it.message}", it) }
+        Unit
+    }
 
     /**
      * Assess all drives from observable signals.

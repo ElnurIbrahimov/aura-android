@@ -65,6 +65,7 @@ class DreamConsolidator @Inject constructor(
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
     private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
+    private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val providerRegistry: ProviderRegistry,
     private val embedder: Embedder,
     private val crashLogger: CrashLogger,
@@ -201,6 +202,18 @@ class DreamConsolidator @Inject constructor(
             try {
                 val found = detectContradictions(writtenThisCycle)
                 report = report.copy(contradictionsFound = found)
+                // COHERENCE is the drive to resolve contradictions, and its
+                // intensity comes from DriveSignals.contradictionCount. Until
+                // 2026-08-08 nothing satisfied it, so it could only climb.
+                // A completed sweep that surfaced nothing new IS the coherent
+                // state — that is the honest moment to satisfy it. A sweep that
+                // found contradictions deliberately leaves the drive raised.
+                if (found == 0) {
+                    runCatching {
+                        intrinsicMotivation?.satisfy(com.aura.consciousness.IntrinsicMotivation.DriveType.COHERENCE)
+                        intrinsicMotivation?.save()
+                    }.onFailure { android.util.Log.w("DreamConsolidator", "coherence satisfy failed: ${it.message}", it) }
+                }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {

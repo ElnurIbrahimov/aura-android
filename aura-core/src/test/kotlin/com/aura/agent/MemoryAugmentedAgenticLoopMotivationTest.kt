@@ -31,6 +31,12 @@ import org.junit.Test
  */
 class MemoryAugmentedAgenticLoopMotivationTest {
 
+    /** Context whose filesDir is a real temp dir — see ConsciousnessLayerTest.ctx(). */
+    private fun ctx(): android.content.Context {
+        val dir = kotlin.io.path.createTempDirectory("aura-motivation-test").toFile().also { it.deleteOnExit() }
+        return mockk<android.content.Context>(relaxed = true).also { every { it.filesDir } returns dir }
+    }
+
     private fun passthroughCompactor(): ConversationCompactor =
         mockk<ConversationCompactor>().also { compactor ->
             coEvery { compactor.compactIfNeeded(any(), any()) } answers { firstArg() }
@@ -115,7 +121,7 @@ class MemoryAugmentedAgenticLoopMotivationTest {
 
     @Test
     fun `assess receives real drive-signal counts, not hardcoded zeros`() = runBlocking {
-        val im = IntrinsicMotivation()
+        val im = IntrinsicMotivation(ctx())
         val signals = cannedSignals()
         val loop = buildLoop(
             brain = scriptedBrain("calendar_read"),
@@ -145,7 +151,7 @@ class MemoryAugmentedAgenticLoopMotivationTest {
 
     @Test
     fun `curiosity tool satisfies CURIOSITY after the turn`() = runBlocking {
-        val im = IntrinsicMotivation()
+        val im = IntrinsicMotivation(ctx())
         val loop = buildLoop(
             brain = scriptedBrain("web_search"),
             tools = listOf(okTool("web_search")),
@@ -167,7 +173,7 @@ class MemoryAugmentedAgenticLoopMotivationTest {
 
     @Test
     fun `non-curiosity tool leaves CURIOSITY untouched`() = runBlocking {
-        val im = IntrinsicMotivation()
+        val im = IntrinsicMotivation(ctx())
         val loop = buildLoop(
             brain = scriptedBrain("calendar_read"),
             tools = listOf(okTool("calendar_read")),
@@ -190,7 +196,7 @@ class MemoryAugmentedAgenticLoopMotivationTest {
 
     @Test
     fun `every completed turn satisfies SOCIAL`() = runBlocking {
-        val im = IntrinsicMotivation()
+        val im = IntrinsicMotivation(ctx())
         val loop = buildLoop(
             brain = scriptedBrain("calendar_read"),
             tools = listOf(okTool("calendar_read")),
