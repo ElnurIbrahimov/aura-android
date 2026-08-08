@@ -133,5 +133,42 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 2,103 unit tests (334 suites), 0 failures
-- 76 registered tools, 17 LLM providers, 7 builtin agents
+- 2,152 unit tests, 0 failures (2026-08-08 remediation sweep)
+- 76 registered tools, 17 provider configurations (6 provider classes — 11 of the 17 are
+  `OllamaCloudProvider` with a different base URL), 7 builtin agents
+
+## Prompt assembly
+
+The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order matters:
+
+1. Agent identity, specialist prompt, personality directive, conversation system prompt,
+   resolved identity, user profile — all trusted, all authored by Aura or the user.
+2. `# Retrieved context` — recalled memories, world-model beliefs, taste profile, recent topics.
+   Wrapped in `PromptFraming.UNTRUSTED_CONTEXT_PREAMBLE`, because this content is
+   attacker-reachable in one hop: the model reads a page with `read_url`, judges a line
+   memorable, calls `remember`, and the line returns inside the system message on a later turn.
+3. Mood, triggered hands, prior-attempt reflection, consciousness blocks — computed by Aura from
+   the user's own input, so deliberately *not* framed as untrusted.
+
+## Memory retrieval
+
+`MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
+`k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
+
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v17), kept current by SQL
+  triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
+  and forced a full table scan.
+- **BM25** takes its corpus size and per-term document frequency from the index rather than from
+  the candidate list, so IDF discriminates instead of collapsing to its floor.
+- **Stopword-only queries** fall back to a substring LIKE — `MATCH ''` is a SQLite syntax error,
+  not an empty result.
+- **No lexical overlap** falls back to a bounded vector scan (2,000 most-active scoped rows).
+- **Reranking** (cross-encoder, cheap model) runs over the top 20 when ≥5 candidates survive.
+
+## Consciousness layer
+
+Five components, all persisted so they survive the process death Android imposes between
+sessions: `NarrativeSelf` and `IntrinsicMotivation` and `TheoryOfMind` (JSON in `filesDir`),
+`EmotionEngine` and `AffinityTracker` (DataStore). `DriveSignals` is derived, not stored.
+
+None of them are in the backup schema — see ENGINEERING_HISTORY §3.

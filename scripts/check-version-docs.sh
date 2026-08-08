@@ -9,7 +9,12 @@ cd "$(dirname "$0")/.." || exit 1
 
 BUILD_FILE="app/build.gradle.kts"
 README="README.md"
-ARCH="docs/architecture.md"
+# The root architecture.md is the canonical one. This pointed at
+# docs/architecture.md, which was a second, drifting copy — since that file
+# carried no version line, the `grep -q versionName|versionCode` guard below
+# skipped it entirely and the check passed while it sat three releases stale.
+# docs/architecture.md is now a pointer; the real document is here.
+ARCH="architecture.md"
 
 VERSION_NAME=$(grep -oE 'versionName = "[^"]+"' "$BUILD_FILE" | head -1 | sed 's/versionName = "//;s/"//')
 VERSION_CODE=$(grep -oE 'versionCode = [0-9]+' "$BUILD_FILE" | head -1 | grep -oE '[0-9]+')
@@ -28,7 +33,7 @@ fi
 
 if [ -f "$ARCH" ] && grep -q "versionName\|versionCode" "$ARCH" 2>/dev/null; then
   if ! grep -qE "v?${VERSION_NAME}" "$ARCH" 2>/dev/null; then
-    echo "ERROR: docs/architecture.md references a version but not ${VERSION_NAME}. Update it."
+    echo "ERROR: ${ARCH} references a version but not ${VERSION_NAME}. Update it."
     fail=1
   fi
 fi

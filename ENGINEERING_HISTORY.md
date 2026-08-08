@@ -203,31 +203,89 @@ already done by 336e07c9 — the reports were stale and actively misinforming:
 - **Evolution rollback "covers 7 of 20 actions".** `EvolutionRollbackManager` now handles
   all 20.
 
+### 2.8 Lexical recall moved to FTS4 (2026-08-08)
+
+Two findings that turned out to be one problem, recorded here because the shape of the
+mistake is worth keeping.
+
+`MemoryStore.query` fetched candidates with six `content LIKE '%word%'` clauses and then
+built its BM25 index from those candidates. The six clauses were a hard six-term ceiling
+written into a DAO signature — and since the query is the user's whole message, everything
+past the sixth non-stopword was silently dropped. Vector search still saw the full text, so
+recall *degraded* rather than broke, which is exactly why eleven review passes never
+surfaced it.
+
+The IDF failure was subtler. Every candidate contained a query term by construction, so
+`df` approached `N` and `ln((N − df + 0.5) / (df + 0.5))` went negative for precisely the
+terms that should discriminate; all of them clamped to the 0.1 floor. `normalizedScore`
+then divided by the bare sum of IDF while `score` multiplies by `(k1 + 1)`, so results
+routinely clamped to exactly 1.0. Because `Retrieval.rankCandidates` fuses its six signals
+by **rank order**, a tied `textScore` is indistinguishable from no lexical signal at all —
+the pipeline was documented as "BM25 + RRF + cross-encoder reranking" and was running five
+signals and a coin flip.
+
+Neither could be fixed alone: there was no cheap way to get corpus statistics
+(`countOnce()` is unscoped, `allByScopes` is an unbounded `SELECT *` including the
+embedding BLOB), which is what FTS provides.
+
+The general lesson: **a component can be present, tested, and inert.** `BM25Test` had a
+test named `IDF weights rare terms higher` that asserted only `rareScore > 0f` — true
+whether or not IDF discriminated. It passed for the entire life of the bug. A test that
+cannot fail for the reason it is named after is worth less than no test, because it
+occupies the slot where a real one would go.
+
 ---
 
 ## 3. Still open
 
-Re-verified against HEAD on 2026-08-07 (v0.65.0, sweep merged to `main`). This is the
-section to maintain. Items the sweep closed — stale dependencies, the AgentRun one-way
-approval loop, the missing schema exports 7–10, the single global permission slot, and
-the four known-flaky time-dependent test classes — have been removed; see §2.0.
+Re-verified against HEAD on 2026-08-08. This is the section to maintain. Items closed by
+the 2026-08-06/07 sweep — stale dependencies, the AgentRun one-way approval loop, the
+missing schema exports 7–10, the single global permission slot, and the four known-flaky
+time-dependent test classes — have been removed; see §2.0.
 
-Every Correctness row below was re-read against HEAD on 2026-08-07 rather than copied
-forward, which §4 names as the failure mode of the earlier passes. All three still hold.
-Baseline at that check: 2,104 unit tests / 334 suites, 0 failures; `assembleRelease`
-(R8 + resource shrinking) succeeds, 11.96 MB APK; `lintDebug` clean of errors
-(77 warnings across both modules).
+Baseline at the 2026-08-08 check: **2,152 unit tests, 0 failures**; `assembleRelease`
+(R8 + resource shrinking) succeeds, 11.97 MB APK; `lintDebug` clean of errors (18 warnings
+across both modules); `lint-logging.sh` and `check-version-docs.sh` both pass.
 
-The 2026-08-07 pass fixed five things that had escaped eleven prior reviews, all of
-which lived in the seams *between* code and process rather than in the code itself:
-CI was red on `main` (the `lint-logging.sh` gate is step one, so nothing after it had
-run); `scripts/check-version-docs.sh` existed but was never wired into `ci.yml`, and
-was failing; `extractDocx` read `word/document.xml` with an unbounded `readBytes()`
-(WordprocessingML deflates ~344:1, so a 3 MB file — under the 20 MB input cap — expands
-to ~1 GB and OOMs the process); `app/build.gradle.kts` declared the `androidx.hilt`
-KSP processor as `implementation`, putting it and its codegen chain on the release
-runtime classpath (−434 KB APK once removed); and `architecture.md` claimed the WebView
-had "cookies disabled" when no `CookieManager` was ever configured.
+### The 2026-08-08 remediation sweep
+
+An external review verified the project's own claims by building and running it — test
+count, APK size, tool count, lint state all matched exactly — and then found eleven
+defects. Five branches, one per phase, each gated on the full suite plus `assembleRelease`
+plus lint before the next began. What it closed, and why each mattered more than it looked:
+
+- **Sequential tool steps replayed as a fabricated parallel batch.** The loop only opens a
+  new `Turn` when a step produces assistant text, so a tool-only step — the normal shape
+  for a tool-calling model with extended thinking on — appended its calls to the previous
+  step's turn, and `toMessages` emitted them as one assistant message. A search-then-read
+  chain claimed the model had asked for both at once. Structurally valid for every
+  provider, so nothing rejected it. Fixed by tagging `ToolTurn.step` and grouping on it.
+- **Retrieved content entered the system prompt unframed.** Recalled memories, beliefs,
+  taste and topics were appended bare beside Aura's identity. That content is
+  attacker-reachable in one hop (`read_url` → `remember` → recalled into a later system
+  message). `toMessages` and both summarisation prompts already framed theirs; the
+  highest-trust region was the one place that did not.
+- **Consciousness state evaporated on every cold start.** `IntrinsicMotivation` and
+  `TheoryOfMind` had no persistence path — the same defect §2.4 records fixing for
+  `EmotionEngine`, surviving in two siblings. `DriveState.urgency`'s 24-hour ramp was
+  therefore unreachable code, and `TheoryOfMind.toPrompt()`'s 3-sample threshold could
+  effectively never be met. Two of the four drives (`COMPETENCE`, `COHERENCE`) also had no
+  `satisfy()` caller at all, so they could only ever climb.
+- **BM25's IDF was computed over the wrong corpus**, and lexical recall was capped at six
+  query terms by a DAO signature. Both fixed together by moving to FTS4 — see §2.8.
+- **Four source-scanning tests could pass having read nothing**, including one carrying a
+  literal `if (!dir.exists()) continue`. §2.6 records this defect being eliminated from
+  one test; it was still present in four others.
+- Plus: `filterSearchTools`' KDoc stated the opposite of its body, `ReasoningTree`
+  understated its own cost 2×, 17 log sites were wrapped in `catch (_: RuntimeException)
+  {}` to appease tests, two `architecture.md` files disagreed, and `releases/` held 2.5 GB
+  of stale APKs.
+
+Two bugs were found *by the new tests* rather than by the review, and both would have
+shipped silently: Room's `createAllTables` does not create triggers, so a fresh install
+would have carried a permanently empty FTS index; and SQLite runs `INSERT OR REPLACE`'s
+implicit deletion without firing DELETE triggers, so every replace orphaned an index row
+and inflated the document frequencies BM25 had just started depending on.
 
 ### Correctness
 
@@ -235,7 +293,10 @@ had "cookies disabled" when no `CookieManager` was ever configured.
 |------|--------|
 | `ToolExecutor` pins an IO thread per tool | `runInterruptible(Dispatchers.IO) { runBlocking { … } }` occupies an IO thread for the tool's whole duration, including for purely-suspending tools that would otherwise release it. Bounded to 8 via `limitedParallelism`. **Cancellation itself is correct** — see `ToolExecutorCancellationProbeTest`. |
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |
-| Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–16 are all committed now and the full-chain migration test validates the end state, but individual hops inside 6..10 still have no per-step data assertion. |
+| Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–17 are all committed and the chain test now runs 6→17 (it stopped at 14 until 2026-08-08, leaving `MIGRATION_14_15` and `MIGRATION_15_16` with no coverage at all), but individual hops inside 6..10 still have no per-step data assertion. |
+| No consciousness state is in the backup schema | `NarrativeSelf`, `EmotionEngine`, `AffinityTracker`, `IntrinsicMotivation` and `TheoryOfMind` all persist locally, and none survive export/restore. Deliberately left out of the 2026-08-08 sweep: adding one blob would have set an inconsistent precedent for the other four. Fix is one `AuraBackupSchema18.kt` covering all five, plus a `restoreConsciousness` in the non-fatal post-restore block of `BackupManager.restore`. |
+| BM25 document frequency costs one FTS probe per query term | Bounded by `MAX_QUERY_TERMS` (24) and each probe is an index lookup, so it is cheap — but FTS4's `matchinfo()` would return the whole corpus statistic in the same query that fetches candidates. It needs `@RawQuery` plus manual BLOB parsing, and there is no `@RawQuery` precedent in `MemoryDao`. Recorded rather than done. |
+| Bigram IDF still comes from the candidate set | `BM25.tokenize` emits words *and* adjacent bigrams; only the unigrams get a corpus document frequency, because measuring every bigram would double the probe count for a term class that is rare by construction. Bigrams fall back to candidate-set `df`, which is the pre-2026-08-08 behaviour for that subset. |
 
 ### Dependencies and configuration
 
@@ -245,7 +306,8 @@ had "cookies disabled" when no `CookieManager` was ever configured.
 | The version catalog does not describe what ships | `libs.versions.toml` declares `lifecycle 2.8.7` and `coreKtx 1.13.1`; the app actually resolves `2.11.0` and `1.16.0`, because the Compose BOM's constraints win. Anyone reading the catalog gets the wrong answer, and a future BOM change would silently drop the app back two years. `activity`/`activity-compose` really are pinned at `1.9.3` (Oct 2024) against Compose BOM `2026.06.01`. Align the declared versions with the resolved ones. |
 | `targetSdk 35` against `compileSdk 37` | Two platform releases behind, so Android 16/17 compatibility modes apply; `lint` flags it as `OldTargetApi`. No Play deadline applies — this is a sideloaded personal build — so it is a behavioural-currency item, not a compliance one. Raising it needs a device pass over the permission, notification, and foreground-service paths. |
 | `AskAuraWidget` is an exported receiver with an unprotected custom action | `exported="true"` is required for `APPWIDGET_UPDATE`, but the same filter also accepts `com.aura.action.REFRESH_WIDGET` from any app on the device. Worst case is a forced `MemoryStore.recent(1)` read plus a widget redraw — battery, not disclosure. Sending the refresh as an explicit `Intent` and dropping the action from the filter would close it; it needs a device to verify widget refresh still works. |
-| `unitTests.isReturnDefaultValues = true` in both modules | Deliberate, and documented in `aura-core/build.gradle.kts` for `android.util.Log`. The cost is that *any* unmocked Android framework call returns 0/null/false instead of throwing, so a test can pass over a framework call the production path depends on. |
+| `unitTests.isReturnDefaultValues = true` in both modules | Deliberate, and documented in `aura-core/build.gradle.kts` for `android.util.Log`. The cost is that *any* unmocked Android framework call returns 0/null/false instead of throwing, so a test can pass over a framework call the production path depends on. It also leaked into production once: 17 `Log.w` calls were wrapped in `catch (_: RuntimeException) {}` "because Log is unavailable in pure JVM tests", which made a deliberately-silent catch indistinguishable from an accidental one. Removed 2026-08-08. |
+| `releases/` is an untracked local artifact directory | Gitignored, so it never bloated history — but nothing prunes it either, and it had reached 69 APKs / 2.5 GB before 2026-08-08. Now holds the current build plus two. It will grow again. |
 
 ### Coverage
 

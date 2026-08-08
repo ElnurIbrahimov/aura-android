@@ -8,7 +8,7 @@ This is my personal copy.
 
 ## Status
 
-**v0.65.0** (versionCode 80) — after the 2026-08-06/07 A-grade sweep (P0 correctness, reliability, consciousness wiring, evolution rebuild, calendar/capture rework, UI fixes, toolchain upgrade, verification pass).
+**v0.65.0** (versionCode 80) — after the 2026-08-06/07 A-grade sweep (P0 correctness, reliability, consciousness wiring, evolution rebuild, calendar/capture rework, UI fixes, toolchain upgrade) and the 2026-08-08 review remediation (tool-history fidelity, untrusted-context framing, consciousness persistence, FTS4 recall with corpus-weighted BM25, source-scan test integrity). See [ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §2.8 and §3.
 
 - 76 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
@@ -19,7 +19,7 @@ This is my personal copy.
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign — stage-specific prompts)
 - Skills (installable skill cards, skill-backed tool dispatch)
-- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + BM25 + cross-encoder reranking + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
+- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + cross-encoder reranking + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
 - Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
@@ -29,7 +29,7 @@ This is my personal copy.
 - 17 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Mixture-of-Agents, Mistral, xAI Grok, Together AI, Cerebras, NVIDIA NIM, Meta Llama, Agnes AI, ChatGPT subscription, Custom OpenAI-compatible endpoint)
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
-- Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach)
+- Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts; none are in the backup schema yet.
 - 4-tab bottom nav (Home, Chat, Memory, Settings) + 21 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, continuous voice mode, voice call UI)
 - Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 15-min calendar check worker (Calendar Instances API, 30-min lookahead, persisted dedup — no foreground service) + daemon thinking worker (configurable interval, default 60 min, network-connected + battery-not-low constraints, background model; council debates off by default)
@@ -54,7 +54,7 @@ This is my personal copy.
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v16, 11 Room databases, snapshot-rollback when a restore fails mid-import — pre-existing data survives)
-- 326 unit test files, 2,014 tests, 0 failures
+- 2,152 unit tests, 0 failures
 - 64 instrumented test methods (Room migration chains + app smoke tests) — run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -328,7 +328,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v16 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes |
+| MemoryDatabase | v17 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v5 | Proactive events with structured payload |
 | TaskDatabase | v5 | Tasks + reminders |
@@ -428,6 +428,13 @@ aura-android/
 - Testing: JUnit 4, MockK, Turbine, Robolectric 4.16.1, kotlinx-coroutines-test, OkHttp MockWebServer
 - minSdk 26 (Android 8.0), targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking with targeted keep rules; upload-keystore signing via `local.properties`
+
+## Releases
+
+`releases/` holds local build artifacts and the release notes. Only the `RELEASE_NOTES_*.md`
+files are tracked — APKs are gitignored (~36 MB each; they would bloat history permanently).
+The directory had accumulated 69 of them, 2.5 GB, going back to v0.26.0. It now keeps the
+current build and the two before it; prune it again when it grows.
 
 ## Changelog
 
