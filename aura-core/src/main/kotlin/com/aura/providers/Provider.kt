@@ -84,6 +84,22 @@ interface Provider {
     val imagesEndpoint: String? get() = null
 
     /**
+     * The provider's OpenAI-shaped `/videos` endpoint, or null when it has none.
+     *
+     * Less standardised than the others — OpenAI itself only shipped a video
+     * API recently — so a provider whose video API differs in shape should
+     * leave this null and be served by a hand-written [com.aura.capabilities]
+     * adapter instead, as Kling is.
+     */
+    val videosEndpoint: String? get() = null
+
+    /** The provider's OpenAI-shaped `/audio/speech` (text-to-speech) endpoint, or null. */
+    val speechEndpoint: String? get() = null
+
+    /** The provider's OpenAI-shaped `/audio/transcriptions` (speech-to-text) endpoint, or null. */
+    val transcriptionsEndpoint: String? get() = null
+
+    /**
      * Cancel an in-flight request. Implementations should propagate to the underlying HTTP/SDK call.
      */
     suspend fun cancel()

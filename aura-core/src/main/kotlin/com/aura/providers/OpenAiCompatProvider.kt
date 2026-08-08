@@ -60,6 +60,21 @@ open class OpenAiCompatProvider(
     override val imagesEndpoint: String get() = "$baseUrl/images/generations"
 
     /**
+     * The remaining OpenAI-shaped capability paths, by the same convention and
+     * for the same reason: advertised unconditionally rather than gated on a
+     * per-provider allowlist, because such a list rots and absence from it is a
+     * silent "no". A provider that does not serve one returns an HTTP error,
+     * which the capability tools handle visibly.
+     *
+     * These are what let a provider's non-chat models be reached at all. A
+     * catalog entry classified as [ModelCapability.Video] is useless without a
+     * URL to POST it to, which is why discovery pairs the two.
+     */
+    override val videosEndpoint: String get() = "$baseUrl/videos"
+    override val speechEndpoint: String get() = "$baseUrl/audio/speech"
+    override val transcriptionsEndpoint: String get() = "$baseUrl/audio/transcriptions"
+
+    /**
      * The current API key, looked up at call time. Returns blank if the user
      * hasn't set a key for this provider; [isConfigured] will return false in
      * that case and the chat request will fail with a clear 401.
