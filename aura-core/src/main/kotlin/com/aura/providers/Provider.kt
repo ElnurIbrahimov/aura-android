@@ -45,6 +45,24 @@ interface Provider {
     }
 
     /**
+     * The provider's OpenAI-shaped `/images/generations` endpoint, or null when
+     * it has none.
+     *
+     * `ImageGenTool` hardcoded `https://api.openai.com/v1/images/generations`
+     * and read the OpenAI key, so image generation could only ever use OpenAI
+     * or the free Pollinations fallback — no other configured provider was
+     * reachable, however capable. Agnes AI, for instance, advertises
+     * `agnes-image-2.1-flash` in its catalog and serves it from exactly this
+     * endpoint, and there was no way to get to it.
+     *
+     * Exposed here rather than by making `baseUrl` public because that is the
+     * only thing the caller needs, and a provider whose image API is not
+     * OpenAI-shaped can decline by leaving this null rather than advertising a
+     * URL that would be called wrongly.
+     */
+    val imagesEndpoint: String? get() = null
+
+    /**
      * Cancel an in-flight request. Implementations should propagate to the underlying HTTP/SDK call.
      */
     suspend fun cancel()

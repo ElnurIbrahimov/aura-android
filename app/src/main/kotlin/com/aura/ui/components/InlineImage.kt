@@ -48,12 +48,21 @@ private val sharedImageClient by lazy {
  */
 private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
     runCatching {
+        // Not every generated image arrives as an http(s) URL. The OpenAI
+        // images schema also allows inline base64, which ImageGenTool decodes
+        // to a cache file and hands back as a file:// URI — OkHttp rejects
+        // that scheme outright, so those images silently failed to render
+        // (a spinner, then an empty box, with the bitmap null).
+        if (url.startsWith("file://") || url.startsWith("/")) {
+            val path = if (url.startsWith("file://")) android.net.Uri.parse(url).path else url
+            return@runCatching path?.let { BitmapFactory.decodeFile(it) }
+        }
         val request = Request.Builder().url(url).build()
         val response = sharedImageClient.newCall(request).execute()
         if (!response.isSuccessful) return@withContext null
         val bytes = response.body?.bytes() ?: return@withContext null
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }.onFailure { Log.w("InlineImage", "runCatching failed: ${it.message}", it) }.getOrNull()
+    }.onFailure { Log.w("InlineImage", "image load failed for $url: ${it.message}", it) }.getOrNull()
 }
 
 /**

@@ -48,6 +48,18 @@ open class OpenAiCompatProvider(
     @Volatile private var activeEventSource: EventSource? = null
 
     /**
+     * Every OpenAI-compatible base URL exposes this path by convention.
+     *
+     * Advertised unconditionally rather than gated on a per-provider allowlist:
+     * such a list would need updating whenever a provider adds image support,
+     * and being absent from it is a silent "no" that nobody would think to
+     * check. Providers that do not serve images return an HTTP error, which
+     * `ImageGenTool` already handles by falling back to Pollinations — a
+     * visible failure with a working result, rather than an invisible one.
+     */
+    override val imagesEndpoint: String get() = "$baseUrl/images/generations"
+
+    /**
      * The current API key, looked up at call time. Returns blank if the user
      * hasn't set a key for this provider; [isConfigured] will return false in
      * that case and the chat request will fail with a clear 401.
@@ -165,11 +177,11 @@ open class OpenAiCompatProvider(
                     )
                 }
                 data.mapNotNull { item ->
-                    (item as? JsonObject)
-                        ?.get("id")
-                        ?.let { it as? JsonPrimitive }
-                        ?.content
-                        ?.takeIf(String::isNotBlank)
+                    val obj = item as? JsonObject ?: return@mapNotNull null
+                    val id = (obj["id"] as? JsonPrimitive)?.content?.takeIf(String::isNotBlank)
+                        ?: return@mapNotNull null
+                    if (!canChat(obj, id)) return@mapNotNull null
+                    id
                 }.ifEmpty { throw ProviderCatalogException.EmptyCatalogException() }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -184,6 +196,48 @@ open class OpenAiCompatProvider(
                 e,
             )
         }
+    }
+
+    /**
+     * Whether a `/models` catalog entry can hold a conversation.
+     *
+     * `/v1/models` is not a list of chat models. Agnes AI returns
+     * `agnes-image-2.1-flash` alongside its chat models, and selecting it in
+     * the chat picker produced:
+     *
+     *     HTTP 400 {"code":"invalid_request","message":"Model
+     *     agnes-image-2.1-flash is an image model. Use /v1/images/generations."}
+     *
+     * — a model in the picker that could never answer. `f69f353a` fixed this
+     * for ChatGPT and Gemini, but per-provider; every OpenAI-compatible
+     * provider shared this unfiltered path.
+     *
+     * Two-stage, and the order matters. Ask the catalog first: some providers
+     * label entries (`type`, `object`, `capabilities`, `modality`), and a
+     * declared answer beats any guess. Only when the entry declares nothing do
+     * we fall back to the id, which [GeminiProvider.supportsChat] rightly warns
+     * against as a sole strategy — "new families keep arriving and a name-based
+     * filter would silently drop real chat models or admit new image ones."
+     *
+     * The fallback is therefore deliberately narrow: whole `-` or `_` delimited
+     * segments only, so `gpt-image-1` is excluded but a hypothetical
+     * `imagen-reasoner` or `visionary-7b` is not. An unrecognised entry is
+     * KEPT — a model that errors on use is a smaller failure than a real chat
+     * model silently missing from the picker.
+     */
+    internal fun canChat(entry: JsonObject, id: String): Boolean {
+        val declared = listOf("type", "object", "modality", "model_type")
+            .mapNotNull { (entry[it] as? JsonPrimitive)?.content?.lowercase() }
+        if (declared.isNotEmpty()) {
+            // "model" is OpenAI's generic `object` value and says nothing about
+            // capability, so it does not count as a declaration either way.
+            val informative = declared.filter { it != "model" }
+            if (informative.isNotEmpty()) {
+                return informative.none { it in NON_CHAT_DECLARATIONS }
+            }
+        }
+        val segments = id.lowercase().split('-', '_', '/', '.').toSet()
+        return segments.none { it in NON_CHAT_ID_SEGMENTS }
     }
 
     override suspend fun cancel() {
@@ -288,6 +342,37 @@ open class OpenAiCompatProvider(
 
         /** HTTP statuses that won't fix themselves on retry/failover. */
         internal val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 422)
+
+        /**
+         * Values of a catalog entry's declared type/modality that mean "not a
+         * chat model". Checked before any id heuristic — see [canChat].
+         */
+        internal val NON_CHAT_DECLARATIONS = setOf(
+            "image", "images", "image_generation", "text-to-image",
+            "video", "video_generation", "text-to-video",
+            "embedding", "embeddings", "text_embedding",
+            "audio", "speech", "tts", "text-to-speech", "transcription", "stt",
+            "moderation", "rerank", "reranker",
+        )
+
+        /**
+         * Id segments that identify a non-chat model when the entry declares
+         * nothing. Matched as whole `-`/`_`/`/`/`.` delimited segments, never as
+         * substrings: "image" must not match "imagen-reasoner", and "tts" must
+         * not match "gpt-4o-tts-preview"'s neighbours. Narrow on purpose — an
+         * unrecognised entry is kept, because a model that errors when used is
+         * a smaller failure than a real chat model missing from the picker.
+         */
+        internal val NON_CHAT_ID_SEGMENTS = setOf(
+            "image", "images", "imagegen",
+            // "dall" rather than "dall-e": splitting on '-' makes the segments
+            // of `dall-e-3` [dall, e, 3], and "e" is far too short to match on.
+            "dall", "midjourney", "flux", "stability", "sd",
+            "video", "veo", "sora", "kling", "runway",
+            "embed", "embedding", "embeddings",
+            "tts", "stt", "whisper", "speech", "transcribe", "audio",
+            "moderation", "rerank", "reranker",
+        )
 
         /**
          * Parse a `Retry-After` header (delta-seconds form) into
