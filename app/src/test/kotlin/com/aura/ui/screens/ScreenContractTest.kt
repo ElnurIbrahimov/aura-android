@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.testing.requireNonEmpty
+import com.aura.testing.sourceDir
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -16,7 +18,7 @@ import kotlin.test.assertTrue
 class ScreenContractTest {
 
     private val projectRoot = File(System.getProperty("user.dir"))
-    private val screenDir = File(projectRoot, "src/main/kotlin/com/aura/ui/screens")
+    private val screenDir = sourceDir("src/main/kotlin/com/aura/ui/screens")
     private val navGraphFile = File(projectRoot, "src/main/kotlin/com/aura/ui/nav/NavGraph.kt")
 
     @Test
@@ -24,6 +26,10 @@ class ScreenContractTest {
         val violations = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith("Screen.kt") }
+            // Without this, a rename of the *Screen.kt convention would leave
+            // an empty file list and the assertion below would pass having
+            // checked nothing.
+            .requireNonEmpty("Screen.kt files")
             .forEach { file ->
                 val content = file.readText()
                 if (!content.contains("@Composable")) {

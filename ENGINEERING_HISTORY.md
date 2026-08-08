@@ -171,11 +171,27 @@ Three defects where tests verified syntax rather than behavior, or nothing at al
 - **`NavigationReachabilityTest` had the same silent-skip defect** — a hardcoded
   `D:/aura-android-clean` path and a bare `return` when nothing matched. Now uses relative
   paths and fails loudly.
-- **Three source-scanning tests were kept deliberately** (`AuraPaletteBoundaryTest`,
-  `InsetOwnershipPolicyTest`, `NavigationReachabilityTest`) — they check architectural
-  boundaries with no runtime equivalent. The distinction that matters: scanning source to
-  enforce a boundary is legitimate; scanning source to verify behavior that is directly
-  testable is not.
+- **Source-scanning tests were kept deliberately** — they check architectural boundaries
+  with no runtime equivalent. The distinction that matters: scanning source to enforce a
+  boundary is legitimate; scanning source to verify behavior that is directly testable is
+  not.
+
+  *Corrected 2026-08-08:* this bullet said "three" and named `AuraPaletteBoundaryTest`,
+  `InsetOwnershipPolicyTest`, `NavigationReachabilityTest`. There are **nine**, across both
+  modules — the three above plus `ScreenContractTest`, `ExtendedScreenContractTest`,
+  `ScreenViewModelWiringTest`, `StartupThemeContractTest`, `SilentRunCatchingAuditTest` and
+  `AgentRunExecutorWorkerParallelContractTest`, ~23 test methods in total.
+
+  More important than the count: **the silent-skip defect this section claims to have
+  eliminated was still present in four of them.** `ScreenViewModelWiringTest` carried a
+  literal `if (!dir.exists()) continue`, and `ScreenContractTest`,
+  `ExtendedScreenContractTest` and `SilentRunCatchingAuditTest` resolved
+  `File(System.getProperty("user.dir"), …)` with no existence check — so a working-directory
+  change would have left every one of them scanning an empty file list and reporting no
+  violations. The five that already failed loudly did so because they read *named files*
+  (`readText()` throws) or used `?: error(...)` on a candidate list. Closed 2026-08-08: all
+  scans now go through a `sourceDir` / `requireNonEmpty` pair per module, and
+  `SourceScanGuardTest` asserts that both guards actually throw.
 
 ### 2.7 Resolved despite being repeatedly listed as deferred
 

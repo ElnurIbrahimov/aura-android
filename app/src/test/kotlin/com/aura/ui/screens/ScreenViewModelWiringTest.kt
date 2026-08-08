@@ -1,7 +1,8 @@
 package com.aura.ui.screens
 
+import com.aura.testing.requireNonEmpty
+import com.aura.testing.sourceDir
 import org.junit.Test
-import java.io.File
 import kotlin.test.assertTrue
 
 /**
@@ -19,11 +20,17 @@ import kotlin.test.assertTrue
  */
 class ScreenViewModelWiringTest {
 
-    private val projectRoot = File(System.getProperty("user.dir"))
-    private val screenDir = File(projectRoot, "src/main/kotlin/com/aura/ui/screens")
-    private val vmDir = File(projectRoot, "src/main/kotlin/com/aura/ui/viewmodel")
-    private val settingsVmDir = File(projectRoot, "src/main/kotlin/com/aura/ui/settings")
-    private val evolutionVmDir = File(projectRoot, "src/main/kotlin/com/aura/ui/evolution")
+    // Resolved through sourceDir so an unresolvable path is fatal rather than
+    // silently yielding an empty scan. This file previously held the clearest
+    // instance of that defect: `if (!dir.exists()) continue` below meant a
+    // wrong working directory produced an empty ViewModel set, and the
+    // "referenced ViewModel still exists" test then reported no violations
+    // because it had nothing to compare against.
+    private val screenDir = sourceDir("src/main/kotlin/com/aura/ui/screens")
+    private val vmDir = sourceDir("src/main/kotlin/com/aura/ui/viewmodel")
+    private val settingsVmDir = sourceDir("src/main/kotlin/com/aura/ui/settings")
+    private val evolutionVmDir = sourceDir("src/main/kotlin/com/aura/ui/evolution")
+    private val voiceDir = sourceDir("src/main/kotlin/com/aura/ui/voice")
 
     @Test
     fun `every ViewModel referenced by a screen still exists`() {
@@ -32,12 +39,12 @@ class ScreenViewModelWiringTest {
                 vmDir,
                 settingsVmDir,
                 evolutionVmDir,
-                File(projectRoot, "src/main/kotlin/com/aura/ui/voice"),
-                File(projectRoot, "src/main/kotlin/com/aura/ui/screens"),
+                voiceDir,
+                screenDir,
             )) {
-                if (!dir.exists()) continue
                 dir.walkTopDown()
                     .filter { it.isFile && it.name.endsWith(".kt") }
+                    .requireNonEmpty("Kotlin sources under ${dir.name}")
                     .forEach { file ->
                         file.readText()
                             .split("\n")
@@ -51,9 +58,15 @@ class ScreenViewModelWiringTest {
             }
         }
 
+        // An empty set would make every screen reference look "broken", which
+        // would fail loudly — but assert it anyway so the failure names the
+        // real cause instead of listing every ViewModel in the app.
+        assertTrue(allVmNames.isNotEmpty(), "harvested no ViewModel class names — the scan found nothing to compare against")
+
         val brokenRefs = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
+            .requireNonEmpty("screen source files")
             .forEach { file ->
                 val content = file.readText()
                 // Every capitalized *ViewModel identifier used in the file
@@ -88,6 +101,7 @@ class ScreenViewModelWiringTest {
         val suspicious = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith("Screen.kt") && it.name !in noVmScreens }
+            .requireNonEmpty("Screen.kt files")
             .forEach { file ->
                 val content = file.readText()
                 val usesStateFlow = content.contains("collectAsState") ||

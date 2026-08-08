@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.testing.requireNonEmpty
+import com.aura.testing.sourceDir
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -17,13 +19,20 @@ import kotlin.test.assertTrue
 class ExtendedScreenContractTest {
 
     private val projectRoot = File(System.getProperty("user.dir"))
-    private val screenDir = File(projectRoot, "src/main/kotlin/com/aura/ui/screens")
+
+    /**
+     * Resolved via [sourceDir] so a working-directory change fails loudly.
+     * Every test below walks this tree and asserts a violations list is empty —
+     * which an unresolvable directory satisfies trivially, having read nothing.
+     */
+    private val screenDir = sourceDir("src/main/kotlin/com/aura/ui/screens")
 
     @Test
     fun `all screen files use collectAsStateWithLifecycle not collectAsState`() {
         val violations = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
+            .requireNonEmpty("screen source files")
             .forEach { file ->
                 val content = file.readText()
                 // Check for collectAsState() without WithLifecycle
@@ -40,6 +49,7 @@ class ExtendedScreenContractTest {
         val violations = mutableListOf<Pair<String, Int>>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
+            .requireNonEmpty("screen source files")
             .forEach { file ->
                 val content = file.readText()
                 val count = Regex("MaterialTheme\\.colorScheme\\.\\w+")
@@ -57,6 +67,7 @@ class ExtendedScreenContractTest {
         val violations = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith("Route.kt") }
+            .requireNonEmpty("Route.kt files")
             .forEach { file ->
                 val content = file.readText()
                 val funcName = file.nameWithoutExtension
@@ -73,6 +84,7 @@ class ExtendedScreenContractTest {
         val violations = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith("Screen.kt") }
+            .requireNonEmpty("Screen.kt files")
             .forEach { file ->
                 val content = file.readText()
                 val funcName = file.nameWithoutExtension
@@ -89,6 +101,7 @@ class ExtendedScreenContractTest {
         val violations = mutableListOf<String>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
+            .requireNonEmpty("screen source files")
             .forEach { file ->
                 val content = file.readText()
                 if (content.contains("TODO") || content.contains("FIXME")) {
@@ -104,6 +117,7 @@ class ExtendedScreenContractTest {
         val violations = mutableListOf<Pair<String, Int>>()
         screenDir.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
+            .requireNonEmpty("screen source files")
             .forEach { file ->
                 val lines = file.readLines().size
                 if (lines > 1200) {
