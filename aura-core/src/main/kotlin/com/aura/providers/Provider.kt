@@ -45,6 +45,27 @@ interface Provider {
     }
 
     /**
+     * Every model this provider exposes, each labelled with what it can do —
+     * **including the ones [listModels] deliberately hides.**
+     *
+     * That distinction is the whole point. [listModels] filters non-chat models
+     * out, because its consumers are the chat picker and the agentic loop's
+     * failover, and offering an image model there produced
+     * `HTTP 400 … "Model agnes-image-2.1-flash is an image model."`. But the
+     * same filtering meant nothing in the app could ever *see* that a
+     * configured provider has image or video models, so capability backends had
+     * to be hand-written per vendor and a new token lit up nothing but chat.
+     *
+     * This is the unfiltered view, for capability discovery only. Do not use it
+     * to populate anything conversational.
+     *
+     * Default implementation assumes a chat-only provider, which is correct for
+     * every provider that does not serve other modalities.
+     */
+    suspend fun listModelsWithCapability(): List<ClassifiedModel> =
+        listModels().map { ClassifiedModel(name = it, capability = ModelCapability.Chat) }
+
+    /**
      * The provider's OpenAI-shaped `/images/generations` endpoint, or null when
      * it has none.
      *

@@ -228,19 +228,22 @@ class ModelCatalogRepository @Inject constructor(
         val timeoutMs = timeouts[prefix] ?: defaultTimeoutMs
 
         return try {
-            val modelNames = withTimeout(timeoutMs) {
-                provider.listModels()
+            // listModelsWithCapability, not listModels: the latter filters
+            // non-chat entries out, so the catalog never learned that a
+            // configured provider also serves image or video models — which is
+            // why capability backends had to be hand-written per vendor.
+            // Consumers that offer models for conversation filter on
+            // ModelCapability.isChatUsable; see ModelDescriptor.capability.
+            val classified = withTimeout(timeoutMs) {
+                provider.listModelsWithCapability()
             }
-            val descriptors = if (modelNames.isEmpty()) {
-                emptyList()
-            } else {
-                modelNames.map { modelName ->
-                    ModelDescriptor(
-                        id = "$prefix:$modelName",
-                        name = modelName,
-                        providerPrefix = prefix,
-                    )
-                }
+            val descriptors = classified.map { model ->
+                ModelDescriptor(
+                    id = "$prefix:${model.name}",
+                    name = model.name,
+                    providerPrefix = prefix,
+                    capability = model.capability,
+                )
             }
 
             if (descriptors.isEmpty()) {

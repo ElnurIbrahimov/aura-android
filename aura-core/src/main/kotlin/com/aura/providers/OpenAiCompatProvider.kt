@@ -136,7 +136,28 @@ open class OpenAiCompatProvider(
             if (activeEventSource === sourceHolder) activeEventSource = null
         }
     }
-    override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
+    /**
+     * Chat-usable models only. Non-chat entries are filtered out here because
+     * every consumer of this method is conversational — the picker, the model
+     * catalog, the agentic loop's failover. Capability discovery needs the
+     * unfiltered view: see [listModelsWithCapability].
+     */
+    override suspend fun listModels(): List<String> =
+        fetchCatalog().filter { it.capability.isChatUsable }.map { it.name }
+            .ifEmpty { throw ProviderCatalogException.EmptyCatalogException() }
+
+    /**
+     * Every catalog entry, classified — nothing filtered.
+     *
+     * Note it does NOT throw [ProviderCatalogException.EmptyCatalogException]
+     * on an all-non-chat catalog, unlike [listModels]: a provider that serves
+     * only image models has a perfectly good catalog, it just has nothing to
+     * say to a chat picker.
+     */
+    override suspend fun listModelsWithCapability(): List<ClassifiedModel> = fetchCatalog()
+
+    /** Fetch and classify `/models` once; both public views read from this. */
+    private suspend fun fetchCatalog(): List<ClassifiedModel> = withContext(Dispatchers.IO) {
         val key = apiKey()
         try {
             val request = Request.Builder()
@@ -180,8 +201,7 @@ open class OpenAiCompatProvider(
                     val obj = item as? JsonObject ?: return@mapNotNull null
                     val id = (obj["id"] as? JsonPrimitive)?.content?.takeIf(String::isNotBlank)
                         ?: return@mapNotNull null
-                    if (!canChat(obj, id)) return@mapNotNull null
-                    id
+                    ClassifiedModel(name = id, capability = classify(obj, id))
                 }.ifEmpty { throw ProviderCatalogException.EmptyCatalogException() }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -225,7 +245,24 @@ open class OpenAiCompatProvider(
      * KEPT — a model that errors on use is a smaller failure than a real chat
      * model silently missing from the picker.
      */
-    internal fun canChat(entry: JsonObject, id: String): Boolean {
+    internal fun canChat(entry: JsonObject, id: String): Boolean =
+        classify(entry, id).isChatUsable
+
+    /**
+     * What a `/models` catalog entry actually is.
+     *
+     * The same two-stage rule [canChat] documents, but keeping the answer
+     * instead of collapsing it to a boolean. Knowing a model is specifically an
+     * *image* model — not merely "not chat" — is what lets a configured token's
+     * non-chat models be routed to the right capability backend automatically,
+     * rather than requiring a hand-written adapter per vendor.
+     *
+     * Returns [ModelCapability.Unknown] rather than guessing, and `Unknown`
+     * counts as chat-usable, preserving the bias [canChat] established: a model
+     * that errors when used announces itself, a real chat model missing from
+     * the picker does not.
+     */
+    internal fun classify(entry: JsonObject, id: String): ModelCapability {
         val declared = listOf("type", "object", "modality", "model_type")
             .mapNotNull { (entry[it] as? JsonPrimitive)?.content?.lowercase() }
         if (declared.isNotEmpty()) {
@@ -233,11 +270,13 @@ open class OpenAiCompatProvider(
             // capability, so it does not count as a declaration either way.
             val informative = declared.filter { it != "model" }
             if (informative.isNotEmpty()) {
-                return informative.none { it in NON_CHAT_DECLARATIONS }
+                informative.firstNotNullOfOrNull { DECLARATION_CAPABILITY[it] }?.let { return it }
+                // Declared, and none of the declarations names a non-chat kind.
+                return ModelCapability.Chat
             }
         }
         val segments = id.lowercase().split('-', '_', '/', '.').toSet()
-        return segments.none { it in NON_CHAT_ID_SEGMENTS }
+        return segments.firstNotNullOfOrNull { ID_SEGMENT_CAPABILITY[it] } ?: ModelCapability.Unknown
     }
 
     override suspend fun cancel() {
@@ -344,16 +383,33 @@ open class OpenAiCompatProvider(
         internal val NON_RETRYABLE_STATUS_CODES = setOf(400, 401, 403, 404, 422)
 
         /**
-         * Values of a catalog entry's declared type/modality that mean "not a
-         * chat model". Checked before any id heuristic — see [canChat].
+         * A catalog entry's declared type/modality mapped to what it can do.
+         * Consulted before any id heuristic — see [classify].
          */
-        internal val NON_CHAT_DECLARATIONS = setOf(
-            "image", "images", "image_generation", "text-to-image",
-            "video", "video_generation", "text-to-video",
-            "embedding", "embeddings", "text_embedding",
-            "audio", "speech", "tts", "text-to-speech", "transcription", "stt",
-            "moderation", "rerank", "reranker",
+        internal val DECLARATION_CAPABILITY: Map<String, ModelCapability> = mapOf(
+            "image" to ModelCapability.Image,
+            "images" to ModelCapability.Image,
+            "image_generation" to ModelCapability.Image,
+            "text-to-image" to ModelCapability.Image,
+            "video" to ModelCapability.Video,
+            "video_generation" to ModelCapability.Video,
+            "text-to-video" to ModelCapability.Video,
+            "embedding" to ModelCapability.Embedding,
+            "embeddings" to ModelCapability.Embedding,
+            "text_embedding" to ModelCapability.Embedding,
+            "audio" to ModelCapability.Speech,
+            "speech" to ModelCapability.Speech,
+            "tts" to ModelCapability.Speech,
+            "text-to-speech" to ModelCapability.Speech,
+            "transcription" to ModelCapability.Transcription,
+            "stt" to ModelCapability.Transcription,
+            "moderation" to ModelCapability.Moderation,
+            "rerank" to ModelCapability.Rerank,
+            "reranker" to ModelCapability.Rerank,
         )
+
+        /** Declared values that mean "not a chat model", derived from [DECLARATION_CAPABILITY]. */
+        internal val NON_CHAT_DECLARATIONS: Set<String> = DECLARATION_CAPABILITY.keys
 
         /**
          * Id segments that identify a non-chat model when the entry declares
@@ -363,16 +419,27 @@ open class OpenAiCompatProvider(
          * unrecognised entry is kept, because a model that errors when used is
          * a smaller failure than a real chat model missing from the picker.
          */
-        internal val NON_CHAT_ID_SEGMENTS = setOf(
-            "image", "images", "imagegen",
-            // "dall" rather than "dall-e": splitting on '-' makes the segments
-            // of `dall-e-3` [dall, e, 3], and "e" is far too short to match on.
-            "dall", "midjourney", "flux", "stability", "sd",
-            "video", "veo", "sora", "kling", "runway",
-            "embed", "embedding", "embeddings",
-            "tts", "stt", "whisper", "speech", "transcribe", "audio",
-            "moderation", "rerank", "reranker",
-        )
+        internal val ID_SEGMENT_CAPABILITY: Map<String, ModelCapability> = buildMap {
+            listOf(
+                // "dall" rather than "dall-e": splitting on '-' makes the
+                // segments of `dall-e-3` [dall, e, 3], and "e" is far too short
+                // to match on.
+                "image", "images", "imagegen", "dall", "midjourney", "flux", "stability", "sd",
+            ).forEach { put(it, ModelCapability.Image) }
+            listOf("video", "veo", "sora", "kling", "runway").forEach { put(it, ModelCapability.Video) }
+            listOf("embed", "embedding", "embeddings").forEach { put(it, ModelCapability.Embedding) }
+            listOf("tts", "speech").forEach { put(it, ModelCapability.Speech) }
+            // "audio" is ambiguous — OpenAI uses it for both directions. Treated
+            // as transcription because that is the commoner audio-in model, and
+            // because a wrong non-chat answer only affects which capability
+            // list it appears in, never whether it is offered for chat.
+            listOf("stt", "whisper", "transcribe", "audio").forEach { put(it, ModelCapability.Transcription) }
+            put("moderation", ModelCapability.Moderation)
+            listOf("rerank", "reranker").forEach { put(it, ModelCapability.Rerank) }
+        }
+
+        /** Id segments that mean "not a chat model", derived from [ID_SEGMENT_CAPABILITY]. */
+        internal val NON_CHAT_ID_SEGMENTS: Set<String> = ID_SEGMENT_CAPABILITY.keys
 
         /**
          * Parse a `Retry-After` header (delta-seconds form) into

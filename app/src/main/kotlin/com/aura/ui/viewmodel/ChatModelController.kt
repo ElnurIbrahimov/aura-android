@@ -81,7 +81,12 @@ internal class ChatModelController(
             return
         }
 
-        val models = catalog.allModels.map { it.id }.distinct().sorted()
+        // Chat picker: chat-usable models only. The catalog now also carries
+        // image, video and speech models so capability backends can be
+        // discovered from it — offering one here is the HTTP 400 that started
+        // all this ("Model agnes-image-2.1-flash is an image model").
+        val models = catalog.allModels.filter { it.capability.isChatUsable }
+            .map { it.id }.distinct().sorted()
         val selection = resolveModelSelection(resolved, catalog)
         state.update {
             it.copy(

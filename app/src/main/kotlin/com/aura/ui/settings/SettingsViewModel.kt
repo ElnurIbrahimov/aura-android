@@ -1207,7 +1207,10 @@ class SettingsViewModel @Inject constructor(
         _state.update {
             it.copy(
                 configuredProviders = configuredProviderLabels(),
-                availableModels = catalog.allModels.map { model -> model.id }.distinct().sorted(),
+                // Chat-usable only — this list feeds the conversational model
+                // pickers. Capability-specific pickers filter for themselves.
+                availableModels = catalog.allModels.filter { it.capability.isChatUsable }
+                    .map { model -> model.id }.distinct().sorted(),
                 modelsLoading = catalog.providers.values.any { provider ->
                     provider.status == ProviderStatus.Loading
                 },

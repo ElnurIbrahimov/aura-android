@@ -69,6 +69,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "ollama"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("model-a", "model-b")
         }
         val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -127,11 +132,21 @@ class ModelCatalogRepositoryTest {
         val providerA = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov-a"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("m1")
         }
         val providerB = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov-b"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("m2")
         }
         val registry = ProviderRegistry(
@@ -165,11 +180,21 @@ class ModelCatalogRepositoryTest {
         val providerA = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov-a"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("model-a")
         }
         val providerB = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov-b"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("model-b")
         }
         val registry1 = ProviderRegistry(
@@ -192,6 +217,11 @@ class ModelCatalogRepositoryTest {
         val providerBFail = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov-b"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.NetworkException()
         }
         val registry2 = ProviderRegistry(
@@ -231,6 +261,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "slow"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } coAnswers {
                 delay(10_000) // slow provider
                 listOf("slow-model")
@@ -274,6 +309,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "timeout-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } coAnswers {
                 delay(30_000) // never responds within our short timeout
                 listOf("model")
@@ -306,6 +346,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "timeout-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } coAnswers {
                 delay(30_000)
                 listOf("model")
@@ -337,6 +382,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "net-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.NetworkException(
                 message = "Unable to resolve host: api.example.com",
             )
@@ -364,6 +414,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "auth-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.AuthenticationException()
         }
         val registry = ProviderRegistry(mapOf("auth-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -388,6 +443,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "rate-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.RateLimitedException()
         }
         val registry = ProviderRegistry(mapOf("rate-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -412,6 +472,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "empty-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns emptyList()
         }
         val registry = ProviderRegistry(mapOf("empty-prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -440,6 +505,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("m1")
         }
         val registry1 = ProviderRegistry(mapOf("prov" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -457,6 +527,11 @@ class ModelCatalogRepositoryTest {
         val providerFail = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.NetworkException()
         }
         val registry2 = ProviderRegistry(mapOf("prov" to providerFail), mockk(relaxed = true), mockk(relaxed = true))
@@ -485,6 +560,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "ollama"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("model-x")
         }
         val registry = ProviderRegistry(mapOf("ollama" to provider), mockk(relaxed = true), mockk(relaxed = true))
@@ -510,6 +590,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "slow"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } coAnswers {
                 delay(5_000)
                 listOf("m1")
@@ -541,6 +626,11 @@ class ModelCatalogRepositoryTest {
         val moaProvider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "moa"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("default")
         }
 
@@ -603,6 +693,11 @@ class ModelCatalogRepositoryTest {
         val provider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "bad-prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.MalformedResponseException(
                 "Unexpected response format",
             )
@@ -631,11 +726,21 @@ class ModelCatalogRepositoryTest {
         val fastProvider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "fast"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("fast-model")
         }
         val slowProvider = mockk<Provider>(relaxed = true) {
             every { prefix } returns "slow"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } coAnswers {
                 delay(500)
                 listOf("slow-model")
@@ -680,6 +785,11 @@ class ModelCatalogRepositoryTest {
         val providerOk = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } returns listOf("m1")
         }
         val registry1 = ProviderRegistry(mapOf("prov" to providerOk), mockk(relaxed = true), mockk(relaxed = true))
@@ -699,6 +809,11 @@ class ModelCatalogRepositoryTest {
         val providerFail = mockk<Provider>(relaxed = true) {
             every { prefix } returns "prov"
             every { isConfigured() } returns true
+            // mockk stubs interface DEFAULT methods too, so the real
+            // listModelsWithCapability() default (which delegates to
+            // listModels()) never runs on a mock. callOriginal restores it,
+            // so these stay tests of listModels behaviour.
+            coEvery { listModelsWithCapability() } coAnswers { callOriginal() }
             coEvery { listModels() } throws ProviderCatalogException.NetworkException()
         }
         val registry2 = ProviderRegistry(mapOf("prov" to providerFail), mockk(relaxed = true), mockk(relaxed = true))

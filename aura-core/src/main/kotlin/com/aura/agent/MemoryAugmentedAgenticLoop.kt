@@ -1120,7 +1120,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         ?.catalog
                         ?.value
                         ?.allModels
-                        ?.firstOrNull { it.providerPrefix != "moa" }
+                        // isChatUsable: the catalog carries image/video/speech
+                        // models now, and this picks a model to send a chat
+                        // request to.
+                        ?.firstOrNull { it.providerPrefix != "moa" && it.capability.isChatUsable }
                         ?.id
                         ?: return@runCatching
                 } else {
@@ -1366,7 +1369,10 @@ private suspend fun extractProfileFromText(text: String) {
         val eligible = catalog.allModels.filter {
             it.providerPrefix !in triedPrefixes &&
                 it.id !in triedModels &&
-                it.providerPrefix in configuredPrefixes
+                it.providerPrefix in configuredPrefixes &&
+                // Failing over to an image model would turn a transient
+                // provider error into a permanent 400.
+                it.capability.isChatUsable
         }
         if (eligible.isEmpty()) return null
         val family = modelFamily(failedModel)
