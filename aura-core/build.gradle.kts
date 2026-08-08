@@ -39,7 +39,23 @@ android {
         buildConfig = true
     }
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // The library artifact itself needs only the line above; these
+            // matter for the androidTest APK, which packages the module's full
+            // runtime classpath. javax.mail (android-mail + android-activation)
+            // and jakarta.inject each ship META-INF/NOTICE.md and LICENSE.md,
+            // so mergeDebugAndroidTestJavaResource failed with "3 files found
+            // with path 'META-INF/NOTICE.md'" and :aura-core:connectedAndroid-
+            // Test could not build at all. :app already carried these excludes;
+            // :aura-core never did, which is why the migration-chain tests —
+            // the only coverage the Room upgrade path has — were unrunnable
+            // rather than merely unrun.
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/{NOTICE,LICENSE}*"
+        }
     }
     sourceSets {
         // Adds exported Room schemas to the test assets for migration tests.
