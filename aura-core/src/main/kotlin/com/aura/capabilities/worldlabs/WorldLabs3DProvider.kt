@@ -28,16 +28,13 @@ import javax.inject.Singleton
 class WorldLabs3DProvider @Inject constructor(
     private val client: OkHttpClient,
     private val providerKeys: ProviderKeys,
-) : CapabilityProvider {
+) : com.aura.capabilities.World3DProvider {
     override val prefix = "worldlabs"
     override val displayName = "World Labs"
-    override val kind = CapabilityKind.World3DGeneration
     private val apiKey: String get() = providerKeys.keyFor(prefix).orEmpty()
     override fun isConfigured(): Boolean = apiKey.isNotBlank()
 
-    data class WorldResult(val worldUrl: String?, val operationId: String)
-
-    suspend fun generateWorld(prompt: String): WorldResult = withContext(Dispatchers.IO) {
+    override suspend fun generateWorld(prompt: String): com.aura.capabilities.WorldResult = withContext(Dispatchers.IO) {
         val body = CapabilityHttp.buildJsonBody(
             "prompt" to prompt,
             "model" to "Marble",
@@ -69,7 +66,7 @@ class WorldLabs3DProvider @Inject constructor(
             if (status == "completed" || status == "succeeded" || status == "success") {
                 val url = data["world_url"].stringOrNull()
                     ?: data["url"].stringOrNull()
-                return@withContext WorldResult(worldUrl = url, operationId = opId)
+                return@withContext com.aura.capabilities.WorldResult(worldUrl = url, operationId = opId)
             }
             if (status == "failed" || status == "error") {
                 throw CapabilityCatalogException.NetworkException("World Labs task $opId failed: $pollRaw")

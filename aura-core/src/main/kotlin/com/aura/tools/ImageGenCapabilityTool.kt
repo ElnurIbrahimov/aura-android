@@ -15,13 +15,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Capability-backed image generation tool. Uses [CapabilityRouter] to
- * select a configured [ImageProvider] (Stability, OpenAI, etc.) instead
- * of hardcoding a provider or model ID.
+ * Capability-backed image generation. Resolves through [CapabilityRouter], so
+ * it serves hand-written adapters (Stability) and backends discovered from a
+ * configured provider's model catalog alike.
  *
- * Falls back to the legacy Pollinations.ai free URL when no provider is
- * configured — but honestly reports that it's a free fallback, not a
- * paid generation.
+ * **No free fallback.** This KDoc used to claim it "falls back to the legacy
+ * Pollinations.ai free URL when no provider is configured"; it never did — that
+ * fallback lives in the other image tool, `image_gen` ([ImageGenTool]). When
+ * nothing is configured this reports `no_provider` and stops, which is the
+ * honest behaviour for a REMOTE_COST tool but is not what the comment promised.
  *
  * Risk: REMOTE_COST — always requires user approval for paid providers.
  */

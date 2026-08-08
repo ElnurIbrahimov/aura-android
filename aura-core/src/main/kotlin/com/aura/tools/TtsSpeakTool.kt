@@ -20,10 +20,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Text-to-speech tool. Uses the first configured TTS capability provider
- * (ElevenLabs) if available; otherwise falls back to platform TTS.
- * The platform path speaks immediately; the ElevenLabs path returns
- * base64 audio and optionally plays it.
+ * Text-to-speech through a configured capability provider — a hand-written
+ * adapter (ElevenLabs) or one discovered from a provider's model catalog.
+ * Returns base64 audio and optionally plays it.
+ *
+ * **No platform-TTS fallback.** This KDoc used to claim it "otherwise falls
+ * back to platform TTS"; there is no such path. With nothing configured it
+ * reports `missing_provider`. Android's own TextToSpeech is reachable through
+ * the separate `tts_speak`-adjacent voice settings, not from here.
+ *
  * Risk: REMOTE_COST when using a cloud provider.
  */
 @Singleton

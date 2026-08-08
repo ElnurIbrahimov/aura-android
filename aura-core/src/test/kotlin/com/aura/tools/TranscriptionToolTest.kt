@@ -23,6 +23,34 @@ import kotlin.test.assertTrue
  */
 class TranscriptionToolTest {
 
+    /**
+     * A registry of the two OpenAI-compatible providers these tests exercise.
+     *
+     * TranscriptionTool no longer hardcodes api.openai.com then api.groq.com —
+     * it asks each configured provider for its `transcriptionsEndpoint`, so a
+     * third provider offering speech-to-text works without a code change. That
+     * means a tool built without a registry has no candidates at all and
+     * correctly reports "no transcription provider", which is what these tests
+     * hit before being given one.
+     *
+     * Only providers with a key become candidates, so `keyFor` stubs in each
+     * test still decide which path runs.
+     */
+    private fun openAiCompatRegistry(): com.aura.providers.ProviderRegistry {
+        fun provider(prefix: String, endpoint: String) =
+            mockk<com.aura.providers.Provider>(relaxed = true).also {
+                every { it.prefix } returns prefix
+                every { it.displayName } returns prefix
+                every { it.transcriptionsEndpoint } returns endpoint
+            }
+        return mockk<com.aura.providers.ProviderRegistry>(relaxed = true).also { registry ->
+            every { registry.configured() } returns listOf(
+                provider("openai", "https://api.openai.com/v1/audio/transcriptions"),
+                provider("groq", "https://api.groq.com/openai/v1/audio/transcriptions"),
+            )
+        }
+    }
+
     // A small valid base64 string (~12 bytes decoded: "Hello World!")
     private val smallBase64 = java.util.Base64.getEncoder().encodeToString("Hello World!".toByteArray())
 
@@ -42,7 +70,7 @@ class TranscriptionToolTest {
             every { keyFor("groq") } returns null
         }
         val httpClient = mockHttpClient(body = openAiWhisperResponse())
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64, "language" to "en"),
             ctx(),
@@ -59,7 +87,7 @@ class TranscriptionToolTest {
             every { keyFor("groq") } returns null
         }
         val httpClient = mockHttpClient(body = openAiWhisperResponse())
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64),
             ctx(),
@@ -80,13 +108,15 @@ class TranscriptionToolTest {
             contentType = "text/plain",
             body = "Unauthorized",
         )
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64),
             ctx(),
         )
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
-        assertTrue((result as ToolResult.Error).message.contains("OpenAI Whisper API HTTP"))
+        // The error now names the provider prefix rather than a hardcoded
+        // vendor string, because any configured provider can transcribe.
+        assertTrue((result as ToolResult.Error).message.contains("openai transcription HTTP"))
     }
 
     // -----------------------------------------------------------------
@@ -100,7 +130,7 @@ class TranscriptionToolTest {
             every { keyFor("groq") } returns "groq-key-456"
         }
         val httpClient = mockHttpClient(body = groqWhisperResponse())
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64, "language" to "en"),
             ctx(),
@@ -121,13 +151,13 @@ class TranscriptionToolTest {
             contentType = "text/plain",
             body = "Rate limit exceeded",
         )
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64),
             ctx(),
         )
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
-        assertTrue((result as ToolResult.Error).message.contains("Groq Whisper API HTTP"))
+        assertTrue((result as ToolResult.Error).message.contains("groq transcription HTTP"))
     }
 
     // -----------------------------------------------------------------
@@ -141,7 +171,7 @@ class TranscriptionToolTest {
             every { keyFor("groq") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to smallBase64),
             ctx(),
@@ -160,7 +190,7 @@ class TranscriptionToolTest {
             every { keyFor("openai") } returns "key"
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to largeBase64),
             ctx(),
@@ -182,7 +212,7 @@ class TranscriptionToolTest {
             every { keyFor("groq") } returns null
         }
         val httpClient = mockHttpClient(body = openAiWhisperResponse())
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to justUnderBase64),
             ctx(),
@@ -199,7 +229,7 @@ class TranscriptionToolTest {
     fun `missing audio_base64 returns error`() = runTest {
         val providerKeys = mockk<ProviderKeys>()
         val httpClient = mockk<OkHttpClient>()
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(call(), ctx())
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
         assertEquals("bad_args", (result as ToolResult.Error).code)
@@ -218,13 +248,13 @@ class TranscriptionToolTest {
             contentType = "application/json",
             body = """{"error": {"message": "Invalid file format"}}""",
         )
-        val tool = TranscriptionTool(httpClient, providerKeys).tool
+        val tool = TranscriptionTool(httpClient, providerKeys, providerRegistry = openAiCompatRegistry()).tool
         val result = tool.execute(
             call("audio_base64" to ""),
             ctx(),
         )
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
-        assertTrue((result as ToolResult.Error).message.contains("OpenAI Whisper"))
+        assertTrue((result as ToolResult.Error).message.contains("transcription"))
     }
 
     // -----------------------------------------------------------------
@@ -265,4 +295,57 @@ class TranscriptionToolTest {
     private fun groqWhisperResponse() = """{
   "text": "This is a transcribed audio sample from Groq Whisper."
 }"""
+
+    // -----------------------------------------------------------------
+    // Any configured provider, not just OpenAI and Groq
+    // -----------------------------------------------------------------
+
+    /**
+     * The behaviour this generalisation exists for.
+     *
+     * The tool used to be a hardcoded `keyFor("openai")` then `keyFor("groq")`
+     * ladder, so a user whose provider offered speech-to-text was told to
+     * "configure OpenAI or Groq". `CapabilityKind.Transcription` had no bound
+     * provider either, so there was no adapter to add.
+     */
+    @Test
+    fun `a third provider with a transcription endpoint is used`() = runTest {
+        val providerKeys = mockk<ProviderKeys> {
+            every { keyFor("agnes") } returns "agnes-key"
+        }
+        val registry = mockk<com.aura.providers.ProviderRegistry>(relaxed = true).also { r ->
+            val agnes = mockk<com.aura.providers.Provider>(relaxed = true).also {
+                every { it.prefix } returns "agnes"
+                every { it.displayName } returns "Agnes AI"
+                every { it.transcriptionsEndpoint } returns "https://apihub.agnes-ai.com/v1/audio/transcriptions"
+            }
+            every { r.configured() } returns listOf(agnes)
+        }
+        val httpClient = mockHttpClient(body = openAiWhisperResponse())
+
+        val result = TranscriptionTool(httpClient, providerKeys, providerRegistry = registry).tool
+            .execute(call("audio_base64" to smallBase64, "language" to "en"), ctx())
+
+        assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
+        assertTrue((result as ToolResult.Ok).output.contains("testing speech recognition"))
+    }
+
+    @Test
+    fun `a provider without a transcription endpoint is not a candidate`() = runTest {
+        val providerKeys = mockk<ProviderKeys>()
+        val registry = mockk<com.aura.providers.ProviderRegistry>(relaxed = true).also { r ->
+            val noAudio = mockk<com.aura.providers.Provider>(relaxed = true).also {
+                every { it.prefix } returns "textonly"
+                every { it.transcriptionsEndpoint } returns null
+            }
+            every { r.configured() } returns listOf(noAudio)
+        }
+
+        val result = TranscriptionTool(mockk(), providerKeys, providerRegistry = registry).tool
+            .execute(call("audio_base64" to smallBase64), ctx())
+
+        assertTrue("expected Error, got $result") { result is ToolResult.Error }
+        assertTrue((result as ToolResult.Error).message.contains("No transcription provider configured"))
+    }
+
 }

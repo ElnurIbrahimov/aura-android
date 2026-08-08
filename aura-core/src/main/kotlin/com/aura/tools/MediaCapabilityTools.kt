@@ -123,8 +123,12 @@ class MediaCapabilityTools @Inject constructor(
         execute = { call, _ ->
             val prompt = call.arguments["prompt"] as? String
                 ?: return@Tool ToolResult.Error("missing 'prompt'", "bad_args")
-            val provider = capabilityRouter.resolve(CapabilityKind.World3DGeneration) as? com.aura.capabilities.worldlabs.WorldLabs3DProvider
-                ?: return@Tool ToolResult.Error("No 3D world provider configured. Add a WorldLabs API key in Settings.", "no_provider")
+            // Resolved by interface. This downcast to the concrete
+            // WorldLabs3DProvider silently rejected every other backend, so a
+            // correctly registered second vendor still reported "no provider".
+            val provider = capabilityRouter.resolve(CapabilityKind.World3DGeneration)
+                as? com.aura.capabilities.World3DProvider
+                ?: return@Tool ToolResult.Error(noProviderMessage(CapabilityKind.World3DGeneration, "3D world generation"), "no_provider")
             runCatching {
                 val result = provider.generateWorld(prompt)
                 ToolResult.Ok(result.worldUrl?.let { "3D world: $it" } ?: "3D world generated (operation ${result.operationId}).")

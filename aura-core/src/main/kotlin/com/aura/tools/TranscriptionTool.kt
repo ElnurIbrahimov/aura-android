@@ -35,6 +35,8 @@ const val MAX_TRANSCRIPTION_AUDIO_BYTES: Int = 25 * 1024 * 1024
 class TranscriptionTool @Inject constructor(
     private val httpClient: OkHttpClient,
     private val providerKeys: ProviderKeys,
+    private val providerRegistry: com.aura.providers.ProviderRegistry? = null,
+    private val modelCatalogRepository: com.aura.providers.ModelCatalogRepository? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeOctet = "application/octet-stream".toMediaType()
@@ -91,28 +93,108 @@ class TranscriptionTool @Inject constructor(
     }
 
     /**
-     * Routes to the first configured transcription provider.
+     * Transcribe using any configured provider that offers a transcription
+     * model.
      *
-     * Order: OpenAI Whisper -> Groq.
+     * This used to be a hardcoded OpenAI-then-Groq ladder, so a user with a
+     * perfectly capable third provider got "Please configure OpenAI or Groq" —
+     * the same shape of problem as image generation only ever reaching OpenAI.
+     * `CapabilityKind.Transcription` had no bound provider at all, so it could
+     * not be fixed by adding an adapter either.
      *
-     * @throws RuntimeException if no transcription provider is configured.
+     * Transcription is a multipart upload, which the discovered
+     * [com.aura.capabilities.openaicompat] adapters deliberately do not do, so
+     * this resolves against the same information they use — the classified
+     * model catalog plus the provider's advertised endpoint — rather than
+     * through CapabilityRouter.
+     *
+     * The model name comes from the catalog because it differs per provider
+     * (OpenAI `whisper-1`, Groq `whisper-large-v3`); [FALLBACK_MODEL] covers a
+     * provider whose catalog has not loaded yet.
+     *
+     * @throws RuntimeException if no provider can transcribe.
      */
     private fun transcribeAudio(audioBase64: String, language: String): String {
         val audioBytes = decodeBase64(audioBase64)
+        val candidates = transcriptionCandidates()
 
-        val openaiKey = providerKeys.keyFor("openai")
-        if (!openaiKey.isNullOrBlank()) {
-            return transcribeWithOpenAi(audioBytes, language, openaiKey)
+        if (candidates.isEmpty()) {
+            throw RuntimeException(
+                "No transcription provider configured. Add an API key for a provider that offers " +
+                    "speech-to-text (for example OpenAI or Groq) in Settings.",
+            )
         }
 
-        val groqKey = providerKeys.keyFor("groq")
-        if (!groqKey.isNullOrBlank()) {
-            return transcribeWithGroq(audioBytes, language, groqKey)
+        var lastError: Exception? = null
+        for (candidate in candidates) {
+            try {
+                return transcribeWith(audioBytes, language, candidate)
+            } catch (e: Exception) {
+                // Try the next provider rather than failing outright: a single
+                // provider being down should not make the tool unavailable.
+                android.util.Log.w("TranscriptionTool", "transcription via ${candidate.prefix} failed: ${e.message}", e)
+                lastError = e
+            }
         }
+        throw lastError ?: RuntimeException("Transcription failed with no provider error recorded")
+    }
 
-        throw RuntimeException(
-            "No transcription provider configured. Please configure OpenAI or Groq in Settings.",
-        )
+    /** A provider that can transcribe: endpoint, key and model resolved. */
+    private data class TranscriptionCandidate(
+        val prefix: String,
+        val endpoint: String,
+        val key: String,
+        val model: String,
+    )
+
+    private fun transcriptionCandidates(): List<TranscriptionCandidate> {
+        val registry = providerRegistry ?: return emptyList()
+        val catalog = modelCatalogRepository?.catalog?.value?.allModels.orEmpty()
+
+        return registry.configured().mapNotNull { provider ->
+            val endpoint = provider.transcriptionsEndpoint ?: return@mapNotNull null
+            val key = providerKeys.keyFor(provider.prefix)?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val model = catalog.firstOrNull {
+                it.providerPrefix == provider.prefix &&
+                    it.capability == com.aura.providers.ModelCapability.Transcription
+            }?.name ?: FALLBACK_MODEL
+            TranscriptionCandidate(provider.prefix, endpoint, key, model)
+        }
+    }
+
+    private fun transcribeWith(
+        audioBytes: ByteArray,
+        language: String,
+        candidate: TranscriptionCandidate,
+    ): String {
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", "audio.mp3", audioBytes.toRequestBody(mediaTypeOctet))
+            .addFormDataPart("model", candidate.model)
+            .addFormDataPart("language", language)
+            .build()
+
+        val req = Request.Builder()
+            .url(candidate.endpoint)
+            .header("Authorization", "Bearer ${candidate.key}")
+            .post(requestBody)
+            .build()
+
+        return httpClient.newCall(req).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw RuntimeException("${candidate.prefix} transcription HTTP ${response.code}: ${body.take(500)}")
+            }
+            if (body.isBlank()) throw RuntimeException("${candidate.prefix} transcription returned an empty response")
+            json.parseToJsonElement(body).jsonObject["text"]?.jsonPrimitive?.content
+                ?: throw RuntimeException("${candidate.prefix} transcription response missing 'text'")
+        }
+    }
+
+    private companion object {
+        /** Used when the provider's catalog has not been loaded yet. */
+        const val FALLBACK_MODEL = "whisper-1"
     }
 
     // ------------------------------------------------------------------
