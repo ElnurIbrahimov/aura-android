@@ -191,10 +191,27 @@ already done by 336e07c9 — the reports were stale and actively misinforming:
 
 ## 3. Still open
 
-Verified against HEAD after the 2026-08-06/07 A-grade sweep (v0.65.0). This is the
+Re-verified against HEAD on 2026-08-07 (v0.65.0, sweep merged to `main`). This is the
 section to maintain. Items the sweep closed — stale dependencies, the AgentRun one-way
 approval loop, the missing schema exports 7–10, the single global permission slot, and
 the four known-flaky time-dependent test classes — have been removed; see §2.0.
+
+Every Correctness row below was re-read against HEAD on 2026-08-07 rather than copied
+forward, which §4 names as the failure mode of the earlier passes. All three still hold.
+Baseline at that check: 2,104 unit tests / 334 suites, 0 failures; `assembleRelease`
+(R8 + resource shrinking) succeeds, 11.96 MB APK; `lintDebug` clean of errors
+(77 warnings across both modules).
+
+The 2026-08-07 pass fixed five things that had escaped eleven prior reviews, all of
+which lived in the seams *between* code and process rather than in the code itself:
+CI was red on `main` (the `lint-logging.sh` gate is step one, so nothing after it had
+run); `scripts/check-version-docs.sh` existed but was never wired into `ci.yml`, and
+was failing; `extractDocx` read `word/document.xml` with an unbounded `readBytes()`
+(WordprocessingML deflates ~344:1, so a 3 MB file — under the 20 MB input cap — expands
+to ~1 GB and OOMs the process); `app/build.gradle.kts` declared the `androidx.hilt`
+KSP processor as `implementation`, putting it and its codegen chain on the release
+runtime classpath (−434 KB APK once removed); and `architecture.md` claimed the WebView
+had "cookies disabled" when no `CookieManager` was ever configured.
 
 ### Correctness
 
@@ -204,9 +221,23 @@ the four known-flaky time-dependent test classes — have been removed; see §2.
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |
 | Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–16 are all committed now and the full-chain migration test validates the end state, but individual hops inside 6..10 still have no per-step data assertion. |
 
+### Dependencies and configuration
+
+| Item | Detail |
+|------|--------|
+| BouncyCastle 1.72 ships in the release APK | `com.tom-roush:pdfbox-android:2.0.27.0` pulls `bcprov`/`bcpkix`/`bcutil-jdk15to18:1.72` (Sept 2022). CVE-2023-33201 (LDAP `X509LDAPCertStoreSpi`) is unreachable — nothing configures an LDAP cert store. CVE-2023-33202 (ASN.1 OID parsing → OOM) is *plausibly* reachable, since PDFBox parses signed/encrypted PDF structures through BC. Not verified either way. Fix is a `dependencies { constraints { … } }` bump on the three `bc*-jdk15to18` artifacts, which needs a networked build to resolve and re-run PDF extraction tests against. |
+| The version catalog does not describe what ships | `libs.versions.toml` declares `lifecycle 2.8.7` and `coreKtx 1.13.1`; the app actually resolves `2.11.0` and `1.16.0`, because the Compose BOM's constraints win. Anyone reading the catalog gets the wrong answer, and a future BOM change would silently drop the app back two years. `activity`/`activity-compose` really are pinned at `1.9.3` (Oct 2024) against Compose BOM `2026.06.01`. Align the declared versions with the resolved ones. |
+| `targetSdk 35` against `compileSdk 37` | Two platform releases behind, so Android 16/17 compatibility modes apply; `lint` flags it as `OldTargetApi`. No Play deadline applies — this is a sideloaded personal build — so it is a behavioural-currency item, not a compliance one. Raising it needs a device pass over the permission, notification, and foreground-service paths. |
+| `AskAuraWidget` is an exported receiver with an unprotected custom action | `exported="true"` is required for `APPWIDGET_UPDATE`, but the same filter also accepts `com.aura.action.REFRESH_WIDGET` from any app on the device. Worst case is a forced `MemoryStore.recent(1)` read plus a widget redraw — battery, not disclosure. Sending the refresh as an explicit `Intent` and dropping the action from the filter would close it; it needs a device to verify widget refresh still works. |
+| `unitTests.isReturnDefaultValues = true` in both modules | Deliberate, and documented in `aura-core/build.gradle.kts` for `android.util.Log`. The cost is that *any* unmocked Android framework call returns 0/null/false instead of throwing, so a test can pass over a framework call the production path depends on. |
+
 ### Coverage
 
-- 30 of 33 ViewModels have dedicated tests; Compose UI screens (~29) remain untested
+- 28 files declare a `: ViewModel()`; 5 of them have no name-matched test file
+  (`DreamLogAndProfileViewModels`, `DreamsScreen`, `OnboardingRoute`,
+  `ProactiveHistoryViewModel`, `ProductionPipelineViewModel`) — name-matching
+  undercounts, since a VM may be covered by a differently-named suite. The earlier
+  "30 of 33" figure did not match HEAD. Compose UI screens (~29) remain untested
   as screens. ViewModels with business logic are tested; Compose UI screens are harder
   to unit-test meaningfully and are exercised through manual use. The ROI of Compose UI
   unit tests on a personal app is low.

@@ -227,7 +227,7 @@ class ScreenCaptureService : Service() {
         // (double-release / already-stopped states are expected here).
         fun quietly(step: String, block: () -> Unit) {
             runCatching(block).onFailure {
-                android.util.Log.w("ScreenCaptureService", "teardown $step failed: ${it.message}")
+                android.util.Log.w("ScreenCaptureService", "teardown $step failed: ${it.message}", it)
             }
         }
         quietly("display release") { virtualDisplay?.release() }

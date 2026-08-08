@@ -1,7 +1,7 @@
 # Aura Android — Architecture
 
 **Version:** 0.65.0 (versionCode 80)
-**Branch:** fix/a-grade-sweep
+**Branch:** main (the `fix/a-grade-sweep` sweep is merged)
 
 ## Overview
 
@@ -122,12 +122,16 @@ aura-android-clean/
 - ToolExecutor: withTimeout per tool, bounded tool parallelism (8), typed confirmation/approval gates via PolicyEngine
 - PolicyEngine: risk-based defaults (READ_ONLY, WRITE_LOCAL, WRITE_REMOTE, REMOTE_COST, PRIVACY) + per-tool user policy with confirmation grants
 - Screen capture: per-capture consent, visible FGS notification during capture
-- WebView: JS enabled, DOM storage enabled, cookies disabled, file/content access disabled, mixed content blocked
+- WebView: JS enabled, DOM storage enabled, file/content access disabled, mixed content blocked,
+  `javaScriptCanOpenWindowsAutomatically` off, destroyed on dispose. Cookies are left at the
+  platform default (first-party accepted, third-party rejected) — the in-app browser is a
+  general browsing surface and login-gated pages need them. `CookieManager` is not configured;
+  this line previously claimed "cookies disabled", which was never implemented.
 
 ## Build Configuration
 - Kotlin 2.4.10 (K2), Gradle 9.7, AGP 9.3.1, Compose BOM 2026.06.01
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 2,014 unit tests (326 files), 0 failures
+- 2,103 unit tests (334 suites), 0 failures
 - 76 registered tools, 17 LLM providers, 7 builtin agents

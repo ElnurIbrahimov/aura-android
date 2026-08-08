@@ -113,12 +113,27 @@ internal object DocumentTextParsers {
     private val xmlTag = Regex("<[^>]+>")
     private val numericEntity = Regex("&#(x?[0-9A-Fa-f]+);")
 
+    /**
+     * Ceiling on the *decompressed* `word/document.xml`.
+     *
+     * [DocumentTextExtractor.MAX_FILE_BYTES] bounds the compressed .docx, which
+     * bounds nothing useful on its own: well-formed WordprocessingML is highly
+     * repetitive and deflates at roughly 344:1, so a 3 MB file — comfortably
+     * under the 20 MB input cap — expands to about 1 GB. Reading that entry
+     * without a bound allocates it all and OOMs the process.
+     *
+     * 16 MB of markup is on the order of a 1,500-page document, well past
+     * anything worth importing into a chat, and it leaves headroom for the
+     * regex pipeline below, which walks the string several times over.
+     */
+    const val MAX_DOCX_XML_BYTES = 16 * 1024 * 1024
+
     fun extractDocx(bytes: ByteArray): String {
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.name == "word/document.xml") {
-                    val xml = zip.readBytes().toString(Charsets.UTF_8)
+                    val xml = readBounded(zip).toString(Charsets.UTF_8)
                         .replace(Regex(">\\s+<"), "><")
                     return decodeXmlEntities(
                         xml
@@ -133,6 +148,28 @@ internal object DocumentTextParsers {
             }
         }
         error("This DOCX file has no word/document.xml content.")
+    }
+
+    /**
+     * Reads the current zip entry, refusing to allocate past
+     * [MAX_DOCX_XML_BYTES]. Mirrors `DocumentTextExtractor.readLimited`, which
+     * does the same job for the compressed stream.
+     */
+    private fun readBounded(input: java.io.InputStream): ByteArray {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        var total = 0
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            total += read
+            require(total <= MAX_DOCX_XML_BYTES) {
+                "This DOCX expands to more than ${MAX_DOCX_XML_BYTES / (1024 * 1024)} MB of " +
+                    "internal markup, which is too large to read safely."
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
     }
 
     private fun decodeXmlEntities(value: String): String {

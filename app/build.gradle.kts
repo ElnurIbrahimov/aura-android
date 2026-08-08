@@ -126,7 +126,10 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
-    implementation(libs.androidx.hilt.compiler)
+    // No androidx.hilt.compiler here: every @HiltWorker lives in :aura-core,
+    // which runs it through ksp. Declaring it as `implementation` put the KSP
+    // processor and its codegen chain (javapoet, kotlinpoet, auto-common) on
+    // the release runtime classpath and fed them to R8.
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

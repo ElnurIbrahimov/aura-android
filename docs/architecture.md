@@ -9,7 +9,7 @@ Native Kotlin/Compose superapp — a full port of the Aura desktop application t
 The project is a 2-module Gradle build:
 
 1. **app** (`:app`) — Main application shell: Hilt graph, navigation graph, top-level UI scaffold, MainActivity, share-target Activity, settings UI, chat/home/memory screens. This is the user-facing module.
-2. **aura-core** (`:aura-core`) — Shared library: agentic loop (`Brain`, `MemoryAugmentedAgenticLoop`), provider SDK (17 providers: Anthropic, DeepSeek, Gemini, Groq, Ollama Cloud, OpenAI, OpenRouter, MoA virtual, Mistral, xAI, Together, Cerebras, NVIDIA, Meta Llama, Agnes, ChatGPT subscription, Custom OpenAI-compatible — behind a `Provider` interface), tool registry with 69 tools, Room-backed memory + tasks, voice I/O (STT + TTS), proactive layer (morning brief + calendar monitor + daemon + emotion engine), creative studio + production pipelines + prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite) + voice calibration + tension analyzer + character progression tracker, evolution system, agent runs with DAG resolution, MCP client, world model, taste engine, capabilities router, DataStore preferences for API keys, Google Workspace + Microsoft Graph integrations.
+2. **aura-core** (`:aura-core`) — Shared library: agentic loop (`Brain`, `MemoryAugmentedAgenticLoop`), provider SDK (17 providers: Anthropic, DeepSeek, Gemini, Groq, Ollama Cloud, OpenAI, OpenRouter, MoA virtual, Mistral, xAI, Together, Cerebras, NVIDIA, Meta Llama, Agnes, ChatGPT subscription, Custom OpenAI-compatible — behind a `Provider` interface), tool registry with 76 tools, Room-backed memory + tasks, voice I/O (STT + TTS), proactive layer (morning brief + calendar monitor + daemon + emotion engine), creative studio + production pipelines + prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite) + voice calibration + tension analyzer + character progression tracker, evolution system, agent runs with DAG resolution, MCP client, world model, taste engine, capabilities router, DataStore preferences for API keys, Google Workspace + Microsoft Graph integrations.
 
 This document is a snapshot of the **actual** project state, not aspirational. The earlier version of this file described a 14-module plan that was never implemented; that description is removed.
 
@@ -86,6 +86,6 @@ These are features that earlier architecture plans mentioned but were never buil
 
 ## Version
 
-`BuildConfig.VERSION_NAME` from `app/build.gradle.kts` (currently `0.58.0`, versionCode 71).
+`BuildConfig.VERSION_NAME` from `app/build.gradle.kts` (currently `0.65.0`, versionCode 80).
 
 Source of truth: `.hermes/plans/2026-07-14-audit-remediation.md` (complete; 15 prior plans archived in git history).

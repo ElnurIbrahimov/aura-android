@@ -50,6 +50,12 @@ jobs:
       - name: Logging hygiene lint
         run: bash scripts/lint-logging.sh
 
+      # scripts/check-version-docs.sh existed but was never wired in, so
+      # docs/architecture.md sat at v0.58.0 while the build shipped v0.65.0.
+      # A gate nobody runs is not a gate.
+      - name: Version documentation drift
+        run: bash scripts/check-version-docs.sh
+
       - name: Cache Gradle wrapper distribution
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
