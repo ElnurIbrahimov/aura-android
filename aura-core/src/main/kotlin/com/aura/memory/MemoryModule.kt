@@ -599,6 +599,25 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Full-text index over memories.content, replacing the six
+            // `content LIKE '%word%'` clauses lexical recall used to run.
+            //
+            // Those six clauses were a hard six-term ceiling baked into a DAO
+            // signature (MemoryStore fed it the user's whole message and kept
+            // only the first six non-stopwords) and a guaranteed full table
+            // scan, since a leading-wildcard LIKE cannot use an index. They
+            // also gave BM25 no way to know the corpus, so its IDF was computed
+            // over the already-matched candidates and collapsed to its floor
+            // for exactly the terms that should have discriminated.
+            //
+            // Triggers keep the index current — see MemoryFtsSchema for why
+            // that is done in SQL rather than in the DAO layer.
+            MemoryFtsSchema.createAndBackfill(db)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -606,8 +625,16 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17),
+            // Room's createAllTables builds the FTS virtual table but not the
+            // triggers that fill it, so a fresh install needs this or the index
+            // stays permanently empty — silently, since an empty index is
+            // indistinguishable from "no memory matched".
+            callback = MemoryFtsSchema.triggerCallback,
         ).build()
+
+    @Provides
+    fun provideMemoryFtsDao(db: MemoryDatabase): MemoryFtsDao = db.memoryFtsDao()
 
     @Provides
     fun provideMemoryDao(db: MemoryDatabase): MemoryDao = db.memoryDao()

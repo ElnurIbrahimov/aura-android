@@ -3,6 +3,7 @@ package com.aura.memory
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -259,8 +260,8 @@ class MemoryDatabaseMigrationTest {
      * not to weaken this test.
      */
     @Test
-    fun migrate6To14_fullChain_validatesAgainstHeadSchema() {
-        val name = "test-aura-memory-6-to-14.db"
+    fun migrate6To17_fullChain_validatesAgainstHeadSchema() {
+        val name = "test-aura-memory-6-to-17.db"
         val db = helper.createDatabase(name, 6)
         // Seed a row so the chain runs against a non-empty table. Column set
         // is the v6 shape; later migrations must carry it forward.
@@ -275,7 +276,7 @@ class MemoryDatabaseMigrationTest {
 
         val migrated = helper.runMigrationsAndValidate(
             name,
-            14,
+            17,
             true,
             MemoryModule.MIGRATION_6_7,
             MemoryModule.MIGRATION_7_8,
@@ -285,11 +286,26 @@ class MemoryDatabaseMigrationTest {
             MemoryModule.MIGRATION_11_12,
             MemoryModule.MIGRATION_12_13,
             MemoryModule.MIGRATION_13_14,
+            MemoryModule.MIGRATION_14_15,
+            MemoryModule.MIGRATION_15_16,
+            MemoryModule.MIGRATION_16_17,
         )
+
+        // The v16->v17 hop builds the FTS index and backfills it. A migration
+        // that creates the table but skips the backfill leaves every
+        // pre-existing memory unsearchable — the entire store, on upgrade —
+        // and does it silently, since an empty index looks like "no match".
+        val fts = migrated.query(
+            "SELECT m.id FROM memories m JOIN memories_fts f ON f.rowid = m.rowid WHERE f.content MATCH 'chain'",
+        )
+        fts.use {
+            assertTrue("seeded memory was not backfilled into memories_fts", it.moveToFirst())
+            assertEquals("m1", it.getString(0))
+        }
 
         val cursor = migrated.query("SELECT id, content FROM memories WHERE id = 'm1'")
         cursor.use {
-            assertTrue("seeded memory did not survive the v6 to v14 chain", it.moveToFirst())
+            assertTrue("seeded memory did not survive the v6 to v17 chain", it.moveToFirst())
             assertTrue(it.getString(1) == "chain test memory")
         }
     }
@@ -302,7 +318,7 @@ class MemoryDatabaseMigrationTest {
      * filters on it, which would silently expose old memories to every agent.
      */
     @Test
-    fun migrate6To14_backfillsScopeOnPreexistingRows() {
+    fun migrate6To17_backfillsScopeOnPreexistingRows() {
         val name = "test-aura-memory-scope-backfill.db"
         val db = helper.createDatabase(name, 6)
         db.execSQL(
@@ -314,7 +330,7 @@ class MemoryDatabaseMigrationTest {
 
         val migrated = helper.runMigrationsAndValidate(
             name,
-            14,
+            17,
             true,
             MemoryModule.MIGRATION_6_7,
             MemoryModule.MIGRATION_7_8,
@@ -324,6 +340,9 @@ class MemoryDatabaseMigrationTest {
             MemoryModule.MIGRATION_11_12,
             MemoryModule.MIGRATION_12_13,
             MemoryModule.MIGRATION_13_14,
+            MemoryModule.MIGRATION_14_15,
+            MemoryModule.MIGRATION_15_16,
+            MemoryModule.MIGRATION_16_17,
         )
 
         val cursor = migrated.query("SELECT scope FROM memories WHERE id = 'm2'")

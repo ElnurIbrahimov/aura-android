@@ -63,18 +63,47 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
     suspend fun searchByTextInScopes(query: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND " +
-        "(content LIKE :word1 ESCAPE '\\' " +
-        "OR content LIKE :word2 ESCAPE '\\' " +
-        "OR content LIKE :word3 ESCAPE '\\' " +
-        "OR content LIKE :word4 ESCAPE '\\' " +
-        "OR content LIKE :word5 ESCAPE '\\' " +
-        "OR content LIKE :word6 ESCAPE '\\') " +
-        "ORDER BY decayScore DESC LIMIT :limit")
-    suspend fun searchByWordsInScopes(
-        word1: String, word2: String, word3: String, word4: String, word5: String, word6: String,
-        scopes: List<String>, limit: Int = 50,
-    ): List<MemoryEntity>
+    /**
+     * Lexical candidate fetch for recall, over the FTS index.
+     *
+     * Replaced `searchByWordsInScopes(word1..word6, …)`, whose six `LIKE
+     * '%w%'` clauses imposed a hard six-term ceiling in the DAO signature and
+     * forced a full table scan (a leading-wildcard LIKE cannot use an index).
+     * [ftsQuery] is an already-escaped FTS4 MATCH expression — build it with
+     * [FtsQuery.build], never by string-concatenating user input.
+     *
+     * Matches `f.content`, not the bare table, so a query term cannot match a
+     * `memoryId`.
+     */
+    @Query(
+        "SELECT m.* FROM memories m JOIN memories_fts f ON f.rowid = m.rowid " +
+            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes) " +
+            "ORDER BY m.decayScore DESC LIMIT :limit",
+    )
+    suspend fun searchFts(ftsQuery: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
+
+    /**
+     * Corpus size for the scoped set — the `N` in BM25's IDF.
+     *
+     * BM25 previously took `N` from the candidate list it was handed, which was
+     * the set of rows that had already matched a query term. That made
+     * `ln((N - df + 0.5) / (df + 0.5))` negative for every query term and
+     * clamped them all to the same floor, so the lexical signal ranked
+     * essentially at random.
+     */
+    @Query("SELECT COUNT(*) FROM memories WHERE scope IN (:scopes)")
+    suspend fun countInScopes(scopes: List<String>): Int
+
+    /**
+     * How many scoped memories contain [ftsQuery] — the `df` in BM25's IDF.
+     * One indexed FTS probe per query term; the caller bounds how many terms
+     * it asks about.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM memories m JOIN memories_fts f ON f.rowid = m.rowid " +
+            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes)",
+    )
+    suspend fun docFreqInScopes(ftsQuery: String, scopes: List<String>): Int
 
     @Insert
     suspend fun insertEdit(edit: MemoryEditEntity): Long

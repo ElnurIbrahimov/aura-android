@@ -39,6 +39,10 @@ class MemoryDaoEscapeRegressionTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, MemoryDatabase::class.java)
             .allowMainThreadQueries()
+            // Room creates the FTS virtual table but not the triggers that
+            // populate it. Without this the index is empty and every lexical
+            // assertion below would pass or fail for the wrong reason.
+            .addCallback(MemoryFtsSchema.triggerCallback)
             .build()
         dao = db.memoryDao()
     }
@@ -80,24 +84,34 @@ class MemoryDaoEscapeRegressionTest {
     }
 
     @Test
-    fun `searchByWordsInScopes executes word search against real sqlite`() = runBlocking {
+    fun `searchFts executes word search against real sqlite`() = runBlocking {
         dao.insert(memory("I love kotlin programming"))
         dao.insert(memory("I prefer python"))
 
-        // Unused word slots are padded with a NUL-byte sentinel that can
-        // never LIKE-match content (MemoryStore.NO_MATCH_SENTINEL). The old
-        // "%%" pads matched every row — that regression is covered in
-        // MemoryDaoContractTest; here we just exercise the query shape
-        // against real SQLite.
-        val pad = MemoryStore.NO_MATCH_SENTINEL
-        val hits = dao.searchByWordsInScopes(
-            word1 = "%kotlin%", word2 = pad, word3 = pad,
-            word4 = pad, word5 = pad, word6 = pad,
-            scopes = listOf("general"), limit = 10,
-        )
+        // Replaced the six-LIKE searchByWordsInScopes. The reason this suite
+        // exists still applies: the ESCAPE regression survived 1,669 green
+        // tests because every touching test mocked the DAO, and FTS MATCH is
+        // another string the DAO hands to SQLite unparsed — a malformed one is
+        // a runtime SQLiteException, invisible to a mock.
+        val hits = dao.searchFts(FtsQuery.build(listOf("kotlin"))!!, listOf("general"), limit = 10)
 
         assertTrue(hits.any { it.content == "I love kotlin programming" })
-        assertTrue("sentinel pads must not match unrelated rows", hits.none { it.content == "I prefer python" })
+        assertTrue("unrelated rows must not match", hits.none { it.content == "I prefer python" })
+    }
+
+    @Test
+    fun `searchFts survives punctuation and operator words in user text`() = runBlocking {
+        dao.insert(memory("the deploy pipeline broke"))
+
+        // NOT / OR / NEAR / - / * / ^ / " are FTS4 syntax. Passed through raw
+        // they are either a syntax error (a crashed recall, not an empty one)
+        // or, worse, a query that quietly means something else — a message
+        // containing NOT would start excluding results. FtsQuery quotes every
+        // term so they are matched literally.
+        val hostile = listOf("deploy", "NOT", "OR", "NEAR", "-broke", "wild*", "^anchor", "quo\"te")
+        val hits = dao.searchFts(FtsQuery.build(hostile)!!, listOf("general"), limit = 10)
+
+        assertTrue("expected the literal term to still match", hits.any { it.content == "the deploy pipeline broke" })
     }
 
     @Test

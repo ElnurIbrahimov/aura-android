@@ -13,6 +13,27 @@ import kotlin.math.max
  */
 class BM25(
     documents: List<String>,
+    /**
+     * Total documents in the corpus — NOT in [documents].
+     *
+     * Defaults to `documents.size` for callers that genuinely are scoring a
+     * whole corpus (tests, ad-hoc ranking). Production recall must pass the
+     * real scoped count: see [corpusDocFreq].
+     */
+    corpusSize: Int = documents.size,
+    /**
+     * Corpus-wide document frequency per token, for the query's tokens.
+     *
+     * Empty means "fall back to counting within [documents]", which is what
+     * this class did unconditionally before 2026-08-08 — and which was wrong
+     * whenever [documents] was a pre-filtered candidate list rather than the
+     * corpus. `MemoryStore.query` handed it the rows that had already matched a
+     * query term, so `df` for exactly the discriminating terms approached `N`,
+     * `ln((N - df + 0.5) / (df + 0.5))` went negative, and the [IDF_FLOOR]
+     * clamp gave every query term the same weight. The lexical signal — one of
+     * RRF's six — then ranked candidates essentially arbitrarily.
+     */
+    private val corpusDocFreq: Map<String, Int> = emptyMap(),
     private val k1: Float = 1.2f,
     private val b: Float = 0.75f,
 ) {
@@ -31,23 +52,29 @@ class BM25(
             docs.sumOf { it.length }.toFloat() / docs.size
         } else 0f
 
-        // IDF: log((N - df + 0.5) / (df + 0.5)), floored at 0
-        val n = docs.size.toFloat()
-        val df = mutableMapOf<String, Int>()
+        // Document frequency within the supplied documents — the fallback for
+        // any token the caller did not supply a corpus count for (BM25's
+        // tokenizer emits bigrams, which are more expensive to count against
+        // the corpus than they are worth).
+        val localDf = mutableMapOf<String, Int>()
         for (doc in docs) {
-            val unique = doc.tokens.toSet()
-            for (token in unique) {
-                df[token] = (df[token] ?: 0) + 1
+            for (token in doc.tokens.toSet()) {
+                localDf[token] = (localDf[token] ?: 0) + 1
             }
         }
-        idf = df.mapValues { (_, freq) ->
+
+        // IDF: ln((N - df + 0.5) / (df + 0.5)), floored.
+        // N and df come from the corpus when the caller supplied them.
+        val n = maxOf(corpusSize, docs.size).toFloat()
+        val allTokens = localDf.keys + corpusDocFreq.keys
+        idf = allTokens.associateWith { token ->
+            val freq = (corpusDocFreq[token] ?: localDf[token] ?: 0).coerceAtMost(n.toInt())
             val raw = ln((n - freq + 0.5f) / (freq + 0.5f))
-            // Floor at a small positive value instead of 0 so terms
-            // that appear in multiple docs still contribute to the
-            // score. This is important for small corpora (personal
-            // memory stores with <100 docs) where the standard BM25
-            // floor at 0 would zero out common query terms.
-            max(0.1f, raw)
+            // Floor at a small positive value instead of 0 so a term present in
+            // most documents still contributes something. With a real corpus df
+            // this is a backstop for genuinely ubiquitous terms; with the old
+            // candidate-set df it was the normal path for every query term.
+            max(IDF_FLOOR, raw)
         }
     }
 
@@ -94,22 +121,37 @@ class BM25(
     }
 
     /**
-     * Normalize a raw BM25 score to 0-1 by dividing by the max
-     * possible score (the score if every query term had max IDF and
-     * perfect TF). This is an approximation — good enough for RRF
-     * fusion where only the relative ranking matters.
+     * Normalize a raw BM25 score to 0-1 by dividing by the maximum the scoring
+     * formula can actually produce for this query. Approximate — good enough
+     * for RRF fusion, where only the relative ranking matters.
+     *
+     * The divisor is `sum(idf) * (k1 + 1)`, matching [score], which multiplies
+     * each term's contribution by `(k1 + 1) * tf / denom` — a factor that
+     * approaches `(k1 + 1)` as `tf` grows. Dividing by the bare `sum(idf)`
+     * meant `raw` routinely exceeded the divisor and `coerceIn` clamped the
+     * result to exactly 1.0. Combined with the candidate-set IDF collapse, that
+     * flattened `textScore` to 1.0 across most candidates and destroyed the
+     * lexical rank ordering entirely — RRF ranks by order, so a tie among
+     * candidates is the same as no signal.
+     *
+     * Uses distinct query tokens: a term repeated in the query cannot raise
+     * the ceiling more than once.
      */
     fun normalizedScore(query: String, docIndex: Int): Float {
         val raw = score(query, docIndex)
         if (raw <= 0f) return 0f
-        // Max possible: sum of IDF for all query terms
-        val queryTokens = tokenize(query)
-        val maxPossible = queryTokens.mapNotNull { idf[it] }.sum()
+        val maxPossible = tokenize(query).toSet().sumOf { (idf[it] ?: 0f).toDouble() }.toFloat() * (k1 + 1)
         if (maxPossible <= 0f) return 0f
         return (raw / maxPossible).coerceIn(0f, 1f)
     }
 
     companion object {
+        /**
+         * Lower bound on IDF, so a term present in nearly every document still
+         * contributes rather than dropping out of [score] entirely.
+         */
+        const val IDF_FLOOR = 0.1f
+
         /**
          * Tokenize text for BM25: lowercase, split on non-alphanumeric,
          * filter empty tokens, add bigrams for better signal.

@@ -70,8 +70,9 @@ import com.aura.kg.NodeEntity
         ReferenceIdentityEntity::class,
         RoutingOutcomeEntity::class,
         MemoryFeedbackEntity::class,
+        MemoryFtsEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -98,4 +99,5 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun referenceIdentityDao(): ReferenceIdentityDao
     abstract fun routingOutcomeDao(): RoutingOutcomeDao
     abstract fun memoryFeedbackDao(): MemoryFeedbackDao
+    abstract fun memoryFtsDao(): MemoryFtsDao
 }

@@ -30,6 +30,10 @@ class MemoryStoreQueryTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, MemoryDatabase::class.java)
             .allowMainThreadQueries()
+            // Room creates the FTS virtual table but not the triggers that
+            // populate it. Without this the index is empty and every lexical
+            // assertion below would pass or fail for the wrong reason.
+            .addCallback(MemoryFtsSchema.triggerCallback)
             .build()
         store = MemoryStore(
             db.memoryDao(),

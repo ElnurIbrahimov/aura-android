@@ -89,17 +89,71 @@ class BM25Test {
 
     @Test
     fun `IDF weights rare terms higher`() {
-        val docs = listOf(
-            "the the the common word the the the",
-            "rare unique uncommon term here",
+        // Previously this asserted only `rareScore > 0f`, which held whether or
+        // not IDF discriminated at all — so it passed happily through the years
+        // when MemoryStore handed BM25 a pre-filtered candidate list as its
+        // "corpus" and every query term collapsed to the IDF floor. It has to
+        // compare a rare term against a common one to mean anything.
+        val docs = listOf("rare term here", "common term also", "common term again")
+        val bm25 = BM25(
+            docs,
+            corpusSize = 1000,
+            corpusDocFreq = mapOf("rare" to 1, "common" to 900),
         )
-        val bm25 = BM25(docs)
-        val commonScore = bm25.score("the", 0)
-        val rareScore = bm25.score("rare", 1)
-        // "rare" appears in 1 doc, "the" in 1 doc — but "rare" has
-        // fewer occurrences overall so IDF is similar. The key is
-        // that rare terms get nonzero IDF.
+
+        val rareScore = bm25.score("rare", 0)
+        val commonScore = bm25.score("common", 1)
+
         assertTrue("Rare term should have positive score", rareScore > 0f)
+        assertTrue(
+            "A term in 1 of 1000 docs must outweigh one in 900 of 1000 (rare=$rareScore common=$commonScore)",
+            rareScore > commonScore,
+        )
+    }
+
+    @Test
+    fun `corpus statistics beat candidate-set statistics`() {
+        // The exact defect. The candidate list is what a LIKE/MATCH prefilter
+        // returns: every row contains the query term, so a candidate-set df
+        // makes df ~= N, ln((N - df + 0.5) / (df + 0.5)) goes negative, and the
+        // floor gives every query term the same weight. Supplying the real
+        // corpus counts restores the ordering.
+        val candidates = listOf("kotlin and common", "kotlin and common", "kotlin and common")
+
+        val candidateSetIdf = BM25(candidates)
+        assertEquals(
+            "without corpus stats both terms tie at the IDF floor",
+            candidateSetIdf.score("kotlin", 0),
+            candidateSetIdf.score("common", 0),
+            0.0001f,
+        )
+
+        val corpusIdf = BM25(
+            candidates,
+            corpusSize = 500,
+            corpusDocFreq = mapOf("kotlin" to 3, "common" to 480),
+        )
+        assertTrue(
+            "with corpus stats the discriminating term must win",
+            corpusIdf.score("kotlin", 0) > corpusIdf.score("common", 0),
+        )
+    }
+
+    @Test
+    fun `normalizedScore does not saturate at 1 for a partial match`() {
+        // score() multiplies each term by (k1 + 1) * tf / denom, but the
+        // divisor was the bare sum of IDF — so raw routinely exceeded it and
+        // coerceIn clamped the result to exactly 1.0. Combined with the IDF
+        // collapse that flattened textScore across most candidates, and since
+        // Retrieval.rankCandidates fuses by RANK, a tie is the same as no
+        // signal at all.
+        val docs = listOf("kotlin coroutines structured concurrency guide", "kotlin only")
+        val bm25 = BM25(docs, corpusSize = 100, corpusDocFreq = mapOf("kotlin" to 50, "coroutines" to 3))
+
+        val partial = bm25.normalizedScore("kotlin coroutines", 1) // doc has "kotlin", not "coroutines"
+
+        assertTrue("a partial match must not normalize to a perfect 1.0, got $partial", partial < 1.0f)
+        assertTrue("a partial match must still score above zero, got $partial", partial > 0f)
     }
 
     @Test

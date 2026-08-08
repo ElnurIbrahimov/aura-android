@@ -37,6 +37,10 @@ class MemoryDaoContractTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, MemoryDatabase::class.java)
             .allowMainThreadQueries()
+            // Room creates the FTS virtual table but not the triggers that
+            // populate it. Without this the index is empty and every lexical
+            // assertion below would pass or fail for the wrong reason.
+            .addCallback(MemoryFtsSchema.triggerCallback)
             .build()
         dao = db.memoryDao()
     }
@@ -83,32 +87,136 @@ class MemoryDaoContractTest {
         assertEquals(listOf("private fact"), hits.map { it.content })
     }
 
+    // --- FTS lexical recall (replaced searchByWordsInScopes) ---
+
     @Test
-    fun `searchByWordsInScopes returns ONLY matching rows with sentinel pads`() = runBlocking {
-        // Regression: unused slots padded with "%%" matched EVERY row, so
-        // recall returned "freshest N in scope" regardless of the query.
-        // The sentinel pad must match nothing.
+    fun `searchFts returns ONLY matching rows`() = runBlocking {
+        // The predecessor's failure mode: unused LIKE slots padded with "%%"
+        // matched EVERY row, so recall degenerated to "freshest N in scope"
+        // regardless of the query. A MATCH has no padding to get wrong, but the
+        // scope filter and the term semantics still have to hold.
         dao.insert(memory("I love kotlin programming"))
         dao.insert(memory("I prefer python"))
-        val s = MemoryStore.NO_MATCH_SENTINEL
-        val hits = dao.searchByWordsInScopes(
-            word1 = "%kotlin%", word2 = s, word3 = s,
-            word4 = s, word5 = s, word6 = s,
-            scopes = listOf("general"), limit = 10,
-        )
+
+        val hits = dao.searchFts(FtsQuery.build(listOf("kotlin"))!!, listOf("general"), 10)
+
         assertEquals(listOf("I love kotlin programming"), hits.map { it.content })
     }
 
     @Test
-    fun `searchByWordsInScopes with all sentinel pads matches nothing`() = runBlocking {
+    fun `searchFts matches any term, not all of them`() = runBlocking {
         dao.insert(memory("I love kotlin programming"))
-        val s = MemoryStore.NO_MATCH_SENTINEL
-        val hits = dao.searchByWordsInScopes(
-            word1 = s, word2 = s, word3 = s,
-            word4 = s, word5 = s, word6 = s,
-            scopes = listOf("general"), limit = 10,
+        dao.insert(memory("I prefer python"))
+        dao.insert(memory("unrelated note about cooking"))
+
+        val hits = dao.searchFts(FtsQuery.build(listOf("kotlin", "python"))!!, listOf("general"), 10)
+
+        assertEquals(setOf("I love kotlin programming", "I prefer python"), hits.map { it.content }.toSet())
+    }
+
+    @Test
+    fun `searchFts accepts more than six terms`() = runBlocking {
+        // The whole point of the migration. searchByWordsInScopes took exactly
+        // six LIKE parameters, so MemoryStore truncated the user's message to
+        // its first six non-stopwords and silently dropped the rest.
+        dao.insert(memory("the seventh term is databases"))
+        val terms = listOf("alpha", "beta", "gamma", "delta", "epsilon", "zeta", "databases")
+
+        val hits = dao.searchFts(FtsQuery.build(terms)!!, listOf("general"), 10)
+
+        assertEquals(listOf("the seventh term is databases"), hits.map { it.content })
+    }
+
+    @Test
+    fun `searchFts respects the scope filter`() = runBlocking {
+        dao.insert(memory("kotlin in general scope"))
+        dao.insert(memory("kotlin in agent scope", scope = "agent:a1"))
+
+        val hits = dao.searchFts(FtsQuery.build(listOf("kotlin"))!!, listOf("general"), 10)
+
+        assertEquals(listOf("kotlin in general scope"), hits.map { it.content })
+    }
+
+    @Test
+    fun `searchFts returns nothing for a term absent from the corpus`() = runBlocking {
+        dao.insert(memory("I love kotlin programming"))
+
+        val hits = dao.searchFts(FtsQuery.build(listOf("zzqxv"))!!, listOf("general"), 10)
+
+        assertTrue("expected no hits, got ${hits.map { it.content }}", hits.isEmpty())
+    }
+
+    // --- FTS trigger sync ---
+    //
+    // The index is maintained entirely by SQL triggers. If they are missing or
+    // wrong, the FTS table stays empty or goes stale and lexical recall quietly
+    // returns nothing — the failure mode is silence, so it needs its own tests.
+
+    @Test
+    fun `insert populates the FTS index`() = runBlocking {
+        dao.insert(memory("indexed on insert"))
+        val stored = dao.recent(10).single()
+
+        assertEquals(1, db.memoryFtsDao().count())
+        assertEquals("indexed on insert", db.memoryFtsDao().contentFor(stored.id))
+    }
+
+    @Test
+    fun `update refreshes the FTS index`() = runBlocking {
+        dao.insert(memory("original wording"))
+        val stored = dao.recent(10).single()
+        dao.update(stored.copy(content = "revised wording"))
+
+        assertTrue(
+            "stale content must not remain searchable",
+            dao.searchFts(FtsQuery.build(listOf("original"))!!, listOf("general"), 10).isEmpty(),
         )
-        assertTrue("sentinel pads must not match any row, got ${hits.map { it.content }}", hits.isEmpty())
+        assertEquals(
+            listOf("revised wording"),
+            dao.searchFts(FtsQuery.build(listOf("revised"))!!, listOf("general"), 10).map { it.content },
+        )
+    }
+
+    @Test
+    fun `delete removes the row from the FTS index`() = runBlocking {
+        dao.insert(memory("temporary note"))
+        val stored = dao.recent(10).single()
+        dao.delete(stored.id)
+
+        assertEquals(0, db.memoryFtsDao().count())
+        assertTrue(dao.searchFts(FtsQuery.build(listOf("temporary"))!!, listOf("general"), 10).isEmpty())
+    }
+
+    @Test
+    fun `insertAll populates the FTS index for every row`() = runBlocking {
+        // The bulk path used by backup restore. A Kotlin-side sync would have
+        // had to remember this one separately; triggers cover it for free.
+        dao.insertAll(listOf(memory("bulk one"), memory("bulk two")))
+
+        assertEquals(2, db.memoryFtsDao().count())
+    }
+
+    // --- corpus statistics for BM25 ---
+
+    @Test
+    fun `countInScopes counts only the scoped corpus`() = runBlocking {
+        dao.insert(memory("general one"))
+        dao.insert(memory("general two"))
+        dao.insert(memory("other scope", scope = "agent:a1"))
+
+        assertEquals(2, dao.countInScopes(listOf("general")))
+        assertEquals(3, dao.countInScopes(listOf("general", "agent:a1")))
+    }
+
+    @Test
+    fun `docFreqInScopes counts documents containing a term`() = runBlocking {
+        dao.insert(memory("kotlin is nice"))
+        dao.insert(memory("kotlin again here"))
+        dao.insert(memory("python instead"))
+
+        assertEquals(2, dao.docFreqInScopes(FtsQuery.quote("kotlin")!!, listOf("general")))
+        assertEquals(1, dao.docFreqInScopes(FtsQuery.quote("python")!!, listOf("general")))
+        assertEquals(0, dao.docFreqInScopes(FtsQuery.quote("rust")!!, listOf("general")))
     }
 
     // --- CRUD ---

@@ -22,10 +22,22 @@ object RoomConfig {
         klass: Class<T>,
         name: String,
         migrations: Array<Migration>,
+        /**
+         * Optional callback for schema Room does not generate itself.
+         *
+         * Room's `createAllTables` covers entities, indices and views — not
+         * triggers. A database that keeps an FTS index in sync with triggers
+         * therefore gets them from its migration on an *upgrade* and from
+         * nowhere at all on a *fresh install*, which is the harder case to
+         * notice: the index simply stays empty and lexical recall returns
+         * nothing, with no error anywhere.
+         */
+        callback: RoomDatabase.Callback? = null,
     ): RoomDatabase.Builder<T> {
         val builder = Room.databaseBuilder(context, klass, name)
             .addMigrations(*migrations)
             .apply {
+                callback?.let { addCallback(it) }
                 if (BuildConfig.DEBUG) {
                     fallbackToDestructiveMigrationOnDowngrade()
                 }

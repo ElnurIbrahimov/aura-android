@@ -210,31 +210,33 @@ class MemoryStore @Inject constructor(
 
         val escapedText = escapeLikeWildcards(retrievalQuery)
         val scopes = scopeFilter?.toList() ?: listOf("general")
-        // Split the query into individual words and search for any match.
-        // A full-phrase LIKE (%programming languages i enjoy%) would match
-        // almost nothing — individual word LIKEs (%kotlin% OR %love% OR %programming%)
-        // catch any memory that shares at least one word with the query.
-        // Stopwords are dropped: "the"/"want" LIKE-match nearly every row
-        // and flood the pool with fresh-but-irrelevant candidates.
+        // Split the query into terms and match any of them, so a memory sharing
+        // one word with the query is a candidate. A full-phrase match would
+        // find almost nothing. Stopwords are dropped: "the"/"want" appear in
+        // nearly every row and would flood the pool with fresh-but-irrelevant
+        // candidates.
+        //
+        // The cap used to be six, because the DAO took six `LIKE` parameters —
+        // an arity limit that silently truncated the user's message. FTS MATCH
+        // takes any number of terms, so [MAX_QUERY_TERMS] is now only a sanity
+        // bound against someone pasting a document into the chat.
         val queryWords = retrievalQuery.lowercase()
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() && it.length > 2 }
             .filter { it !in com.aura.core.util.StopWords.ENGLISH }
-            .take(6)
-        // Unused slots get a sentinel no content can LIKE-match ("%%" here
-        // matched EVERY row, turning recall into "freshest 15 regardless of
-        // query" and making the vector fallback below unreachable).
-        val pad = List(6) { i -> if (i < queryWords.size) "%${escapeLikeWildcards(queryWords[i])}%" else NO_MATCH_SENTINEL }
+            .distinct()
+            .take(MAX_QUERY_TERMS)
         // Fetch enough candidates that the reranker actually gets its
         // RERANK_POOL_SIZE pool (limit*3 = 15 used to cap below 20).
         val candidateLimit = maxOf(limit * 3, RERANK_POOL_SIZE + 5)
-        val textHits = if (queryWords.isNotEmpty()) {
-            dao.searchByWordsInScopes(
-                word1 = pad[0], word2 = pad[1], word3 = pad[2],
-                word4 = pad[3], word5 = pad[4], word6 = pad[5],
-                scopes = scopes, limit = candidateLimit,
-            )
+        val ftsQuery = FtsQuery.build(queryWords)
+        val textHits = if (ftsQuery != null) {
+            dao.searchFts(ftsQuery, scopes, candidateLimit)
         } else {
+            // Every term was a stopword, too short, or pure punctuation. FTS
+            // cannot express that — `MATCH ''` is a syntax error, not an empty
+            // result — so fall back to the substring LIKE, which is also what
+            // the Memory-screen search bar uses.
             dao.searchByTextInScopes("%$escapedText%", scopes, candidateLimit)
         }
         val qVec = embedder.embed(retrievalQuery)
@@ -285,14 +287,48 @@ class MemoryStore @Inject constructor(
         // BM25 text scoring: build a BM25 index from the scoped text hits
         // and score each candidate against the query. This replaces the
         // naive term-overlap score with proper IDF-weighted BM25.
-        val bm25 = if (textHits.isNotEmpty()) BM25(textHits.map { it.content }) else null
+        // Corpus statistics for BM25's IDF.
+        //
+        // The index used to be built as BM25(textHits.map { it.content }) — a
+        // "corpus" consisting only of rows that had already matched a query
+        // term. Document frequency for exactly the discriminating terms then
+        // approached N, ln((N - df + 0.5) / (df + 0.5)) went negative, and the
+        // 0.1 floor gave every query term identical weight. Since
+        // Retrieval.rankCandidates fuses by rank order, a tied lexical score is
+        // the same as no lexical signal at all.
+        //
+        // One COUNT for the corpus size plus one indexed FTS probe per term,
+        // bounded by MAX_QUERY_TERMS. Both are cheap; matchinfo() could return
+        // all of it in a single query, but that needs @RawQuery plus manual
+        // BLOB parsing and there is no @RawQuery precedent in this DAO — see
+        // ENGINEERING_HISTORY §3 for the recorded follow-up.
+        val corpusSize = runCatching { dao.countInScopes(scopes) }
+            .onFailure { Log.w("MemoryStore", "corpus size lookup failed; BM25 falls back to candidate-set IDF", it) }
+            .getOrDefault(textHits.size)
+        val corpusDocFreq: Map<String, Int> = runCatching {
+            queryWords.mapNotNull { term ->
+                FtsQuery.quote(term)?.let { quoted -> term to dao.docFreqInScopes(quoted, scopes) }
+            }.toMap()
+        }.onFailure { Log.w("MemoryStore", "document frequency lookup failed; BM25 falls back to candidate-set IDF", it) }
+            .getOrDefault(emptyMap())
+
+        val bm25 = if (textHits.isNotEmpty()) {
+            BM25(textHits.map { it.content }, corpusSize = corpusSize, corpusDocFreq = corpusDocFreq)
+        } else {
+            null
+        }
         val queryTokens = text.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
         val scoredCandidates = textHits.mapIndexed { idx, mem ->
             val embedding = mem.embedding?.let { Embedder.fromBytes(it) }
 
             // BM25 text score (normalized 0-1) or fallback to term overlap.
+            // Scored against `retrievalQuery`, not the original `text`: the
+            // candidates were fetched with the rewritten query, so scoring them
+            // against the un-rewritten one measured a different question than
+            // the one that selected them. The reranker still sees the original
+            // `text`, which is what the user actually asked.
             val textScore = if (bm25 != null) {
-                bm25.normalizedScore(text, idx)
+                bm25.normalizedScore(retrievalQuery, idx)
             } else {
                 val contentLower = mem.content.lowercase()
                 val matchedTokens = queryTokens.count { it in contentLower }
@@ -349,12 +385,18 @@ class MemoryStore @Inject constructor(
          */
         const val VECTOR_FALLBACK_SCAN_LIMIT = 2000
         /**
-         * LIKE pattern for unused word slots in searchByWordsInScopes.
-         * Contains no wildcards, so it only matches content exactly equal
-         * to it — which no memory is (a lone NUL byte). Never "%%": that
-         * matches every row.
+         * Upper bound on lexical query terms.
+         *
+         * Not an arity limit — FTS MATCH takes any number of terms. This
+         * replaced a hard six, which existed only because the DAO took six
+         * `LIKE` parameters, and which silently truncated the user's message
+         * (the whole message is the query). 24 is generous for a question and
+         * still bounds the per-term document-frequency probes in query().
+         *
+         * The old NO_MATCH_SENTINEL went with it: there are no unused word
+         * slots left to pad.
          */
-        internal const val NO_MATCH_SENTINEL = "\u0000"
+        internal const val MAX_QUERY_TERMS = 24
 
         /**
          * How many recent embedded rows the semantic-dedup scan in
