@@ -11,6 +11,7 @@ import com.aura.capabilities.ImageRequest
 import com.aura.capabilities.ImageResult
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +31,7 @@ import javax.inject.Singleton
 @Singleton
 class ImageGenCapabilityTool @Inject constructor(
     private val capabilityRouter: CapabilityRouter,
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) {
     val tool = Tool(
         name = "image_generate",
@@ -60,10 +62,22 @@ class ImageGenCapabilityTool @Inject constructor(
 
             val (width, height) = parseSize(size)
 
-            val provider = capabilityRouter.resolve(CapabilityKind.ImageGeneration, "generate")
+            // resolvePreferred, not resolve: a provider can expose SEVERAL image
+            // models (Agnes AI publishes agnes-image-2.0-flash and
+            // agnes-image-2.1-flash), each of which becomes its own backend.
+            // Plain resolve() takes whichever comes first in catalog order, so
+            // choosing the newer one in Settings had no effect here.
+            val preferred = userPreferences?.imageModel?.first()
+            val provider = capabilityRouter.resolvePreferred(CapabilityKind.ImageGeneration, preferred)
             if (provider == null) {
+                val available = capabilityRouter.available(CapabilityKind.ImageGeneration).map { it.displayName }
                 return@Tool ToolResult.Error(
-                    "No image generation provider is configured. Add an API key for Stability AI or OpenAI in Settings.",
+                    if (available.isEmpty()) {
+                        "No image generation provider is configured. Add an API key for a provider that " +
+                            "offers image generation in Settings."
+                    } else {
+                        "No image generation provider is usable. Configured: ${available.joinToString()}."
+                    },
                     "no_provider",
                 )
             }
@@ -77,6 +91,7 @@ class ImageGenCapabilityTool @Inject constructor(
             try {
                 val request = ImageRequest(
                     prompt = prompt,
+                    model = preferred?.substringAfter(':').orEmpty(),
                     width = width,
                     height = height,
                     negativePrompt = negativePrompt,

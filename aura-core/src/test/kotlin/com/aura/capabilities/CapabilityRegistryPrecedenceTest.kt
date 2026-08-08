@@ -124,4 +124,63 @@ class CapabilityRegistryPrecedenceTest {
         assertEquals("exa", registry.forKind(CapabilityKind.WebSearch)?.prefix)
         assertTrue(registry.all().size == 1)
     }
+
+    // ── choosing between several models of the same capability ─────
+
+    /**
+     * One provider commonly exposes several models of the same capability —
+     * Agnes AI publishes both `agnes-image-2.0-flash` and
+     * `agnes-image-2.1-flash`, and each becomes its own backend.
+     *
+     * With no preference the first in catalog order wins, which is why a device
+     * run picked 2.0 rather than the newer 2.1. `resolvePreferred` is what makes
+     * the Settings choice actually decide.
+     */
+    @Test
+    fun `the preferred model wins among several of the same capability`() {
+        val v20 = declared("agnes/agnes-image-2.0-flash", CapabilityKind.ImageGeneration)
+        val v21 = declared("agnes/agnes-image-2.1-flash", CapabilityKind.ImageGeneration)
+        val registry = CapabilityRegistry(
+            providers = emptyMap(),
+            providerKeys = mockk(relaxed = true),
+            discovered = discovery(v20, v21),
+        )
+        val router = CapabilityRouter(registry, mockk(relaxed = true))
+
+        // Settings writes `provider:model`; backends identify as
+        // `provider/model`. The router normalises rather than leaking that.
+        val chosen = router.resolvePreferred(CapabilityKind.ImageGeneration, "agnes:agnes-image-2.1-flash")
+
+        assertEquals("agnes/agnes-image-2.1-flash", chosen?.prefix)
+    }
+
+    @Test
+    fun `no preference takes the first available`() {
+        val v20 = declared("agnes/agnes-image-2.0-flash", CapabilityKind.ImageGeneration)
+        val v21 = declared("agnes/agnes-image-2.1-flash", CapabilityKind.ImageGeneration)
+        val router = CapabilityRouter(
+            CapabilityRegistry(emptyMap(), mockk(relaxed = true), discovery(v20, v21)),
+            mockk(relaxed = true),
+        )
+
+        assertEquals("agnes/agnes-image-2.0-flash", router.resolvePreferred(CapabilityKind.ImageGeneration, null)?.prefix)
+        assertEquals("agnes/agnes-image-2.0-flash", router.resolvePreferred(CapabilityKind.ImageGeneration, "")?.prefix)
+    }
+
+    @Test
+    fun `a stale preference degrades to a working backend`() {
+        // The chosen model was removed from the catalog, or its key was
+        // cleared. Falling back beats erroring: the user asked for an image,
+        // not for a lecture about their settings.
+        val v20 = declared("agnes/agnes-image-2.0-flash", CapabilityKind.ImageGeneration)
+        val router = CapabilityRouter(
+            CapabilityRegistry(emptyMap(), mockk(relaxed = true), discovery(v20)),
+            mockk(relaxed = true),
+        )
+
+        val chosen = router.resolvePreferred(CapabilityKind.ImageGeneration, "agnes:model-that-is-gone")
+
+        assertEquals("agnes/agnes-image-2.0-flash", chosen?.prefix)
+    }
+
 }

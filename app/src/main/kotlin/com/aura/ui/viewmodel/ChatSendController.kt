@@ -503,8 +503,14 @@ class ChatSendController(
                         is AgentEvent.Result -> {
                             // Replace the conversation snapshot with the loop's final state
                             // which includes all tool calls, tool results, and assistant text.
+                            //
+                            // withImagesFromToolResults re-derives generatedImages from the
+                            // tool results this conversation carries. Without it the images
+                            // attached during streaming are lost here — the loop's
+                            // conversation never received them — so a generated image
+                            // rendered and then vanished on completion.
                             state.update { old ->
-                                old.copy(conversation = event.conversation)
+                                old.copy(conversation = event.conversation.withImagesFromToolResults())
                             }
                             // Detect canvas blocks in the final assistant response.
                             val assistantText = event.conversation.turns.lastOrNull()?.assistant.orEmpty()

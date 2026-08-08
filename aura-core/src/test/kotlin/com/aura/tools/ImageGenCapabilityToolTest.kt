@@ -25,7 +25,7 @@ class ImageGenCapabilityToolTest {
 
     @Test
     fun returns_error_when_no_provider_configured() = runTest {
-        every { capabilityRouter.resolve(CapabilityKind.ImageGeneration, "generate") } returns null
+        every { capabilityRouter.resolvePreferred(CapabilityKind.ImageGeneration, any()) } returns null
 
         val result = tool.execute(
             ToolCall(id = "1", name = "image_generate", arguments = mapOf("prompt" to "a cat")),
@@ -42,7 +42,7 @@ class ImageGenCapabilityToolTest {
     fun returns_error_when_provider_not_image_provider() = runTest {
         val nonImageProvider = mockk<CapabilityProvider>()
         every { nonImageProvider.displayName } returns "Some Provider"
-        every { capabilityRouter.resolve(CapabilityKind.ImageGeneration, "generate") } returns nonImageProvider
+        every { capabilityRouter.resolvePreferred(CapabilityKind.ImageGeneration, any()) } returns nonImageProvider
 
         val result = tool.execute(
             ToolCall(id = "1", name = "image_generate", arguments = mapOf("prompt" to "a cat")),
@@ -59,7 +59,7 @@ class ImageGenCapabilityToolTest {
     fun returns_ok_when_generation_succeeds() = runTest {
         val imageProvider = mockk<ImageProvider>()
         every { imageProvider.displayName } returns "Stability AI"
-        every { capabilityRouter.resolve(CapabilityKind.ImageGeneration, "generate") } returns imageProvider
+        every { capabilityRouter.resolvePreferred(CapabilityKind.ImageGeneration, any()) } returns imageProvider
         coEvery { imageProvider.generate(any()) } returns ImageResult(
             url = "https://example.com/image.png",
             mimeType = "image/png",
@@ -79,7 +79,7 @@ class ImageGenCapabilityToolTest {
     fun returns_error_when_generation_throws() = runTest {
         val imageProvider = mockk<ImageProvider>()
         every { imageProvider.displayName } returns "Stability AI"
-        every { capabilityRouter.resolve(CapabilityKind.ImageGeneration, "generate") } returns imageProvider
+        every { capabilityRouter.resolvePreferred(CapabilityKind.ImageGeneration, any()) } returns imageProvider
         coEvery { imageProvider.generate(any()) } throws RuntimeException("API timeout")
 
         val result = tool.execute(

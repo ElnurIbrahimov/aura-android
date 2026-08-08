@@ -41,3 +41,39 @@ internal fun calculateImageSampleSize(width: Int, height: Int, target: Int): Int
     }
     return sample
 }
+
+/** Marker image tools emit around a generated image URL. */
+private val IMAGE_MARKER = Regex("""\[IMAGE:(.+?)]""")
+
+/**
+ * Rebuild each turn's [Conversation.Turn.generatedImages] from its own tool
+ * results.
+ *
+ * Generated images used to vanish the moment a run finished. `AgentEvent.-
+ * ToolResult` attached them to the UI's copy of the conversation, and then
+ * `AgentEvent.Result` replaced that copy wholesale with the loop's — which had
+ * never been told about them. The image rendered while streaming and
+ * disappeared on completion, and nothing was persisted, so reopening the
+ * conversation from History never showed it either.
+ *
+ * Deriving them from `toolTurns` instead of carrying them across two
+ * conversation objects fixes all three: the loop's conversation is the one that
+ * gets saved, so the images persist and replay, and there is no index-matching
+ * between two turn lists that can drift apart.
+ *
+ * Nothing is stored locally — a provider-hosted URL is a reference, and losing
+ * the reference was the whole bug. Existing entries are preserved and deduped
+ * so a UI-attached image is never dropped.
+ */
+internal fun Conversation.withImagesFromToolResults(): Conversation = copy(
+    turns = turns.map { turn ->
+        val fromTools = turn.toolTurns.flatMap { tt ->
+            IMAGE_MARKER.findAll(tt.result).map { it.groupValues[1] }.toList()
+        }
+        if (fromTools.isEmpty()) {
+            turn
+        } else {
+            turn.copy(generatedImages = (turn.generatedImages + fromTools).distinct())
+        }
+    },
+)

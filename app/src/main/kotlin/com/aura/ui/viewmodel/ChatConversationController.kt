@@ -46,7 +46,12 @@ internal class ChatConversationController(
             _state.update { it.copy(conversationLoading = true) }
             try {
                 conversationStore.load(id)?.let { conv ->
-                    _state.update { it.copy(conversation = conv) }
+                    // Re-derive generated images from the stored tool results.
+                    // Conversations saved before that bug was fixed have an
+                    // empty generatedImages on every turn, so their images
+                    // never came back on replay even though the URLs were
+                    // sitting in the tool results all along.
+                    _state.update { it.copy(conversation = conv.withImagesFromToolResults()) }
                 }
             } finally {
                 _state.update { it.copy(conversationLoading = false) }
