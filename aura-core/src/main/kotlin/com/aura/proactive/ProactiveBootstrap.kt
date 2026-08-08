@@ -93,8 +93,7 @@ class ProactiveBootstrap @Inject constructor(
         scope.launch {
             runCatching { integrationTokenStore?.checkConnectionState() }
                 .onFailure { e ->
-                    try { android.util.Log.w("ProactiveBootstrap", "integration token state check failed: ${e.message}", e) }
-                    catch (_: RuntimeException) {}
+                    android.util.Log.w("ProactiveBootstrap", "integration token state check failed: ${e.message}", e)
                 }
         }
         // Soft-delete sweep on app start: hard-purges tombstones older
@@ -163,15 +162,11 @@ class ProactiveBootstrap @Inject constructor(
             if (decayOn) {
                 runCatching { memoryStore.runDecayPass() }
                     .onFailure { error ->
-                        try {
-                            android.util.Log.w(
-                                "ProactiveBootstrap",
-                                "startup decay pass failed: ${error.message}",
-                                error,
-                            )
-                        } catch (_: RuntimeException) {
-                            // android.util.Log is unavailable in pure JVM tests.
-                        }
+                        android.util.Log.w(
+                            "ProactiveBootstrap",
+                            "startup decay pass failed: ${error.message}",
+                            error,
+                        )
                     }
             }
         }
@@ -189,13 +184,11 @@ class ProactiveBootstrap @Inject constructor(
         scope.launch {
             runCatching { reconnectMcpServers() }
                 .onFailure { error ->
-                    try {
-                        android.util.Log.w(
-                            "ProactiveBootstrap",
-                            "MCP reconnect failed: ${error.message}",
-                            error,
-                        )
-                    } catch (_: RuntimeException) {}
+                    android.util.Log.w(
+                        "ProactiveBootstrap",
+                        "MCP reconnect failed: ${error.message}",
+                        error,
+                    )
                 }
         }
     }
@@ -288,9 +281,7 @@ class ProactiveBootstrap @Inject constructor(
                 if (token.isNullOrBlank()) config else config.copy(authToken = token)
             }
         } catch (e: Exception) {
-            try {
-                android.util.Log.w("ProactiveBootstrap", "Failed to parse MCP servers JSON: ${e.message}")
-            } catch (_: RuntimeException) {}
+            android.util.Log.w("ProactiveBootstrap", "Failed to parse MCP servers JSON: ${e.message}", e)
             return
         }
 

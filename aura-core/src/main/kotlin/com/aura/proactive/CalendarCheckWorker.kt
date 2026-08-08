@@ -34,9 +34,7 @@ class CalendarCheckWorker @AssistedInject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            try {
-                android.util.Log.w("CalendarCheckWorker", "calendar check failed: ${e.message}")
-            } catch (_: RuntimeException) {}
+            android.util.Log.w("CalendarCheckWorker", "calendar check failed: ${e.message}", e)
             Result.retry()
         }
     }

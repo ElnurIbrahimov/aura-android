@@ -91,7 +91,6 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val providerRegistry: com.aura.providers.ProviderRegistry,
     private val conversationCompactor: ConversationCompactor,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
-    private val providerKeys: com.aura.providers.ProviderKeys? = null,
     private val beliefDao: com.aura.world.BeliefDao? = null,
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
     private val agentStore: AgentStore? = null,
@@ -450,6 +449,18 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         var lastUserMessage = ""
         var currentConversation = conversationCompactor.compactIfNeeded(conversation, model)
         var effectiveModel = model
+        // Where this run's tool-call step numbering starts.
+        //
+        // `step` restarts at 1 on every run(), and resumeAfterGate continues a
+        // paused run by calling run() again with the held conversation. Tagging
+        // the resumed run's first step as 1 would merge its calls into the
+        // group the original step 1 already owns, which is exactly the
+        // fabricated-parallel-batch bug this tagging exists to prevent. Seeding
+        // from the highest step already recorded on the turn keeps the sequence
+        // monotonic across the pause. Zero for a fresh run.
+        val toolStepOffset = currentConversation.turns.lastOrNull()
+            ?.toolTurns.orEmpty()
+            .maxOfOrNull { it.step } ?: 0
 
         // Recall cache: keyed by (userMessage, agentId). Prevents re-running
         // the full RRF + embedding + DB query pipeline on every step of a
@@ -598,7 +609,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 val lines = recallHits.map { m ->
                     "- [${m.category}] ${m.content}"
                 }.joinToString("\n")
-                "\n\n# Relevant memories:\n$lines"
+                "\n\n## Relevant memories:\n$lines"
             } else ""
 
             // Include active world-model beliefs in the system context
@@ -613,7 +624,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         val lines = beliefs.map { b ->
                             "- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)"
                         }.joinToString("\n")
-                        "\n\n# Known beliefs:\n$lines"
+                        "\n\n## Known beliefs:\n$lines"
                     }
                 }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}", it) }.getOrDefault("")
             } else ""
@@ -698,6 +709,34 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val topicContext = if (recentTopics.isNotBlank()) {
                 "\n\n## Recent topics: $recentTopics\nIf relevant, offer to continue where the user left off."
             } else ""
+
+            // Everything Aura retrieved from its own stores goes in one
+            // delimited section under an untrusted-data preamble.
+            //
+            // These four blocks used to be appended bare to the system prompt,
+            // indistinguishable from Aura's own identity and the specialist's
+            // instructions. That matters because their content is
+            // attacker-reachable in one hop: the model reads a page with
+            // read_url, judges a line memorable, calls remember, and the line
+            // comes back as `## Relevant memories` inside the system message on
+            // a later turn. Beliefs and taste are LLM-derived from the same
+            // material. Conversation.toMessages and both summarisation prompts
+            // already framed their content this way; the highest-trust region
+            // of the prompt was the one place that did not.
+            //
+            // Deliberately NOT included: emotion, hands, reflection, and the
+            // consciousness blocks. Those are computed by Aura from the user's
+            // own input or authored by the user directly — they are not
+            // retrieved content and framing them as untrusted would be wrong.
+            val retrievedContext = listOf(topicContext, memoryContext, beliefContext, tasteContext)
+                .filter { it.isNotBlank() }
+                .joinToString("")
+            val framedRetrievedContext = if (retrievedContext.isBlank()) {
+                ""
+            } else {
+                "\n\n# Retrieved context\n" + PromptFraming.UNTRUSTED_CONTEXT_PREAMBLE + retrievedContext
+            }
+
             val messages = buildList {
                 val sys = listOfNotNull(
                     if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}", it) }.getOrNull() else null,
@@ -706,7 +745,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     currentConversation.systemPrompt,
                     brain.resolvedIdentity().ifBlank { null },
                     userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + topicContext + memoryContext + beliefContext + tasteContext + emotionContext + handContext + reflectionContext +
+                ).joinToString("\n\n") + framedRetrievedContext + emotionContext + handContext + reflectionContext +
                     // Consciousness layer: NarrativeSelf, IntrinsicMotivation, TheoryOfMind.
                     // All are heuristic, no LLM cost. Injected on step 1 only.
                     (if (step == 1) {
@@ -874,7 +913,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             }
             for ((id, args) in toolCalls) {
                 val name = toolCallStarts[id] ?: ""
-                currentConversation = currentConversation.addToolCall(id, name, args)
+                // Tag with the step that produced the call. When this step
+                // emitted no text, addAssistant above was skipped and these
+                // calls land on the turn a previous step already owns —
+                // `step` is what keeps them from being replayed as if the
+                // model had asked for everything at once. See ToolTurn.step.
+                currentConversation = currentConversation.addToolCall(id, name, args, toolStepOffset + step)
             }
 
             if (toolCalls.isEmpty() || finishReason == "stop" || finishReason == "length") {
@@ -1308,25 +1352,28 @@ private suspend fun extractProfileFromText(text: String) {
     }
 
     /**
-     * Filter out search tools that need an API key the user hasn't configured.
-     * The LLM only sees tools that will actually work, so it doesn't waste
-     * a turn calling brave_search when no Brave key is set.
+     * Hide the standalone Tavily and Brave search tools from the model.
      *
-     * - web_search: always visible (DuckDuckGo, no key needed)
-     * - web_search_capability: always visible (routes to configured provider or DDG fallback)
-     * - tavily_search: hidden unless Tavily key is configured
-     * - brave_search: hidden unless Brave key is configured
-     * - MCP-prefixed tools: always visible (user explicitly connected the server)
+     * Since the M5 consolidation `web_search` dispatches to Tavily or Brave
+     * internally when a key is configured, falling back to DuckDuckGo when it
+     * isn't. Offering the backends separately alongside it only creates
+     * selection ambiguity — three tools that do the same job, two of which
+     * fail without a key. So the model sees exactly one search tool, always.
+     *
+     * Both stay registered in the [ToolRegistry]: direct dispatch, the Tools
+     * screen, hands, and tests still reach them by name. This filter only
+     * shapes what goes into the `tools` array on the wire.
+     *
+     * The KDoc here used to describe key-conditional hiding ("hidden unless a
+     * Tavily key is configured"), which the body never did, and an early
+     * `if (providerKeys == null) return tools` made the mismatch worse by
+     * showing both tools in exactly the case — no keys available — where they
+     * were guaranteed to fail. The guard and the `suspend` modifier were both
+     * doing nothing and are gone; the `providerKeys` injection went with them,
+     * since that guard was its only remaining reader.
      */
-    private suspend fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> {
-        if (providerKeys == null) return tools
-        // M5 consolidation: web_search now dispatches to Tavily/Brave
-        // internally, so the standalone tools would only create
-        // selection ambiguity for the model. They stay registered in
-        // the ToolRegistry (direct/tool calls and tests still work),
-        // but the model sees exactly one search tool.
-        return tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
-    }
+    private fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> =
+        tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
 
     /**
      * Generate the system-prompt plan prefix for a turn. Uses the cheap

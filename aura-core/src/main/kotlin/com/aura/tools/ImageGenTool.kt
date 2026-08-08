@@ -104,8 +104,7 @@ class ImageGenTool @Inject constructor(
                 if (result != null) return result
             } catch (e: Exception) {
                 // Log the error so the user knows their paid provider failed.
-                // Wrapped in try-catch because android.util.Log is not mocked in unit tests.
-                try { android.util.Log.w("ImageGenTool", "OpenAI image gen failed, falling back to Pollinations: ${e.message}") } catch (_: Throwable) {}
+                android.util.Log.w("ImageGenTool", "OpenAI image gen failed, falling back to Pollinations: ${e.message}", e)
             }
         }
         return generateWithPollinations(enhancedPrompt, size)

@@ -2,6 +2,9 @@ package com.aura.agent
 
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -19,12 +22,24 @@ import javax.inject.Singleton
  * improvising.
  *
  * This is "lite" MCTS: one level of expansion + one level of value
- * estimation. No recursive rollouts — bounded to 2 cheap LLM calls
- * (expansion + scoring) with a hard timeout, so it never blocks the
- * user's real answer for more than a few seconds.
+ * estimation. No recursive rollouts.
  *
- * Cost: at most 2 auxiliary calls on hard questions only (>80 chars,
- * step 1, strategy = MULTI_STEP_REFLECT or planning enabled).
+ * Cost: **1 + N cheap auxiliary calls**, where N is the number of branches
+ * expansion returned (at most [MAX_BRANCHES]) — one call to expand, then one
+ * scoring call per branch. So up to 4 calls, not 2. This KDoc previously
+ * claimed "2 cheap LLM calls (expansion + scoring)" and "never blocks the
+ * user's real answer for more than a few seconds"; both understated it,
+ * because scoring is per-branch and the caller's ceiling is 20s, not a few
+ * seconds. The branch scores are now fetched concurrently, so wall time is
+ * one expansion plus one score rather than the sum of all of them.
+ *
+ * Bounds: [EXPAND_TIMEOUT_MS] on expansion and [SCORE_TIMEOUT_MS] per score,
+ * under a 20s outer `withTimeoutOrNull` in
+ * [MemoryAugmentedAgenticLoop.generatePlanPrefix] — that outer cap is the real
+ * limit on how long the user waits for a first token.
+ *
+ * Fires on hard questions only (>[MIN_MESSAGE_LENGTH] chars, step 1, strategy =
+ * MULTI_STEP_REFLECT or planning enabled — and planning is off by default).
  * Falls back to null (no plan) on any error — the loop runs normally.
  */
 @Singleton
@@ -56,8 +71,16 @@ class ReasoningTree @Inject constructor(
         if (userMessage.length < MIN_MESSAGE_LENGTH) return null
         val branches = expand(userMessage, modelId) ?: return null
         if (branches.size < 2) return branches.firstOrNull()
-        val scored = branches.map { summary ->
-            Branch(summary, score(summary, userMessage, modelId))
+        // Score the branches concurrently. They are independent value
+        // estimates, so running them in sequence spent up to
+        // MAX_BRANCHES * SCORE_TIMEOUT_MS (24s) inside a caller that gives the
+        // whole tree 20s — the outer timeout, not the branch count, decided
+        // how many scores actually came back. Concurrently the ceiling is one
+        // SCORE_TIMEOUT_MS regardless of branch count.
+        val scored = coroutineScope {
+            branches
+                .map { summary -> async { Branch(summary, score(summary, userMessage, modelId)) } }
+                .awaitAll()
         }
         val best = scored.maxByOrNull { it.score } ?: return null
         if (best.score < VALUE_THRESHOLD) return null

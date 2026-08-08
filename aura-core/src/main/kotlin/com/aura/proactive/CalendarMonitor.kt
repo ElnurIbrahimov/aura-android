@@ -78,12 +78,9 @@ class CalendarMonitor @Inject constructor(
             throw e
         } catch (e: SecurityException) {
             // permission revoked mid-check
+            android.util.Log.w("CalendarMonitor", "calendar permission revoked mid-check: ${e.message}", e)
         } catch (e: Exception) {
-            try {
-                android.util.Log.w("CalendarMonitor", "calendar check failed: ${e.message}")
-            } catch (_: RuntimeException) {
-                // android.util.Log unavailable in pure JVM tests
-            }
+            android.util.Log.w("CalendarMonitor", "calendar check failed: ${e.message}", e)
         }
     }
 

@@ -67,14 +67,7 @@ class DreamWorker @AssistedInject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            try {
-                android.util.Log.w(
-                    "DreamWorker",
-                    "dream cycle failed: ${e.message}",
-                )
-            } catch (_: RuntimeException) {
-                // android.util.Log is unavailable in pure JVM tests.
-            }
+            android.util.Log.w("DreamWorker", "dream cycle failed: ${e.message}", e)
             Result.retry()
         }
     }

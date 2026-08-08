@@ -64,16 +64,29 @@ class SpecialistRouterTest {
 
     @Test
     fun `coder has expected tools`() {
-        assertTrue(Specialist.Coder.toolsAllowed.contains("brave_search"))
-        assertTrue(Specialist.Coder.toolsAllowed.contains("tavily_search"))
+        assertTrue(Specialist.Coder.toolsAllowed.contains("web_search"))
         assertTrue(Specialist.Coder.toolsAllowed.contains("fetch_url"))
     }
 
     @Test
     fun `researcher has expected tools`() {
         assertTrue(Specialist.Researcher.toolsAllowed.contains("deep_research"))
-        assertTrue(Specialist.Researcher.toolsAllowed.contains("brave_search"))
-        assertTrue(Specialist.Researcher.toolsAllowed.contains("tavily_search"))
+        assertTrue(Specialist.Researcher.toolsAllowed.contains("web_search"))
+    }
+
+    /**
+     * The loop hides `brave_search` / `tavily_search` from the model entirely —
+     * `web_search` dispatches to them internally. Listing them in an allowlist
+     * grants nothing, so keeping them there only implies a capability the
+     * specialist does not actually have.
+     */
+    @Test
+    fun `no specialist allowlists a search backend the model never sees`() {
+        val hidden = setOf("brave_search", "tavily_search")
+        val offenders = Specialist.ALL
+            .filter { it.toolsAllowed.any { tool -> tool in hidden } }
+            .map { it.name }
+        assertTrue("specialists allowlisting hidden search backends: $offenders", offenders.isEmpty())
     }
 
     @Test

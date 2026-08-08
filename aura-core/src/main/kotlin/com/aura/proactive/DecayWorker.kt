@@ -44,9 +44,7 @@ class DecayWorker @AssistedInject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            try {
-                android.util.Log.w("DecayWorker", "decay pass failed: ${e.message}")
-            } catch (_: RuntimeException) {}
+            android.util.Log.w("DecayWorker", "decay pass failed: ${e.message}", e)
             Result.retry()
         }
     }

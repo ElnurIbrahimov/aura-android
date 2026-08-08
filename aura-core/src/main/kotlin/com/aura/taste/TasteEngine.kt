@@ -252,7 +252,10 @@ class TasteEngine @Inject constructor(
             lines.add("- $category: prefers $top")
         }
         if (lines.isEmpty()) return ""
-        return "\n\n# User taste preferences (learned from signals):\n${lines.joinToString("\n")}"
+        // `##`, not `#`: the agentic loop nests this under its own
+        // "# Retrieved context" heading, which carries the untrusted-data
+        // preamble for everything Aura pulled out of its own stores.
+        return "\n\n## User taste preferences (learned from signals):\n${lines.joinToString("\n")}"
     }
 }
 

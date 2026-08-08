@@ -6,7 +6,6 @@ import com.aura.memory.MemoryStore
 import com.aura.profile.UserProfileStore
 import com.aura.providers.ChatOptions
 import com.aura.providers.ModelCatalogRepository
-import com.aura.providers.ProviderKeys
 import com.aura.providers.ProviderMessage
 import com.aura.taste.TasteEngine
 import com.aura.world.BeliefDao
@@ -33,7 +32,6 @@ class MemoryAugmentedAgenticLoopAgentPersonalityTest {
         val providerRegistry = mockk<com.aura.providers.ProviderRegistry>(relaxed = true)
         val conversationCompactor = mockk<com.aura.agent.ConversationCompactor>(relaxed = true)
         val modelCatalogRepository = mockk<ModelCatalogRepository>(relaxed = true)
-        val providerKeys = mockk<ProviderKeys>(relaxed = true)
         val beliefDao = mockk<BeliefDao>(relaxed = true)
         val emotionEngine = mockk<EmotionEngine>(relaxed = true)
         val agentStore = mockk<AgentStore>(relaxed = true)
@@ -81,7 +79,6 @@ class MemoryAugmentedAgenticLoopAgentPersonalityTest {
             providerRegistry = providerRegistry,
             conversationCompactor = conversationCompactor,
             modelCatalogRepository = modelCatalogRepository,
-            providerKeys = providerKeys,
             beliefDao = beliefDao,
             emotionEngine = emotionEngine,
             agentStore = agentStore,

@@ -166,9 +166,9 @@ All 76 registered tools (plus any MCP-discovered ones) are browsable in-app on t
 ### Web & research
 | Tool | What it does | Risk |
 |---|---|---|
-| `web_search` | DuckDuckGo HTML search (free, no key) | READ_ONLY |
-| `brave_search` | Brave Search API (needs key) | READ_ONLY |
-| `tavily_search` | Tavily Search API (needs key, key in header) | READ_ONLY |
+| `web_search` | Web search — dispatches to Tavily or Brave when a key is set, else DuckDuckGo | READ_ONLY |
+| `brave_search` | Brave Search API (needs key). Registered but **not offered to the model** — `web_search` routes to it | READ_ONLY |
+| `tavily_search` | Tavily Search API (needs key, key in header). Registered but **not offered to the model** — `web_search` routes to it | READ_ONLY |
 | `ddg_instant_answer` | DuckDuckGo Instant Answer API (free) | READ_ONLY |
 | `searxng_search` | SearXNG metasearch (self-hosted instance) | READ_ONLY |
 | `wikipedia_search` | Wikipedia article search (free) | READ_ONLY |
@@ -306,8 +306,8 @@ MoA ships with no built-in presets (`moa_presets.json` is empty). Configure a cu
 Keyword-routed (see `SpecialistRouter`). Each has a system prompt and allowed tool set. Tool allowlists are enforced in the loop — a specialist cannot call a tool not in its allowlist. Specialist system prompts are user-customizable via Settings.
 
 - **general** — fallback, all tools
-- **coder** — brave/tavily/web search + fetch_url
-- **researcher** — deep_research + brave/tavily/web search
+- **coder** — web search + fetch_url
+- **researcher** — deep_research + web search + fetch_url
 - **writer** — creative_read_project, creative_add_world_item, recall (fiction, scripts, world-building)
 - **creative** — image generation and visual ideation
 - **executive** — calendar + contacts + remember/recall
