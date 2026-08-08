@@ -384,6 +384,10 @@ data class PreferencesBackup(
     val moaReferenceModels: String = "[]",
     val moaAggregatorModel: String? = null,
     val imageModel: String? = null,
+    // Defaulted, like every other field added to this class: an older backup
+    // decodes without them rather than failing the whole restore.
+    val videoModel: String? = null,
+    val voiceModel: String? = null,
     val smtpHost: String? = null,
     val smtpPort: Int = 0,
     val smtpUsername: String? = null,

@@ -143,6 +143,23 @@ data class SettingsUiState(
     val verifying: String? = null,
     val morningBriefHour: Int = 7,
     val availableModels: List<String> = emptyList(),
+    /**
+     * Currently selected capability models, `prefix:model`. Blank means "use
+     * the first discovered backend", which is why these work unset.
+     */
+    val imageModel: String = "",
+    val videoModel: String = "",
+    val voiceModel: String = "",
+    /**
+     * Catalog models per capability, for the capability pickers.
+     *
+     * Separate from [availableModels], which is chat-only: offering an image
+     * model for chat is the HTTP 400 this whole line of work started from, and
+     * offering a chat model for image generation is the mirror mistake.
+     */
+    val imageModels: List<String> = emptyList(),
+    val videoModels: List<String> = emptyList(),
+    val voiceModels: List<String> = emptyList(),
     val modelsLoading: Boolean = false,
     val modelsError: String? = null,
     val providerTests: Map<String, ProviderTestResult> = emptyMap(),
@@ -310,6 +327,9 @@ class SettingsViewModel @Inject constructor(
             val visionModel = userPreferences.visionModel.first()
             val backgroundModel = userPreferences.backgroundModel.first()
             val deepModeModel = userPreferences.deepModeModel.first()
+            val imageModel = userPreferences.imageModel.first()
+            val videoModel = userPreferences.videoModel.first()
+            val voiceModel = userPreferences.voiceModel.first()
             val moaReferenceModels = userPreferences.moaReferenceModels.first()
             val moaAggregatorModel = userPreferences.moaAggregatorModel.first()
             val firstRunComplete = userPreferences.firstRunComplete.first()
@@ -364,6 +384,9 @@ class SettingsViewModel @Inject constructor(
                 roleModels = roleModels,
                 defaultModel = defaultModel.orEmpty(),
                 visionModel = visionModel.orEmpty(),
+                imageModel = imageModel.orEmpty(),
+                videoModel = videoModel.orEmpty(),
+                voiceModel = voiceModel.orEmpty(),
                 backgroundModel = backgroundModel.orEmpty(),
                 deepModeModel = deepModeModel.orEmpty(),
                 moaReferenceModels = moaReferenceModels,
@@ -559,10 +582,26 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { userPreferences.setIncognitoDefault(enabled) }
     }
 
+    /**
+     * Which model generates images, as `prefix:model`.
+     *
+     * This had no caller until 2026-08-08 — the preference existed, nothing
+     * wrote it, and so the provider-routed image generation behind it was
+     * unreachable from the UI.
+     */
     fun setImageModel(model: String) {
-        // ImageGenTool reads from UserPreferences.imageModel directly;
-        // no UI state needed in Settings.
+        _state.update { it.copy(imageModel = model) }
         viewModelScope.launch { userPreferences.setImageModel(model) }
+    }
+
+    fun setVideoModel(model: String) {
+        _state.update { it.copy(videoModel = model) }
+        viewModelScope.launch { userPreferences.setVideoModel(model) }
+    }
+
+    fun setVoiceModel(model: String) {
+        _state.update { it.copy(voiceModel = model) }
+        viewModelScope.launch { userPreferences.setVoiceModel(model) }
     }
 
     fun setDaemonEnabled(enabled: Boolean) {
@@ -1211,6 +1250,15 @@ class SettingsViewModel @Inject constructor(
                 // pickers. Capability-specific pickers filter for themselves.
                 availableModels = catalog.allModels.filter { it.capability.isChatUsable }
                     .map { model -> model.id }.distinct().sorted(),
+                imageModels = catalog.allModels
+                    .filter { it.capability == com.aura.providers.ModelCapability.Image }
+                    .map { it.id }.distinct().sorted(),
+                videoModels = catalog.allModels
+                    .filter { it.capability == com.aura.providers.ModelCapability.Video }
+                    .map { it.id }.distinct().sorted(),
+                voiceModels = catalog.allModels
+                    .filter { it.capability == com.aura.providers.ModelCapability.Speech }
+                    .map { it.id }.distinct().sorted(),
                 modelsLoading = catalog.providers.values.any { provider ->
                     provider.status == ProviderStatus.Loading
                 },

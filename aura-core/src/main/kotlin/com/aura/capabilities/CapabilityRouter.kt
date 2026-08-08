@@ -45,6 +45,30 @@ class CapabilityRouter @Inject constructor(
     }
 
     /**
+     * Resolve a provider for [kind], honouring an explicit user choice.
+     *
+     * [preferred] is a `prefix:model` string from Settings, e.g.
+     * `agnes:agnes-image-2.1-flash`, or a bare backend prefix like `kling` for
+     * a hand-written adapter. Null — or a choice that is no longer available,
+     * because the key was removed or the provider dropped the model — falls
+     * back to [resolve], so a stale setting degrades to "something that works"
+     * rather than to nothing.
+     *
+     * Discovered backends identify as `provider/model` while the preference is
+     * written `provider:model`, so the two separators are normalised here
+     * rather than leaking the distinction into Settings.
+     */
+    fun resolvePreferred(kind: CapabilityKind, preferred: String?): CapabilityProvider? {
+        val wanted = preferred?.takeIf { it.isNotBlank() }?.replace(':', '/')
+        if (wanted != null) {
+            registry.configuredForKind(kind)
+                .firstOrNull { it.prefix.replace(':', '/').equals(wanted, ignoreCase = true) }
+                ?.let { return it }
+        }
+        return resolve(kind)
+    }
+
+    /**
      * List all configured providers for [kind], ordered by preference.
      */
     fun available(kind: CapabilityKind): List<CapabilityProvider> =

@@ -68,6 +68,9 @@ fun AiAndModelsSection(
     onVerifyKey: (String) -> Unit,
     onSetDefaultModel: (String) -> Unit,
     onSetEmbeddingModel: (String) -> Unit,
+    onSetImageModel: (String) -> Unit,
+    onSetVideoModel: (String) -> Unit,
+    onSetVoiceModel: (String) -> Unit,
     onSetVisionModel: (String) -> Unit,
     onSetBackgroundModel: (String) -> Unit,
     onSetDeepModeModel: (String) -> Unit,
@@ -201,6 +204,24 @@ fun AiAndModelsSection(
         RoleModelRow("Background tasks", state.backgroundModel) { activeModelRole = "background" }
         RoleModelRow("Deep Mode", state.deepModeModel) { activeModelRole = "deep" }
 
+        // Capability models. These lists come from the same catalogs as the
+        // chat models, filtered by what each model can actually do — so a
+        // provider that serves images (Agnes AI serves agnes-image-2.1-flash
+        // from the same base URL as its chat models) shows up here without
+        // anyone having written an adapter for it.
+        //
+        // Blank means "use the first discovered backend", so leaving these
+        // untouched still works; the picker is an override.
+        if (state.imageModels.isNotEmpty()) {
+            RoleModelRow("Image", state.imageModel.ifBlank { AUTO_LABEL }) { activeModelRole = "image" }
+        }
+        if (state.videoModels.isNotEmpty()) {
+            RoleModelRow("Video", state.videoModel.ifBlank { AUTO_LABEL }) { activeModelRole = "video" }
+        }
+        if (state.voiceModels.isNotEmpty()) {
+            RoleModelRow("Voice", state.voiceModel.ifBlank { AUTO_LABEL }) { activeModelRole = "voice" }
+        }
+
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
         Text(
             text = stringResource(R.string.mixture_of_agents),
@@ -266,6 +287,9 @@ fun AiAndModelsSection(
         activeModelRole?.let { role ->
             val selectableModels = when (role) {
                 "embedding" -> state.availableModels.filter { it.startsWith("ollama:") }
+                "image" -> state.imageModels
+                "video" -> state.videoModels
+                "voice" -> state.voiceModels
                 "moa-reference", "moa-aggregator" -> state.availableModels.filterNot { it.startsWith("moa:") }
                 else -> state.availableModels
             }
@@ -275,6 +299,9 @@ fun AiAndModelsSection(
                 "vision" -> state.visionModel
                 "background" -> state.backgroundModel
                 "deep" -> state.deepModeModel
+                "image" -> state.imageModel
+                "video" -> state.videoModel
+                "voice" -> state.voiceModel
                 "moa-aggregator" -> state.moaAggregatorModel
                 "moa-reference" -> state.moaReferenceModels.firstOrNull().orEmpty()
                 else -> ""
@@ -291,6 +318,9 @@ fun AiAndModelsSection(
                         "vision" -> onSetVisionModel(model)
                         "background" -> onSetBackgroundModel(model)
                         "deep" -> onSetDeepModeModel(model)
+                        "image" -> onSetImageModel(model)
+                        "video" -> onSetVideoModel(model)
+                        "voice" -> onSetVoiceModel(model)
                         "moa-aggregator" -> onSetMoaAggregatorModel(model)
                         "moa-reference" -> {
                             val selected = state.moaReferenceModels
@@ -305,3 +335,6 @@ fun AiAndModelsSection(
         }
     }
 }
+
+/** Shown when a capability model is unset — it still works, via discovery. */
+private const val AUTO_LABEL = "Automatic"

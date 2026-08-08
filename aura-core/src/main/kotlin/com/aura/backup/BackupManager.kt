@@ -220,6 +220,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 moaReferenceModels = userPreferences.moaReferenceModels.first().joinToString(","),
                 moaAggregatorModel = userPreferences.moaAggregatorModel.first()?.takeIf { it.isNotBlank() },
                 imageModel = userPreferences.imageModel.first()?.takeIf { it.isNotBlank() },
+                videoModel = userPreferences.videoModel.first()?.takeIf { it.isNotBlank() },
+                voiceModel = userPreferences.voiceModel.first()?.takeIf { it.isNotBlank() },
                 mcpServersJson = userPreferences.mcpServersJson.first(),
                 evolutionOnboardingShown = userPreferences.evolutionOnboardingShown.first(),
                 daemonEnabled = userPreferences.daemonEnabled.first(),
@@ -614,6 +616,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
         p.moaAggregatorModel?.let { userPreferences.setMoaAggregatorModel(it) }
         p.imageModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setImageModel(it) }
+        p.videoModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setVideoModel(it) }
+        p.voiceModel?.takeIf { it.isNotBlank() }?.let { userPreferences.setVoiceModel(it) }
         if (p.mcpServersJson.isNotBlank() && p.mcpServersJson != "[]") {
             userPreferences.setMcpServersJson(p.mcpServersJson)
         }

@@ -85,6 +85,8 @@ internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
+internal val KEY_VIDEO_MODEL = stringPreferencesKey("video_model")
+internal val KEY_VOICE_MODEL = stringPreferencesKey("voice_model")
 internal val KEY_SMTP_HOST = stringPreferencesKey("smtp_host")
 internal val KEY_SMTP_PORT = intPreferencesKey("smtp_port")
 internal val KEY_SMTP_USERNAME = stringPreferencesKey("smtp_username")
@@ -486,13 +488,40 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         context.auraPrefs.edit { it[KEY_MCP_SERVERS_JSON] = json }
     }
 
-    /** Image generation model (null = resolve from configured provider at runtime). */
+    /**
+     * Which model generates images, as `prefix:model` — the same shape the chat
+     * picker uses, e.g. `agnes:agnes-image-2.1-flash`.
+     *
+     * Null means "use the first discovered backend for this capability", so
+     * image generation works with no configuration at all. The setting is an
+     * override, not a prerequisite. A bare model name with no prefix is read as
+     * OpenAI, which is what every value written before providers were
+     * routable meant.
+     */
     val imageModel: Flow<kotlin.String?> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_IMAGE_MODEL]?.takeIf { it.isNotBlank() }
     }
 
     suspend fun setImageModel(model: kotlin.String) {
         context.auraPrefs.edit { it[KEY_IMAGE_MODEL] = model }
+    }
+
+    /** Which model generates video. Same `prefix:model` shape as [imageModel]. */
+    val videoModel: Flow<kotlin.String?> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_VIDEO_MODEL]?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun setVideoModel(model: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_VIDEO_MODEL] = model }
+    }
+
+    /** Which model speaks (text-to-speech). Same `prefix:model` shape as [imageModel]. */
+    val voiceModel: Flow<kotlin.String?> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_VOICE_MODEL]?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun setVoiceModel(model: kotlin.String) {
+        context.auraPrefs.edit { it[KEY_VOICE_MODEL] = model }
     }
 
     suspend fun setMorningBriefHour(hour: Int) {

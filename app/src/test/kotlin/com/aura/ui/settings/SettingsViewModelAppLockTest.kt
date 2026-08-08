@@ -109,6 +109,8 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.ttsEnabled } returns flowOf(true)
         every { userPreferences.incognitoDefault } returns flowOf(false)
         every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.videoModel } returns flowOf("")
+        every { userPreferences.voiceModel } returns flowOf("")
         every { userPreferences.daemonEnabled } returns flowOf(false)
         every { userPreferences.daemonIntervalMinutes } returns flowOf(com.aura.data.UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES)
         every { userPreferences.dreamEnabled } returns flowOf(false)

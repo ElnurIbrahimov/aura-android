@@ -2,6 +2,7 @@ package com.aura.tools
 
 import com.aura.agent.ToolResult
 import com.aura.providers.ProviderKeys
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -25,21 +26,30 @@ import kotlin.test.assertTrue
 class ImageGenToolTest {
 
     /**
-     * A registry whose "openai" provider advertises the real OpenAI images
-     * endpoint.
+     * A router that resolves image generation to a backend returning [url].
      *
-     * ImageGenTool no longer hardcodes `https://api.openai.com/v1/images/-
-     * generations`; it asks the selected provider for its endpoint, so a tool
-     * built without a registry has nowhere to send the request and correctly
-     * falls through to Pollinations. Production always has one injected —
-     * these tests need one too, or they would assert on the fallback while
-     * appearing to test the OpenAI path.
+     * ImageGenTool no longer speaks HTTP itself — it asks CapabilityRouter,
+     * which serves hand-written adapters and backends discovered from a
+     * configured provider's catalog alike. A tool built without a router has
+     * nothing to resolve and correctly falls through to Pollinations, so these
+     * tests must supply one or they would assert on the fallback while
+     * appearing to test the provider path.
+     *
+     * Response parsing (url vs b64_json, and the JSON-null trap) is covered
+     * where it now lives: OpenAiCompatCapabilityHttpTest.
      */
-    private fun openAiRegistry(): com.aura.providers.ProviderRegistry =
-        mockk<com.aura.providers.ProviderRegistry>(relaxed = true).also { registry ->
-            val provider = mockk<com.aura.providers.Provider>(relaxed = true)
-            every { provider.imagesEndpoint } returns "https://api.openai.com/v1/images/generations"
-            every { registry.get("openai") } returns provider
+    private fun routerReturning(url: String): com.aura.capabilities.CapabilityRouter =
+        mockk<com.aura.capabilities.CapabilityRouter>(relaxed = true).also { router ->
+            val backend = mockk<com.aura.capabilities.ImageProvider>(relaxed = true)
+            every { backend.displayName } returns "Test Images"
+            coEvery { backend.generate(any()) } returns com.aura.capabilities.ImageResult(url = url)
+            every { router.resolvePreferred(com.aura.capabilities.CapabilityKind.ImageGeneration, any()) } returns backend
+        }
+
+    /** A router with no image backend at all — the Pollinations path. */
+    private fun emptyRouter(): com.aura.capabilities.CapabilityRouter =
+        mockk<com.aura.capabilities.CapabilityRouter>(relaxed = true).also { router ->
+            every { router.resolvePreferred(com.aura.capabilities.CapabilityKind.ImageGeneration, any()) } returns null
         }
 
     // -----------------------------------------------------------------
@@ -55,7 +65,14 @@ class ImageGenToolTest {
             contentType = "application/json",
             body = openAiResponse(),
         )
-        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, providerRegistry = openAiRegistry()).tool
+        val tool = ImageGenTool(
+            httpClient,
+            providerKeys,
+            io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also {
+                io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3")
+            },
+            capabilityRouter = routerReturning("https://example.com/image.png"),
+        ).tool
         val result = tool.execute(
             call("prompt" to "A cat wearing a hat"),
             ctx(),
@@ -76,7 +93,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns "test-openai-key"
         }
         val httpClient = mockHttpClient(statusCode = 400, contentType = "text/plain", body = "Bad Request")
-        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, providerRegistry = openAiRegistry()).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, capabilityRouter = emptyRouter()).tool
         val result = tool.execute(
             call("prompt" to "A cat"),
             ctx(),
@@ -99,7 +116,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, providerRegistry = openAiRegistry()).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, capabilityRouter = emptyRouter()).tool
         val result = tool.execute(
             call("prompt" to "A beautiful landscape"),
             ctx(),
@@ -120,7 +137,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, providerRegistry = openAiRegistry()).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, capabilityRouter = emptyRouter()).tool
         val result = tool.execute(
             call("prompt" to "Test", "size" to "1792x1024"),
             ctx(),
@@ -141,7 +158,7 @@ class ImageGenToolTest {
             every { keyFor("openai") } returns null
         }
         val httpClient = mockk<OkHttpClient>()
-        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, providerRegistry = openAiRegistry()).tool
+        val tool = ImageGenTool(httpClient, providerKeys, io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also { io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3") }, capabilityRouter = emptyRouter()).tool
         val result = tool.execute(call(), ctx())
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
         assertEquals("bad_args", (result as ToolResult.Error).code)
@@ -187,74 +204,5 @@ class ImageGenToolTest {
     // -----------------------------------------------------------------
     // Response shapes seen in the wild
     // -----------------------------------------------------------------
-
-    /**
-     * Agnes AI returns BOTH keys on every response, with the unused one set to
-     * JSON null:
-     *
-     *     "data":[{"b64_json":null,"revised_prompt":null,"url":"https://..."}]
-     *
-     * `JsonPrimitive.content` on a JSON null is the four-character String
-     * "null" — neither null nor blank — so reading `content` instead of
-     * `contentOrNull` would hand "null" back as the image URL for any provider
-     * that populates b64_json rather than url. This is the same defect
-     * d3550610 fixed in the OpenAI SSE parser. Verified against the live Agnes
-     * API on 2026-08-08.
-     */
-    @Test
-    fun `a null sibling key does not become the image url`() = runTest {
-        val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("openai") } returns "test-openai-key"
-        }
-        val httpClient = mockHttpClient(
-            contentType = "application/json",
-            body = """{"data":[{"b64_json":null,"revised_prompt":null,"url":"https://example.com/image.png"}]}""",
-        )
-        val tool = ImageGenTool(
-            httpClient,
-            providerKeys,
-            io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also {
-                io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3")
-            },
-            providerRegistry = openAiRegistry(),
-        ).tool
-
-        val result = tool.execute(call("prompt" to "A cat wearing a hat"), ctx())
-
-        val text = (result as ToolResult.Ok).output
-        assertTrue(text.contains("example.com/image.png"), "expected the real url, got: $text")
-        assertTrue(!text.contains("[IMAGE:null]"), "a JSON null must never be returned as a url, got: $text")
-    }
-
-    /**
-     * The inverse: url is null and the image is inline base64. Without a
-     * Context this cannot be persisted, so it must fail loudly and fall back
-     * rather than return the string "null" as a URL.
-     */
-    @Test
-    fun `a null url falls through to the b64 path rather than returning null`() = runTest {
-        val providerKeys = mockk<ProviderKeys> {
-            every { keyFor("openai") } returns "test-openai-key"
-        }
-        val httpClient = mockHttpClient(
-            contentType = "application/json",
-            body = """{"data":[{"url":null,"b64_json":"aGVsbG8="}]}""",
-        )
-        val tool = ImageGenTool(
-            httpClient,
-            providerKeys,
-            io.mockk.mockk<com.aura.data.UserPreferences>(relaxed = true).also {
-                io.mockk.every { it.imageModel } returns kotlinx.coroutines.flow.flowOf("dall-e-3")
-            },
-            providerRegistry = openAiRegistry(),
-        ).tool
-
-        val result = tool.execute(call("prompt" to "A cat wearing a hat"), ctx())
-
-        // No Context in this JVM test, so persisting fails and we land on the
-        // free fallback. The point is that "null" never surfaces as a URL.
-        val text = (result as? ToolResult.Ok)?.output.orEmpty()
-        assertTrue(!text.contains("[IMAGE:null]"), "a JSON null must never be returned as a url, got: $text")
-    }
 
 }

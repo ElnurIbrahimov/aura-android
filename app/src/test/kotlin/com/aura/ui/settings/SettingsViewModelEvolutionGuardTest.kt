@@ -84,6 +84,8 @@ class SettingsViewModelEvolutionGuardTest {
         every { userPreferences.evolutionEnabled } returns flowOf(false)
         every { userPreferences.evolutionIntervalHours } returns flowOf(24)
         every { userPreferences.imageModel } returns flowOf("")
+        every { userPreferences.videoModel } returns flowOf("")
+        every { userPreferences.voiceModel } returns flowOf("")
         every { userPreferences.daemonEnabled } returns flowOf(false)
         every { userPreferences.daemonIntervalMinutes } returns flowOf(UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES)
         every { userPreferences.dreamEnabled } returns flowOf(false)

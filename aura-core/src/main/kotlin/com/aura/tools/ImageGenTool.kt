@@ -47,6 +47,7 @@ class ImageGenTool @Inject constructor(
     private val userPreferences: com.aura.data.UserPreferences,
     private val brain: com.aura.agent.Brain? = null,
     private val providerRegistry: com.aura.providers.ProviderRegistry? = null,
+    private val capabilityRouter: com.aura.capabilities.CapabilityRouter? = null,
     // Optional and last, matching brain/providerRegistry above: Hilt supplies
     // it in production, and the JVM tests that construct this positionally do
     // not need it. Only the inline-base64 response path touches it.
@@ -125,26 +126,41 @@ class ImageGenTool @Inject constructor(
         } else prompt
 
         val configured = userPreferences.imageModel.first()?.takeIf { it.isNotBlank() }
-        val prefix = configured?.substringBefore(':', missingDelimiterValue = "openai") ?: "openai"
-        val model = configured?.substringAfter(':')?.takeIf { it.isNotBlank() } ?: DEFAULT_OPENAI_MODEL
 
-        val key = providerKeys.keyFor(prefix)
-        if (!key.isNullOrBlank()) {
+        // Resolve through the capability router, which serves hand-written
+        // adapters (Stability) AND backends discovered from a configured
+        // provider's catalog. A blank preference therefore means "whatever is
+        // available" rather than the old hardcoded OpenAI — which is what makes
+        // a newly connected token's image model work with no configuration.
+        val provider = capabilityRouter
+            ?.resolvePreferred(com.aura.capabilities.CapabilityKind.ImageGeneration, configured)
+            as? com.aura.capabilities.ImageProvider
+        if (provider != null) {
             try {
-                val result = generateWithProvider(prefix, model, enhancedPrompt, size, key)
-                if (result != null) return result
+                val (width, height) = parseSize(size).let { it.width to it.height }
+                val result = provider.generate(
+                    com.aura.capabilities.ImageRequest(
+                        prompt = enhancedPrompt,
+                        model = configured?.substringAfter(':').orEmpty(),
+                        width = width,
+                        height = height,
+                    ),
+                )
+                result.url?.takeIf { it.isNotBlank() }?.let { return it }
+                result.bytes?.takeIf { it.isNotEmpty() }?.let { return persistImageBytes(it) }
+                android.util.Log.w("ImageGenTool", "${provider.displayName} returned neither url nor bytes")
             } catch (e: Exception) {
                 // Surface it: the user configured a paid provider and it did
                 // not work. Silently serving a Pollinations image instead would
                 // look like success.
                 android.util.Log.w(
                     "ImageGenTool",
-                    "image gen via '$prefix' model '$model' failed, falling back to Pollinations: ${e.message}",
+                    "image gen via ${provider.displayName} failed, falling back to Pollinations: ${e.message}",
                     e,
                 )
             }
         } else {
-            android.util.Log.w("ImageGenTool", "no API key for image provider '$prefix' — using Pollinations")
+            android.util.Log.w("ImageGenTool", "no image provider available — using Pollinations")
         }
         return generateWithPollinations(enhancedPrompt, size)
     }
@@ -158,72 +174,6 @@ class ImageGenTool @Inject constructor(
     // ------------------------------------------------------------------
 
     /**
-     * Generate via [prefix]'s OpenAI-shaped images endpoint.
-     *
-     * Returns null when the provider has no such endpoint, so the caller falls
-     * through to Pollinations rather than treating it as an error.
-     */
-    private suspend fun generateWithProvider(
-        prefix: kotlin.String,
-        model: kotlin.String,
-        prompt: kotlin.String,
-        size: kotlin.String,
-        key: kotlin.String,
-    ): kotlin.String? {
-        val endpoint = providerRegistry?.get(prefix)?.imagesEndpoint
-        if (endpoint == null) {
-            android.util.Log.w("ImageGenTool", "provider '$prefix' exposes no images endpoint")
-            return null
-        }
-
-        val body = buildJsonObject {
-            put("model", model)
-            put("prompt", prompt)
-            put("n", 1)
-            put("size", size)
-        }
-
-        val requestBody = body.toString().toRequestBody(mediaTypeJson)
-        val req = Request.Builder()
-            .url(endpoint)
-            .header("Authorization", "Bearer $key")
-            .header("Content-Type", "application/json")
-            .post(requestBody)
-            .build()
-
-        httpClient.newCall(req).execute().use { response ->
-            val respBody = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                // Include the body: providers explain themselves here, and the
-                // 400 that started all of this ("Model X is an image model. Use
-                // /v1/images/generations.") was only diagnosable because the
-                // body reached the UI.
-                throw RuntimeException("$prefix images API HTTP ${response.code}: ${respBody.take(500)}")
-            }
-            if (respBody.isBlank()) throw RuntimeException("Empty response from $prefix images API")
-
-            val first = json.parseToJsonElement(respBody).jsonObject["data"]?.jsonArray
-                ?.firstOrNull()?.jsonObject
-                ?: throw RuntimeException("$prefix images response has no data[0]")
-
-            // contentOrNull, not content: a JSON null is a JsonPrimitive whose
-            // `content` is the four-character String "null", which is neither
-            // null nor blank and would sail through as an image URL. Agnes
-            // returns BOTH keys on every response with the unused one set to
-            // null, so this is not hypothetical — reading `content` here would
-            // hand back "null" for any provider that populates b64_json instead
-            // of url. Same defect d3550610 fixed in the OpenAI SSE parser.
-            first["url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
-
-            // Not every provider returns a hosted URL; the OpenAI schema also
-            // allows inline base64, and gpt-image-1 returns only that.
-            val b64 = first["b64_json"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                ?: throw RuntimeException("$prefix images response has neither url nor b64_json in data[0]")
-            return persistBase64Image(b64)
-        }
-    }
-
-    /**
      * Write an inline base64 image to the cache and return a `file://` URI.
      *
      * Kept out of the conversation as base64: `Turn.generatedImages` is
@@ -231,9 +181,8 @@ class ImageGenTool @Inject constructor(
      * megabyte of text per image once encoded. A cache file can be evicted,
      * but so can a provider-hosted URL expire — and the JSON stays small.
      */
-    private fun persistBase64Image(b64: kotlin.String): kotlin.String {
-        val ctx = appContext ?: throw RuntimeException("no Context available to store an inline base64 image")
-        val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+    private fun persistImageBytes(bytes: ByteArray): kotlin.String {
+        val ctx = appContext ?: throw RuntimeException("no Context available to store an inline image")
         val dir = java.io.File(ctx.cacheDir, "generated_images").apply { mkdirs() }
         val file = java.io.File(dir, "img_${java.util.UUID.randomUUID()}.png")
         file.writeBytes(bytes)

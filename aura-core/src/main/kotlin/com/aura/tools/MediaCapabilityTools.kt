@@ -11,6 +11,7 @@ import com.aura.capabilities.VideoProvider
 import com.aura.capabilities.VideoRequest
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.util.Log
@@ -18,17 +19,35 @@ import android.util.Log
 /**
  * Capability-backed media generation tools.
  *
- * - text_to_speech: configured TTS provider (ElevenLabs)
- * - video_generate: configured video provider (Kling)
- * - world_3d_generate: configured 3D world provider (WorldLabs)
+ * Each resolves through [CapabilityRouter], which now serves hand-written
+ * vendor adapters AND backends discovered from a configured provider's model
+ * catalog — so these work with, say, `agnes-video-v2.0` without anyone having
+ * written an Agnes adapter.
  *
- * All resolve through [CapabilityRouter] and report honestly when no
- * provider is configured.
+ * The user's Settings choice (`videoModel` / `voiceModel`) is honoured when it
+ * is still available and ignored when it is not, so a stale preference degrades
+ * to a working backend rather than to an error.
  */
 @Singleton
 class MediaCapabilityTools @Inject constructor(
     private val capabilityRouter: CapabilityRouter,
+    private val userPreferences: com.aura.data.UserPreferences,
 ) {
+    /**
+     * Names what is actually available for [kind], for error messages.
+     *
+     * The old messages named one vendor each ("Add an ElevenLabs API key"),
+     * which stopped being true the moment any provider's catalog could supply
+     * the capability.
+     */
+    private fun noProviderMessage(kind: CapabilityKind, what: String): String {
+        val available = capabilityRouter.available(kind).map { it.displayName }
+        return if (available.isEmpty()) {
+            "No $what provider is configured. Add an API key for a provider that offers $what in Settings."
+        } else {
+            "No $what provider is usable. Configured: ${available.joinToString()}."
+        }
+    }
 
     val ttsTool = Tool(
         name = "text_to_speech",
@@ -45,10 +64,13 @@ class MediaCapabilityTools @Inject constructor(
             val text = call.arguments["text"] as? String
                 ?: return@Tool ToolResult.Error("missing 'text'", "bad_args")
             val voice = call.arguments["voice"] as? String ?: ""
-            val provider = capabilityRouter.resolve(CapabilityKind.TextToSpeech) as? TextToSpeechProvider
-                ?: return@Tool ToolResult.Error("No TTS provider configured. Add an ElevenLabs API key in Settings.", "no_provider")
+            val preferred = userPreferences.voiceModel.first()
+            val provider = capabilityRouter.resolvePreferred(CapabilityKind.TextToSpeech, preferred) as? TextToSpeechProvider
+                ?: return@Tool ToolResult.Error(noProviderMessage(CapabilityKind.TextToSpeech, "text-to-speech"), "no_provider")
             runCatching {
-                val result = provider.speak(TtsRequest(text = text, voice = voice))
+                val result = provider.speak(
+                    TtsRequest(text = text, voice = voice, model = preferred?.substringAfter(':').orEmpty()),
+                )
                 ToolResult.Ok("TTS audio generated (${result.audio.size} bytes, ${result.extension}).")
             }.onFailure { Log.w("MediaCap", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error("TTS failed: ${it.message}", "generation_error") }
         },
@@ -72,10 +94,18 @@ class MediaCapabilityTools @Inject constructor(
                 ?: return@Tool ToolResult.Error("missing 'prompt'", "bad_args")
             val duration = (call.arguments["duration"] as? Int) ?: 5
             val aspectRatio = (call.arguments["aspect_ratio"] as? String) ?: "16:9"
-            val provider = capabilityRouter.resolve(CapabilityKind.VideoGeneration) as? VideoProvider
-                ?: return@Tool ToolResult.Error("No video provider configured. Add a Kling API key in Settings.", "no_provider")
+            val preferred = userPreferences.videoModel.first()
+            val provider = capabilityRouter.resolvePreferred(CapabilityKind.VideoGeneration, preferred) as? VideoProvider
+                ?: return@Tool ToolResult.Error(noProviderMessage(CapabilityKind.VideoGeneration, "video generation"), "no_provider")
             runCatching {
-                val result = provider.generate(VideoRequest(prompt = prompt, durationSeconds = duration, aspectRatio = aspectRatio))
+                val result = provider.generate(
+                    VideoRequest(
+                        prompt = prompt,
+                        model = preferred?.substringAfter(':').orEmpty(),
+                        durationSeconds = duration,
+                        aspectRatio = aspectRatio,
+                    ),
+                )
                 ToolResult.Ok(result.videoUrl?.let { "Video: $it" } ?: "Video generated (${result.bytes?.size ?: 0} bytes).")
             }.onFailure { Log.w("MediaCap", "op failed: ${it.message}", it) }.getOrElse { ToolResult.Error("Video generation failed: ${it.message}", "generation_error") }
         },
