@@ -39,10 +39,20 @@ jobs:
       # the build needs are installed directly here instead of via a separate
       # sdkmanager step. Match what the modules pin (compileSdk 37; AGP 9.3
       # default build-tools 36.0.0).
+      #
+      # The platform package is `android-37.0`, NOT `android-37`. API 37 ships
+      # with a minor component in its version string — the installed SDK
+      # directory is `platforms/android-37.0` and its source.properties reads
+      # `AndroidVersion.ApiLevel=37.0`. `platforms;android-37` does not resolve,
+      # and sdkmanager reports it as `Warning: Failed to find package` before
+      # exiting 1, which fails the job in ~40s during setup. Every CI run since
+      # the Phase 7 toolchain jump (00cd0312) died here, before a single Gradle
+      # task ran, which is why nothing downstream of this step was ever
+      # exercised on a runner.
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-37 build-tools;36.0.0'
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
