@@ -247,6 +247,16 @@ Baseline at the 2026-08-08 check: **2,152 unit tests, 0 failures**; `assembleRel
 (R8 + resource shrinking) succeeds, 11.97 MB APK; `lintDebug` clean of errors (18 warnings
 across both modules); `lint-logging.sh` and `check-version-docs.sh` both pass.
 
+*2026-08-09:* **2,225 unit tests, 0 failures.** That number had been stated as 2,152 in
+README.md and architecture.md for a day's worth of commits — `check-version-docs.sh` gates
+the version string and looks at nothing else, so every other figure in those documents
+drifts freely. `scripts/check-test-count.sh` now reads the JUnit XML and fails when a doc
+disagrees with it, when the suite is not green, or when a listed doc has dropped the count
+entirely. It runs in the `build-test` CI job rather than `gates`, which has no JDK and could
+only guess, and it errors out when no XML is present — a gate that reports OK over an empty
+file list is the §2.6 defect, not a gate. The baseline figure above is left as written: it
+is a dated record of one run, which is this file's job.
+
 ### The 2026-08-08 remediation sweep
 
 An external review verified the project's own claims by building and running it — test

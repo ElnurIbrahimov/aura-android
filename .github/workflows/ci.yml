@@ -106,6 +106,15 @@ jobs:
       - name: Build and test
         run: ./gradlew :aura-core:assembleDebug :aura-core:testDebugUnitTest :app:assembleDebug :app:testDebugUnitTest
 
+      # README.md and architecture.md state the test count in the present tense,
+      # and it drifted from 2,152 to 2,225 unnoticed — check-version-docs.sh
+      # gates the version string and nothing else. This one reads the JUnit XML,
+      # so it belongs here rather than in `gates`, which has no JDK or Gradle
+      # and could only ever guess. It errors out when the XML is absent, so it
+      # cannot pass by having read nothing.
+      - name: Test-count documentation drift
+        run: bash scripts/check-test-count.sh
+
       - name: Upload debug APK
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
