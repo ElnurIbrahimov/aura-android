@@ -60,12 +60,17 @@ class OpenRouterProvider(
      */
     override suspend fun listModelsWithContext(): List<ModelInfo> = withContext(Dispatchers.IO) {
         val names = listModels()
-        val ctxByName = runCatching {
+        // Both numbers come from the same /models response, so they are read in
+        // one pass. `top_provider.max_completion_tokens` is OpenRouter's output
+        // cap for the upstream it will route to; it was being parsed past, which
+        // left the output budget derived from `context_length` — a different
+        // number, and on a long-context model a much larger one.
+        val sizesByName = runCatching {
             val request = Request.Builder()
                 .url("$baseUrl/models")
                 .build()
             httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use emptyMap<String, Int>()
+                if (!response.isSuccessful) return@use emptyMap<String, Pair<Int?, Int?>>()
                 val body = response.body?.string() ?: return@use emptyMap()
                 val data = showJson.parseToJsonElement(body).jsonObject?.get("data") as? JsonArray
                     ?: return@use emptyMap()
@@ -75,10 +80,16 @@ class OpenRouterProvider(
                         ?.jsonPrimitive?.content ?: return@mapNotNull null
                     val ctx = (obj["context_length"] as? kotlinx.serialization.json.JsonPrimitive)
                         ?.jsonPrimitive?.content?.toIntOrNull()
-                    if (ctx != null) id to ctx else null
+                    val maxOut = ((obj["top_provider"] as? JsonObject)
+                        ?.get("max_completion_tokens") as? kotlinx.serialization.json.JsonPrimitive)
+                        ?.jsonPrimitive?.content?.toIntOrNull()
+                    if (ctx != null || maxOut != null) id to (ctx to maxOut) else null
                 }.toMap()
             }
         }.onFailure { Log.w("OpenRouter", "op failed: ${it.message}", it) }.getOrDefault(emptyMap())
-        names.map { name -> ModelInfo(name = name, contextWindow = ctxByName[name]) }
+        names.map { name ->
+            val (ctx, maxOut) = sizesByName[name] ?: (null to null)
+            ModelInfo(name = name, contextWindow = ctx, maxOutputTokens = maxOut)
+        }
     }
 }

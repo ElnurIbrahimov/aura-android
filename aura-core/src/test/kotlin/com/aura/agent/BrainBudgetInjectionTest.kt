@@ -40,12 +40,14 @@ class BrainBudgetInjectionTest {
     private suspend fun capture(
         options: ChatOptions,
         resolverValue: Int? = 100_800,
+        outputCeiling: Int? = null,
         reasoningEnabled: Boolean = true,
         reasoningBudget: Int = 32_000,
     ): ChatOptions {
         every { userPreferences.reasoningEnabled } returns flowOf(reasoningEnabled)
         every { userPreferences.reasoningBudget } returns flowOf(reasoningBudget)
-        coEvery { contextBudgetResolver.maxTokensFor(any()) } returns resolverValue
+        coEvery { contextBudgetResolver.budgetsFor(any()) } returns
+            ContextBudgetResolver.Budgets(resolverValue, outputCeiling)
         val captured = slot<ChatOptions>()
         coEvery {
             providerRegistry.chat(any(), any(), capture(captured), any())
@@ -99,20 +101,42 @@ class BrainBudgetInjectionTest {
     }
 
     /**
-     * The resolver is a live catalog probe — for OllamaCloud an /api/show
-     * fan-out per model — and this runs on every step of every agentic turn.
-     * Keeping it behind the caller check is load-bearing, so pin it.
+     * The resolver is a live catalog probe — for OllamaCloud an `/api/show`
+     * fan-out per model — and this runs on every step of every agentic turn, so
+     * how often it is called is a real cost.
+     *
+     * This used to assert the resolver was skipped entirely when the caller set
+     * its own `maxTokens`. It cannot be: the model's output ceiling is needed on
+     * that path too, and is the whole reason a creative draft asking for 28,672
+     * plus thinking gets clamped to what Anthropic will actually return. So the
+     * invariant is now "at most one lookup per stream", which is what
+     * `budgetsFor` returning both numbers together buys, and what
+     * `ModelContextCache` makes cheap.
      */
     @Test
-    fun `the resolver is not consulted when the caller set maxTokens`() = runTest {
+    fun `the catalog is looked up exactly once per stream`() = runTest {
         capture(ChatOptions(maxTokens = 8_192))
-        coVerify(exactly = 0) { contextBudgetResolver.maxTokensFor(any()) }
+        coVerify(exactly = 1) { contextBudgetResolver.budgetsFor(any()) }
     }
 
     @Test
-    fun `the resolver is consulted exactly once when the caller did not`() = runTest {
+    fun `the catalog is looked up exactly once when the caller set nothing`() = runTest {
         capture(ChatOptions())
-        coVerify(exactly = 1) { contextBudgetResolver.maxTokensFor(any()) }
+        coVerify(exactly = 1) { contextBudgetResolver.budgetsFor(any()) }
+    }
+
+    /**
+     * The end-to-end shape of the Anthropic fix: a creative draft asks for
+     * 28,672 output, thinking makes that 57,344, and the model's own 32,000
+     * ceiling brings it back to something the API will accept — with thinking
+     * re-fitted underneath rather than left dangling above it.
+     */
+    @Test
+    fun `a model output ceiling clamps what reaches the provider`() = runTest {
+        val sent = capture(ChatOptions(maxTokens = 28_672), outputCeiling = 32_000)
+        assertEquals(32_000, sent.maxTokens)
+        val thinking = assertNotNull(sent.thinkingBudget)
+        assertTrue(thinking < 32_000, "thinking ($thinking) must fit under the clamped total")
     }
 
     /** Pins the existing `runCatching { … }.getOrDefault(…)` contract on both preference reads. */
@@ -120,7 +144,8 @@ class BrainBudgetInjectionTest {
     fun `a failing preference read falls back to reasoning enabled at 32k`() = runTest {
         every { userPreferences.reasoningEnabled } returns kotlinx.coroutines.flow.flow { error("datastore down") }
         every { userPreferences.reasoningBudget } returns kotlinx.coroutines.flow.flow { error("datastore down") }
-        coEvery { contextBudgetResolver.maxTokensFor(any()) } returns 100_800
+        coEvery { contextBudgetResolver.budgetsFor(any()) } returns
+            ContextBudgetResolver.Budgets(100_800, null)
         val captured = slot<ChatOptions>()
         coEvery {
             providerRegistry.chat(any(), any(), capture(captured), any())

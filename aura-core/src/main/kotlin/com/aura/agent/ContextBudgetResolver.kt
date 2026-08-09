@@ -2,6 +2,7 @@ package com.aura.agent
 
 import com.aura.providers.ModelInfo
 import com.aura.providers.ProviderContextWindows
+import com.aura.providers.ProviderOutputLimits
 import com.aura.providers.ProviderRegistry
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +29,9 @@ import android.util.Log
 @Singleton
 class ContextBudgetResolver @Inject constructor(
     private val providerRegistry: ProviderRegistry,
+    // Nullable so the ~7 hand-constructed instances in tests keep compiling;
+    // Hilt always supplies the real cache in production.
+    private val modelContextCache: com.aura.providers.ModelContextCache? = null,
 ) {
     companion object {
         /** Tokens reserved for system prompt, tool definitions and working memory. */
@@ -41,23 +45,61 @@ class ContextBudgetResolver @Inject constructor(
     }
 
     /**
-     * Returns a safe `maxTokens` value for the given model id, or `null`
-     * if the provider cannot be resolved (callers then fall back to the
-     * provider's own default).
+     * Both numbers a caller needs to size a request.
+     *
+     * @param maxTokens the context-derived budget, already clamped to
+     *   [outputCeiling] when one is known. Null when the model is unresolvable.
+     * @param outputCeiling the largest response this model will produce, or null
+     *   when unknown. **Null means "do not clamp"** — callers must not
+     *   substitute a default, because a wrong guess truncates answers whereas a
+     *   missing value merely preserves the previous behaviour.
      */
-    suspend fun maxTokensFor(modelId: String): Int? {
+    data class Budgets(val maxTokens: Int?, val outputCeiling: Int?)
+
+    /**
+     * Resolve both budgets in a single catalog lookup.
+     *
+     * One call rather than two because the lookup is a live probe for several
+     * providers — OllamaCloud fans out an `/api/show` request per model — and
+     * this runs on every step of every agentic turn.
+     */
+    suspend fun budgetsFor(modelId: String): Budgets {
         val (provider, modelName) = try {
             providerRegistry.parse(modelId)
         } catch (_: Exception) {
-            return null
+            return Budgets(null, null)
         }
-        val models = runCatching { provider.listModelsWithContext() }.onFailure { Log.w("ContextBudgetResolver", "runCatching failed: ${it.message}", it) }.getOrNull()
-            ?: provider.listModels().map { ModelInfo(name = it, contextWindow = null) }
+        val models = if (modelContextCache != null) {
+            modelContextCache.modelsFor(provider)
+        } else {
+            runCatching { provider.listModelsWithContext() }
+                .onFailure { Log.w("ContextBudgetResolver", "catalog probe failed: ${it.message}", it) }
+                .getOrDefault(emptyList())
+        }.ifEmpty {
+            runCatching { provider.listModels().map { ModelInfo(name = it, contextWindow = null) } }
+                .onFailure { Log.w("ContextBudgetResolver", "listModels fallback failed: ${it.message}", it) }
+                .getOrDefault(emptyList())
+        }
         val info = models.firstOrNull { it.name == modelName || modelId.endsWith(":${it.name}") }
         val contextWindow = info?.contextWindow
             ?: ProviderContextWindows.lookup(provider.prefix, modelName)
             ?: DEFAULT_CONTEXT_WINDOW
-        return ((contextWindow - RESERVED_TOKENS) * GENERATION_FRACTION).toInt()
+        val contextDerived = ((contextWindow - RESERVED_TOKENS) * GENERATION_FRACTION).toInt()
             .coerceAtLeast(1_024)
+        // A live per-model value always beats the static table: the table holds
+        // platform-wide minimums, so it under-serves whichever models allow more.
+        val ceiling = info?.maxOutputTokens
+            ?: ProviderOutputLimits.lookup(provider.prefix, modelName)
+        return Budgets(
+            maxTokens = ceiling?.let { minOf(contextDerived, it) } ?: contextDerived,
+            outputCeiling = ceiling,
+        )
     }
+
+    /**
+     * Returns a safe `maxTokens` value for the given model id, or `null`
+     * if the provider cannot be resolved (callers then fall back to the
+     * provider's own default).
+     */
+    suspend fun maxTokensFor(modelId: String): Int? = budgetsFor(modelId).maxTokens
 }

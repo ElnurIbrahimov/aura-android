@@ -25,28 +25,29 @@ class ConversationCompactor @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val crashLogger: CrashLogger,
     private val kgRepository: com.aura.kg.KnowledgeGraphRepository? = null,
+    // Nullable so hand-constructed test instances keep compiling; Hilt always
+    // supplies the real cache in production.
+    private val modelContextCache: com.aura.providers.ModelContextCache? = null,
 ) {
     private val json = Json { encodeDefaults = true }
 
     /**
-     * Cache of model-list-with-context metadata per provider. This avoids
-     * calling [Provider.listModelsWithContext] (often a network round-trip)
-     * multiple times during a single long conversation that compacts
-     * more than once.
+     * Model metadata per provider, from the shared [ModelContextCache].
+     *
+     * This class used to own a private five-minute map. The reasoning behind it
+     * was right and is preserved in that class; what was wrong was owning it
+     * here, because `ContextBudgetResolver` needs exactly the same data on
+     * exactly the same hot path and had no cache at all — so the app kept two
+     * views of one catalog and probed the network twice for them.
      */
-    private val contextWindowCache = ConcurrentHashMap<String, Pair<List<ModelInfo>, Long>>()
-    private val contextWindowCacheTtlMs = 5 * 60 * 1000L // 5 minutes
-
-    private suspend fun cachedModelsWithContext(provider: Provider): List<ModelInfo> {
-        val now = System.currentTimeMillis()
-        val cached = contextWindowCache[provider.prefix]
-        if (cached != null && now - cached.second < contextWindowCacheTtlMs) {
-            return cached.first
+    private suspend fun cachedModelsWithContext(provider: Provider): List<ModelInfo> =
+        if (modelContextCache != null) {
+            modelContextCache.modelsFor(provider)
+        } else {
+            runCatching { provider.listModelsWithContext() }
+                .onFailure { Log.w("Compactor", "catalog probe failed: ${it.message}", it) }
+                .getOrDefault(emptyList())
         }
-        val models = provider.listModelsWithContext()
-        contextWindowCache[provider.prefix] = models to now
-        return models
-    }
 
     /**
      * @deprecated Kept for existing callers; prefer [cachedModelsWithContext].

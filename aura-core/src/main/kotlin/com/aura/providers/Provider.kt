@@ -106,10 +106,23 @@ interface Provider {
 }
 
 /**
- * Model metadata. [contextWindow] is in tokens (null = unknown —
- * caller should fall back to a sane default).
+ * Model metadata, in tokens. Null means unknown — the caller falls back to a
+ * sane default rather than guessing.
+ *
+ * [contextWindow] is the **input** window; [maxOutputTokens] is the largest
+ * response the model will produce. They are different numbers, and treating the
+ * first as the second is what sent `max_tokens = 158_400` to Anthropic: 80% of
+ * a 200K context window, against models that cap output far below it.
+ *
+ * Not to be confused with [ModelDescriptor], which is a separate catalog
+ * pipeline — built from [Provider.listModelsWithCapability], carrying capability
+ * rather than size, cached to disk, and feeding Settings, the model picker and
+ * capability routing. This type is built from [Provider.listModelsWithContext]
+ * and feeds only the budget resolvers. Unifying the two is worthwhile and
+ * deliberately not attempted here.
  */
 data class ModelInfo(
     val name: String,
     val contextWindow: Int? = null,
+    val maxOutputTokens: Int? = null,
 )

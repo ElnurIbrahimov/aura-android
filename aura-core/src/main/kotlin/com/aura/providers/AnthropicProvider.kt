@@ -60,15 +60,29 @@ class AnthropicProvider(
     override fun chat(model: String, messages: List<ProviderMessage>, options: ChatOptions, tools: List<ToolDefinition>): Flow<ProviderChunk> = flow {
         val key = apiKey()
         val (systemPrompt, anthropicMessages) = splitSystem(messages)
+        val maxTokens = options.maxTokens ?: DEFAULT_MAX_TOKENS
+        // Last line of defence for Anthropic's own invariant: max_tokens must
+        // exceed budget_tokens, and budget_tokens must be at least 1024.
+        //
+        // TokenBudgetPolicy already guarantees both for anything routed through
+        // Brain, but four Creative Studio call sites reached this provider with
+        // budget_tokens >= max_tokens for months and took a non-retryable 400
+        // every time, because Brain's budget block was skipped whenever a caller
+        // set its own thinking budget. Policy belongs in Brain; the vendor's
+        // invariant belongs here, where nothing can route around it.
+        //
+        // The budget is only ever clamped DOWN. Raising max_tokens to fit would
+        // increase spend behind the caller's back, which a provider must never do.
+        val thinkingBudget = options.thinkingBudget
+            ?.coerceAtMost(maxTokens - 1)
+            ?.takeIf { it >= MIN_THINKING_BUDGET }
         val body = buildJsonObject {
             put("model", model)
             put("stream", true)
-            put("max_tokens", options.maxTokens ?: 4096)
+            put("max_tokens", maxTokens)
             put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
             // Extended thinking: when budget is set, add the thinking block.
-            // Anthropic requires max_tokens >= budget_tokens + 1, and
-            // temperature must be 1.0 when thinking is enabled.
-            options.thinkingBudget?.let { budget ->
+            thinkingBudget?.let { budget ->
                 put("thinking", buildJsonObject {
                     put("type", "enabled")
                     put("budget_tokens", budget)
@@ -362,5 +376,15 @@ class AnthropicProvider(
 
     companion object {
         private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
+
+        /**
+         * Sent when no caller expressed an opinion. Anthropic requires
+         * `max_tokens`, so unlike the OpenAI-compatible providers this field
+         * cannot simply be omitted.
+         */
+        private const val DEFAULT_MAX_TOKENS = 4096
+
+        /** Anthropic's documented floor for `budget_tokens`. Below it, omit the block. */
+        private const val MIN_THINKING_BUDGET = 1024
     }
 }

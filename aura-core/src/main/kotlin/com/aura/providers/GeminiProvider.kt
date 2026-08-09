@@ -297,7 +297,18 @@ class GeminiProvider(
                         ?: return@mapNotNull null
                     val inputTokenLimit = (obj["inputTokenLimit"] as? JsonPrimitive)
                         ?.content?.toIntOrNull()
-                    ModelInfo(name = name, contextWindow = inputTokenLimit)
+                    // `outputTokenLimit` is a sibling of `inputTokenLimit` in the
+                    // same object, and was parsed past for as long as this method
+                    // has existed. It is the only per-model output cap any
+                    // provider here reports; without it `max_tokens` was derived
+                    // from the input window, which is a different number.
+                    val outputTokenLimit = (obj["outputTokenLimit"] as? JsonPrimitive)
+                        ?.content?.toIntOrNull()
+                    ModelInfo(
+                        name = name,
+                        contextWindow = inputTokenLimit,
+                        maxOutputTokens = outputTokenLimit,
+                    )
                 }
             }
         } catch (e: Exception) {

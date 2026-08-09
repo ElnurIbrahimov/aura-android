@@ -56,15 +56,16 @@ class Brain @Inject constructor(
         tools: List<ToolDefinition> = emptyList(),
         options: ChatOptions = ChatOptions(),
     ): Flow<BrainChunk> = flow {
-        // The resolver is consulted only when the caller expressed no opinion.
-        // Keeping it behind that check is load-bearing, not an optimisation:
-        // for OllamaCloud `maxTokensFor` fans out an /api/show probe per model,
-        // and this runs on every step of every agentic turn.
-        val resolverMaxTokens = if (options.maxTokens == null) {
-            contextBudgetResolver.maxTokensFor(model)
-        } else {
-            null
-        }
+        // One catalog lookup per stream, for both numbers.
+        //
+        // The ceiling is needed even when the caller set its own maxTokens —
+        // that is the whole point: a creative draft asking for 28,672 output
+        // plus thinking has to be clamped to what the model will actually
+        // return, or Anthropic rejects the request outright. The lookup is a
+        // live probe for several providers (OllamaCloud fans out an /api/show
+        // per model), which is why ModelContextCache sits behind it.
+        val budgets = contextBudgetResolver.budgetsFor(model)
+        val resolverMaxTokens = if (options.maxTokens == null) budgets.maxTokens else null
         val reasoningEnabled = runCatching {
             userPreferences.reasoningEnabled.first()
         }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}", it) }
@@ -79,7 +80,7 @@ class Brain @Inject constructor(
             resolverMaxTokens = resolverMaxTokens,
             reasoningEnabled = reasoningEnabled,
             reasoningBudget = reasoningBudget,
-            outputCeiling = null,
+            outputCeiling = budgets.outputCeiling,
         )
         val resolvedOptions = options.copy(
             maxTokens = budget.maxTokens,

@@ -305,15 +305,24 @@ open class OpenAiCompatProvider(
     }
 
     /**
-     * OpenAI-compatible /v1/models does NOT return a
-     * context window per model (just id + owned_by). So
-     * we fall back to [ProviderContextWindows] which has
-     * a snapshot for OpenAI, Groq, ChatGPT. Unknown
-     * models return null context — the compactor uses
-     * the 32K default. CustomOpenAiCompat (user's own
-     * endpoint) and OpenRouter (which DOES return
-     * context_length in the response) override this
-     * method.
+     * OpenAI-compatible /v1/models does NOT return a context window per model
+     * (just id + owned_by), so this falls back to [ProviderContextWindows],
+     * which holds a snapshot for OpenAI, Groq and ChatGPT. Unknown models return
+     * a null context and the compactor uses its 32K default.
+     *
+     * [OpenRouterProvider] overrides this — its /models response does carry
+     * `context_length` and `top_provider.max_completion_tokens`.
+     *
+     * `CustomOpenAiCompatProvider` does **not**, despite what this comment used
+     * to claim. It implements [Provider] directly rather than extending this
+     * class, has no override of its own, and so always reports a null context
+     * window. That is arguably correct — a user's private endpoint is genuinely
+     * unknowable — but it was worth not saying the opposite.
+     *
+     * `maxOutputTokens` is left null here for the same reason the context window
+     * is a table lookup: the endpoint does not report it, and OpenAI-compatible
+     * models span 4K to 100K+ output. [ProviderOutputLimits] returns null for
+     * these prefixes so nothing is clamped on a guess.
      */
     override suspend fun listModelsWithContext(): List<ModelInfo> {
         return listModels().map { name ->
