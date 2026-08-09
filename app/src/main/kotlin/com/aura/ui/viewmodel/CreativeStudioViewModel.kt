@@ -18,6 +18,7 @@ import com.aura.creative.VoiceCalibration
 import com.aura.creative.TensionAnalyzer
 import com.aura.creative.CharacterProgressionTracker
 import com.aura.creative.WorldBible
+import com.aura.creative.longform.OutlineParser
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
@@ -48,6 +49,43 @@ data class CreativeStudioUiState(
     val tensionReport: String = "",
     val analyzingTension: Boolean = false,
     val wordCount: Int = 0,
+    /** Null when no long-form run exists for the selected project. */
+    val longform: LongformRunUi? = null,
+    /** True while the outline call is in flight. */
+    val planningOutline: Boolean = false,
+)
+
+/**
+ * A long-form run as the Manuscript tab needs to see it.
+ *
+ * Joined from three sources: the job row (durable, and possibly written by a
+ * worker in a previous process lifetime), the project's outline (which beats are
+ * drafted), and the in-memory progress bus (the scene streaming right now).
+ * Nothing is polled — the first two are Room-backed Flows, which is also why
+ * this reflects work done while the screen was closed.
+ */
+data class LongformRunUi(
+    val jobId: String,
+    val status: String,
+    val beats: List<BeatProgressUi> = emptyList(),
+    val currentIndex: Int = -1,
+    val liveText: String = "",
+    val error: String? = null,
+) {
+    val totalScenes: Int get() = beats.size
+    val draftedScenes: Int get() = beats.count { it.drafted }
+    val wordsWritten: Int get() = beats.sumOf { it.wordCount }
+    val active: Boolean get() = status in ACTIVE_STATUSES
+
+    private companion object {
+        val ACTIVE_STATUSES = setOf("queued", "running", "cancelling")
+    }
+}
+
+data class BeatProgressUi(
+    val title: String,
+    val drafted: Boolean,
+    val wordCount: Int = 0,
 )
 
 @HiltViewModel
@@ -65,26 +103,42 @@ class CreativeStudioViewModel @Inject constructor(
     private val artifactStore: CreativeArtifactStore,
     private val branchStore: CreativeBranchStore,
     private val brain: com.aura.agent.Brain,
+    private val longformRunStore: com.aura.creative.longform.LongformRunStore,
+    private val longformProgressBus: com.aura.creative.longform.LongformProgressBus,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
     private var generationJob: Job? = null
+    private var longformJob: Job? = null
 
     init {
         viewModelScope.launch {
             store.observeAll().collect { projects ->
                 val selectedId = _state.value.selectedProject?.id
+                val resolved = selectedId?.let { id -> projects.find { it.id == id } }
+                    ?: _state.value.selectedProject
                 _state.update { current ->
                     current.copy(
                         projects = projects,
-                        selectedProject = selectedId?.let { id -> projects.find { it.id == id } }
-                            ?: current.selectedProject,
+                        selectedProject = resolved,
                         loading = false,
                     )
+                }
+                // Re-point the long-form observer whenever the selected project
+                // changes. Without this the Manuscript tab would keep showing
+                // the previous project's run.
+                resolved?.id?.let { id ->
+                    if (observedProjectId != id) {
+                        observedProjectId = id
+                        observeLongform(id)
+                    }
                 }
             }
         }
     }
+
+    private var observedProjectId: String? = null
 
     fun createProject(
         name: String,
@@ -117,6 +171,12 @@ class CreativeStudioViewModel @Inject constructor(
                     error = if (project == null) "Creative project not found." else null,
                 )
             }
+            // The main entry path from navigation, and where an in-flight run
+            // started in a previous session becomes visible again.
+            if (project != null && observedProjectId != id) {
+                observedProjectId = id
+                observeLongform(id)
+            }
         }
     }
 
@@ -143,6 +203,160 @@ class CreativeStudioViewModel @Inject constructor(
             runCatching { store.updateWorld(id, world) }
                 .onSuccess { project -> _state.update { it.copy(selectedProject = project, message = message, error = null) } }
                 .onFailure { error -> _state.update { it.copy(error = error.message ?: "Could not save world bible.") } }
+        }
+    }
+
+    // ---------------------------------------------------------------- long-form
+
+    /**
+     * Turn a brief into a machine-readable outline.
+     *
+     * Separate from drafting, and by default the user approves the beats before
+     * anything is written: the outline is one cheap call, drafting is a dozen
+     * expensive ones, and a bad outline wastes all of them. The beats land in
+     * `WorldBible.outline`, so they are editable in the World tab like any other
+     * canon.
+     *
+     * A retry is built in because models answer in prose when asked for a
+     * format. If the second attempt still parses to fewer than
+     * [OutlineParser.MIN_BEATS], the raw text is surfaced rather than a run being
+     * started against an empty plan — a run that writes nothing and reports
+     * success is the failure worth designing against.
+     */
+    fun planOutline(brief: String) {
+        val project = _state.value.selectedProject ?: return
+        if (brief.isBlank()) return
+        generationJob?.cancel()
+        generationJob = viewModelScope.launch {
+            _state.update { it.copy(planningOutline = true, error = null, message = null, output = "") }
+            val beats = runCatching {
+                var parsed = outlineAttempt(project.id, brief, OutlineParser.FORMAT_INSTRUCTION)
+                if (parsed.size < OutlineParser.MIN_BEATS) {
+                    parsed = outlineAttempt(project.id, brief, OutlineParser.RETRY_INSTRUCTION)
+                }
+                parsed
+            }.onFailure { error ->
+                _state.update { it.copy(planningOutline = false, error = error.message ?: "Could not plan the outline.") }
+            }.getOrNull() ?: return@launch
+
+            if (beats.size < OutlineParser.MIN_BEATS) {
+                _state.update {
+                    it.copy(
+                        planningOutline = false,
+                        error = "The model did not return a usable outline. Its reply is above — you can add beats by hand in the World tab.",
+                    )
+                }
+                return@launch
+            }
+            val updated = runCatching { store.updateWorld(project.id, project.world.copy(outline = beats)) }
+                .onFailure { error -> _state.update { it.copy(planningOutline = false, error = error.message) } }
+                .getOrNull()
+            _state.update {
+                it.copy(
+                    planningOutline = false,
+                    selectedProject = updated ?: it.selectedProject,
+                    message = "Outline planned — ${beats.size} beats. Review them, then start drafting.",
+                )
+            }
+        }
+    }
+
+    private suspend fun outlineAttempt(projectId: String, brief: String, instruction: String): List<com.aura.creative.StoryBeat> {
+        val raw = StringBuilder()
+        engine.generate(projectId, CreativeMode.OUTLINE, "$brief\n\n$instruction", thinkingBudget = 0)
+            .collect { chunk ->
+                raw.append(chunk)
+                _state.update { it.copy(output = raw.toString()) }
+            }
+        return OutlineParser.parse(raw.toString())
+    }
+
+    /**
+     * Start drafting every planned beat in the background.
+     *
+     * Enqueues a worker rather than running in `viewModelScope`: a chapter set is
+     * tens of minutes of model calls, and a ViewModel scope dies with the screen.
+     */
+    fun startDrafting() {
+        val project = _state.value.selectedProject ?: return
+        if (project.world.outline.isEmpty()) {
+            _state.update { it.copy(error = "Plan an outline before drafting.") }
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                val branchId = branchStore.createMainBranch(project.id).id
+                val jobId = longformRunStore.create(project.id, branchId, brief = project.description)
+                com.aura.creative.longform.LongformRunService.enqueue(appContext, jobId)
+                jobId
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Could not start drafting.") }
+            }.onSuccess {
+                _state.update { it.copy(message = "Drafting started. You can leave this screen.", error = null) }
+            }
+        }
+    }
+
+    /**
+     * Ask the run to stop.
+     *
+     * The Room write happens first and the WorkManager cancel second — see
+     * [com.aura.creative.longform.LongformRunService.cancel]. Cancelling only
+     * through WorkManager races the worker's own re-enqueue.
+     */
+    fun cancelDrafting() {
+        val jobId = _state.value.longform?.jobId ?: return
+        viewModelScope.launch {
+            runCatching {
+                longformRunStore.markCancelling(jobId)
+                com.aura.creative.longform.LongformRunService.cancel(appContext, jobId)
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Could not stop drafting.") }
+            }
+        }
+    }
+
+    /**
+     * Watch the most recent run for [projectId].
+     *
+     * Joins the durable job row with the project's outline and the live scene
+     * stream. Collecting the job Flow is what makes progress made while the
+     * screen was closed — or in a previous process — appear immediately on
+     * return, with no polling.
+     */
+    private fun observeLongform(projectId: String) {
+        longformJob?.cancel()
+        longformJob = viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                longformRunStore.observeForProject(projectId),
+                longformProgressBus.live,
+            ) { jobs, live -> jobs.firstOrNull() to live }
+                .collect { (job, live) ->
+                    if (job == null) {
+                        _state.update { it.copy(longform = null) }
+                        return@collect
+                    }
+                    val beats = _state.value.selectedProject?.world?.outline.orEmpty()
+                    val progress = beats.map { beat ->
+                        BeatProgressUi(
+                            title = beat.title,
+                            drafted = beat.status == "drafted",
+                            wordCount = 0,
+                        )
+                    }
+                    _state.update {
+                        it.copy(
+                            longform = LongformRunUi(
+                                jobId = job.id,
+                                status = job.status,
+                                beats = progress,
+                                currentIndex = live?.takeIf { l -> l.jobId == job.id }?.beatIndex ?: -1,
+                                liveText = live?.takeIf { l -> l.jobId == job.id }?.text.orEmpty(),
+                                error = job.errorMessage.takeIf { m -> m.isNotBlank() },
+                            ),
+                        )
+                    }
+                }
         }
     }
 

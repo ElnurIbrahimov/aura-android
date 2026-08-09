@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.creative.CouncilRole
@@ -104,7 +107,7 @@ fun CreativeProjectScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize()) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
-                listOf("World", "Write", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
+                listOf("World", "Write", "Manuscript", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -131,14 +134,22 @@ fun CreativeProjectScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
-                item {
-                    when (selectedTab) {
-                        0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
-                        1 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
-                        2 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
-                        3 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
-                        4 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
-                        else -> ToolsRoom(state, viewModel)
+                // The Manuscript tab gets real `items()` rather than sharing the
+                // single `item { }` the other tabs sit in. A finished chapter
+                // set is tens of thousands of words; inside one item, Compose
+                // measures the entire book on every frame.
+                if (selectedTab == MANUSCRIPT_TAB) {
+                    manuscriptSection(state, viewModel)
+                } else {
+                    item {
+                        when (selectedTab) {
+                            0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
+                            1 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
+                            3 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
+                            4 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
+                            5 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
+                            else -> ToolsRoom(state, viewModel)
+                        }
                     }
                 }
             }
@@ -514,4 +525,150 @@ private fun ProjectMetadataDialog(
         confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onSave(name, description, genre, tone, template) }) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+/** Index of the Manuscript tab in the tab row. */
+private const val MANUSCRIPT_TAB = 2
+
+/**
+ * The long-form drafting surface: plan an outline, review it, draft every scene.
+ *
+ * A `LazyListScope` extension rather than a `@Composable`, so a finished chapter
+ * set is laid out as one item per scene. The other tabs share a single `item { }`,
+ * which is fine for a text field and a paragraph and would be pathological for
+ * forty thousand words — Compose would measure the whole book every frame.
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
+    state: com.aura.ui.viewmodel.CreativeStudioUiState,
+    viewModel: CreativeStudioViewModel,
+) {
+    val project = state.selectedProject ?: return
+    val beats = project.world.outline
+    val run = state.longform
+
+    item(key = "manuscript-header") {
+        Column(Modifier.padding(horizontal = AuraSpacing.xxl2), verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+            Text("Manuscript", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                text = when {
+                    beats.isEmpty() -> "Plan an outline, then Aura drafts it a scene at a time in the background."
+                    run?.active == true -> "Drafting. You can leave this screen — it keeps going."
+                    else -> "${beats.size} beats planned · ${beats.count { it.status == "drafted" }} written"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+            )
+        }
+    }
+
+    if (beats.isEmpty()) {
+        item(key = "manuscript-plan") {
+            var brief by remember { mutableStateOf(project.description) }
+            Column(
+                Modifier.padding(horizontal = AuraSpacing.xxl2),
+                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+            ) {
+                OutlinedTextField(
+                    value = brief,
+                    onValueChange = { brief = it },
+                    label = { Text("What is this about?") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                )
+                Button(
+                    onClick = { viewModel.planOutline(brief) },
+                    enabled = brief.isNotBlank() && !state.planningOutline,
+                ) { Text(if (state.planningOutline) "Planning…" else "Plan outline") }
+                if (state.planningOutline || state.output.isNotBlank()) {
+                    GenerationOutput(state.output, state.planningOutline)
+                }
+            }
+        }
+        return
+    }
+
+    item(key = "manuscript-controls") {
+        Column(
+            Modifier.padding(horizontal = AuraSpacing.xxl2),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        ) {
+            val drafted = beats.count { it.status == "drafted" }
+            if (run != null && run.totalScenes > 0) {
+                LinearProgressIndicator(
+                    progress = { drafted.toFloat() / beats.size },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val current = run.currentIndex.takeIf { it >= 0 }?.let { beats.getOrNull(it) }
+                Text(
+                    text = when {
+                        current != null -> "Scene ${run.currentIndex + 1} of ${beats.size} — ${current.title}"
+                        run.active -> "Starting…"
+                        else -> "$drafted of ${beats.size} scenes written"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            run?.error?.let { error ->
+                Text(error, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.error)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+                if (run?.active == true) {
+                    Button(onClick = viewModel::cancelDrafting) { Text("Stop") }
+                } else {
+                    Button(onClick = viewModel::startDrafting) {
+                        Text(if (drafted == 0) "Write all scenes" else "Continue drafting")
+                    }
+                }
+            }
+            // Only the scene being written, not the whole manuscript above it.
+            if (run?.liveText?.isNotBlank() == true) {
+                Surface(
+                    color = AuraThemeTokens.colors.surface1,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    SelectionContainer {
+                        Text(
+                            text = run.liveText.takeLast(2_000),
+                            modifier = Modifier.padding(AuraSpacing.sm),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    itemsIndexed(beats, key = { _, beat -> beat.id }) { index, beat ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AuraSpacing.xxl2, vertical = AuraSpacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        ) {
+            val done = beat.status == "drafted"
+            Text(
+                text = if (done) "✓" else "${index + 1}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (done) AuraThemeTokens.colors.actionPrimary
+                else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = beat.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (done) AuraThemeTokens.colors.textPrimary
+                    else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
+                )
+                if (beat.summary.isNotBlank()) {
+                    Text(
+                        text = beat.summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
 }

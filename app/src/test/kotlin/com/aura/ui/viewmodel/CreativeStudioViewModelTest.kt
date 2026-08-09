@@ -39,10 +39,18 @@ class CreativeStudioViewModelTest {
         "novel", 0, 1L, 1L,
     )
 
+    private val longformRunStore: com.aura.creative.longform.LongformRunStore = mockk(relaxed = true)
+
     private fun newViewModel() = CreativeStudioViewModel(
         store, engine, council, providerRegistry, capabilityRouter, modelRoleRouter,
         mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
         mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
+        mockk(relaxed = true),
+        longformRunStore,
+        // A real progress bus: it is a plain StateFlow holder with no Android
+        // dependency, and a relaxed mock would hand back a null Flow that the
+        // long-form observer combines against.
+        com.aura.creative.longform.LongformProgressBus(),
         mockk(relaxed = true),
     )
 
