@@ -101,8 +101,13 @@ class ProactiveBootstrap @Inject constructor(
         theoryOfMind?.let { tom ->
             scope.launch { runCatching { tom.load() }.onFailure { Log.w("Bootstrap", "theory-of-mind load failed: ${it.message}", it) } }
         }
-        // Seed builtin agents on first run.
-        scope.launch { agentStore.seedBuiltins() }
+        // Seed builtin agents on first run, then repair the descriptions of
+        // installs seeded before they were written by hand — a no-op once done.
+        scope.launch {
+            agentStore.seedBuiltins()
+            runCatching { agentStore.refreshBuiltinDescriptions() }
+                .onFailure { Log.w("Bootstrap", "builtin description refresh failed: ${it.message}", it) }
+        }
         // Check Google/Microsoft integration connection state.
         scope.launch {
             runCatching { integrationTokenStore?.checkConnectionState() }

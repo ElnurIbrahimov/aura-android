@@ -20,6 +20,7 @@ class SpecialistRouterTest {
         val s = Specialist(
             name = "test",
             icon = "\uD83D\uDC40",
+            blurb = "A test agent",
             systemPrompt = "Test prompt",
             toolsAllowed = setOf("tool_a"),
             suggestedModel = "model-x",
@@ -33,7 +34,7 @@ class SpecialistRouterTest {
 
     @Test
     fun `specialist - suggested model is nullable`() {
-        val s = Specialist(name = "a", icon = "\uD83D\uDC40", systemPrompt = "p")
+        val s = Specialist(name = "a", icon = "\uD83D\uDC40", blurb = "b", systemPrompt = "p")
         assertNull(s.suggestedModel)
         assertTrue(s.toolsAllowed.isEmpty())
     }

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.aura.agent.AgentEntity
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
+import com.aura.ui.util.agentDisplayName
 
 /**
  * A single chip showing the currently active [AgentEntity]. Tapping it
@@ -38,7 +39,7 @@ fun AgentChip(
             onClick = onClick,
             label = {
                 Text(
-                    text = agent.name,
+                    text = agentDisplayName(agent.name),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = AuraThemeTokens.colors.textPrimary,

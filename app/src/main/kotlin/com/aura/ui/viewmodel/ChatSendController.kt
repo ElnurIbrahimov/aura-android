@@ -211,6 +211,7 @@ class ChatSendController(
             com.aura.agent.Specialist(
                 name = agent.name,
                 icon = agent.icon,
+                blurb = agent.description,
                 systemPrompt = agent.identity,
                 toolsAllowed = agent.toolSet(),
                 suggestedModel = agent.preferredModel,

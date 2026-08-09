@@ -58,7 +58,7 @@ class AgentStore @Inject constructor(
                 id = "agent_${s.name}",
                 name = s.name,
                 icon = s.icon,
-                description = s.systemPrompt.take(80),
+                description = s.blurb,
                 identity = s.systemPrompt,
                 toolsAllowed = s.toolsAllowed.joinToString(","),
                 preferredModel = s.suggestedModel,
@@ -80,6 +80,31 @@ class AgentStore @Inject constructor(
             }
         }
         } // end seedMutex.withLock
+    }
+
+    /**
+     * Give already-seeded builtins the description they should have had.
+     *
+     * [seedBuiltins] only runs when the table is empty, so every install made
+     * before descriptions were written by hand still stores
+     * `systemPrompt.take(80)` — "You are Aura's coding specialist. You excel at"
+     * and so on. Reseeding is not an option (it would discard the user's own
+     * agents' neighbours and the council state keyed off these rows), so this
+     * rewrites the one field in place.
+     *
+     * Only rows still carrying the generated text are touched. A description
+     * the user edited does not start with "You are", so their wording survives
+     * — the check is what makes this safe to run on every launch.
+     */
+    suspend fun refreshBuiltinDescriptions() {
+        val stale = dao.builtins().filter { it.description.startsWith(GENERATED_DESCRIPTION_PREFIX) }
+        if (stale.isEmpty()) return
+        val now = System.currentTimeMillis()
+        stale.forEach { agent ->
+            val blurb = Specialist.byName(agent.name)?.blurb ?: return@forEach
+            dao.insert(agent.copy(description = blurb, updatedAt = now))
+        }
+        Log.i("AgentStore", "rewrote ${stale.size} builtin description(s)")
     }
 
     /**
@@ -130,5 +155,14 @@ class AgentStore @Inject constructor(
     /** Delete all custom agents. Builtin agents remain. */
     suspend fun deleteAllCustom() {
         dao.deleteAllCustom()
+    }
+
+    private companion object {
+        /**
+         * Every builtin system prompt opens "You are Aura's ...", so this is
+         * what a description sliced off one begins with — and nothing a person
+         * would write about an agent they were describing to themselves.
+         */
+        const val GENERATED_DESCRIPTION_PREFIX = "You are Aura's"
     }
 }

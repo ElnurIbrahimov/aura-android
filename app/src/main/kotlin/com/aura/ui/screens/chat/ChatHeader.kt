@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.aura.ui.components.AuraIconButton
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
+import com.aura.ui.util.agentDisplayName
 import com.aura.ui.util.modelDisplayName
 import com.aura.ui.theme.AuraSpacing
 import androidx.compose.material3.HorizontalDivider
@@ -91,7 +92,10 @@ fun ChatHeader(
     val displayModel = if (missingModel) "Choose model" else modelDisplayName(selectedModel)
     val sessionOverride = !conversationModel.isNullOrBlank() && conversationModel != activeModel
     val modesActive = deepModeEnabled || incognitoMode
-    val activeAgentName = activeAgent?.name
+    // The header is what opens the picker, so it has to read the same way the
+    // picker does — otherwise tapping `phone_native` opens a sheet titled
+    // "Phone Native".
+    val activeAgentName = activeAgent?.name?.let(::agentDisplayName)
 
     BoxWithConstraints(
         modifier = Modifier

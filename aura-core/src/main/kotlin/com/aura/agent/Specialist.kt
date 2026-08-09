@@ -8,6 +8,16 @@ package com.aura.agent
 data class Specialist(
     val name: String,
     val icon: String,
+    /**
+     * One line saying what this agent is *for*, in the user's terms.
+     *
+     * Seeded into [AgentEntity.description], which used to be
+     * `systemPrompt.take(80)` — so every row in the agent picker opened with
+     * "You are Aura's ..." and was cut off mid-sentence before reaching the
+     * part that distinguished it. A system prompt addresses the model; this
+     * addresses the person choosing.
+     */
+    val blurb: String,
     val systemPrompt: String,
     val toolsAllowed: Set<String> = emptySet(),
     val suggestedModel: String? = null,
@@ -17,6 +27,7 @@ data class Specialist(
         val General = Specialist(
             name = "general",
             icon = "\uD83E\uDD16", // 🤖
+            blurb = "Everyday questions, conversation, and multi-step tasks",
             systemPrompt = """
                 You are Aura's general-purpose agent. You handle anything the
                 user asks — casual conversation, questions, tool use, multi-step
@@ -28,6 +39,7 @@ data class Specialist(
         val Coder = Specialist(
             name = "coder",
             icon = "\uD83D\uDCBB", // 💻
+            blurb = "Writes, reviews, and debugs code, and looks up the docs",
             systemPrompt = """
                 You are Aura's coding specialist. You excel at writing, reviewing,
                 and debugging Kotlin, Python, Gradle, and other programming
@@ -44,6 +56,7 @@ data class Specialist(
         val Researcher = Specialist(
             name = "researcher",
             icon = "\uD83D\uDD0D", // 🔍
+            blurb = "Finds and cites sources, and says when they disagree",
             systemPrompt = """
                 You are Aura's research specialist. Your job is to find, synthesise,
                 and cite information from the web. Use deep research for complex
@@ -58,6 +71,7 @@ data class Specialist(
         val Writer = Specialist(
             name = "writer",
             icon = "✍️",
+            blurb = "Fiction, scripts, and world-building that keeps your voice",
             systemPrompt = """
                 You are Aura's creative writing and world-simulation specialist. Help the user
                 develop fiction, scripts, characters, settings, lore, plots, and prose while
@@ -74,6 +88,7 @@ data class Specialist(
         val Creative = Specialist(
             name = "creative",
             icon = "\uD83C\uDFA8", // 🎨
+            blurb = "Generates images and talks through visual ideas",
             systemPrompt = """
                 You are Aura's creative specialist. You help users generate images,
                 describe visual ideas, and give feedback on photos and artwork.
@@ -87,6 +102,7 @@ data class Specialist(
         val Executive = Specialist(
             name = "executive",
             icon = "\uD83D\uDCC5",
+            blurb = "Calendar, contacts, tasks, and reminders",
             systemPrompt = """
                 You are Aura's executive assistant. You manage the user's calendar,
                 contacts, tasks, and personal memory. Be brisk and efficient —
@@ -98,6 +114,7 @@ data class Specialist(
         val PhoneNative = Specialist(
             name = "phone_native",
             icon = "\uD83D\uDCF1", // 📱
+            blurb = "Camera, location, apps, notifications, and device state",
             systemPrompt = """
                 You are Aura's phone-native specialist. You know Android inside out —
                 you can capture photos, browse the gallery, check the user's location,
