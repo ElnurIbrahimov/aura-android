@@ -1,6 +1,7 @@
 package com.aura.creative
 
 import android.content.Context
+import com.aura.agentrun.AgentRunContextSnapshot
 import com.aura.agentrun.AgentRunExecutorService
 import com.aura.agentrun.AgentRunStore
 import com.aura.agentrun.StepSpec
@@ -44,6 +45,13 @@ class ProductionPipelineEngine @Inject constructor(
             trigger = "pipeline:${pipeline.name.lowercase()}",
             goalDescription = "${pipeline.displayName}: $brief",
             conversationId = "",
+            // Without this every step ran under AgentRunContextSnapshot's default
+            // toolTimeoutMs of 60_000. ToolExecutor wraps each tool in
+            // withTimeout(ctx.timeout), so every `creative_engine` stage — a
+            // full chapter draft, budgeted at 28,672 output tokens — was being
+            // killed at one minute and returning `tool_timeout`. The generative
+            // stages of these pipelines have never completed.
+            metadata = AgentRunContextSnapshot(toolTimeoutMs = PIPELINE_TOOL_TIMEOUT_MS).toJson(),
         )
         val steps = stepsFor(pipeline, projectId, brief)
         agentRunStore.planSteps(run.id, steps)
@@ -78,18 +86,18 @@ class ProductionPipelineEngine @Inject constructor(
             Pipeline.SHORT_FILM -> listOf(
                 creativeStep("outline", projectId, "Create a beat sheet for a short film. 5-7 scenes maximum. One protagonist, one transformation. Premise: $escaped"),
                 creativeStep("draft", projectId, "Write the short film screenplay. Visual, economical, one turning point. Premise: $escaped"),
-                mediaStep("image_generate", projectId, "Generate storyboard imagery for key scenes: $escaped"),
+                mediaStep("image_generate", "Generate storyboard imagery for key scenes: $escaped"),
                 creativeStep("continuity", projectId, "Check the short film for continuity issues. Premise: $escaped"),
             )
             Pipeline.TRAILER -> listOf(
                 creativeStep("outline", projectId, "Create a trailer beat sheet: hook, escalation, tone, climax shot. 6-8 beats. Premise: $escaped"),
                 creativeStep("draft", projectId, "Write the trailer script: voiceover, scene descriptions, music cues. Premise: $escaped"),
-                mediaStep("tts_speak", projectId, "Narrate the trailer voiceover with dramatic pacing: $escaped"),
+                mediaStep("tts_speak", "Narrate the trailer voiceover with dramatic pacing: $escaped"),
             )
             Pipeline.PODCAST_DRAMA -> listOf(
                 creativeStep("outline", projectId, "Create a podcast drama episode outline. Cold open, 3 acts, cliffhanger. Premise: $escaped"),
                 creativeStep("draft", projectId, "Write the podcast drama script: narrator, dialogue, sound cues. Premise: $escaped"),
-                mediaStep("tts_speak", projectId, "Narrate the podcast drama with character voices: $escaped"),
+                mediaStep("tts_speak", "Narrate the podcast drama with character voices: $escaped"),
                 creativeStep("continuity", projectId, "Check the podcast drama for continuity issues. Premise: $escaped"),
             )
             Pipeline.RPG_CAMPAIGN -> listOf(
@@ -129,10 +137,20 @@ class ProductionPipelineEngine @Inject constructor(
         )
     }
 
-    private fun mediaStep(toolName: String, projectId: String, prompt: String): StepSpec {
+    /**
+     * A media-generating stage (`image_generate`, `tts_speak`).
+     *
+     * Deliberately takes no project id: neither tool declares one in its schema
+     * (`image_generate` is prompt/size/negative_prompt), so `ToolExecutor.parseArgs`
+     * dropped it with a "Dropped unknown arg" warning and the generated asset was
+     * never attached to the project anyway. Sending it only made the discard
+     * look like wiring. Attaching media to a project is a real feature and needs
+     * the artifact store, not an extra argument.
+     */
+    private fun mediaStep(toolName: String, prompt: String): StepSpec {
         return StepSpec(
             toolName = toolName,
-            toolArgs = """{"prompt":"$prompt","projectId":"$projectId"}""",
+            toolArgs = """{"prompt":"$prompt"}""",
             dependsOn = "[]",
         )
     }
@@ -147,5 +165,21 @@ class ProductionPipelineEngine @Inject constructor(
                 else -> true
             }
         }
+    }
+
+    private companion object {
+        /**
+         * Per-tool timeout for pipeline steps, replacing
+         * [AgentRunContextSnapshot]'s 60-second default.
+         *
+         * Five minutes, not ten: `AgentRunExecutorWorker` is a `CoroutineWorker`,
+         * and WorkManager's own execution window is roughly ten minutes. A tool
+         * allowed to run for the whole window would be killed by the system
+         * mid-call with no chance for the worker to record a result or
+         * re-enqueue. Five leaves the worker half its budget to finish the step
+         * and hand off, and is still generous for a chapter draft, which runs
+         * in one to four minutes at these output sizes.
+         */
+        const val PIPELINE_TOOL_TIMEOUT_MS = 300_000L
     }
 }
