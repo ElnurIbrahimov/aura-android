@@ -26,8 +26,9 @@ class ConversationCompactor @Inject constructor(
     private val crashLogger: CrashLogger,
     private val kgRepository: com.aura.kg.KnowledgeGraphRepository? = null,
     // Nullable so hand-constructed test instances keep compiling; Hilt always
-    // supplies the real cache in production.
+    // supplies the real dependency in production.
     private val modelContextCache: com.aura.providers.ModelContextCache? = null,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
 ) {
     private val json = Json { encodeDefaults = true }
 
@@ -63,14 +64,12 @@ class ConversationCompactor @Inject constructor(
                 val firstModel = firstProvider?.let { cachedModels(it).firstOrNull() }
                 if (firstProvider != null && firstModel != null) "${firstProvider.prefix}:$firstModel" else model
             } else {
-                // For non-MoA, try to find a cheaper model from any provider.
-                // Ranked by CheapModelHeuristic — ranking by name length picks
-                // "gpt-4o" over "gpt-4o-mini", i.e. the expensive model, because
-                // the suffix that marks a model as small also lengthens its name.
-                val candidates = providers.flatMap { p ->
-                    cachedModels(p).map { m -> "${p.prefix}:$m" }
-                }.filter { it != model && !it.startsWith("moa:") }
-                com.aura.providers.CheapModelHeuristic.pick(candidates) ?: model
+                // Ranked by CheapModelHeuristic, via the shared resolver so the
+                // user's explicit Fast model is honoured here too. Ranking by
+                // name length picks "gpt-4o" over "gpt-4o-mini" — the expensive
+                // one — because the suffix marking a model as small also
+                // lengthens its name.
+                cheapModelResolver?.resolve(fallback = model, exclude = model) ?: model
             }
         }.onFailure {
             android.util.Log.w("ConversationCompactor", "cheap-model resolution failed: ${it.message}", it)

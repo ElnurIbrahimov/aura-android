@@ -33,6 +33,7 @@ class DebateRoundUseCase @Inject constructor(
     private val agentStore: AgentStore,
     private val stateStore: AgentStateStore,
     private val providerRegistry: ProviderRegistry,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
 ) {
 
     data class DebateEntry(
@@ -62,7 +63,10 @@ class DebateRoundUseCase @Inject constructor(
         val agents = agentIds.mapNotNull { id -> allAgents.find { it.id == id } }
         if (agents.isEmpty()) return emptyList()
 
-        val cheapModel = resolveCheapModel()
+        // No configured provider means no round. Previously this produced the
+        // string "default", which ProviderRegistry.parse rejects, so the round
+        // died mid-flight instead of not starting.
+        val cheapModel = resolveCheapModel() ?: return emptyList()
 
         return coroutineScope {
             agents.map { agent ->
@@ -183,12 +187,21 @@ class DebateRoundUseCase @Inject constructor(
         else -> "burned out"
     }
 
-    private suspend fun resolveCheapModel(): kotlin.String {
-        return runCatching {
-            val providers = providerRegistry.configured()
-            val firstProvider = providers.firstOrNull { it.prefix != "moa" }
-            val models = firstProvider?.listModels().orEmpty()
-            models.minByOrNull { it.length } ?: "default"
-        }.onFailure { Log.w("DebateRoundUseCase", "runCatching failed: ${it.message}", it) }.getOrDefault("default")
-    }
+    /**
+     * The cheap model for this round, or null when nothing is configured.
+     *
+     * Was a private `models.minByOrNull { it.length }` over one provider's
+     * catalog — the by-name-length ranking ENGINEERING_HISTORY §2.5 records
+     * replacing everywhere, since `gpt-4o` sorts before `gpt-4o-mini` and the
+     * suffix marking a model as small also lengthens its name.
+     *
+     * It was also returning an id no caller could use: bare model names with no
+     * `provider:` prefix, and the literal string `"default"` when nothing was
+     * configured. `ProviderRegistry.parse` requires a fully-qualified
+     * `provider:model` and throws on both, so every debate round has been
+     * failing at the first model call. Returning null now, and skipping the
+     * round, is at least honest.
+     */
+    private suspend fun resolveCheapModel(): kotlin.String? =
+        cheapModelResolver?.resolve()
 }

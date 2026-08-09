@@ -144,6 +144,7 @@ fun SettingsScreen(
 
         ModelRolesSection(
             roleModels = state.roleModels,
+            roleFallbacks = state.roleFallbacks,
             availableModels = state.availableModels,
             onSetRoleModel = viewModel::setRoleModel,
         )

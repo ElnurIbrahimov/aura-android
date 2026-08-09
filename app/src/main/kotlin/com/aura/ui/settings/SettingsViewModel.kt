@@ -101,7 +101,10 @@ private val TOOL_CREDENTIAL_PREFIXES: Set<String> = SETTINGS_CREDENTIAL_SPECS
 data class SettingsUiState(
     val keyDrafts: Map<String, String> = ProviderKeys.PREFIXES.associateWith { "" },
     /** Map of ModelRole to selected model id (empty string = unset). */
+    /** What the user explicitly chose per role. Blank means "not set". */
     val roleModels: Map<ModelRole, String> = emptyMap(),
+    /** What each role resolves to when unset — normally the conversation default. */
+    val roleFallbacks: Map<ModelRole, String> = emptyMap(),
     val defaultModel: String = "",
     val visionModel: String = "",
     val backgroundModel: String = "",
@@ -363,7 +366,14 @@ class SettingsViewModel @Inject constructor(
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
             val dreamTotalSummaries = runCatching { dreamConsolidationDao.count() }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(0)
             val mcpServersJson = userPreferences.mcpServersJson.first()
+            // Two maps, deliberately. This was one, built from resolve(),
+            // which folds in the conversation-default fallback — so every row
+            // showed a model and looked configured, and an unset role could not
+            // be told apart from a pinned one.
             val roleModels = ModelRole.configurable.associateWith { role ->
+                modelRoleRouter.explicit(role).orEmpty()
+            }
+            val roleFallbacks = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
             }
             val mergedPolicies = defaultPolicies().toMutableMap().apply {
@@ -382,6 +392,7 @@ class SettingsViewModel @Inject constructor(
                     providerKeys.keyFor(prefix).orEmpty()
                 },
                 roleModels = roleModels,
+                roleFallbacks = roleFallbacks,
                 defaultModel = defaultModel.orEmpty(),
                 visionModel = visionModel.orEmpty(),
                 imageModel = imageModel.orEmpty(),

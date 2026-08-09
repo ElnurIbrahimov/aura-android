@@ -69,6 +69,7 @@ class CreativeEngine @Inject constructor(
     private val artifactStore: CreativeArtifactStore,
     private val brain: com.aura.agent.Brain,
     private val smartCodexInjector: SmartCodexInjector,
+    private val modelRoleRouter: com.aura.providers.ModelRoleRouter? = null,
 ) {
     fun generate(
         projectId: String,
@@ -344,7 +345,18 @@ class CreativeEngine @Inject constructor(
         return messages
     }
 
+    /**
+     * The model Creative Studio generates with.
+     *
+     * The **Creative Draft** role comes first. It has been settable in Settings,
+     * backed up and restored all along, and nothing ever read it — drafting used
+     * the conversation default, so choosing a different model for creative work
+     * did nothing. (The council path did honour it, which made the gap harder to
+     * notice: half of Creative Studio routed by role and half did not.)
+     */
     suspend fun resolveModel(): String {
+        modelRoleRouter?.explicit(com.aura.providers.ModelRole.CREATIVE_DRAFT)
+            ?.takeIf(String::isNotBlank)?.let { return it }
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {
             val model = runCatching { provider.listModels().firstOrNull() }

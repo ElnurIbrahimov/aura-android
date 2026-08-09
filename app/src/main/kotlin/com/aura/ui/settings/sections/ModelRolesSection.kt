@@ -29,9 +29,22 @@ import com.aura.ui.theme.AuraSpacing
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.Icons
 
+/**
+ * @param roleModels the model the user **explicitly chose** per role, blank when
+ *   they have not chosen one.
+ * @param roleFallbacks what each role resolves to when nothing is set — normally
+ *   the conversation default.
+ *
+ * The two were one map, populated from `ModelRoleRouter.resolve`, which already
+ * includes the fallback. So every row displayed a model and read as configured,
+ * an unset Planner was indistinguishable from a deliberately-pinned one, and
+ * opening a row and pressing Save wrote that inherited value back as an explicit
+ * override.
+ */
 @Composable
 fun ModelRolesSection(
     roleModels: Map<ModelRole, String>,
+    roleFallbacks: Map<ModelRole, String>,
     availableModels: List<String>,
     onSetRoleModel: (ModelRole, String) -> Unit,
 ) {
@@ -55,12 +68,18 @@ fun ModelRolesSection(
                 modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val fallback = roleFallbacks[role].orEmpty()
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = role.displayName, style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        text = selected.ifBlank { "Fallback to default model" },
+                        // Say which model an unset role will actually use, and
+                        // mark it as inherited rather than chosen.
+                        text = selected.ifBlank {
+                            if (fallback.isBlank()) "Auto — no default model set" else "Auto — $fallback"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                        color = AuraThemeTokens.colors.textPrimary
+                            .copy(alpha = if (selected.isBlank()) 0.45f else 0.75f),
                     )
                 }
                 TextButton(onClick = { editingRole = role }) {
@@ -70,6 +89,11 @@ fun ModelRolesSection(
         }
 
         editingRole?.let { role ->
+            // Seeded from the explicit choice, so an unset role opens empty.
+            // It used to be seeded from the resolved value, which meant opening
+            // an unset row and pressing Save silently pinned the conversation
+            // default as an explicit override for that role — and thereafter it
+            // no longer followed the default when the user changed it.
             val current = roleModels[role].orEmpty()
             var pickerModel by remember(role) { mutableStateOf(current) }
             AlertDialog(
@@ -85,6 +109,12 @@ fun ModelRolesSection(
                             singleLine = true,
                         )
                         Spacer(modifier = Modifier.height(AuraSpacing.xs))
+                        Text(
+                            text = "Leave empty to follow the default model.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                        )
+                        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                         Text(
                             text = "Available models: ${availableModels.take(6).joinToString(", ")}",
                             style = MaterialTheme.typography.bodySmall,

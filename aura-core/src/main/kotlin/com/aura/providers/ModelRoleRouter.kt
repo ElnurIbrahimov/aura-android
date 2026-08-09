@@ -21,6 +21,19 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
     CREATIVE_DRAFT("creative_draft_model", "Creative Draft"),
     CREATIVE_CRITIC("creative_critic_model", "Creative Critic"),
     PLANNER("planner_model", "Planner"),
+
+    /**
+     * Reserved. Nothing reads this role — there is no verification pass in the
+     * app for it to route.
+     *
+     * Kept as a constant rather than deleted so that the `verifier_model`
+     * preference key, its `AuraBackup` field and any value a user already saved
+     * all keep round-tripping, and the backup schema does not need a version
+     * bump to remove a field. It is excluded from [configurable] so Settings
+     * stops offering a row that changes nothing. Building the verification pass
+     * is a feature; removing a control that does nothing is a fix, and this is
+     * the fix.
+     */
     VERIFIER("verifier_model", "Verifier"),
     EMBEDDING("embedding_model", "Embedding"),
     FAST("fast_model", "Fast"),
@@ -30,11 +43,17 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
 
     companion object {
         /**
-         * Roles the user can explicitly configure in Settings.
-         * EMBEDDING is managed separately (it's a capability, not a chat model).
+         * Roles the user can configure in Settings.
+         *
+         * The bar for membership is that **something reads it**. A row that
+         * persists a value, survives backup and restore, and routes nothing is
+         * worse than no row: it looks like a working control.
+         *
+         * Excluded: EMBEDDING, managed separately as a capability rather than a
+         * chat model; and VERIFIER, which has no consumer — see its KDoc.
          */
         val configurable: List<ModelRole> get() = listOf(
-            CONVERSATION, BACKGROUND, DEEP_RESEARCH, FAST, REASONING, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER, VERIFIER, EVOLUTION,
+            CONVERSATION, BACKGROUND, DEEP_RESEARCH, FAST, REASONING, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER, EVOLUTION,
         )
     }
 }
@@ -51,33 +70,50 @@ class ModelRoleRouter @Inject constructor(
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
 ) {
     /**
-     * Returns the user's preferred model for [role], or the default
-     * model if no role-specific preference is set.
+     * The model the user explicitly chose for [role], or null if they have not
+     * chosen one. No taste override, no fallback to the conversation default.
      *
-     * If [tasteEngine] is available and has routing data for this role,
-     * the taste-recommended model is preferred over the user preference
-     * — but only if the recommended model is still from a configured
-     * provider.
+     * This is the distinction [resolve] cannot express, and callers need both.
+     * Settings needs it to tell "you picked this" apart from "this is what you'd
+     * get" — without it, an unset Planner row displayed the conversation default
+     * and looked configured. And a caller picking a cheap auxiliary model needs
+     * it because falling back to the conversation default means running a
+     * 50-token rerank on the user's flagship, which is the exact failure
+     * [CheapModelHeuristic] exists to prevent.
+     */
+    suspend fun explicit(role: ModelRole): kotlin.String? =
+        userPreferences.forRole(role).first()?.takeIf { it.isNotBlank() }
+
+    /**
+     * The model that will actually be used for [role]: the explicit choice, then
+     * a taste-engine recommendation, then the conversation default.
      *
-     * Returns null if no model is configured at all — the caller must
-     * handle this honestly (show "configure a model" prompt).
+     * Returns null if no model is configured at all — the caller must handle
+     * that honestly (show "configure a model" rather than invent one).
+     *
+     * The taste tier sits **below** the explicit preference, not above it. It
+     * used to be first, which meant a learned recommendation could silently
+     * override a model the user had deliberately pinned. That has never actually
+     * happened — `resolve` queries `tasteEngine.bestModelForRole(role.name)`
+     * (e.g. "PLANNER") while the only production writer, the agentic loop's
+     * `recordRoutingOutcome`, records under "general" and "agent:<id>", so no
+     * key has ever matched — but a latent override of an explicit user choice is
+     * not worth keeping just because it is currently inert.
      */
     suspend fun resolve(role: ModelRole): kotlin.String? {
-        // 1. Taste-engine recommendation (if data exists)
+        // 1. What the user chose.
+        explicit(role)?.let { return it }
+        // 2. What the taste engine has learned, if the model is still reachable.
         if (tasteEngine != null) {
             val tasteModel = tasteEngine.bestModelForRole(role.name)
             if (!tasteModel.isNullOrBlank()) {
-                // Verify the taste-recommended model is from a configured provider
                 val prefix = tasteModel.substringBefore(":", "")
                 if (prefix.isNotBlank() && providerRegistry.all().any { it.prefix == prefix && it.isConfigured() }) {
                     return tasteModel
                 }
             }
         }
-        // 2. Role-specific preference
-        val roleModel = userPreferences.forRole(role).first()
-        if (!roleModel.isNullOrBlank()) return roleModel
-        // 3. Fallback: conversation default
+        // 3. The conversation default.
         if (role != ModelRole.CONVERSATION) {
             val default = userPreferences.defaultModel.first()
             if (!default.isNullOrBlank()) return default
@@ -86,10 +122,14 @@ class ModelRoleRouter @Inject constructor(
     }
 
     /**
-     * Observable flow of the model for [role]. Emits the role-specific
-     * model, or the default model if not set.
+     * Observable form of [explicit] — emits the user's own choice for [role],
+     * or null when they have not made one.
+     *
+     * Named for what it does. It was `observe`, which read as the observable
+     * counterpart of [resolve] but shared none of its fallbacks, so a subscriber
+     * saw null for a role that [resolve] would happily answer.
      */
-    fun observe(role: ModelRole): Flow<kotlin.String?> =
+    fun observeExplicit(role: ModelRole): Flow<kotlin.String?> =
         userPreferences.forRole(role).map { roleModel ->
             roleModel.takeIf { !it.isNullOrBlank() }
         }

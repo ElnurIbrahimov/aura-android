@@ -41,6 +41,7 @@ class ParallelResearchTool @Inject constructor(
     private val webSearchTool: WebSearchTool,
     private val wikipediaSearchTool: WikipediaSearchTool,
     private val ddgInstantAnswerTool: DdgInstantAnswerTool,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
 ) {
     companion object {
         const val MAX_ANGLES = 3
@@ -210,6 +211,7 @@ class ParallelResearchTool @Inject constructor(
     /** Run the full pipeline: decompose → spawn subagents in parallel → synthesize. */
     internal suspend fun runParallelResearch(question: String, ctx: ToolContext): String {
         val cheapModelId = resolveCheapModel("")
+            ?: return "Configure an LLM provider before running parallel research."
         val angles = decompose(question, cheapModelId)
 
         // Spawn one subagent per angle through the real SubagentManager —
@@ -273,14 +275,22 @@ class ParallelResearchTool @Inject constructor(
         }
     }
 
-    private suspend fun resolveCheapModel(preferred: String): String {
-        // Prefer the caller's model (it's already loaded and warm). If it's
-        // blank or a MoA virtual id, fall back to the first configured
-        // provider's first model — the same convention the agentic loop
-        // uses for auxiliary calls. No hardcoded model names.
+    /**
+     * The cheap model for decomposition and synthesis, or null when nothing is
+     * configured.
+     *
+     * Prefers the caller's own model when it has one — already warm, and not a
+     * MoA virtual id, which would fan a "cheap" call out across three providers.
+     *
+     * The previous fallback was "the first configured provider's first model",
+     * which is not a cheapness judgement, and it returned that as a **bare model
+     * name** with no `provider:` prefix. `ProviderRegistry.parse` requires a
+     * fully-qualified `provider:model` and throws otherwise — and the only call
+     * site passes a blank `preferred`, so it always took that branch. This tool
+     * has been failing at `decompose`.
+     */
+    private suspend fun resolveCheapModel(preferred: String): String? {
         if (preferred.isNotBlank() && !preferred.startsWith("moa:")) return preferred
-        return runCatching {
-            providerRegistry.configured().firstOrNull()?.listModels()?.firstOrNull()
-        }.getOrNull() ?: preferred
+        return cheapModelResolver?.resolve()
     }
 }

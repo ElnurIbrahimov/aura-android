@@ -123,6 +123,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val reasoningTree: ReasoningTree? = null,
     private val userPreferences: com.aura.data.UserPreferences? = null,
     private val driveSignals: com.aura.consciousness.DriveSignals? = null,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
+    private val modelRoleRouter: com.aura.providers.ModelRoleRouter? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -551,29 +553,19 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         } else {
                             setOf("general")
                         }
-                        // Resolve a small model for reranking and query
-                        // rewriting. Both are short auxiliary calls (a
-                        // yes/no judgment and a one-line rewrite), not
-                        // generation, so the cheap tier of the first
-                        // configured provider is ideal.
+                        // A small model for reranking and query rewriting.
+                        // Both are short auxiliary calls — a yes/no judgment
+                        // and a one-line rewrite — not generation.
                         //
-                        // Ranked by CheapModelHeuristic rather than by
-                        // name length — length picks "gpt-4o" over
-                        // "gpt-4o-mini", i.e. exactly the wrong model.
-                        // Cached across steps to avoid repeated live
-                        // /models API calls.
-                        val cheapModel = if (cachedCheapModel != null) {
-                            cachedCheapModel
-                        } else {
-                            runCatching {
-                                val firstProvider = providerRegistry.configured().firstOrNull()
-                                val models = firstProvider?.listModels().orEmpty()
-                                val cheapest = com.aura.providers.CheapModelHeuristic.pick(models)
-                                if (firstProvider != null && cheapest != null) "${firstProvider.prefix}:$cheapest" else null
-                            }.onFailure {
-                                android.util.Log.w("AgenticLoop", "cheap model resolution failed: ${it.message}", it)
-                            }.getOrNull()
-                        }
+                        // Ranked by CheapModelHeuristic rather than by name
+                        // length, which picks "gpt-4o" over "gpt-4o-mini",
+                        // i.e. exactly the wrong model. Resolution also honours
+                        // the user's explicit Fast model, which nothing read
+                        // before. Still cached per run: the catalog is behind a
+                        // TTL cache now, but this also avoids re-resolving on
+                        // every step of a multi-step turn.
+                        val cheapModel = cachedCheapModel
+                            ?: cheapModelResolver?.resolve()
                         val rerankModel = cheapModel
                         val rewriteModel = cheapModel
                         // Cache the resolved model for subsequent steps.
@@ -1327,24 +1319,17 @@ private suspend fun extractProfileFromText(text: String) {
      * fall back to the first configured non-MoA provider's first model.
      * This prevents a 150-token planning step from costing 3 API calls.
      */
-    private suspend fun resolveCheapModel(userModel: kotlin.String): kotlin.String {
-        // For non-MoA models, we still want a cheap model for auxiliary
-        // tasks (planning, compaction, write gate). The user's main model
-        // might be an expensive Opus/GPT-4 — using it for a 150-token plan
-        // wastes money and adds latency.
-        return runCatching {
-            val providers = providerRegistry.configured()
-            // If the user's model is MoA, skip it — MoA is 3 API calls.
-            // Otherwise prefer the user's model only if no cheaper option
-            // exists.
-            val candidates = providers.flatMap { p ->
-                p.listModels().map { m -> "${p.prefix}:$m" }
-            }.filter { it != userModel && !it.startsWith("moa:") }
-            com.aura.providers.CheapModelHeuristic.pick(candidates) ?: userModel
-        }.onFailure {
-            android.util.Log.w("AgenticLoop", "resolveCheapModel failed: ${it.message}", it)
-        }.getOrDefault(userModel)
-    }
+    /**
+     * A cheap model for auxiliary work — the plan prefix, reflection, profile
+     * extraction. The user's main model may be an expensive flagship, and
+     * spending it on a 150-token plan wastes money and adds latency.
+     *
+     * Delegates to the shared [com.aura.providers.CheapModelResolver] so the
+     * user's explicit Fast-model setting is honoured and every caller ranks the
+     * same way; [userModel] stays the fallback so the work still happens.
+     */
+    private suspend fun resolveCheapModel(userModel: kotlin.String): kotlin.String =
+        cheapModelResolver?.resolve(fallback = userModel, exclude = userModel) ?: userModel
 
     /**
      * Pick the failover target after [failedModel] returned a retryable
@@ -1423,13 +1408,26 @@ private suspend fun extractProfileFromText(text: String) {
      * distinct approach branches, scores them, and commits to the best
      * instead of a single linear plan. Falls back to the linear plan on
      * any error. Returns "" when nothing useful was produced.
+     *
+     * Three jobs here, and until now one model did all of them:
+     *  - the **linear plan** is a 150-token outline — cheap work, so the Planner
+     *    role, falling back to the cheap model;
+     *  - the tree's **expansion** is where reasoning quality changes the answer,
+     *    since it invents the approaches — the Reasoning role;
+     *  - the tree's **scoring** is a 20-token "reply with a number between 0 and
+     *    1", fanned out once per branch. Running that on a reasoning model is
+     *    pure waste, so it stays on the cheap model.
      */
     private suspend fun generatePlanPrefix(lastUserMessage: kotlin.String, effectiveModel: kotlin.String): kotlin.String =
         runCatching {
-            val planModel = resolveCheapModel(effectiveModel)
+            val cheapModel = resolveCheapModel(effectiveModel)
+            val planModel = modelRoleRouter?.explicit(com.aura.providers.ModelRole.PLANNER) ?: cheapModel
+            val expandModel = modelRoleRouter?.explicit(com.aura.providers.ModelRole.REASONING)
+                ?: modelRoleRouter?.explicit(com.aura.providers.ModelRole.PLANNER)
+                ?: cheapModel
             val treePlan = if (lastUserMessage.length >= com.aura.agent.ReasoningTree.MIN_MESSAGE_LENGTH) {
                 kotlinx.coroutines.withTimeoutOrNull(20_000L) {
-                    reasoningTree?.bestApproach(lastUserMessage, planModel)
+                    reasoningTree?.bestApproach(lastUserMessage, expandModel, scoreModel = cheapModel)
                 }
             } else null
             if (treePlan != null) {

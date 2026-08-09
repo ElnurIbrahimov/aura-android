@@ -63,11 +63,17 @@ class ReasoningTree @Inject constructor(
      * Generate branches for a hard question, score them, and return the
      * best one's summary as a plan prefix (or null to skip).
      *
+     * @param modelId model for [expand] — the part where reasoning quality
+     *   actually changes the answer, since it invents the approaches.
+     * @param scoreModel model for [score], defaulting to [modelId]. Scoring is a
+     *   20-token "reply with a number between 0 and 1", fanned out once per
+     *   branch; running that on an expensive reasoning model is waste, so the
+     *   caller can point it at a cheap one.
      * @return the winning branch summary, or null when the question is
      * too short / the model calls fail / all branches score below
      * [VALUE_THRESHOLD].
      */
-    suspend fun bestApproach(userMessage: String, modelId: String): String? {
+    suspend fun bestApproach(userMessage: String, modelId: String, scoreModel: String = modelId): String? {
         if (userMessage.length < MIN_MESSAGE_LENGTH) return null
         val branches = expand(userMessage, modelId) ?: return null
         if (branches.size < 2) return branches.firstOrNull()
@@ -79,7 +85,7 @@ class ReasoningTree @Inject constructor(
         // SCORE_TIMEOUT_MS regardless of branch count.
         val scored = coroutineScope {
             branches
-                .map { summary -> async { Branch(summary, score(summary, userMessage, modelId)) } }
+                .map { summary -> async { Branch(summary, score(summary, userMessage, scoreModel)) } }
                 .awaitAll()
         }
         val best = scored.maxByOrNull { it.score } ?: return null

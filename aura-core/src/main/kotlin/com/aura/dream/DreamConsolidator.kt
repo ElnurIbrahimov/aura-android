@@ -67,6 +67,7 @@ class DreamConsolidator @Inject constructor(
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val providerRegistry: ProviderRegistry,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
     private val embedder: Embedder,
     private val crashLogger: CrashLogger,
     private val conversationStoreProvider: dagger.Lazy<com.aura.agent.ConversationStore>,
@@ -446,27 +447,21 @@ class DreamConsolidator @Inject constructor(
     }
 
     /**
-     * Resolve a cheap model for auxiliary tasks. If the user's main
-     * model is MoA (3-model virtual provider), summarizing would
-     * fire 3 API calls per cluster. Fall back to first non-MoA
-     * configured provider. Same pattern as
-     * [com.aura.agent.ConversationCompactor.compactIfNeeded].
+     * A cheap model for the summarisation phases. MoA is excluded because it is
+     * a 3-model virtual provider — summarising every cluster through it would
+     * fire three API calls per cluster.
+     *
+     * Was "the first non-MoA provider's first model". Excluding MoA was right;
+     * treating catalog order as a cheapness judgement was not, so a nightly
+     * consolidation could run every cluster through whichever model the provider
+     * happened to list first. [com.aura.providers.CheapModelResolver] ranks
+     * properly and honours the user's Fast-model setting.
+     *
+     * Returns "" rather than null when nothing is configured — the callers
+     * already treat blank as "skip this phase".
      */
-    private suspend fun resolveCheapModel(): String {
-        return runCatching {
-            val providers = providerRegistry.configured()
-            val firstProvider = providers.firstOrNull { it.prefix != "moa" }
-                ?: providers.firstOrNull()
-            val firstModel = firstProvider?.listModels()?.firstOrNull()
-            if (firstProvider != null && firstModel != null) {
-                "${firstProvider.prefix}:$firstModel"
-            } else {
-                ""
-            }
-        }.onFailure {
-            android.util.Log.w("DreamConsolidator", "resolveCheapModel failed: ${it.message}", it)
-        }.onFailure { Log.w("Dream", "op failed: ${it.message}", it) }.getOrDefault("")
-    }
+    private suspend fun resolveCheapModel(): String =
+        cheapModelResolver?.resolve().orEmpty()
 
     /**
      * Pick the top 5 most-frequent tags across the cluster. These
