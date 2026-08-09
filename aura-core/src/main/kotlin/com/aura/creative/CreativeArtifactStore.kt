@@ -125,6 +125,28 @@ class CreativeArtifactStore @Inject constructor(
     suspend fun revisionsForArtifact(artifactId: String): List<CreativeRevisionEntity> =
         revisionDao.forArtifact(artifactId)
 
+    /**
+     * The artifact's current text, resolved through its `currentRevisionId`.
+     *
+     * Use this rather than picking an entry out of [revisionsForArtifact].
+     * `CreativeRevisionDao.forArtifact` is `ORDER BY createdAt DESC`, so the
+     * newest revision is first and `lastOrNull()` — which is what
+     * `CreativeEngine` was calling — returns the **oldest**. Harmless while
+     * nothing revised anything, since every artifact had exactly one revision;
+     * actively wrong the moment a manuscript starts accumulating them, where it
+     * would feed the model scene one forever.
+     *
+     * Resolving by id is also immune to same-millisecond `createdAt` ties, which
+     * a loop writing scenes in quick succession will produce and which any
+     * ordering-based answer would resolve arbitrarily.
+     */
+    suspend fun currentContent(artifactId: String): String? {
+        val artifact = artifactDao.getById(artifactId) ?: return null
+        val revisionId = artifact.currentRevisionId
+        val current = revisionId?.let { revisionDao.getById(it) }
+        return current?.contentText ?: artifact.previewText.takeIf { it.isNotBlank() }
+    }
+
     fun observeForProject(projectId: String) = artifactDao.observeForProject(projectId)
 
     private fun sha256(text: String): String {

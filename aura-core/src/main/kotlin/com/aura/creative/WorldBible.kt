@@ -64,12 +64,36 @@ data class WorldEvent(
     val participants: List<String> = emptyList(),
 )
 
+/**
+ * One planned beat of the story — and, once long-form drafting runs, one unit of
+ * work.
+ *
+ * The extra fields are all defaulted on purpose. `WorldBible` is serialised into
+ * `CreativeProjectEntity.worldJson`, decoded with `ignoreUnknownKeys = true`,
+ * and carried through backup opaquely as a string, so extending it is a
+ * serialisation change rather than a Room migration. Existing projects decode
+ * with these empty, and a project whose owner hand-added beats in the World tab
+ * can be drafted without touching anything.
+ *
+ * [status] was already free-text defaulting to "planned", so the drafting
+ * lifecycle — planned → drafting → drafted → revised — needs no type change.
+ */
 @Serializable
 data class StoryBeat(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val summary: String = "",
     val status: String = "planned",
+    /** Whose eyes this beat is seen through. Blank when unspecified. */
+    val pov: String = "",
+    /** Where it happens; matched against the world bible's locations. */
+    val setting: String = "",
+    /** Rough length to aim for. 0 means no target was given. */
+    val targetWords: Int = 0,
+    /** The scene artifact produced for this beat, once one exists. */
+    val artifactId: String = "",
+    /** The revision of that artifact holding this beat's text. */
+    val revisionId: String = "",
 )
 
 @Serializable

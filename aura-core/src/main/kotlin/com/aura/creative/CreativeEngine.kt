@@ -323,10 +323,13 @@ class CreativeEngine @Inject constructor(
         }.onFailure { Log.w("CreativeEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
 
         for (artifact in recentArtifacts) {
+            // Resolved through currentRevisionId. This was
+            // `revisionsForArtifact(id).lastOrNull()`, and the DAO orders newest
+            // first — so it read the OLDEST revision of each artifact.
             val content = runCatching {
-                val revisions = artifactStore.revisionsForArtifact(artifact.id)
-                revisions.lastOrNull()?.contentText ?: artifact.previewText
-            }.onFailure { Log.w("CreativeEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(artifact.previewText)
+                artifactStore.currentContent(artifact.id) ?: artifact.previewText
+            }.onFailure { Log.w("CreativeEngine", "reading artifact content failed: ${it.message}", it) }
+                .getOrDefault(artifact.previewText)
 
             if (content.isNotBlank()) {
                 messages.add(ProviderMessage(
