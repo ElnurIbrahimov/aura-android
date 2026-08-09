@@ -28,21 +28,30 @@ class SilentRunCatchingAuditTest {
         val violations = mutableListOf<String>()
         var scanned = 0
         mainSource.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
-            val lines = file.readText().lines()
-            for (i in lines.indices) {
-                if (!lines[i].contains("runCatching")) continue
+            val rawLines = file.readText().lines()
+            // Call sites and handlers are looked for in CODE only. A
+            // `runCatching` written in prose is not a call site, and flagging
+            // one made the audit punish explaining what the code does — which is
+            // how a rule stops being kept and starts being worked around.
+            // Blanking preserves line numbering, so violations still point at
+            // the right line.
+            val codeLines = withoutComments(file.readText()).lines()
+            for (i in codeLines.indices) {
+                if (!codeLines[i].contains("runCatching")) continue
                 scanned++
                 val block = buildString {
-                    for (j in i until minOf(i + SCAN_WINDOW_LINES, lines.size)) appendLine(lines[j])
+                    for (j in i until minOf(i + SCAN_WINDOW_LINES, codeLines.size)) appendLine(codeLines[j])
                 }
                 val handled = handlerKeywords.any { block.contains(it) }
+                // The exemption marker is read from the RAW lines: it lives in a
+                // comment by design, so the blanked copy cannot see it.
                 // Blocks longer than the scan window opt out in the source,
                 // next to the code, where the justification can be read. The
                 // marker usually reads best as a comment ABOVE the runCatching,
                 // so look backwards as well as forwards.
-                val nearby = lines.subList(
+                val nearby = rawLines.subList(
                     maxOf(0, i - EXEMPTION_LOOKBEHIND_LINES),
-                    minOf(lines.size, i + EXEMPTION_LOOKAHEAD_LINES),
+                    minOf(rawLines.size, i + EXEMPTION_LOOKAHEAD_LINES),
                 )
                 val exempt = nearby.any { EXEMPTION_MARKER in it }
                 if (!handled && !exempt) violations.add("${file.name}:${i + 1}")
@@ -84,6 +93,21 @@ class SilentRunCatchingAuditTest {
         // next exemption into a silent `.getOrNull()` instead.
         assertTrue(exemptions >= 0)
     }
+
+    /**
+     * Blank out comments while keeping every line where it was.
+     *
+     * Block comments become the same number of blank lines and `//` runs to end
+     * of line, so a violation's reported line number still matches the file.
+     * Not a Kotlin lexer — a `//` inside a string literal is blanked too, which
+     * for this scan is harmless.
+     */
+    private fun withoutComments(source: String): String =
+        source
+            .replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL)) { match ->
+                "\n".repeat(match.value.count { it == '\n' })
+            }
+            .replace(Regex("""//[^\n]*"""), "")
 
     companion object {
         /** How far below a `runCatching` the audit looks for its handler. */

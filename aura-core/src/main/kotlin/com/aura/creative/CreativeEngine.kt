@@ -370,7 +370,9 @@ class CreativeEngine @Inject constructor(
         throw IllegalStateException("Configure an LLM provider and choose a default model before using Creative Studio.")
     }
 
-    companion object {
-        const val MAX_CONTEXT_CHARS = 48_000
-    }
+    // `MAX_CONTEXT_CHARS = 48_000` used to sit here, declared and referenced by
+    // nothing in the repository. The number was a reasonable idea that was never
+    // enforced; it is now the assembly ceiling in
+    // [com.aura.creative.longform.SceneContextBuilder], where something actually
+    // applies it.
 }
