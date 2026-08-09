@@ -56,71 +56,35 @@ class Brain @Inject constructor(
         tools: List<ToolDefinition> = emptyList(),
         options: ChatOptions = ChatOptions(),
     ): Flow<BrainChunk> = flow {
-        val resolvedMaxTokens = options.maxTokens
-            ?: contextBudgetResolver.maxTokensFor(model)
-        // Resolve extended thinking budget from user preferences.
-        // When reasoningEnabled is true (default), inject thinkingBudget
-        // into ChatOptions so the provider enables extended thinking.
-        var resolvedOptions = if (resolvedMaxTokens != null) {
-            options.copy(maxTokens = resolvedMaxTokens)
+        // The resolver is consulted only when the caller expressed no opinion.
+        // Keeping it behind that check is load-bearing, not an optimisation:
+        // for OllamaCloud `maxTokensFor` fans out an /api/show probe per model,
+        // and this runs on every step of every agentic turn.
+        val resolverMaxTokens = if (options.maxTokens == null) {
+            contextBudgetResolver.maxTokensFor(model)
         } else {
-            options
+            null
         }
-        // Only inject if the caller didn't already set a budget (don't
-        // override explicit per-call decisions).
-        val callerSetMaxTokens = options.maxTokens != null
-        if (resolvedOptions.thinkingBudget == null) {
-            // Auxiliary callers (planning step, reflection, LlmProfileExtractor,
-            // LlmWriteGate) pass small maxTokens (150-200). Injecting a 32K
-            // thinking budget into these calls either gets clamped to maxTok-1
-            // (consuming the entire output budget for thinking) or causes an
-            // API rejection. Skip thinking injection for small auxiliary calls.
-            val auxiliaryCall = callerSetMaxTokens && (options.maxTokens ?: 0) < 1000
-            if (!auxiliaryCall) {
-                val reasoningEnabled = runCatching {
-                    userPreferences.reasoningEnabled.first()
-                }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}", it) }
-                    .getOrDefault(true)
-                if (reasoningEnabled) {
-                    val budget = runCatching {
-                        userPreferences.reasoningBudget.first()
-                    }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}", it) }
-                        .getOrDefault(32000)
-                    resolvedOptions = resolvedOptions.copy(thinkingBudget = budget)
-                    // Clamp thinking budget to be smaller than maxTokens.
-                    // Anthropic requires max_tokens > budget_tokens. When the
-                    // caller set an explicit maxTokens (e.g. a creative call
-                    // at 28K tokens), the thinking budget must be clamped to
-                    // maxTokens - 1 to avoid an API rejection
-                    // ("max_tokens must be > budget_tokens").
-                    if (callerSetMaxTokens) {
-                        val maxTok = resolvedOptions.maxTokens ?: 0
-                        if (maxTok > 0 && budget >= maxTok) {
-                            resolvedOptions = resolvedOptions.copy(thinkingBudget = (maxTok - 1).coerceAtLeast(0))
-                        }
-                    }
-                    // Ensure maxTokens covers BOTH the thinking budget AND a
-                    // generous output budget. Anthropic requires max_tokens >=
-                    // budget_tokens + 1, but the remaining tokens must also be
-                    // enough for the actual response. For long-form creative
-                    // generation (12K-16K words ≈ 16K-21K tokens), the output
-                    // budget must be at least 24K.
-                    //
-                    // CRITICAL: only inflate when the caller did NOT set an
-                    // explicit maxTokens. Auxiliary callers (ReflectionEngine,
-                    // planning step, LlmWriteGate, LlmProfileExtractor) pass
-                    // small maxTokens values (150-200) for short auxiliary
-                    // calls. Without this guard, a 150-token reflection call
-                    // gets inflated to 56K tokens — a 375x cost inflation.
-                    if (!callerSetMaxTokens) {
-                        val minMaxTokens = budget + 24_576
-                        if ((resolvedOptions.maxTokens ?: 0) < minMaxTokens) {
-                            resolvedOptions = resolvedOptions.copy(maxTokens = minMaxTokens)
-                        }
-                    }
-                }
-            }
-        }
+        val reasoningEnabled = runCatching {
+            userPreferences.reasoningEnabled.first()
+        }.onFailure { android.util.Log.w("Brain", "reasoningEnabled read failed: ${it.message}", it) }
+            .getOrDefault(true)
+        val reasoningBudget = runCatching {
+            userPreferences.reasoningBudget.first()
+        }.onFailure { android.util.Log.w("Brain", "reasoningBudget read failed: ${it.message}", it) }
+            .getOrDefault(32000)
+        val budget = TokenBudgetPolicy.resolve(
+            callerMaxTokens = options.maxTokens,
+            callerThinkingBudget = options.thinkingBudget,
+            resolverMaxTokens = resolverMaxTokens,
+            reasoningEnabled = reasoningEnabled,
+            reasoningBudget = reasoningBudget,
+            outputCeiling = null,
+        )
+        val resolvedOptions = options.copy(
+            maxTokens = budget.maxTokens,
+            thinkingBudget = budget.thinkingBudget,
+        )
         // nameById accumulates tool-call ids to names across the stream so
         // providers that send argument deltas without re-sending the name
         // (e.g. Anthropic input_json_delta) can still be routed to the
