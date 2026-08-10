@@ -36,6 +36,18 @@ class BM25(
     private val corpusDocFreq: Map<String, Int> = emptyMap(),
     private val k1: Float = 1.2f,
     private val b: Float = 0.75f,
+    /** Lower bound on IDF. Exposed so the eval harness can sweep it. */
+    private val idfFloor: Float = IDF_FLOOR,
+    /**
+     * Whether [tokenize] emits adjacent bigrams alongside unigrams.
+     *
+     * Suspect, and now measurable: only unigrams receive a corpus document
+     * frequency, so every bigram falls back to candidate-set `df` — the exact
+     * defect corpus statistics exist to fix, still live for the token class
+     * that is rarest by construction. Bigrams also double `length`, which
+     * depresses every unigram through the length-normalisation denominator.
+     */
+    private val bigrams: Boolean = true,
 ) {
     private data class DocStats(val tokens: List<String>, val length: Int)
 
@@ -45,7 +57,7 @@ class BM25(
 
     init {
         docs = documents.map { doc ->
-            val tokens = tokenize(doc)
+            val tokens = tokenizeHere(doc)
             DocStats(tokens, tokens.size)
         }
         avgDocLength = if (docs.isNotEmpty()) {
@@ -74,7 +86,7 @@ class BM25(
             // most documents still contributes something. With a real corpus df
             // this is a backstop for genuinely ubiquitous terms; with the old
             // candidate-set df it was the normal path for every query term.
-            max(IDF_FLOOR, raw)
+            max(idfFloor, raw)
         }
     }
 
@@ -84,7 +96,7 @@ class BM25(
      */
     fun score(query: String, docIndex: Int): Float {
         if (docIndex < 0 || docIndex >= docs.size) return 0f
-        val queryTokens = tokenize(query)
+        val queryTokens = tokenizeHere(query)
         if (queryTokens.isEmpty()) return 0f
         val doc = docs[docIndex]
         val docLength = doc.length.toFloat()
@@ -140,10 +152,13 @@ class BM25(
     fun normalizedScore(query: String, docIndex: Int): Float {
         val raw = score(query, docIndex)
         if (raw <= 0f) return 0f
-        val maxPossible = tokenize(query).toSet().sumOf { (idf[it] ?: 0f).toDouble() }.toFloat() * (k1 + 1)
+        val maxPossible = tokenizeHere(query).toSet().sumOf { (idf[it] ?: 0f).toDouble() }.toFloat() * (k1 + 1)
         if (maxPossible <= 0f) return 0f
         return (raw / maxPossible).coerceIn(0f, 1f)
     }
+
+    /** [tokenize], honouring this instance's [bigrams] setting. */
+    private fun tokenizeHere(text: String): List<String> = tokenize(text, bigrams)
 
     companion object {
         /**
@@ -154,12 +169,17 @@ class BM25(
 
         /**
          * Tokenize text for BM25: lowercase, split on non-alphanumeric,
-         * filter empty tokens, add bigrams for better signal.
+         * filter empty tokens, optionally add adjacent bigrams.
+         *
+         * @param bigrams when false, unigrams only. Default true to preserve
+         *   the shipped behaviour; see [BM25.bigrams] for why it is worth
+         *   measuring the other way.
          */
-        fun tokenize(text: String): List<String> {
+        fun tokenize(text: String, bigrams: Boolean = true): List<String> {
             val lower = text.lowercase()
             val words = lower.split(Regex("[^a-z0-9_\\u00C0-\\uFFFF]+"))
                 .filter { it.isNotEmpty() }
+            if (!bigrams) return words
             val out = mutableListOf<String>()
             out.addAll(words)
             // Bigrams for better signal

@@ -36,11 +36,14 @@ data class ScoredMemory(
  */
 object Retrieval {
 
-    /** RRF constant — higher values smooth rank disparities. */
-    private const val RRF_K = 60f
-
-    /** Half-life for recency and access-recency scoring (days). */
-    private const val SIGNAL_HALF_LIFE_DAYS = 7.0
+    /**
+     * Defaults, kept as the values [RetrievalConfig] starts from rather than as
+     * the values this function reads. Everything is now taken from the config
+     * so the eval harness can sweep it; these exist so the sweep has a
+     * documented origin.
+     */
+    internal const val DEFAULT_RRF_K = 60f
+    internal const val DEFAULT_SIGNAL_HALF_LIFE_DAYS = 7.0
 
     // ── Internal rankable container ──────────────────────────────────────
 
@@ -60,11 +63,16 @@ object Retrieval {
     /**
      * Rank memory candidates using RRF fusion and return the top-[topK].
      *
-     * @param query  the original query text (used for text-score normalization)
-     * @param queryEmbedding  the embedding vector of the query
+     * @param query  the original query text. Accepted and unused: fusion works
+     *   entirely on precomputed scores and entity metadata. Kept because every
+     *   call site passes it and because a future score-based fusion would need
+     *   it back; do not add logic that depends on it without saying so here.
+     * @param queryEmbedding  likewise unused, for the same reason.
      * @param candidates  scored candidates (memory + textScore + vectorScore)
      * @param topK  number of results to return
      * @param now  current timestamp in millis (injectable for deterministic tests)
+     * @param config  weights, RRF constant, tie handling. Defaults reproduce
+     *   the shipped behaviour exactly.
      */
     fun rankCandidates(
         query: String,
@@ -72,6 +80,7 @@ object Retrieval {
         candidates: List<ScoredMemory>,
         topK: Int,
         now: Long = System.currentTimeMillis(),
+        config: RetrievalConfig = RetrievalConfig.DEFAULT,
     ): List<MemoryEntity> {
         if (candidates.isEmpty() || topK <= 0) return emptyList()
 
@@ -81,12 +90,12 @@ object Retrieval {
 
             // Recency: exponential decay from createdAt
             val ageDays = (now - mem.createdAt).coerceAtLeast(0L) / 86_400_000.0
-            val recencyScore = exp(-ageDays * ln(2.0) / SIGNAL_HALF_LIFE_DAYS).toFloat()
+            val recencyScore = exp(-ageDays * ln(2.0) / config.signalHalfLifeDays).toFloat()
 
             // Access score: blend of access recency (half-life decay) and
             // access frequency (logistic-style saturation).
             val daysSinceAccess = (now - mem.accessedAt).coerceAtLeast(0L) / 86_400_000.0
-            val accessRecency = exp(-daysSinceAccess * ln(2.0) / SIGNAL_HALF_LIFE_DAYS).toFloat()
+            val accessRecency = exp(-daysSinceAccess * ln(2.0) / config.signalHalfLifeDays).toFloat()
             val accessFreq = mem.accessCount.toFloat() / (mem.accessCount + 5).toFloat()
             val accessScore = accessRecency * 0.5f + accessFreq * 0.5f
 
@@ -103,11 +112,30 @@ object Retrieval {
         }
 
         // 2) Rank by each signal (1 = best) ─────────────────────────────────
-        fun rankBy(selector: (Rankable) -> Float): Map<Int, Int> =
-            rankables
-                .sortedByDescending { selector(it) }
-                .mapIndexed { rank, r -> r.index to rank + 1 }
-                .toMap()
+        //
+        // Under COMPETITION, equal values share a rank, so a signal that is
+        // constant across the pool gives everyone rank 1 and drops out of the
+        // comparison. Under DENSE — the shipped behaviour — tied values get
+        // distinct consecutive ranks broken by input order, which silently
+        // turns a low-cardinality signal into a second vote for whatever
+        // ordered the candidate query. See TieHandling.COMPETITION.
+        fun rankBy(selector: (Rankable) -> Float): Map<Int, Int> {
+            val sorted = rankables.sortedByDescending { selector(it) }
+            if (config.tieHandling == TieHandling.DENSE) {
+                return sorted.mapIndexed { rank, r -> r.index to rank + 1 }.toMap()
+            }
+            val out = HashMap<Int, Int>(sorted.size)
+            var currentRank = 1
+            sorted.forEachIndexed { i, r ->
+                if (i > 0 && selector(r) != selector(sorted[i - 1])) {
+                    // Standard competition: the next distinct value takes the
+                    // rank it would have had, so ranks skip over a tie group.
+                    currentRank = i + 1
+                }
+                out[r.index] = currentRank
+            }
+            return out
+        }
 
         val textRanks = rankBy { it.textScore }
         val vectorRanks = rankBy { it.vectorScore }
@@ -117,15 +145,17 @@ object Retrieval {
         val importanceRanks = rankBy { it.importance }
 
         // 3) Compute RRF score for each candidate ───────────────────────────
+        val k = config.rrfK
+        val w = config.weights
         val rrfScores = rankables.associate { r ->
             val score = listOf(
-                1.0 / (RRF_K + textRanks.getValue(r.index)),
-                1.0 / (RRF_K + vectorRanks.getValue(r.index)),
-                1.0 / (RRF_K + recencyRanks.getValue(r.index)),
-                1.0 / (RRF_K + accessRanks.getValue(r.index)),
-                1.0 / (RRF_K + decayRanks.getValue(r.index)),
-                1.0 / (RRF_K + importanceRanks.getValue(r.index)),
-            ).sum()
+                w.text to textRanks.getValue(r.index),
+                w.vector to vectorRanks.getValue(r.index),
+                w.recency to recencyRanks.getValue(r.index),
+                w.usage to accessRanks.getValue(r.index),
+                w.decay to decayRanks.getValue(r.index),
+                w.importance to importanceRanks.getValue(r.index),
+            ).sumOf { (weight, rank) -> weight * (1.0 / (k + rank)) }
             r.index to score
         }
 

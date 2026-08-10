@@ -24,6 +24,12 @@ class MemoryStore @Inject constructor(
     private val reranker: MemoryReranker? = null,
     private val queryRewriter: QueryRewriter? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
+    /**
+     * Every retrieval tunable. Appended LAST on purpose: existing tests build
+     * this positionally with five arguments and rely on defaults for the rest,
+     * so a parameter inserted anywhere else would break all of them.
+     */
+    private val config: RetrievalConfig = RetrievalConfig.DEFAULT,
 ) {
     private val exactInsertMutex = Mutex()
 
@@ -225,10 +231,10 @@ class MemoryStore @Inject constructor(
             .filter { it.isNotBlank() && it.length > 2 }
             .filter { it !in com.aura.core.util.StopWords.ENGLISH }
             .distinct()
-            .take(MAX_QUERY_TERMS)
+            .take(config.maxQueryTerms)
         // Fetch enough candidates that the reranker actually gets its
         // RERANK_POOL_SIZE pool (limit*3 = 15 used to cap below 20).
-        val candidateLimit = maxOf(limit * 3, RERANK_POOL_SIZE + 5)
+        val candidateLimit = maxOf(limit * config.candidateMultiplier, config.rerankPoolSize + 5)
         val ftsQuery = FtsQuery.build(queryWords)
         val textHits = if (ftsQuery != null) {
             dao.searchFts(ftsQuery, scopes, candidateLimit)
@@ -251,22 +257,24 @@ class MemoryStore @Inject constructor(
             // similarity. The bound (M1 fix) caps heap churn: loading the
             // full table and decoding every embedding costs O(N) float
             // allocations per fallback recall.
-            val all = dao.vectorScanCandidates(scopes, VECTOR_FALLBACK_SCAN_LIMIT)
+            val all = dao.vectorScanCandidates(scopes, config.vectorFallbackScanLimit)
             if (all.isEmpty()) return emptyList()
             val scored = all.map { mem ->
                 val embedding = Embedder.fromBytes(mem.embedding!!)
                 ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
             }.filter { it.vectorScore > 0.05f }
             if (scored.isEmpty()) return emptyList()
-            val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit)
+            val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit, config = config)
             // Route vector fallback through reranker too — it catches
             // semantic matches that BM25+vector both missed.
-            val results = if (reranker != null && vectorResults.size >= RERANK_MIN_CANDIDATES && rerankModel != null) {
+            val results = if (reranker != null && vectorResults.size >= config.rerankMinCandidates && rerankModel != null) {
                 reranker.rerank(text, vectorResults, rerankModel, topK = limit)
             } else {
                 vectorResults.take(limit)
             }
-            for (mem in results) { runCatching { touch(mem.id) }.onFailure { Log.w("MemoryStore", "inline touch in vector fallback failed", it) } }
+            if (config.touchOnRecall) {
+                for (mem in results) { runCatching { touch(mem.id) }.onFailure { Log.w("MemoryStore", "inline touch in vector fallback failed", it) } }
+            }
             // P1 MEMORY B1: vector-fallback recall path
             // skipped evolutionHooks.onMemoryRecalled until
             // now. The main path (BM25+vector) at line ~289
@@ -313,7 +321,15 @@ class MemoryStore @Inject constructor(
             .getOrDefault(emptyMap())
 
         val bm25 = if (textHits.isNotEmpty()) {
-            BM25(textHits.map { it.content }, corpusSize = corpusSize, corpusDocFreq = corpusDocFreq)
+            BM25(
+                textHits.map { it.content },
+                corpusSize = corpusSize,
+                corpusDocFreq = corpusDocFreq,
+                k1 = config.bm25K1,
+                b = config.bm25B,
+                idfFloor = config.bm25IdfFloor,
+                bigrams = config.bm25Bigrams,
+            )
         } else {
             null
         }
@@ -344,28 +360,37 @@ class MemoryStore @Inject constructor(
         // RRF ranking: overfetch to RERANK_POOL_SIZE, then let the
         // reranker (if available) pick the final topK from the pool.
         // Without a reranker, RRF returns topK directly.
-        val rrfTopN = if (reranker != null) minOf(RERANK_POOL_SIZE, scoredCandidates.size) else limit
+        val rrfTopN = if (reranker != null) minOf(config.rerankPoolSize, scoredCandidates.size) else limit
         val rrfResults = Retrieval.rankCandidates(
             query = text,
             queryEmbedding = qVec,
             candidates = scoredCandidates,
             topK = rrfTopN,
             now = System.currentTimeMillis(),
+            config = config,
         )
 
         // Cross-encoder reranking: only worth the LLM calls when we have
         // enough candidates to justify it. With <5 candidates, RRF already
         // ranks them well and the reranker just adds latency + cost.
-        val results = if (reranker != null && rrfResults.size >= RERANK_MIN_CANDIDATES && rerankModel != null) {
+        val results = if (reranker != null && rrfResults.size >= config.rerankMinCandidates && rerankModel != null) {
             reranker.rerank(text, rrfResults, rerankModel, topK = limit)
         } else {
             rrfResults.take(limit)
         }
 
         // Touch is fire-and-forget; we don't want a failed decay update to break recall.
+        //
+        // Gated because `touch` MUTATES the corpus — accessedAt, accessCount and
+        // decayScore all feed fusion signals, so query N+1 sees a corpus altered
+        // by query N and results depend on query order. Production wants that
+        // (recall should reinforce what gets recalled); an eval run cannot have
+        // it and stay reproducible.
         for ((index, mem) in results.withIndex()) {
-            runCatching { touch(mem.id) }
-                .onFailure { Log.w("MemoryStore", "touch on recall failed", it) }
+            if (config.touchOnRecall) {
+                runCatching { touch(mem.id) }
+                    .onFailure { Log.w("MemoryStore", "touch on recall failed", it) }
+            }
             runCatching {
                 evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
             }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled failed (non-fatal)", it) }

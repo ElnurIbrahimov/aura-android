@@ -717,4 +717,19 @@ object MemoryModule {
     @Provides
     @Singleton
     fun provideWriteGate(): WriteGate = WriteGate()
+
+    /**
+     * Dagger does not honour Kotlin default arguments on an `@Inject`
+     * constructor — it requires a binding for every parameter — so
+     * [MemoryStore]'s `config` default is invisible to the graph and this
+     * binding is what actually supplies it in production.
+     *
+     * Deliberately [RetrievalConfig.DEFAULT] and not something read from
+     * preferences. These are values for an eval harness to sweep, not for a
+     * user to set; promote an individual knob to Settings only once it has
+     * earned it.
+     */
+    @Provides
+    @Singleton
+    fun provideRetrievalConfig(): RetrievalConfig = RetrievalConfig.DEFAULT
 }
