@@ -1,10 +1,17 @@
 package com.aura.a11y
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityService.GestureResultCallback
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
 import android.util.DisplayMetrics
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /**
@@ -72,6 +79,144 @@ class AuraAccessibilityService : AccessibilityService() {
         override fun foregroundActivity(): String = lastActivity.substringAfterLast('.')
         override fun screenWidth(): Int = metrics().widthPixels
         override fun screenHeight(): Int = metrics().heightPixels
+
+        override suspend fun performNodeAction(
+            selector: ElementSelector,
+            action: NodeAction,
+            text: String?,
+        ): Boolean = withContext(Dispatchers.Main) {
+            // Resolved against a FRESH tree every time. A node from an earlier
+            // traversal may be recycled, detached, or describing a screen that
+            // has since moved — docs/architecture/tool-policy.md requires the
+            // re-read for exactly that reason.
+            val root = rootInActiveWindow ?: return@withContext false
+            val target = findBySelector(root, selector) ?: return@withContext false
+            try {
+                when (action) {
+                    NodeAction.CLICK -> target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    NodeAction.LONG_CLICK -> target.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+                    NodeAction.FOCUS -> target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                    NodeAction.SCROLL_FORWARD -> target.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                    NodeAction.SCROLL_BACKWARD -> target.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                    NodeAction.SET_TEXT -> target.performAction(
+                        AccessibilityNodeInfo.ACTION_SET_TEXT,
+                        android.os.Bundle().apply {
+                            putCharSequence(
+                                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                                text.orEmpty(),
+                            )
+                        },
+                    )
+                    NodeAction.CLEAR_TEXT -> target.performAction(
+                        AccessibilityNodeInfo.ACTION_SET_TEXT,
+                        android.os.Bundle().apply {
+                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+                        },
+                    )
+                }
+            } finally {
+                @Suppress("DEPRECATION")
+                target.recycle()
+            }
+        }
+
+        override suspend fun dispatchGesture(path: List<Pair<Int, Int>>, durationMs: Long): Boolean {
+            if (path.isEmpty()) return false
+            val stroke = Path().apply {
+                moveTo(path.first().first.toFloat(), path.first().second.toFloat())
+                path.drop(1).forEach { lineTo(it.first.toFloat(), it.second.toFloat()) }
+            }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(stroke, 0, durationMs.coerceAtLeast(1)))
+                .build()
+
+            // withTimeout around the callback, not just around the gesture.
+            // dispatchGesture's callback is not guaranteed to fire — a gesture
+            // cancelled by a window transition can simply never call back — and
+            // without this the bridge mutex would be held forever, taking every
+            // later screen operation with it.
+            return withContext(Dispatchers.Main) {
+                withTimeoutOrNull(durationMs + GESTURE_CALLBACK_GRACE_MS) {
+                    suspendCancellableCoroutine { cont ->
+                        val callback = object : GestureResultCallback() {
+                            override fun onCompleted(d: GestureDescription?) {
+                                if (cont.isActive) cont.resume(true) {}
+                            }
+
+                            override fun onCancelled(d: GestureDescription?) {
+                                if (cont.isActive) cont.resume(false) {}
+                            }
+                        }
+                        if (!dispatchGesture(gesture, callback, null)) {
+                            if (cont.isActive) cont.resume(false) {}
+                        }
+                    }
+                } ?: false
+            }
+        }
+
+        override suspend fun performGlobalAction(action: GlobalAction): Boolean =
+            withContext(Dispatchers.Main) {
+                performGlobalAction(
+                    when (action) {
+                        GlobalAction.BACK -> GLOBAL_ACTION_BACK
+                        GlobalAction.HOME -> GLOBAL_ACTION_HOME
+                        GlobalAction.RECENTS -> GLOBAL_ACTION_RECENTS
+                        GlobalAction.NOTIFICATIONS -> GLOBAL_ACTION_NOTIFICATIONS
+                    },
+                )
+            }
+    }
+
+    /**
+     * Best match for [selector] in a fresh tree, or null.
+     *
+     * Scored rather than exact, because no single field is reliable: Compose
+     * emits no view ids, text changes as a screen updates, and bounds shift on
+     * scroll. Requiring all of them would fail constantly; accepting any one
+     * would act on the wrong element. The threshold exists so a weak partial
+     * match is treated as "not found" rather than as good enough.
+     *
+     * The caller owns the returned node and must recycle it.
+     */
+    private fun findBySelector(root: AccessibilityNodeInfo, selector: ElementSelector): AccessibilityNodeInfo? {
+        var best: AccessibilityNodeInfo? = null
+        var bestScore = 0
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.addLast(AccessibilityNodeInfo.obtain(root))
+        var visited = 0
+
+        while (stack.isNotEmpty() && visited < MAX_SELECTOR_VISITS) {
+            val node = stack.removeLast()
+            visited++
+            val candidate = ElementSelector(
+                viewId = node.viewIdResourceName?.substringAfterLast('/')?.ifBlank { null },
+                text = node.text?.toString()?.ifBlank { null },
+                contentDescription = node.contentDescription?.toString()?.ifBlank { null },
+                className = node.className?.toString(),
+                bounds = android.graphics.Rect().also { node.getBoundsInScreen(it) }
+                    .let { Rect4(it.left, it.top, it.right, it.bottom) },
+            )
+            val score = selector.score(candidate)
+            if (score > bestScore) {
+                @Suppress("DEPRECATION")
+                best?.recycle()
+                best = AccessibilityNodeInfo.obtain(node)
+                bestScore = score
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { stack.addLast(it) }
+            }
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+
+        if (bestScore < MIN_SELECTOR_SCORE) {
+            @Suppress("DEPRECATION")
+            best?.recycle()
+            return null
+        }
+        return best
     }
 
     @Suppress("DEPRECATION")
@@ -108,5 +253,25 @@ class AuraAccessibilityService : AccessibilityService() {
 
     private companion object {
         const val TAG = "AuraA11y"
+
+        /**
+         * Extra time allowed for dispatchGesture's callback beyond the gesture
+         * itself. The callback is not guaranteed to fire — a gesture cancelled
+         * by a window transition can simply never call back — so this bounds
+         * the wait rather than trusting it.
+         */
+        const val GESTURE_CALLBACK_GRACE_MS = 2_000L
+
+        /** Nodes examined while resolving a selector. */
+        const val MAX_SELECTOR_VISITS = 3_000
+
+        /**
+         * Minimum selector score to act on.
+         *
+         * 4 is one strong field — a matching text or content description — or
+         * a class plus bounds. Below that the match is a coincidence, and
+         * acting on a coincidence is how an agent taps the wrong thing.
+         */
+        const val MIN_SELECTOR_SCORE = 4
     }
 }

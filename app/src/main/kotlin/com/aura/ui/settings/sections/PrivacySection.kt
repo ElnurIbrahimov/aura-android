@@ -42,6 +42,8 @@ fun PrivacySection(
     morningBriefHour: Int,
     calendarMonitorEnabled: Boolean,
     decayEnabled: Boolean,
+    screenControlEnabled: Boolean,
+    onSetScreenControlEnabled: (Boolean) -> Unit,
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
@@ -88,6 +90,55 @@ fun PrivacySection(
             OutlinedButton(onClick = {
                 notificationAccessLauncher.launch(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }) { Text(if (notificationAccessEnabled) "Manage" else "Enable") }
+        }
+
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
+
+        // Screen control. TWO steps, deliberately: a switch that only arms the
+        // feature, and then — once armed — a button to the system settings that
+        // actually grant it. A single "Enable" button jumping straight to
+        // Android's accessibility screen would ask the user to grant the most
+        // invasive permission in the app before telling them what it is for.
+        val a11yContext = LocalContext.current
+        var a11yServiceEnabled by remember { mutableStateOf(isA11yServiceEnabled(a11yContext)) }
+        val a11yLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { a11yServiceEnabled = isA11yServiceEnabled(a11yContext) }
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(R.string.screen_control), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (screenControlEnabled) {
+                        "On - Aura can read and operate the screen in other apps when you ask"
+                    } else {
+                        "Off - Aura cannot see or touch other apps"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = screenControlEnabled, onCheckedChange = onSetScreenControlEnabled)
+        }
+
+        if (screenControlEnabled) {
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (a11yServiceEnabled) {
+                            "Accessibility access granted"
+                        } else {
+                            "Android still needs to grant Accessibility access"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                    )
+                }
+                OutlinedButton(onClick = {
+                    a11yLauncher.launch(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }) { Text(if (a11yServiceEnabled) "Manage" else "Grant") }
+            }
         }
 
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -191,3 +242,20 @@ fun PrivacySection(
         }
     }
 }
+
+/**
+ * Whether Aura's accessibility service is enabled in system settings.
+ *
+ * Read from Settings.Secure rather than AccessibilityManager's enabled-service
+ * list: the manager reports services that are enabled AND currently bound, so a
+ * service the system has temporarily killed — which some OEMs do aggressively —
+ * would read as "not granted" and prompt the user to re-grant something they
+ * already granted.
+ */
+private fun isA11yServiceEnabled(context: android.content.Context): Boolean = runCatching {
+    val expected = "${context.packageName}/com.aura.a11y.AuraAccessibilityService"
+    android.provider.Settings.Secure.getString(
+        context.contentResolver,
+        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+    )?.split(':')?.any { it.equals(expected, ignoreCase = true) } == true
+}.getOrDefault(false)

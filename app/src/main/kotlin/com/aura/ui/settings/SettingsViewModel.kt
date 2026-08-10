@@ -195,6 +195,8 @@ data class SettingsUiState(
     val planningEnabled: Boolean = false,
     /** Whether providers are asked to cache the fixed prompt prefix (default true). */
     val promptCachingEnabled: Boolean = true,
+    /** Master switch for reading and operating other apps' screens (default false). */
+    val screenControlEnabled: Boolean = false,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -363,6 +365,7 @@ class SettingsViewModel @Inject constructor(
             val decayEnabled = userPreferences.decayEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
             val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
+            val screenControlEnabled = userPreferences.screenControlEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val triggers = userPreferences.triggers.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
@@ -433,6 +436,7 @@ class SettingsViewModel @Inject constructor(
                 decayEnabled = decayEnabled,
                 planningEnabled = planningEnabled,
                 promptCachingEnabled = promptCachingEnabled,
+                screenControlEnabled = screenControlEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -674,6 +678,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setPromptCachingEnabled(enabled)
             _state.update { it.copy(promptCachingEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Arm or disarm screen control. Arming does not grant anything — Android
+     * still requires the user to enable the service in system settings — but
+     * disarming revokes immediately, on both gates.
+     */
+    fun setScreenControlEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setScreenControlEnabled(enabled)
+            _state.update { it.copy(screenControlEnabled = enabled) }
         }
     }
 

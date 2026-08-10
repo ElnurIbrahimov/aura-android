@@ -128,7 +128,12 @@ fun PermissionDialog(
 ) {
     if (permission == null) return
     val context = LocalContext.current
-    val isNotificationAccess = permission == "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+    // Some capabilities are granted by a system settings screen rather than a
+    // runtime permission prompt. A lookup rather than a chain of `if`s: there
+    // are two now, the shape is identical, and the third would otherwise be
+    // added by copy-paste with one line changed.
+    val specialAccess = SPECIAL_ACCESS[permission]
+    val isSpecialAccess = specialAccess != null
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -136,7 +141,10 @@ fun PermissionDialog(
     }
     val activity = context as? Activity
     val shouldShowRationale = activity?.shouldShowRequestPermissionRationale(permission) ?: false
-    val permanentlyDenied = !isNotificationAccess && !shouldShowRationale &&
+    // "Permanently denied" is a runtime-permission concept. A settings-granted
+    // capability has no prompt to have been denied, so the reasoning does not
+    // apply and its advice would be wrong.
+    val permanentlyDenied = !isSpecialAccess && !shouldShowRationale &&
         ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
 
     AlertDialog(
@@ -153,10 +161,10 @@ fun PermissionDialog(
         },
         confirmButton = {
             when {
-                isNotificationAccess -> TextButton(onClick = {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                specialAccess != null -> TextButton(onClick = {
+                    context.startActivity(Intent(specialAccess.settingsAction))
                     onDismiss()
-                }) { Text(stringResource(R.string.open_notification_access)) }
+                }) { Text(stringResource(specialAccess.buttonLabel)) }
                 permanentlyDenied -> TextButton(onClick = {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -224,3 +232,17 @@ fun ConfirmationDialog(
         },
     )
 }
+
+/** A capability granted by a system settings screen rather than a runtime prompt. */
+private data class SpecialAccess(val buttonLabel: Int, val settingsAction: String)
+
+private val SPECIAL_ACCESS = mapOf(
+    "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" to SpecialAccess(
+        R.string.open_notification_access,
+        Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS,
+    ),
+    "android.permission.BIND_ACCESSIBILITY_SERVICE" to SpecialAccess(
+        R.string.open_accessibility_settings,
+        Settings.ACTION_ACCESSIBILITY_SETTINGS,
+    ),
+)

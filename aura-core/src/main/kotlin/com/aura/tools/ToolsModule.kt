@@ -63,6 +63,7 @@ object ToolsModule {
         taskManager: TaskManagerTool,
         notificationList: NotificationListTool,
         screenRead: ScreenReadTool,
+        screenAct: ScreenActTool,
         firecrawlFetch: FirecrawlFetchTool,
         deepResearch: DeepResearchTool,
         vision: VisionTool,
@@ -146,6 +147,7 @@ object ToolsModule {
         // means zero token cost and zero reachability for anyone who never
         // opts in.
         registry.register(screenRead.tool)
+        registry.register(screenAct.tool)
         registry.register(notificationList.tool)
         registry.register(firecrawlFetch.tool)
         registry.register(deepResearch.tool)
