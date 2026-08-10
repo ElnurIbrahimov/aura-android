@@ -358,6 +358,17 @@ the controller's first direct test — the coverage gap and the bug were the sam
 fact, which is the argument for the test rather than for the fix. Fixed by
 cancelling without joining any job the current coroutine is running inside.
 
+**`MemoryReranker` failed silently, twice, and swallowed cancellation.** Both
+`catch (e: Exception)` blocks returned a plausible list with no log — the outer
+one falling back to RRF order, the inner one scoring a whole batch neutral at
+0.5, which ties every candidate in it so they keep RRF order while the batches
+that did score get reordered around them. A half-reranked list that looks
+reranked. In both, `CancellationException` is an `Exception`, so a caller giving
+up was reported as a successful rerank while the model call kept running for a
+result nobody wanted — the third subsystem in this repo's history with that
+exact defect. Worth noting why the CI gate missed it: `SilentRunCatchingAuditTest`
+scans `runCatching`, and these were `try`/`catch`.
+
 Three of the sweep's own gates fired against its own code. `SilentRunCatchingAuditTest`
 caught a new `runCatching` with no handler; `ScreenControlContractTest`'s absence assertions
 failed because the comments *explaining* the absences named the flags they assert are absent

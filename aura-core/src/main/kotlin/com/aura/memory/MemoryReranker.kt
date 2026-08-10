@@ -4,6 +4,8 @@ import android.util.Log
 import com.aura.agent.Brain
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -56,8 +58,26 @@ class MemoryReranker @Inject constructor(
                     .take(topK)
                     .map { candidates[it.first] }
             }
+        } catch (e: TimeoutCancellationException) {
+            // Expected under a slow or overloaded model, and falling back is
+            // correct — but it must be visible. A reranker that has timed out on
+            // every query for a month is indistinguishable from one that works,
+            // because the output is always a plausible list of memories.
+            Log.w(TAG, "rerank timed out after ${RERANK_TIMEOUT_MS}ms; using RRF order", e)
+            candidates.take(topK)
+        } catch (e: CancellationException) {
+            // The CALLER gave up: a cancelled recall, a closed conversation.
+            // Swallowing it breaks cooperative cancellation and leaves the model
+            // call running for a result nobody is waiting for. The previous
+            // `catch (e: Exception)` caught this, because CancellationException
+            // is an Exception — the defect this repo has fixed twice before.
+            throw e
         } catch (e: Exception) {
-            // Reranking is best-effort — fall back to RRF order
+            // Anything else is a real failure: no model configured, a provider
+            // error, a malformed score response. Silent, this made a
+            // permanently broken reranker look exactly like a working one — in
+            // a repo that runs a CI gate on logging hygiene for this reason.
+            Log.w(TAG, "rerank failed (${e.javaClass.simpleName}); using RRF order: ${e.message}", e)
             candidates.take(topK)
         }
     }
@@ -128,8 +148,15 @@ class MemoryReranker @Inject constructor(
                     response.append(chunk.text)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            return batch.indices.associateWith { 0.5f } // neutral fallback
+            // A neutral 0.5 for the whole batch is not a small fallback: every
+            // candidate in it ties, so `sortedByDescending` leaves them in RRF
+            // order while the batches that DID score get reordered around them.
+            // The result is a half-reranked list that looks reranked.
+            Log.w(TAG, "batch scoring failed for ${batch.size} candidates; scoring them neutral: ${e.message}", e)
+            return batch.indices.associateWith { 0.5f }
         }
 
         // Parse lines as floats. Models return scores in various formats:
@@ -205,6 +232,7 @@ class MemoryReranker @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "MemoryReranker"
         const val RERANK_TIMEOUT_MS = 10_000L
         const val BATCH_SIZE = 4
         const val MAX_CONTENT_CHARS = 500

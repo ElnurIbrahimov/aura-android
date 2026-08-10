@@ -9,6 +9,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.test.assertFailsWith
 
 class MemoryRerankerTest {
 
@@ -86,6 +88,24 @@ class MemoryRerankerTest {
         assertEquals("m1", result[0].id)
         assertEquals("m2", result[1].id)
         assertEquals("m3", result[2].id)
+    }
+
+    @Test
+    fun `caller cancellation is not swallowed by the fallback`() = runTest {
+        // The fallback exists for provider failures, not for the caller giving
+        // up. `catch (e: Exception)` caught CancellationException too — because
+        // it IS an Exception — so a cancelled recall was reported as a
+        // successful rerank in RRF order, and the model call kept running for a
+        // result nobody was waiting for. This repo has fixed the same defect
+        // twice before in other subsystems.
+        val brain = mockk<Brain>(relaxed = true)
+        coEvery { brain.stream(any(), any(), any(), any()) } throws CancellationException("caller went away")
+        val reranker = MemoryReranker(brain)
+        val candidates = listOf(mem("m1", "first"), mem("m2", "second"))
+
+        assertFailsWith<CancellationException> {
+            reranker.rerank("query", candidates, "model", topK = 2)
+        }
     }
 
     @Test
