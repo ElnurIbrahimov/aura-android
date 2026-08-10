@@ -274,11 +274,92 @@ like the contract**. The replacement injects `CheapModelResolver` (whose KDoc al
 this class of call as its target) and adds `never asks the registry for the literal string
 default` as an explicit `coVerify(exactly = 0)`, which is the assertion a mock cannot absorb.
 
+### 2.10 The 2026-08-10 capability sweep (21 commits, 2,346 → 2,609 tests)
+
+Four tracks: the provider layer, retrieval quality, screen control, live voice. §2.9 is the
+first three commits of it. What follows is the part worth keeping — not the feature list,
+which git has, but the defects the work exposed and why each was invisible.
+
+**Every usage report from every OpenAI-compatible provider was being discarded.**
+`OpenAiSseParser` returned early on an empty `choices` array, and OpenAI's final usage frame
+has exactly `choices: []`. Twelve of seventeen providers therefore reported no usage at all,
+and `ProviderRegistry` billed them against a `content.length` estimate. The parse was moved
+above the early return. Nothing about this was visible from the outside: an estimate looks
+exactly like a measurement once it is in a ledger.
+
+**`EvolutionPatchAuthor` permanently discarded a self-improvement candidate whenever the
+model's JSON arrived wrapped in prose.** A parse failure became `Result.Rejected`, which is
+terminal — a transient formatting slip was recorded as a considered verdict. `Result` gained
+`Inconclusive` so the candidate stays pending. The lesson is narrower than "handle errors":
+the type had two cases where the domain has three, and the missing case was silently folded
+into the one that destroys work.
+
+**Four subsystems each carried their own fence-stripper**, one of which (`LlmWriteGate`'s
+non-greedy `\{(.*?)}`) returns a *truncated* object on any nested brace. Now one
+`StructuredJson.stripFences`, depth-based and string-aware. The four fallbacks were kept
+rather than deleted — structured output makes them rare, not unnecessary, and on Anthropic
+in schema-free mode the fallback *is* the mechanism.
+
+**Three of the six RRF retrieval signals were echoes of the SQL ordering.** `rankBy` used
+dense ranking, so tied values still received distinct ranks broken by input order — which is
+`ORDER BY m.decayScore DESC`. `WriteGate` emits five importance values with a catch-all at
+0.5, so on a 25-row pool most rows tie: `importance` was in practice a second `decayScore`
+vote, `decayScore` a third on a fresh install, and `textScore` a fourth in the vector
+fallback branch, which hardcodes it to zero. Standard competition ranking fixes all four at
+once, because a signal whose values are all equal now gives everyone rank 1 and cancels out
+of the comparison. This is the kind of defect that cannot be found by reading the fusion —
+it lives in the interaction between a tie-break and a query two files away.
+
+**The retrieval stack had no way to be wrong.** Every ranking test in `RetrievalTest` was a
+monotone-dominance assertion that cannot fail, and two were worse: one is misnamed and
+supplies different scores where it claims equal ones, the other asserts an OR over a 3-slot
+window on a 10-document pool and passes by chance. A real harness now lives in
+`aura-core/src/test/.../memory/eval/` — nDCG@5/@10, recall@k, MRR, zero-result rate, per
+query-class breakdown, gated on no-regression against a committed baseline rather than an
+absolute score, because absolute thresholds get quietly lowered. Its first run reported
+`correctly_empty_rate = 0.0`: the vector fallback's 0.05 cosine floor means "return nothing"
+is weaker in production than `MemoryStoreQueryTest` implies. That finding is the harness
+paying for itself on day one, and it is still open.
+
+**Changing the embedding model corrupted the corpus in three places and re-embedded nothing.**
+`rebuildEmbeddings` filtered on `embedding == null`, so a model switch re-embedded zero rows
+and could never converge; the update path wrote the vector without its model tag, so even
+the rows it did touch kept lying. Meanwhile `DreamConsolidator` filtered only for
+`embedding != null` and then clustered stale and fresh vectors together **and wrote the
+results back as new memories** — the one durable-corruption path in the set, and the reason
+the embedder change and the consolidator fix had to land in the same commit. The likely
+on-device case is 384→384, where the existing dimension guard never fires and the failure is
+silently meaningless cosines with no log at all. `Embedder` now reports what it produced,
+and a `ReembedWorker` drains the backlog highest-value-first so an interrupted rebuild fixes
+what matters before what doesn't.
+
+**A relaxed mockk intercepts interface default methods.** Adding `isCurrent`/`embedTagged` as
+defaulted members of `Embedder` silently changed the behaviour of every existing test that
+mocked it, because the mock answers the default method instead of running it. Eight failures,
+all of them the mock rather than the code. This is §2.9's lesson in a new costume: a mock
+does not merely fail to catch a bug, it can manufacture one.
+
+Two features were added rather than fixed, and both are documented in `architecture.md`
+rather than here. The parts worth recording as history are the constraints that shaped them:
+screen control reads the accessibility tree and not a screenshot because `MediaProjection`
+requires an attached Activity and screen control by definition happens while another app is
+foreground — the alternative is not expensive, it is impossible; and live voice sits beside
+`Provider` rather than inside it because `chat` is a one-shot non-suspend `Flow` and forcing
+a duplex session into it means a default-throwing method on all seventeen implementations.
+
+Three of the sweep's own gates fired against its own code. `SilentRunCatchingAuditTest`
+caught a new `runCatching` with no handler; `ScreenControlContractTest`'s absence assertions
+failed because the comments *explaining* the absences named the flags they assert are absent
+(the scanner now strips comments — the same false positive the two older source scans have);
+and `check-test-count.sh` blocked three commits until the docs matched. That is the CI
+working as designed on the person who wrote it, which is the only real test of a gate.
+
 ---
 
 ## 3. Still open
 
-Re-verified against HEAD on 2026-08-08. This is the section to maintain. Items closed by
+Re-verified against HEAD on 2026-08-08, and again on 2026-08-10. This is the section to
+maintain. Items closed by
 the 2026-08-06/07 sweep — stale dependencies, the AgentRun one-way approval loop, the
 missing schema exports 7–10, the single global permission slot, and the four known-flaky
 time-dependent test classes — have been removed; see §2.0.
@@ -296,6 +377,25 @@ entirely. It runs in the `build-test` CI job rather than `gates`, which has no J
 only guess, and it errors out when no XML is present — a gate that reports OK over an empty
 file list is the §2.6 defect, not a gate. The baseline figure above is left as written: it
 is a dated record of one run, which is this file's job.
+
+*2026-08-10:* **2,609 unit tests, 0 failures**, after the §2.10 capability sweep. Both lint
+tasks clean of errors, `assembleRelease` succeeds under real R8, all three gate scripts
+pass. Every one of the sweep's 21 commits was gated on that full set before the next began.
+
+### Blocked on measurement, not on work
+
+Four items are deliberately unfinished. Each is blocked on evidence that does not exist yet,
+and building past them would mean choosing a design by preference instead of by measurement.
+
+| Item | What it needs |
+|------|---------------|
+| **Prompt-cache effectiveness (Gate A)** | A week of ordinary use, then the mean cached-prompt-token fraction over steps 2..N from `ProviderRegistry`'s debug log. The caching itself ships and defaults on; what is unknown is the hit rate, and that number decides whether dynamic tool-schema selection is worth building or is already discounted to noise. Also unconfirmed on a device: that a real Anthropic turn returns non-zero `cache_read_input_tokens`. |
+| **The embedding business case (Gate B)** | `sentence-transformers` on a desktop, and a golden corpus built from the real memory DB rather than a synthetic one — synthetic corpora have uniform style and no vocabulary-overlap structure, so every change looks like an improvement. The measurement that matters is one number: how much the synonym-only query class gains from `LocalEmbedder`'s hash to a real 384-dim model. |
+| **ONNX on-device embeddings** | Gate B clearing its bar (synonym-only ≥15% of real queries and ≥0.15 nDCG@10 gain). The tokenizer is the real cost — a WordPiece port needs a `transformers`-generated fixture as a CI test, because an off-by-one in `##` handling degrades every embedding a few percent, silently, forever. |
+| **ONNX cross-encoder rerank** | The above, plus a p95 measurement. It is 200–500 ms per recall on the critical path, and four *tool* callers recall several times per turn. |
+
+`RetrievalConfig` exists so these can be A/B'd rather than argued about; it is not a settings
+screen and should not become one.
 
 ### The 2026-08-08 remediation sweep
 
@@ -346,7 +446,9 @@ and inflated the document frequencies BM25 had just started depending on.
 | Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–17 are all committed and the chain test now runs 6→17 (it stopped at 14 until 2026-08-08, leaving `MIGRATION_14_15` and `MIGRATION_15_16` with no coverage at all), but individual hops inside 6..10 still have no per-step data assertion. |
 | No consciousness state is in the backup schema | `NarrativeSelf`, `EmotionEngine`, `AffinityTracker`, `IntrinsicMotivation` and `TheoryOfMind` all persist locally, and none survive export/restore. Deliberately left out of the 2026-08-08 sweep: adding one blob would have set an inconsistent precedent for the other four. Fix is one `AuraBackupSchema18.kt` covering all five, plus a `restoreConsciousness` in the non-fatal post-restore block of `BackupManager.restore`. |
 | BM25 document frequency costs one FTS probe per query term | Bounded by `MAX_QUERY_TERMS` (24) and each probe is an index lookup, so it is cheap — but FTS4's `matchinfo()` would return the whole corpus statistic in the same query that fetches candidates. It needs `@RawQuery` plus manual BLOB parsing, and there is no `@RawQuery` precedent in `MemoryDao`. Recorded rather than done. |
-| Bigram IDF still comes from the candidate set | `BM25.tokenize` emits words *and* adjacent bigrams; only the unigrams get a corpus document frequency, because measuring every bigram would double the probe count for a term class that is rare by construction. Bigrams fall back to candidate-set `df`, which is the pre-2026-08-08 behaviour for that subset. |
+| Bigram IDF still comes from the candidate set | `BM25.tokenize` emits words *and* adjacent bigrams; only the unigrams get a corpus document frequency, because measuring every bigram would double the probe count for a term class that is rare by construction. Bigrams fall back to candidate-set `df`, which is the pre-2026-08-08 behaviour for that subset. Since 2026-08-10 this is `RetrievalConfig.bm25Bigrams` and the eval harness can settle it: bigrams also *double* `docLength`, depressing every unigram through BM25's length normalisation, so dropping them may well win outright. Left at the shipped default until measured. |
+| `correctly_empty_rate` is 0.0 in the eval harness | The vector fallback scores every scanned row and admits anything above a 0.05 cosine floor, so a query with no real answer still returns something. `MemoryStoreQueryTest` asserts empty results as product behaviour and passes, because its fixtures never reach that branch. The harness disagrees with the unit test about what the system does, and the harness is right. Fix is a relevance floor on the fused score, not on the cosine — but it needs the golden set to avoid trading recall for it. |
+| `RealtimeCallController` is covered indirectly | Barge-in ordering, budget expiry mid-call and tool round-trips are exercised through the wire and bridge tests rather than against the controller itself. A fake-driven test of the orchestration is the obvious next addition. The audio adapters legitimately need a device; the controller does not. |
 
 ### Dependencies and configuration
 
@@ -375,6 +477,12 @@ and inflated the document frequencies BM25 had just started depending on.
   mostly JSON-parse sentinels where that is the correct behavior.
 - Instrumented coverage (64 device test methods: migration chains + smoke tests) runs
   only on a connected device — not in CI.
+- Screen control and live voice each have a 12-row manual table in
+  `docs/ANDROID_TEST_PLAN.md`, and **neither has been run**. The unit tests cover the
+  decisions — what is refused, what is redacted, what is truncated, what order barge-in
+  happens in. A device covers whether the platform behaves as documented, which is a
+  different question and the one that matters for two subsystems built on beta protocols
+  and OEM-modified accessibility stacks.
 
 ### Architecture
 
