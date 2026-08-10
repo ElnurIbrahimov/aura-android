@@ -489,6 +489,20 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // agentic loop (5-10 steps per turn).
         var cachedPersonality: String? = null
         var cachedTasteContext: String? = null
+        // The rest of the stable system block, cached for the same reason and
+        // then some. These three were re-read on EVERY step: agentStore.byId()
+        // is a Room query, resolvedIdentity() and getSystemPrompt() are
+        // DataStore reads. Re-reading them was already wasteful; once the block
+        // they build is a cacheable prompt prefix it is worse than wasteful,
+        // because a single hiccup returning a slightly different string makes
+        // step 4's prefix differ from step 3's by one character and silently
+        // costs the whole prompt cache, with nothing anywhere reporting it.
+        //
+        // Resolved once per run. The agent, the persona and the profile do not
+        // change mid-turn; the profile extractor writes only after the loop.
+        var cachedAgentIdentity: String? = null
+        var cachedResolvedIdentity: String? = null
+        var cachedUserProfilePrompt: String? = null
         // Cached cheap model ID — avoids 2 live /models API calls per step
         // (rerankModel + rewriteModel resolution). The available models
         // don't change mid-conversation.
@@ -749,30 +763,43 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 "\n\n# Retrieved context\n" + PromptFraming.UNTRUSTED_CONTEXT_PREAMBLE + retrievedContext
             }
 
+            // Resolve the three remaining per-step reads once per run. See the
+            // declarations above for why re-reading them is worse than wasteful.
+            if (cachedAgentIdentity == null) {
+                cachedAgentIdentity = if (agentId != null) {
+                    runCatching { agentStore?.byId(agentId)?.identity }
+                        .onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}", it) }
+                        .getOrNull() ?: ""
+                } else ""
+            }
+            if (cachedResolvedIdentity == null) cachedResolvedIdentity = brain.resolvedIdentity()
+            if (cachedUserProfilePrompt == null) cachedUserProfilePrompt = userProfileStore.getSystemPrompt()
+
             val messages = buildList {
-                val sys = listOfNotNull(
-                    if (agentId != null) runCatching { agentStore?.byId(agentId)?.identity?.ifBlank { null } }.onFailure { android.util.Log.w("AgenticLoop", "identity resolution failed: ${it.message}", it) }.getOrNull() else null,
+                // The system prompt goes out as TWO messages, not one.
+                //
+                // Everything a provider can cache is a byte-identical prefix, so
+                // the split is between what is fixed for the whole run and what
+                // is rebuilt every step. Providers that take an explicit cache
+                // breakpoint put it at the end of the stable message; providers
+                // with automatic prefix caching (OpenAI) get the same benefit for
+                // free, because system messages are already separate array
+                // entries on the wire. Callers that do not opt in still send
+                // both messages, which is semantically identical to the single
+                // message this replaces.
+                //
+                // STABLE — who Aura is on this run. Fixed for every step.
+                val stableSys = listOfNotNull(
+                    cachedAgentIdentity?.ifBlank { null },
                     specialist?.systemPrompt,
                     personalityDirective.ifBlank { null },
                     currentConversation.systemPrompt,
-                    brain.resolvedIdentity().ifBlank { null },
-                    userProfileStore.getSystemPrompt().ifBlank { null },
-                ).joinToString("\n\n") + framedRetrievedContext + emotionContext + handContext + reflectionContext +
-                    // Consciousness layer: NarrativeSelf, IntrinsicMotivation, TheoryOfMind.
-                    // All are heuristic, no LLM cost. Injected on step 1 only.
-                    (if (step == 1) {
-                        listOfNotNull(
-                            narrativeSelf?.toPrompt()?.ifBlank { null },
-                            intrinsicMotivation?.toPrompt()?.ifBlank { null },
-                            theoryOfMind?.toPrompt()?.ifBlank { null },
-                            affinityTracker?.getDirective()?.ifBlank { null },
-                        ).joinToString("\n\n").ifBlank { "" }
-                    } else "")
+                    cachedResolvedIdentity?.ifBlank { null },
+                ).joinToString("\n\n")
 
                 // 2.5) Planning step: ask the model to outline its approach before
-                // calling tools. The plan is injected as a system prefix so the
-                // model sees its own strategy. One cheap LLM call improves tool
-                // selection accuracy across all tasks. Falls back silently on error.
+                // calling tools. One cheap LLM call improves tool selection
+                // accuracy across all tasks. Falls back silently on error.
                 // Skip for short messages — "hi", "thanks", "what time is it" don't
                 // need a planning round-trip. Threshold: < 20 chars or < 4 words.
                 //
@@ -781,15 +808,54 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // every turn, which is a bad default for conversational use; users
                 // doing tool-heavy work turn it on in Settings.
                 val effectivePlanning = strategy?.enablePlanning ?: planningEnabled
-        val needsPlan = effectivePlanning &&
+                val needsPlan = effectivePlanning &&
                     lastUserMessage.length > 20 &&
                     lastUserMessage.split(Regex("\\s+")).filter { it.isNotBlank() }.size > 3
                 val plan = if (step == 1 && needsPlan) {
                     generatePlanPrefix(lastUserMessage, effectiveModel)
                 } else ""
 
-                val resolvedSys = if (plan.isNotBlank()) plan + sys else sys
-                if (resolvedSys.isNotBlank()) add(ProviderMessage(role = Role.system, content = resolvedSys))
+                // VOLATILE — what is true this turn. Rebuilt every step.
+                //
+                // The plan moved here from the front of the whole prompt. It was
+                // prepended, so with planning on, byte 0 of every request differed
+                // per turn — nothing downstream could ever match a prefix. It also
+                // put a turn-specific scratchpad ahead of Aura's own identity,
+                // which was odd on its own terms.
+                //
+                // The user profile moved here out of the stable block: the profile
+                // extractor rewrites it between turns, so it is exactly the thing
+                // that changes while everything above it does not.
+                val volatileSys = buildString {
+                    if (plan.isNotBlank()) append(plan)
+                    cachedUserProfilePrompt?.ifBlank { null }?.let {
+                        if (isNotEmpty()) append("\n\n")
+                        append(it)
+                    }
+                    append(framedRetrievedContext)
+                    append(emotionContext)
+                    append(handContext)
+                    append(reflectionContext)
+                    // Consciousness layer: NarrativeSelf, IntrinsicMotivation, TheoryOfMind.
+                    // All are heuristic, no LLM cost. Injected on step 1 only —
+                    // which is also why they must not sit in the stable block.
+                    if (step == 1) {
+                        listOfNotNull(
+                            narrativeSelf?.toPrompt()?.ifBlank { null },
+                            intrinsicMotivation?.toPrompt()?.ifBlank { null },
+                            theoryOfMind?.toPrompt()?.ifBlank { null },
+                            affinityTracker?.getDirective()?.ifBlank { null },
+                        ).joinToString("\n\n").ifBlank { null }?.let { append(it) }
+                    }
+                    // Each of those blocks carries its own leading "\n\n", which
+                    // was the separator when they were concatenated onto one
+                    // string. Providers that re-join system messages insert their
+                    // own, so trimming the front keeps the joined bytes identical
+                    // to what shipped before rather than adding a blank line.
+                }.trimStart()
+
+                if (stableSys.isNotBlank()) add(ProviderMessage(role = Role.system, content = stableSys))
+                if (volatileSys.isNotBlank()) add(ProviderMessage(role = Role.system, content = volatileSys))
 
                 addAll(currentConversation.toMessages(includeSystemPrompt = false, maxToolResultChars = MAX_TOOL_RESULT_CHARS))
             }
