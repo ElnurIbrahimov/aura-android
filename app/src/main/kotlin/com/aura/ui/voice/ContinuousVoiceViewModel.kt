@@ -131,12 +131,46 @@ class ContinuousVoiceViewModel @Inject constructor(
                         onSend(text)
                         // Wait for streaming to complete, then speak
                         responseWaitJob = viewModelScope.launch responseWait@{
-                            // Poll until streaming is done
-                            while (_state.value.active && !onStreamingDone()) {
-                                delay(200)
+                            // Speak each sentence AS IT COMPLETES rather than
+                            // waiting for the whole reply.
+                            //
+                            // The old loop polled `onStreamingDone()` and said
+                            // nothing until it returned true, so every reply
+                            // began with one to three seconds of silence after
+                            // the user stopped talking. That silence was the
+                            // largest contributor to voice mode feeling slow,
+                            // and none of it was model latency.
+                            //
+                            // Still polling, at a shorter interval, because the
+                            // response arrives through a StateFlow this VM only
+                            // reads — making it event-driven means threading a
+                            // token callback through ChatSendController, which
+                            // is a larger change than the win justifies. The
+                            // poll now looks at the TEXT rather than only at the
+                            // done flag, which is where the latency was.
+                            chunker.reset()
+                            var spokeAnything = false
+                            while (_state.value.active) {
+                                val done = onStreamingDone()
+                                val text = _state.value.lastResponse
+                                chunker.accept(text).forEach { sentence ->
+                                    speakSentence(sentence, flush = !spokeAnything)
+                                    spokeAnything = true
+                                }
+                                if (done) {
+                                    chunker.flush(text).takeIf { it.isNotBlank() }?.let {
+                                        speakSentence(it, flush = !spokeAnything)
+                                        spokeAnything = true
+                                    }
+                                    break
+                                }
+                                delay(STREAM_POLL_MS)
                             }
                             if (!_state.value.active) return@responseWait
-                            speakResponse(onSend, onStreamingDone)
+                            // Hand over to the barge-in listener. Nothing is
+                            // re-spoken: speakResponse now only sets up
+                            // listening when sentences already went out.
+                            speakResponse(onSend, onStreamingDone, alreadySpoken = spokeAnything)
                         }
                     }
                     is SpeechToText.State.Error -> {
@@ -156,9 +190,25 @@ class ContinuousVoiceViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Queue one sentence for speech.
+     *
+     * `flush = true` only on the FIRST sentence of a reply. Flushing on every
+     * one would cut off the sentence currently being spoken, which is the exact
+     * stutter this change exists to avoid.
+     */
+    private fun speakSentence(sentence: String, flush: Boolean) {
+        textToSpeech.speak(
+            text = sentence,
+            utteranceId = "voice-mode-${System.currentTimeMillis()}-${sentence.hashCode()}",
+            flush = flush,
+        )
+    }
+
     private fun speakResponse(
         onSend: (String) -> Unit,
         onStreamingDone: () -> Boolean,
+        alreadySpoken: Boolean = false,
     ) {
         // Cancel previous collectors — including the LISTENING STT
         // collector — so only the barge-in collector (assigned below)
@@ -174,11 +224,15 @@ class ContinuousVoiceViewModel @Inject constructor(
             startListening(onSend, onStreamingDone)
             return
         }
-        textToSpeech.speak(
-            text = response,
-            utteranceId = "voice-mode-${System.currentTimeMillis()}",
-            flush = true,
-        )
+        // Only speak here when the streaming path did not already. Speaking
+        // again would repeat the whole reply on top of itself.
+        if (!alreadySpoken) {
+            textToSpeech.speak(
+                text = response,
+                utteranceId = "voice-mode-${System.currentTimeMillis()}",
+                flush = true,
+            )
+        }
         // Barge-in: keep STT running during SPEAKING so the user can
         // interrupt the assistant mid-response. When PartialResult fires
         // with enough text (> 2 chars), cancel TTS and treat it as a
@@ -266,7 +320,19 @@ class ContinuousVoiceViewModel @Inject constructor(
         super.onCleared()
     }
 
+    /** Splits the streaming reply into speakable sentences. Not thread-safe; only the response-wait coroutine touches it. */
+    private val chunker = com.aura.voice.SentenceChunker()
+
     companion object {
+        /**
+         * How often the response-wait loop looks for a newly complete sentence.
+         *
+         * Shorter than the old 200ms because it now gates the START of speech
+         * rather than only its end — at 200ms a reply whose first sentence lands
+         * quickly still waits a fifth of a second for nothing.
+         */
+        private const val STREAM_POLL_MS = 60L
+
         private const val SILENCE_TIMEOUT_MS = 10_000L
         private val STOP_PHRASES = setOf("stop listening", "stop", "exit voice mode", "that's all")
     }
