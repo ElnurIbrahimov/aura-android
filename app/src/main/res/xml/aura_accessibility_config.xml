@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration for AuraAccessibilityService.
+
+  What is ABSENT here matters as much as what is present:
+
+  - flagRequestFilterKeyEvents is deliberately omitted. It would deliver every
+    keystroke in every app, including passwords typed into other apps, and buys
+    nothing — key interception is never needed to read or tap a screen. Some
+    OEMs also gate it behind an extra prompt.
+  - flagIncludeNotImportantViews is omitted. It roughly doubles the node count
+    for marginal recall, and the element budget is the binding constraint on
+    what reaches the model.
+  - android:packageNames is omitted so scoping can be enforced in code, where
+    a denylist can change at runtime and cover Aura's own package. A static
+    manifest allowlist cannot be updated without a release.
+
+  UiTraversalTest asserts the absent flags stay absent.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/a11y_service_description"
+    android:notificationTimeout="100"
+    android:summary="@string/a11y_service_summary" />

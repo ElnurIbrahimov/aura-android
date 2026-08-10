@@ -76,6 +76,13 @@ private val COMPETENCE_TOOLS = setOf(
 private const val MAX_RETRY_AFTER_WAIT_MS = 10_000L
 
 /**
+ * Tools gated behind the screen-control master switch. Hidden from the model
+ * entirely when it is off, which is the default — so they cost nothing, and are
+ * not reachable, for anyone who never opts in.
+ */
+private val SCREEN_CONTROL_TOOLS = setOf("screen_read", "screen_act")
+
+/**
  * Truncate a tool result string to fit the conversation-history budget.
  * Long results (deep research, web fetches, photo library) are
  * truncated at [MAX_TOOL_RESULT_CHARS] with a marker so the model
@@ -469,7 +476,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         } ?: toolRegistry.definitions()
         // Hide search tools that need an API key the user hasn't configured.
         // The LLM should only see search tools that will actually work.
-        val tools = filterSearchTools(allTools)
+        val tools = filterUnavailableTools(filterSearchTools(allTools))
         // The step counter tracks model attempts. It is incremented at the
         // top of the outer step loop; the inner failover loop retries the
         // SAME step with a different provider without consuming another slot.
@@ -1478,6 +1485,28 @@ private suspend fun extractProfileFromText(text: String) {
      */
     private fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> =
         tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
+
+    /**
+     * Drop tools whose capability the user has not switched on.
+     *
+     * Separate from the search filter because the reason is different: those
+     * two are routed to by `web_search` and would never be called directly,
+     * whereas these are perfectly callable and simply must not be offered.
+     *
+     * Hiding them is a token saving AND a safety layer. A model that has seen a
+     * tool earlier in a conversation will happily call it again after it
+     * disappears from the schema, so the tools also refuse in their own bodies
+     * — two independent gates, on purpose.
+     */
+    private suspend fun filterUnavailableTools(tools: List<ToolDefinition>): List<ToolDefinition> {
+        val screenControlOn = userPreferences?.let {
+            runCatching { it.screenControlEnabled.first() }
+                .onFailure { e -> android.util.Log.w("AgenticLoop", "screen-control pref read failed: ${e.message}", e) }
+                .getOrDefault(false)
+        } ?: false
+        if (screenControlOn) return tools
+        return tools.filter { it.name !in SCREEN_CONTROL_TOOLS }
+    }
 
     /**
      * Generate the system-prompt plan prefix for a turn. Uses the cheap

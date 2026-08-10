@@ -84,6 +84,7 @@ internal val KEY_TRIGGERS_ENABLED = booleanPreferencesKey("triggers_enabled")
 internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_PROMPT_CACHING_ENABLED = booleanPreferencesKey("prompt_caching_enabled")
+internal val KEY_SCREEN_CONTROL_ENABLED = booleanPreferencesKey("screen_control_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_VIDEO_MODEL = stringPreferencesKey("video_model")
@@ -364,6 +365,25 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setPromptCachingEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_PROMPT_CACHING_ENABLED] = enabled }
+    }
+
+    /**
+     * Master switch for reading and controlling the screen of other apps.
+     *
+     * **Defaults OFF, and must stay that way.** This is the most invasive
+     * capability in the app: once the accessibility service is enabled, every
+     * window event in every app passes through this process. Off means the
+     * tools are hidden from the model AND the bridge refuses — two independent
+     * gates on purpose, because a tool absent from the schema can still be
+     * invoked by a model that remembers it from earlier in the conversation.
+     *
+     * Turning this on does not grant anything by itself; Android still requires
+     * the user to enable the service in system settings.
+     */
+    val screenControlEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_SCREEN_CONTROL_ENABLED] ?: false }
+
+    suspend fun setScreenControlEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_SCREEN_CONTROL_ENABLED] = enabled }
     }
 
     /**

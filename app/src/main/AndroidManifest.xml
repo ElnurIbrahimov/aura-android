@@ -133,6 +133,30 @@
             </intent-filter>
         </service>
 
+        <!--
+          Screen control. exported="true" is REQUIRED — the system's
+          AccessibilityManagerService binds it cross-process — and
+          android:permission restricts that binding to the system. This
+          deliberately differs from the notification listener above, whose
+          exported="false" works only through special-case system handling;
+          copying that here yields a service Android will never bind.
+
+          Implemented in :aura-core, declared with a relative name — the same
+          arrangement as .security.ScreenCaptureService below.
+        -->
+        <service
+            android:name=".a11y.AuraAccessibilityService"
+            android:exported="true"
+            android:label="@string/a11y_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/aura_accessibility_config" />
+        </service>
+
         <service
             android:name=".security.ScreenCaptureService"
             android:exported="false"

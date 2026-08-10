@@ -62,6 +62,7 @@ object ToolsModule {
         dndMode: DndModeTool,
         taskManager: TaskManagerTool,
         notificationList: NotificationListTool,
+        screenRead: ScreenReadTool,
         firecrawlFetch: FirecrawlFetchTool,
         deepResearch: DeepResearchTool,
         vision: VisionTool,
@@ -139,6 +140,12 @@ object ToolsModule {
         registry.register(networkState.tool)
         registry.register(dndMode.tool)
         registry.register(taskManager.tool)
+        // Registered unconditionally so the in-chat enable flow can fire, but
+        // hidden from the model until the master switch is on — see
+        // filterUnavailableTools in MemoryAugmentedAgenticLoop. Off by default
+        // means zero token cost and zero reachability for anyone who never
+        // opts in.
+        registry.register(screenRead.tool)
         registry.register(notificationList.tool)
         registry.register(firecrawlFetch.tool)
         registry.register(deepResearch.tool)
