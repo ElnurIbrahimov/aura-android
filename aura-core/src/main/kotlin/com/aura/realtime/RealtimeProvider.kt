@@ -47,7 +47,6 @@ data class RealtimeConfig(
     val tools: List<com.aura.providers.ToolDefinition> = emptyList(),
     val voice: String = "alloy",
     val seedContext: String = "",
-    val inputSampleRateHz: Int = 24_000,
 )
 
 /**

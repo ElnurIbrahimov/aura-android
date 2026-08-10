@@ -476,6 +476,10 @@ class MemoryStore @Inject constructor(
         trace(
             RetrievalTrace.Branch.LEXICAL,
             queryTerms = queryWords,
+            // Null when rewriting did not run, which is the common case. Whether
+            // it fired at all is the first question when a deictic query returns
+            // the wrong thing.
+            rewrittenQuery = retrievalQuery.takeIf { it != text },
             candidateCount = scoredCandidates.size,
             staleVectorCount = staleVectors,
             rerankRan = rerankRan,
@@ -787,6 +791,7 @@ class MemoryStore @Inject constructor(
     private fun trace(
         branch: RetrievalTrace.Branch,
         queryTerms: List<String> = emptyList(),
+        rewrittenQuery: String? = null,
         candidateCount: Int = 0,
         staleVectorCount: Int = 0,
         rerankRan: Boolean = false,
@@ -796,6 +801,7 @@ class MemoryStore @Inject constructor(
         lastTrace = RetrievalTrace(
             branch = branch,
             queryTerms = queryTerms,
+            rewrittenQuery = rewrittenQuery,
             candidateCount = candidateCount,
             staleVectorCount = staleVectorCount,
             rerankRan = rerankRan,

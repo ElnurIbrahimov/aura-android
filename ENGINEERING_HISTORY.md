@@ -358,7 +358,15 @@ the controller's first direct test — the coverage gap and the bug were the sam
 fact, which is the argument for the test rather than for the fix. Fixed by
 cancelling without joining any job the current coroutine is running inside.
 
-**And the sweep committed the same defect twice while documenting it.**
+**And the sweep committed the same defect twice while documenting it** — then
+built the gate that would have caught it, which immediately found two more.
+`DeadConfigFieldTest` scans the config types for fields with no reads anywhere.
+Its first run flagged `ToolPolicy.costCeiling` and `approvalExpiryMs`, both
+pre-existing and both genuinely unenforceable as the types stand (see §3). Its
+exception list is a map, not a set, so no entry can be added without a written
+reason — "we will use it later" is how every one of these got in, and it is not
+one. It is mutation-tested: an injected dead field fails it.
+
 `RetrievalConfig.rerankMode` and `.trace` were both added by the config commit
 and neither was ever read: the rerank decision tested `rerankModel != null`
 inline at two call sites, and `RetrievalTrace` was a data class nobody
