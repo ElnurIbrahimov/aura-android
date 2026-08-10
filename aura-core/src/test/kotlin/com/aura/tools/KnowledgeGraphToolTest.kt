@@ -1,12 +1,14 @@
 package com.aura.tools
 
 import com.aura.agent.ToolResult
+import com.aura.providers.CheapModelResolver
 import com.aura.providers.ChatOptions
 import com.aura.providers.FinishReason
 import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -19,8 +21,36 @@ import kotlin.test.assertTrue
  * Tests for [KnowledgeGraphTool].
  *
  * Mocks ProviderRegistry so no real LLM call is made.
+ *
+ * These tests used to stub `chat("default", ...)`, which is how the production
+ * bug survived: `ProviderRegistry.parse` requires a non-blank `provider:model`
+ * pair, so the real registry always threw on `"default"` and the catch-all
+ * fallback was the only path that ever ran — but a mockk answers `"default"`
+ * happily, so the suite asserted the broken behaviour and reported green. The
+ * model id is now supplied by [CheapModelResolver], and
+ * `never asks the registry for the literal string default` pins the contract
+ * that a mock cannot silently absorb again.
  */
 class KnowledgeGraphToolTest {
+
+    private companion object {
+        const val CHEAP_MODEL = "anthropic:claude-haiku-4-5-20251001"
+    }
+
+    /** A resolver that hands back [model], or null to force the fallback path. */
+    private fun resolver(model: String? = CHEAP_MODEL): CheapModelResolver = mockk {
+        coEvery { resolve(any(), any()) } returns model
+    }
+
+    /** A registry that answers any well-formed model id with [response]. */
+    private fun registryReturning(response: String): ProviderRegistry = mockk {
+        coEvery {
+            chat(CHEAP_MODEL, any<List<ProviderMessage>>(), any<ChatOptions>())
+        } returns flowOf(
+            ProviderChunk(text = response),
+            ProviderChunk(finishReason = FinishReason.stop),
+        )
+    }
 
     @Test
     fun `extracts nodes and edges from text`() = runTest {
@@ -36,14 +66,7 @@ class KnowledgeGraphToolTest {
             }
         """.trimIndent()
 
-        val mockRegistry = mockk<ProviderRegistry> {
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } returns flowOf(
-                ProviderChunk(text = llmResponse),
-                ProviderChunk(finishReason = FinishReason.stop),
-            )
-        }
-
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(registryReturning(llmResponse), resolver()).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Kotlin is used for Android development."),
             ctx(),
@@ -61,8 +84,7 @@ class KnowledgeGraphToolTest {
 
     @Test
     fun `missing text returns error`() = runTest {
-        val mockRegistry = mockk<ProviderRegistry>()
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(mockk(), resolver()).tool
         val result = tool.execute(call("knowledge_graph_extract"), ctx())
 
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
@@ -71,16 +93,7 @@ class KnowledgeGraphToolTest {
 
     @Test
     fun `LLM returns empty JSON when no entities found`() = runTest {
-        val llmResponse = """{"nodes":[],"edges":[]}"""
-
-        val mockRegistry = mockk<ProviderRegistry> {
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } returns flowOf(
-                ProviderChunk(text = llmResponse),
-                ProviderChunk(finishReason = FinishReason.stop),
-            )
-        }
-
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(registryReturning("""{"nodes":[],"edges":[]}"""), resolver()).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Just some random text."),
             ctx(),
@@ -103,14 +116,7 @@ class KnowledgeGraphToolTest {
             }
         """.trimIndent()
 
-        val mockRegistry = mockk<ProviderRegistry> {
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } returns flowOf(
-                ProviderChunk(text = llmResponse),
-                ProviderChunk(finishReason = FinishReason.stop),
-            )
-        }
-
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(registryReturning(llmResponse), resolver()).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Some alien species."),
             ctx(),
@@ -124,16 +130,7 @@ class KnowledgeGraphToolTest {
 
     @Test
     fun `malformed LLM response falls back to empty`() = runTest {
-        val llmResponse = "This is not JSON at all."
-
-        val mockRegistry = mockk<ProviderRegistry> {
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } returns flowOf(
-                ProviderChunk(text = llmResponse),
-                ProviderChunk(finishReason = FinishReason.stop),
-            )
-        }
-
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(registryReturning("This is not JSON at all."), resolver()).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Something."),
             ctx(),
@@ -144,14 +141,53 @@ class KnowledgeGraphToolTest {
         assertEquals("""{"nodes":[],"edges":[]}""", json)
     }
 
+    // -----------------------------------------------------------------
+    // Model resolution
+    // -----------------------------------------------------------------
+
     @Test
-    fun `falls back to first configured provider when default parse fails`() = runTest {
-        // Old test pinned the fallback to "ollama:deepseek-v4-pro" — that was
-        // a 2026-07-07 bug (hardcoded model that crashed users without an
-        // Ollama key). The new contract: when ProviderRegistry.parse("default")
-        // throws (no configured providers, or "default" is not a valid
-        // model id for any provider), fall back to the first configured
-        // provider's first model. The test now mocks that path.
+    fun `never asks the registry for the literal string default`() = runTest {
+        // The regression guard. "default" is not a valid provider:model pair,
+        // so ProviderRegistry.parse always threw on it; only a mock ever made
+        // it look like it worked.
+        val registry = registryReturning("""{"nodes":[],"edges":[]}""")
+        val tool = KnowledgeGraphTool(registry, resolver()).tool
+
+        tool.execute(call("knowledge_graph_extract", "text" to "Something."), ctx())
+
+        coVerify(exactly = 0) {
+            registry.chat("default", any<List<ProviderMessage>>(), any<ChatOptions>())
+        }
+        coVerify(exactly = 1) {
+            registry.chat(CHEAP_MODEL, any<List<ProviderMessage>>(), any<ChatOptions>())
+        }
+    }
+
+    @Test
+    fun `uses the model the cheap resolver picks`() = runTest {
+        val registry = mockk<ProviderRegistry> {
+            coEvery {
+                chat("groq:llama-3.3-70b", any<List<ProviderMessage>>(), any<ChatOptions>())
+            } returns flowOf(
+                ProviderChunk(text = """{"nodes":[{"label":"Picked","type":"concept"}],"edges":[]}"""),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+        }
+        val tool = KnowledgeGraphTool(registry, resolver("groq:llama-3.3-70b")).tool
+
+        val result = tool.execute(call("knowledge_graph_extract", "text" to "x"), ctx())
+
+        assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
+        assertTrue((result as ToolResult.Ok).output.contains("Picked"))
+    }
+
+    @Test
+    fun `falls back to first configured provider when the resolver finds nothing`() = runTest {
+        // The resolver returns null only when no catalog could be listed at all.
+        // The walk over configured providers stays as a genuine last resort, and
+        // still must not hardcode a provider:model — that was the 2026-07-07 bug
+        // where ollama:deepseek-v4-pro was baked in and crashed users with no
+        // Ollama key.
         val llmResponse = """{"nodes":[{"label":"Fallback","type":"concept"}],"edges":[]}"""
 
         val mockProvider = mockk<com.aura.providers.Provider> {
@@ -159,27 +195,49 @@ class KnowledgeGraphToolTest {
             coEvery { listModels() } returns listOf("claude-sonnet-4.6")
         }
         val mockRegistry = mockk<ProviderRegistry> {
-            // First call with "default" throws — parse() can't resolve it
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } throws
-                IllegalStateException("No configured providers")
-            // Fallback path: configured() returns our mock provider
             every { configured() } returns listOf(mockProvider)
-            // The fallback call uses the dynamically-built model id
-            coEvery { chat("anthropic:claude-sonnet-4.6", any<List<ProviderMessage>>(), any<ChatOptions>()) } returns flowOf(
+            coEvery {
+                chat("anthropic:claude-sonnet-4.6", any<List<ProviderMessage>>(), any<ChatOptions>())
+            } returns flowOf(
                 ProviderChunk(text = llmResponse),
                 ProviderChunk(finishReason = FinishReason.stop),
             )
         }
 
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(mockRegistry, resolver(model = null)).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Something."),
             ctx(),
         )
 
         assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
-        val json = (result as ToolResult.Ok).output
-        assertTrue(json.contains("Fallback"), "should use fallback model and return nodes: $json")
+        assertTrue((result as ToolResult.Ok).output.contains("Fallback"))
+    }
+
+    @Test
+    fun `works when no resolver is injected at all`() = runTest {
+        // cheapModelResolver is nullable-defaulted so the 9 existing positional
+        // construction sites keep compiling; that path must still resolve.
+        val llmResponse = """{"nodes":[{"label":"NoResolver","type":"concept"}],"edges":[]}"""
+        val mockProvider = mockk<com.aura.providers.Provider> {
+            every { prefix } returns "openai"
+            coEvery { listModels() } returns listOf("gpt-5-mini")
+        }
+        val mockRegistry = mockk<ProviderRegistry> {
+            every { configured() } returns listOf(mockProvider)
+            coEvery {
+                chat("openai:gpt-5-mini", any<List<ProviderMessage>>(), any<ChatOptions>())
+            } returns flowOf(
+                ProviderChunk(text = llmResponse),
+                ProviderChunk(finishReason = FinishReason.stop),
+            )
+        }
+
+        val result = KnowledgeGraphTool(mockRegistry).tool
+            .execute(call("knowledge_graph_extract", "text" to "Something."), ctx())
+
+        assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
+        assertTrue((result as ToolResult.Ok).output.contains("NoResolver"))
     }
 
     @Test
@@ -189,11 +247,9 @@ class KnowledgeGraphToolTest {
         // with a NullPointerException or generic IllegalStateException.
         // This pins the error-message contract callers see.
         val mockRegistry = mockk<ProviderRegistry> {
-            coEvery { chat("default", any<List<ProviderMessage>>(), any<ChatOptions>()) } throws
-                IllegalStateException("No configured providers")
             every { configured() } returns emptyList()
         }
-        val tool = KnowledgeGraphTool(mockRegistry).tool
+        val tool = KnowledgeGraphTool(mockRegistry, resolver(model = null)).tool
         val result = tool.execute(
             call("knowledge_graph_extract", "text" to "Hello."),
             ctx(),

@@ -234,6 +234,46 @@ whether or not IDF discriminated. It passed for the entire life of the bug. A te
 cannot fail for the reason it is named after is worth less than no test, because it
 occupies the slot where a real one would go.
 
+### 2.9 Three provider-layer defects found while scoping prompt caching (2026-08-10)
+
+Found by tracing the request path end to end rather than by a review pass. Two were inert;
+the interesting part is *why* each stayed invisible.
+
+**`ToolRegistry.definitions()` returned tools in undefined order.** The backing map is a
+`ConcurrentHashMap`, so `values` iteration order is unspecified and shifts as the table
+resizes — and `McpToolBridge.syncTools` registers after startup, so it does resize
+mid-process. Harmless until it isn't: every provider puts the tool array at the head of the
+request, and providers that cache prompt prefixes hash those bytes, so an unstable order is
+a total cache miss that reports no error anywhere. Fixed by sorting on name, with a
+version-counter cache behind it. The sort is the fix; the cache is incidental.
+
+**Gemini dropped `enum` and `default` from every tool schema.** `GeminiProvider` carried its
+own inline schema renderer emitting only `type`/`description`/`required`, diverging from the
+`toJsonSchema()` the other three providers share. Live blast radius today is zero — the only
+tool declaring an `enum` is `tavily_search`, and `filterSearchTools` removes it from every
+request — which is precisely why it survived: the defect was real, permanent, and
+unreachable, so no amount of use would surface it. The next enum on a live tool would have
+been dropped silently, and a model given no enum invents values. Fixed by sharing the
+renderer behind a `sanitizeForGemini` adapter. The adapter has to keep the old renderer's
+`else -> "string"` type coercion, which is likewise inert today and is the only thing
+standing between a future exotic `ToolProperty` type and a 400.
+
+**`KnowledgeGraphTool` asked for a model id that could never resolve.** It called
+`providerRegistry.chat("default", …)` on the belief that `parse` resolved `"default"` to the
+user's default model. `parse` requires a non-blank `provider:model` pair, so it always threw;
+the `getOrElse` fallback was the only path that had ever executed, paying for a live
+`/models` listing on every extraction and then taking whichever model happened to be first.
+A ten-line comment above it described behaviour that had never run.
+
+This one is the most instructive of the three, because there *was* a test — and the test
+asserted the bug. `KnowledgeGraphToolTest` stubbed `chat("default", …)` on a mockk, which
+answers any argument happily, so the suite pinned the broken call shape and reported green
+for its whole life. §2.8's lesson was that a component can be present, tested, and inert;
+this is the sharper version — **a mock can make a call that always throws in production look
+like the contract**. The replacement injects `CheapModelResolver` (whose KDoc already named
+this class of call as its target) and adds `never asks the registry for the literal string
+default` as an explicit `coVerify(exactly = 0)`, which is the assertion a mock cannot absorb.
+
 ---
 
 ## 3. Still open

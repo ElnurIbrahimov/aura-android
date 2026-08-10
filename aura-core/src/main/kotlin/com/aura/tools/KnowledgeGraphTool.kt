@@ -28,7 +28,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Log
 
 /**
  * Tool that extracts a knowledge graph (nodes + edges) from unstructured text
@@ -39,6 +38,7 @@ import android.util.Log
 @Singleton
 class KnowledgeGraphTool @Inject constructor(
     private val providerRegistry: ProviderRegistry,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -122,27 +122,34 @@ class KnowledgeGraphTool @Inject constructor(
             responseFormat = ResponseFormat.JSON,
         )
 
-        // Pick a model to drive the extraction. We try the user's default
-        // model first (resolved by ProviderRegistry's parse("default")
-        // which routes to the first configured provider's first model).
-        // If that throws (no configured providers at all), we fall back
-        // to any configured provider so the tool still works once the
-        // user has set up at least one key. We do NOT hardcode a
-        // specific provider:model — that was the 2026-07-07 bug where
-        // ollama:deepseek-v4-pro was baked in and crashed on users with
-        // no Ollama key.
-        val flow = runCatching {
-            providerRegistry.chat("default", messages, options)
-        }.onFailure { Log.w("KGTool", "op failed: ${it.message}", it) }.getOrElse {
-            val fallback = providerRegistry.configured()
+        // Pick a model to drive the extraction.
+        //
+        // This used to pass the literal string "default", on the belief that
+        // ProviderRegistry.parse resolved it to the user's default model. It
+        // never did: parse() requires a non-blank `provider:model` pair, so
+        // "default" always threw and the catch-all below was the only path
+        // that had ever executed — meaning every extraction paid for a live
+        // /models listing and then took whatever model happened to be first,
+        // which is not a cheapness judgement at all.
+        //
+        // CheapModelResolver is the shared answer to exactly this question
+        // (its KDoc names profile extraction as a target use case): the user's
+        // explicit Fast model, else the cheapest model the heuristic can find
+        // across configured providers. The first-configured-provider walk is
+        // kept only as a genuine last resort, for the case where no catalog
+        // could be listed at all. We still do NOT hardcode a provider:model —
+        // that was the 2026-07-07 bug where ollama:deepseek-v4-pro was baked
+        // in and crashed on users with no Ollama key.
+        val model = cheapModelResolver?.resolve()
+            ?: providerRegistry.configured()
                 .firstOrNull()
                 ?.let { p ->
                     val first = p.listModels().firstOrNull() ?: return@let null
                     "${p.prefix}:$first"
                 }
-                ?: throw IllegalStateException("No configured providers for knowledge graph extraction")
-            providerRegistry.chat(fallback, messages, options)
-        }
+            ?: throw IllegalStateException("No configured providers for knowledge graph extraction")
+
+        val flow = providerRegistry.chat(model, messages, options)
 
         val chunks = flow.toList()
         return chunks.filter { it.text != null }.joinToString("") { it.text!! }

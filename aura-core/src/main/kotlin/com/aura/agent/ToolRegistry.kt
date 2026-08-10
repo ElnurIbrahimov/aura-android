@@ -4,6 +4,7 @@ import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -100,19 +101,56 @@ data class ToolContext(
 class ToolRegistry @Inject constructor() {
     private val tools: MutableMap<String, Tool> = ConcurrentHashMap()
 
-    fun register(tool: Tool) { tools[tool.name] = tool }
-    fun unregister(name: String) { tools.remove(name) }
+    /**
+     * Bumped on every mutation so [definitions] can tell a stale cache from a
+     * current one without locking readers out.
+     */
+    private val version = AtomicInteger(0)
+
+    @Volatile
+    private var cachedDefinitions: Pair<Int, List<ToolDefinition>>? = null
+
+    fun register(tool: Tool) { tools[tool.name] = tool; version.incrementAndGet() }
+    fun unregister(name: String) { tools.remove(name); version.incrementAndGet() }
     fun get(name: String): Tool? = tools[name]
     fun all(): List<Tool> = tools.values.toList()
     fun names(): List<String> = tools.keys.toList()
     fun byRisk(min: ToolRisk): List<Tool> = tools.values.filter { it.risk.ordinal >= min.ordinal }
 
-    fun definitions(): List<ToolDefinition> = tools.values.map { t ->
-        ToolDefinition(
-            name = t.name,
-            description = t.description,
-            parameters = t.parameters,
-            category = t.category,
-        )
+    /**
+     * The tool schemas that go on the wire, **sorted by name**.
+     *
+     * The ordering is the point, not the caching. [tools] is a
+     * `ConcurrentHashMap`, whose `values` iteration order is undefined and
+     * shifts as the table resizes — and MCP tools register after startup
+     * (`McpToolBridge.syncTools`), so the table does resize mid-process. Every
+     * provider puts the tool array at the head of the request, and providers
+     * that cache prompt prefixes hash those bytes: a reordered array is a
+     * different prefix, so an unstable order silently costs the cache with no
+     * error anywhere. Sorting makes the array a pure function of the tool set.
+     *
+     * The cache is incidental — 76 small allocations once or twice per run is
+     * nothing — but it is free once the version counter exists, and it keeps
+     * the sort off the hot path.
+     */
+    fun definitions(): List<ToolDefinition> {
+        val current = version.get()
+        cachedDefinitions?.let { (cachedVersion, defs) ->
+            if (cachedVersion == current) return defs
+        }
+        val defs = tools.values
+            .sortedBy { it.name }
+            .map { t ->
+                ToolDefinition(
+                    name = t.name,
+                    description = t.description,
+                    parameters = t.parameters,
+                    category = t.category,
+                )
+            }
+        // Stamped with the version read BEFORE the snapshot, so a registration
+        // racing this build invalidates the cache rather than being swallowed.
+        cachedDefinitions = current to defs
+        return defs
     }
 }

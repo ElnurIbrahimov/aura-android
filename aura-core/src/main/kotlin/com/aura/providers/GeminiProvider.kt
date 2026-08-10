@@ -404,28 +404,14 @@ class GeminiProvider(
                     buildJsonObject {
                         put("name", tool.name)
                         put("description", tool.description)
-                        val props = tool.parameters.properties
-                        if (props.isNotEmpty()) {
-                            put("parameters", buildJsonObject {
-                                put("type", "object")
-                                put("properties", buildJsonObject {
-                                    props.forEach { (key, prop) ->
-                                        put(key, buildJsonObject {
-                                            put("type", when (prop.type) {
-                                                "integer" -> "integer"
-                                                "number" -> "number"
-                                                "boolean" -> "boolean"
-                                                "array" -> "array"
-                                                else -> "string"
-                                            })
-                                            prop.description?.let { put("description", it) }
-                                        })
-                                    }
-                                })
-                                if (tool.parameters.required.isNotEmpty()) {
-                                    put("required", JsonArray(tool.parameters.required.map { JsonPrimitive(it) }))
-                                }
-                            })
+                        // Share the renderer every other provider uses, then adapt it to
+                        // Gemini's OpenAPI subset. The hand-rolled version this replaces
+                        // emitted only type/description/required, so `enum` never reached
+                        // the wire — see sanitizeForGemini's KDoc. The `props.isNotEmpty()`
+                        // guard stays: toJsonSchema always emits `properties`, even empty,
+                        // and Gemini rejects an empty properties object on no-arg tools.
+                        if (tool.parameters.properties.isNotEmpty()) {
+                            put("parameters", sanitizeForGemini(tool.parameters.toJsonSchema()))
                         }
                     }
                 }))
