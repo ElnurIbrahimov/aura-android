@@ -42,6 +42,15 @@ interface A11yController {
 
     /** BACK, HOME, RECENTS, NOTIFICATIONS. */
     suspend fun performGlobalAction(action: GlobalAction): Boolean
+
+    /**
+     * A screenshot via the accessibility API, as JPEG bytes, or null.
+     *
+     * Requires API 30+ and returns null below it. Unlike MediaProjection this
+     * needs no per-capture consent dialog and works while Aura is backgrounded
+     * — see [ScreenControlBridge.screenshot].
+     */
+    suspend fun takeScreenshot(quality: Int): ByteArray?
 }
 
 /** Accessibility actions this package uses. */
@@ -190,6 +199,26 @@ class ScreenControlBridge @Inject constructor() {
         )
         current = snapshot
         snapshot
+    }
+
+    /**
+     * A screenshot without a consent dialog, or null when unavailable.
+     *
+     * `AccessibilityService.takeScreenshot` (API 30+) needs no MediaProjection
+     * consent and works while Aura is backgrounded. `ScreenCaptureHolder` needs
+     * both an attached Activity and a fresh consent dialog for EVERY capture,
+     * which makes a screenshot-per-step loop unusable and a single capture
+     * mildly unpleasant.
+     *
+     * Callers must fall back rather than treat null as failure: below API 30,
+     * with the service off, or on a FLAG_SECURE window, this legitimately has
+     * nothing to return.
+     */
+    suspend fun screenshot(quality: Int = 80): ByteArray? = mutex.withLock {
+        val c = controller ?: return@withLock null
+        runCatching { c.takeScreenshot(quality) }
+            .onFailure { android.util.Log.w("ScreenControl", "a11y screenshot failed: ${it.message}", it) }
+            .getOrNull()
     }
 
     /** The most recent snapshot, or null if none has been taken since connect. */

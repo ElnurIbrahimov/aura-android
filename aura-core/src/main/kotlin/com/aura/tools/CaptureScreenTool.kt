@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import android.util.Log
 import android.graphics.Bitmap
 import android.util.Base64
 import com.aura.agent.Tool
@@ -21,6 +22,11 @@ import javax.inject.Singleton
 @Singleton
 class CaptureScreenTool @Inject constructor(
     private val screenCaptureHolder: ScreenCaptureHolder,
+    /**
+     * Optional so the tool keeps working when screen control is not built into
+     * a given configuration; null simply means the MediaProjection path.
+     */
+    private val screenControlBridge: com.aura.a11y.ScreenControlBridge? = null,
 ) {
     fun definition() = ToolDefinition(
         name = "capture_screen",
@@ -44,6 +50,33 @@ class CaptureScreenTool @Inject constructor(
             val width = (call.arguments["width"] as? Int) ?: 1080
             val height = (call.arguments["height"] as? Int) ?: 1920
             val quality = ((call.arguments["quality"] as? Int) ?: 80).coerceIn(1, 100)
+
+            // Accessibility screenshot FIRST when the service is connected.
+            //
+            // It needs no consent dialog and works while Aura is backgrounded,
+            // where MediaProjection needs an attached Activity and a fresh
+            // consent prompt for EVERY capture (tokens are single-use on
+            // Android 14+). That prompt is why capture has always been
+            // unpleasant to use and impossible to loop on.
+            //
+            // Null is a fallback signal, not a failure: below API 30, with the
+            // service off, or on a FLAG_SECURE window there is legitimately
+            // nothing to return, and MediaProjection may still succeed.
+            val viaA11y = screenControlBridge?.let { bridge ->
+                if (bridge.connected.value) {
+                    runCatching { bridge.screenshot(quality) }
+                        .onFailure { Log.w("CaptureScreen", "a11y screenshot failed; falling back", it) }
+                        .getOrNull()
+                } else {
+                    null
+                }
+            }
+            if (viaA11y != null) {
+                return@Tool ToolResult.Ok(
+                    "data:image/jpeg;base64," +
+                        android.util.Base64.encodeToString(viaA11y, android.util.Base64.NO_WRAP),
+                )
+            }
 
             // One-shot suspend flow: consent dialog → foreground
             // capture service → first frame. Fresh consent every

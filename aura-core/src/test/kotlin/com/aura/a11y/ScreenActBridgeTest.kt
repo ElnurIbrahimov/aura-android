@@ -71,6 +71,9 @@ class ScreenActBridgeTest {
             globals += action
             return true
         }
+
+        var screenshotBytes: ByteArray? = byteArrayOf(1, 2, 3)
+        override suspend fun takeScreenshot(quality: Int): ByteArray? = screenshotBytes
     }
 
     private fun bridgeWith(controller: FakeController): ScreenControlBridge =
@@ -305,5 +308,29 @@ class ScreenActBridgeTest {
 
         assertFalse(bridge.connected.value)
         assertTrue(bridge.currentSnapshot() == null, "a stale snapshot survived a disconnect")
+    }
+
+    // ---- screenshot without a consent dialog -----------------------------
+
+    @Test
+    fun `a screenshot is returned when the service is connected`() = runBlocking {
+        // The free win: AccessibilityService.takeScreenshot needs no
+        // MediaProjection consent and works while Aura is backgrounded, which
+        // is what made capture_screen unpleasant to use and impossible to loop.
+        val c = FakeController()
+        val bridge = bridgeWith(c)
+        assertEquals(listOf<Byte>(1, 2, 3), bridge.screenshot()!!.toList())
+    }
+
+    @Test
+    fun `a screenshot returns null rather than throwing when unavailable`() = runBlocking {
+        // Null is a FALLBACK signal, not a failure: below API 30, with the
+        // service off, or on a FLAG_SECURE window there is legitimately nothing
+        // to return and MediaProjection may still succeed.
+        val c = FakeController().also { it.screenshotBytes = null }
+        assertTrue(bridgeWith(c).screenshot() == null)
+
+        val disconnected = ScreenControlBridge()
+        assertTrue(disconnected.screenshot() == null, "a disconnected bridge must not throw")
     }
 }

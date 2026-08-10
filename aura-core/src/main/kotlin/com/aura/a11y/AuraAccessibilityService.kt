@@ -2,11 +2,14 @@ package com.aura.a11y
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityService.GestureResultCallback
+import android.accessibilityservice.AccessibilityService.ScreenshotResult
+import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.util.DisplayMetrics
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.util.Log
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -155,6 +158,51 @@ class AuraAccessibilityService : AccessibilityService() {
             }
         }
 
+        override suspend fun takeScreenshot(quality: Int): ByteArray? {
+            // API 30+. Below that there is no accessibility screenshot at all
+            // and the caller must fall back to MediaProjection.
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return null
+            return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    takeScreenshot(
+                        android.view.Display.DEFAULT_DISPLAY,
+                        java.util.concurrent.Executors.newSingleThreadExecutor(),
+                        object : TakeScreenshotCallback {
+                            override fun onSuccess(result: ScreenshotResult) {
+                                val bytes = runCatching {
+                                    val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
+                                        result.hardwareBuffer,
+                                        result.colorSpace,
+                                    ) ?: return@runCatching null
+                                    val copy = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                    java.io.ByteArrayOutputStream().use { out ->
+                                        copy.compress(
+                                            android.graphics.Bitmap.CompressFormat.JPEG,
+                                            quality.coerceIn(1, 100),
+                                            out,
+                                        )
+                                        out.toByteArray()
+                                    }
+                                }.getOrNull()
+                                // The HardwareBuffer is ours to close; leaking
+                                // one per capture exhausts graphics memory and
+                                // the symptom appears far from the cause.
+                                runCatching { result.hardwareBuffer.close() }
+                                    .onFailure { Log.w(TAG, "hardware buffer close failed: ${it.message}", it) }
+                                if (cont.isActive) cont.resume(bytes) {}
+                            }
+
+                            override fun onFailure(errorCode: Int) {
+                                // FLAG_SECURE windows fail here by design, so
+                                // this is an expected outcome, not an error.
+                                if (cont.isActive) cont.resume(null) {}
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
         override suspend fun performGlobalAction(action: GlobalAction): Boolean =
             withContext(Dispatchers.Main) {
                 performGlobalAction(
@@ -273,5 +321,8 @@ class AuraAccessibilityService : AccessibilityService() {
          * acting on a coincidence is how an agent taps the wrong thing.
          */
         const val MIN_SELECTOR_SCORE = 4
+
+        /** Screenshots are a single platform call; this only bounds a hang. */
+        const val SCREENSHOT_TIMEOUT_MS = 5_000L
     }
 }
