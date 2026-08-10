@@ -105,6 +105,51 @@ a two-document edit every time a query is added, so all four methods iterate the
 fixtures internally. **Fixtures grow; the test count does not.** Keep it that
 way.
 
+## Gate B: does a real embedding model buy anything?
+
+The on-device ONNX embedder is five to ten days of work, a WordPiece tokenizer
+port, and 33 MB. Gate B decides whether it is worth any of that, for the cost of
+one Python script.
+
+```bash
+pip install sentence-transformers
+python scripts/gen_eval_vectors.py
+./gradlew :aura-core:testDebugUnitTest --tests '*RetrievalEvalTest*'
+cat aura-core/build/reports/retrieval-eval/scorecard.md
+```
+
+The generator writes `vectors-<model>.jsonl` beside the fixtures — a vector per
+corpus document and per query, for `gte-small`, `bge-small-en-v1.5` and
+`nomic-embed-text`. `PrecomputedEmbedder` serves them by exact text lookup, so
+the harness scores real semantic vectors without an inference runtime existing.
+The files are gitignored: they are derived, they are large, and a stale one
+silently measures the wrong model.
+
+**Read one row: `synonym-only`.** Every other query class has lexical overlap
+that BM25 already handles. Synonym-only is the class where a hash cannot work and
+a semantic model must, so it is the only class whose movement is evidence about
+ONNX. The bars — set before the numbers existed, which is the only moment a bar
+means anything — are **≥15% of real queries** and **≥0.15 nDCG@10 on that class**
+from `local-hash-v2` to `gte-small`. The report computes the verdict itself.
+
+Also read the `nomic-embed-text` row. It is the ceiling: on-device will not beat
+the cloud model the Ollama path already buys. A small gap between `gte-small` and
+`nomic-embed-text` means ONNX is close to the best available; a large one means
+it is buying the cheap half of the improvement.
+
+Two ways to get a wrong answer here:
+
+- **Running it against the scaffold.** The synthetic corpus has no natural
+  synonymy, so nothing can find any. The report detects this and returns
+  *inconclusive* regardless of how good the numbers look — a real-looking gain on
+  fake data is the failure mode most likely to be believed.
+- **A missing vector.** Handled by failing loudly. A hash fallback on a lookup
+  miss would score the fixture and report it as the model's number.
+
+When no vector file is present the report says **"Not run"** in words. It does not
+omit the section: a decision this size should not be made against evidence that
+is merely absent rather than visibly absent.
+
 ## Known limitation: `expect-empty` needs a real embedder
 
 `correctly_empty_rate` is 0.0 in the scaffold baseline, and that is a finding

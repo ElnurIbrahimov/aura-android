@@ -58,8 +58,13 @@ class RetrievalEvalTest {
         )
         cards += runner.run("no bigrams", RetrievalConfig.DEFAULT.copy(bm25Bigrams = false))
 
+        // Gate B runs only when someone has generated vector files locally. When
+        // they have not — the normal case, and CI's — the report says so in
+        // words rather than omitting the section, because a decision worth five
+        // to ten days should not be made against evidence that is merely absent
+        // instead of visibly absent.
         val baseline = EvalFixtures.baseline()
-        runner.writeReport(cards, baseline)
+        runner.writeReport(cards, baseline, gateB = runner.gateB())
 
         // A missing baseline FAILS. It must not skip: a gate that reports OK
         // over absent data is precisely the defect this repo's history records
@@ -139,6 +144,17 @@ class RetrievalEvalTest {
         assertTrue(
             queries.any { q -> q.judgments.none { it.value >= 1 } },
             "the set needs at least one expect-empty query",
+        )
+
+        // The class name Gate B keys on must exist, spelled exactly. It is a
+        // string matched against fixture data, so a rename or a typo does not
+        // fail — it silently reports "—" in the column the whole experiment is
+        // about, and the verdict below it computes from a share of zero.
+        assertTrue(
+            queries.any { it.queryClass == RetrievalEvalRunner.SYNONYM_CLASS },
+            "no query has class '${RetrievalEvalRunner.SYNONYM_CLASS}' — Gate B would report nothing " +
+                "and conclude 'do not proceed' from missing data. Present classes: " +
+                queries.map { it.queryClass }.distinct().sorted(),
         )
     }
 

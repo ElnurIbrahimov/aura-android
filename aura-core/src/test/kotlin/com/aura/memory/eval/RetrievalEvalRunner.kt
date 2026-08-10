@@ -3,8 +3,10 @@ package com.aura.memory.eval
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aura.memory.CountingEmbedder
 import com.aura.memory.Embedder
 import com.aura.memory.FakeEmbedder
+import com.aura.memory.LocalEmbedder
 import com.aura.memory.MemoryDatabase
 import com.aura.memory.MemoryEntity
 import com.aura.memory.MemoryFtsSchema
@@ -45,6 +47,7 @@ class RetrievalEvalRunner(
         corpus: List<EvalMemory> = EvalFixtures.corpus(),
         queries: List<EvalQuery> = EvalFixtures.queries(),
         limit: Int = 10,
+        withEmbedder: () -> Embedder = embedderFactory,
     ): Scorecard = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, MemoryDatabase::class.java)
@@ -52,7 +55,7 @@ class RetrievalEvalRunner(
             .addCallback(MemoryFtsSchema.triggerCallback)
             .build()
         try {
-            val embedder = embedderFactory()
+            val embedder = withEmbedder()
             // A fixed `now`, so relative ages resolve to the same instants for
             // every query in the run and for every run of the suite.
             val now = FIXED_NOW
@@ -115,10 +118,39 @@ class RetrievalEvalRunner(
                 )
             }
 
-            Scorecard.from(label, results, embedCalls = (embedder as? FakeEmbedder)?.callCount?.get() ?: 0)
+            Scorecard.from(label, results, embedCalls = (embedder as? CountingEmbedder)?.callCount?.get() ?: 0)
         } finally {
             db.close()
         }
+    }
+
+    /**
+     * The Gate B experiment: how much would a real embedding model actually buy?
+     *
+     * Scores the same golden set once per available `vectors-*.jsonl`, against a
+     * `local-hash-v2` floor — what every user without an Ollama key gets today.
+     * The whole point is to answer the ONNX question for the cost of one Python
+     * script, before five to ten days go into a runtime and a WordPiece port.
+     *
+     * Returns an empty card list when no vector files are present, which is the
+     * normal case in CI. The caller must then say so in the report: "did not
+     * run" and "ran and found nothing" are opposite results, and a section that
+     * quietly disappears reads as the second.
+     */
+    fun gateB(config: RetrievalConfig = RetrievalConfig.DEFAULT): List<Scorecard> {
+        val models = PrecomputedEmbedder.available(PrecomputedEmbedder.GATE_B_MODELS)
+        if (models.isEmpty()) return emptyList()
+
+        // The floor is the real production fallback, not FakeEmbedder — the
+        // question is what a semantic model buys over the HASH that ships today,
+        // and a different hash would answer a question nobody asked.
+        val cards = mutableListOf(
+            run("local-hash-v2 (today's floor)", config, withEmbedder = { LocalEmbedder() }),
+        )
+        models.forEach { id ->
+            cards += run(id, config, withEmbedder = { PrecomputedEmbedder.loadOrNull(id)!! })
+        }
+        return cards
     }
 
     /**
@@ -127,7 +159,7 @@ class RetrievalEvalRunner(
      * Written on EVERY run, pass or fail. A report that only appears when the
      * assertions succeed is useless for the case it is most needed in.
      */
-    fun writeReport(cards: List<Scorecard>, baseline: EvalBaseline?) {
+    fun writeReport(cards: List<Scorecard>, baseline: EvalBaseline?, gateB: List<Scorecard> = emptyList()) {
         val dir = File(reportDir())
         dir.mkdirs()
         val out = File(dir, "scorecard.md")
@@ -164,6 +196,73 @@ class RetrievalEvalRunner(
                         )
                     }
                 }
+                appendLine()
+                append(gateBSection(gateB))
+            },
+        )
+    }
+
+    /**
+     * The Gate B verdict, or a plain statement that it did not run.
+     *
+     * Always emitted. An absent section reads as "nothing to report", which is
+     * the opposite of the truth when the experiment has never been run — and the
+     * decision it feeds (five to ten days of ONNX work) is exactly the kind that
+     * gets made by default when the evidence is merely missing rather than
+     * visibly missing.
+     */
+    private fun gateBSection(cards: List<Scorecard>): String = buildString {
+        appendLine("## Gate B — what a real embedding model would buy")
+        appendLine()
+        if (cards.isEmpty()) {
+            appendLine(
+                "**Not run.** No `vectors-*.jsonl` on the test classpath. Generate them with " +
+                    "`python scripts/gen_eval_vectors.py` (needs `sentence-transformers`), then re-run " +
+                    "this suite. Until then the ONNX embedding phase has no evidence either way — " +
+                    "see `docs/RETRIEVAL_EVAL.md`.",
+            )
+            return@buildString
+        }
+        val floor = cards.first()
+        appendLine("| model | nDCG@10 | Δ vs floor | synonym-only nDCG@10 | Δ synonym-only |")
+        appendLine("|---|---|---|---|---|")
+        cards.forEach { c ->
+            val syn = c.byClass[SYNONYM_CLASS]?.ndcg10
+            val synFloor = floor.byClass[SYNONYM_CLASS]?.ndcg10
+            appendLine(
+                "| ${c.label} | ${"%.4f".format(c.ndcg10)} | ${delta(c.ndcg10 - floor.ndcg10)} | " +
+                    "${syn?.let { "%.4f".format(it) } ?: "—"} | " +
+                    "${if (syn != null && synFloor != null) delta(syn - synFloor) else "—"} |",
+            )
+        }
+        appendLine()
+
+        // The verdict is computed rather than left to the reader, because the
+        // bar was set before the numbers existed and that is the only moment at
+        // which a bar means anything.
+        val share = floor.byClass[SYNONYM_CLASS]?.let { it.count.toDouble() / floor.queryCount } ?: 0.0
+        val gain = cards.drop(1).mapNotNull { c ->
+            val s = c.byClass[SYNONYM_CLASS]?.ndcg10 ?: return@mapNotNull null
+            val f = floor.byClass[SYNONYM_CLASS]?.ndcg10 ?: return@mapNotNull null
+            s - f
+        }.maxOrNull() ?: 0.0
+        appendLine(
+            "Synonym-only is ${"%.0f".format(share * 100)}% of the query set; best gain over the " +
+                "hash floor is ${delta(gain)} nDCG@10 on that class.",
+        )
+        appendLine()
+        appendLine(
+            when {
+                EvalFixtures.isScaffold() ->
+                    "**Inconclusive — this is the synthetic scaffold.** It has no natural synonymy " +
+                        "to find, so a semantic model cannot show a gain here no matter what is true " +
+                        "of the real corpus. This says nothing about ONNX."
+                share >= 0.15 && gain >= 0.15 ->
+                    "**Proceed.** Both bars cleared (>=15% of queries, >=0.15 nDCG@10 on the class)."
+                else ->
+                    "**Do not proceed.** The bars were >=15% of queries and >=0.15 nDCG@10 on the " +
+                        "synonym-only class. On this corpus an on-device embedder would cost five to " +
+                        "ten days and 33 MB to buy what is measured above."
             },
         )
     }
@@ -185,5 +284,15 @@ class RetrievalEvalRunner(
          */
         const val FIXED_NOW = 1_760_000_000_000L
         const val DAY_MS = 86_400_000L
+
+        /**
+         * The query class Gate B turns on.
+         *
+         * Every other class has lexical overlap that BM25 already handles.
+         * Synonym-only is the one where a hash cannot work and a semantic model
+         * must, so it is the only class whose movement is evidence about ONNX.
+         * Must match the `class` field in `queries.jsonl`.
+         */
+        const val SYNONYM_CLASS = "synonym-only"
     }
 }

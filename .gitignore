@@ -54,3 +54,9 @@ local.properties
 # Keystore
 *.jks
 *.keystore
+
+# Gate B experiment vectors — derived from corpus.jsonl by scripts/gen_eval_vectors.py.
+# Not committed: megabytes of floats, and a stale one silently measures the wrong model.
+aura-core/src/test/resources/retrieval-eval/vectors-*.jsonl
+
+__pycache__/

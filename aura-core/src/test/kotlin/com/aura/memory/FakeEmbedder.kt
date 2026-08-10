@@ -3,6 +3,18 @@ package com.aura.memory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
+ * An [Embedder] that reports how many times it was asked to embed.
+ *
+ * On an interface rather than read off [FakeEmbedder] directly, so the eval
+ * harness can report embed counts for any test embedder. It was reading a
+ * `FakeEmbedder`-typed field, which meant the count silently came back zero for
+ * every other embedder — a cost signal that reports zero is worse than none.
+ */
+interface CountingEmbedder {
+    val callCount: AtomicInteger
+}
+
+/**
  * Deterministic, non-semantic [Embedder] for unit tests. Produces a
  * 384-dim unit-normalized vector from a hash of every character in
  * the input. Two test inputs that differ in any character get a
@@ -15,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class FakeEmbedder(
     val dim: Int = 384,
-    val callCount: AtomicInteger = AtomicInteger(0),
-) : Embedder {
+    override val callCount: AtomicInteger = AtomicInteger(0),
+) : Embedder, CountingEmbedder {
     override fun modelId(): kotlin.String = "fake-embedder"
     override fun dimension(): Int = dim
 
