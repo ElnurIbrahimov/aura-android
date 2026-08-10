@@ -5,7 +5,7 @@ import com.aura.agent.ToolContext
 import com.aura.providers.ProviderMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +21,10 @@ import javax.inject.Singleton
  */
 @Singleton
 class RealtimeCallController @Inject constructor(
-    private val provider: OpenAiRealtimeProvider,
+    // The interface, not OpenAiRealtimeProvider. The KDoc above claims the
+    // orchestration is testable with fakes, and a concrete dependency here is
+    // the one thing that would have made that claim false.
+    private val provider: RealtimeProvider,
     private val capture: AudioCapture,
     private val sink: AudioSink,
     private val toolBridge: RealtimeToolBridge,
@@ -184,20 +187,44 @@ class RealtimeCallController @Inject constructor(
         session = null
         if (s == null && _state.value.phase == Phase.IDLE) return
 
-        micJob?.cancelAndJoin()
-        micJob = null
+        val mic = micJob; micJob = null
+        val ev = eventJob; eventJob = null
+        val en = endJob; endJob = null
+
+        mic.stopWithoutSelfJoin()
         capture.stop()
         sink.stop()
         runCatching { s?.close(reason) }.onFailure { Log.w(TAG, "socket close failed: ${it.message}", it) }
-        eventJob?.cancelAndJoin()
-        eventJob = null
-        endJob?.cancelAndJoin()
-        endJob = null
+        ev.stopWithoutSelfJoin()
+        en.stopWithoutSelfJoin()
 
         val (inSec, outSec) = budget.billedAudioSeconds()
         Log.i(TAG, "call ended ($reason): ${inSec}s in, ${outSec}s out")
         _state.update { it.copy(phase = Phase.ENDED, remainingMs = 0) }
     }
+
+    /**
+     * Cancel this job, and join it only if we are not running inside it.
+     *
+     * Three of the four ways a call ends run [end] from inside one of these
+     * jobs: the notification's End action arrives on [endJob], a fatal provider
+     * error on [eventJob], and budget expiry on [micJob]. A plain
+     * `cancelAndJoin` there waits for the coroutine doing the waiting, so the
+     * teardown never completes — and because everything after it is skipped,
+     * the socket stays open and keeps billing per audio-minute with the UI
+     * already showing the call as over. It deadlocks silently: no exception, no
+     * log, just a call that will not end.
+     */
+    private suspend fun Job?.stopWithoutSelfJoin() {
+        if (this == null) return
+        cancel()
+        val current = currentCoroutineContext()[Job]
+        if (current != null && isAncestorOf(current)) return
+        runCatching { join() }.onFailure { Log.w(TAG, "job join failed: ${it.message}", it) }
+    }
+
+    private fun Job.isAncestorOf(other: Job): Boolean =
+        this === other || children.any { it.isAncestorOf(other) }
 
     /** The finished transcript, for persisting as a conversation. */
     fun transcript(): List<Line> = _state.value.transcript

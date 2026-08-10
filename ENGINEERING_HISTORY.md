@@ -347,6 +347,17 @@ foreground — the alternative is not expensive, it is impossible; and live voic
 `Provider` rather than inside it because `chat` is a one-shot non-suspend `Flow` and forcing
 a duplex session into it means a default-throwing method on all seventeen implementations.
 
+**`end()` deadlocked on three of the four ways a call ends.** It ran
+`cancelAndJoin` on the very jobs it can be invoked from: the notification's End
+action arrives on `endJob`, a fatal provider error on `eventJob`, budget expiry
+on `micJob`. Joining the coroutine that is doing the joining waits forever, and
+because everything after that line is skipped, the socket stays open and keeps
+billing per audio-minute while the UI already shows the call as over. Silent: no
+exception, no log, just a call that will not end. Found within minutes of writing
+the controller's first direct test — the coverage gap and the bug were the same
+fact, which is the argument for the test rather than for the fix. Fixed by
+cancelling without joining any job the current coroutine is running inside.
+
 Three of the sweep's own gates fired against its own code. `SilentRunCatchingAuditTest`
 caught a new `runCatching` with no handler; `ScreenControlContractTest`'s absence assertions
 failed because the comments *explaining* the absences named the flags they assert are absent
@@ -448,7 +459,7 @@ and inflated the document frequencies BM25 had just started depending on.
 | BM25 document frequency costs one FTS probe per query term | Bounded by `MAX_QUERY_TERMS` (24) and each probe is an index lookup, so it is cheap — but FTS4's `matchinfo()` would return the whole corpus statistic in the same query that fetches candidates. It needs `@RawQuery` plus manual BLOB parsing, and there is no `@RawQuery` precedent in `MemoryDao`. Recorded rather than done. |
 | Bigram IDF still comes from the candidate set | `BM25.tokenize` emits words *and* adjacent bigrams; only the unigrams get a corpus document frequency, because measuring every bigram would double the probe count for a term class that is rare by construction. Bigrams fall back to candidate-set `df`, which is the pre-2026-08-08 behaviour for that subset. Since 2026-08-10 this is `RetrievalConfig.bm25Bigrams` and the eval harness can settle it: bigrams also *double* `docLength`, depressing every unigram through BM25's length normalisation, so dropping them may well win outright. Left at the shipped default until measured. |
 | `correctly_empty_rate` is 0.0 in the eval harness | The vector fallback scores every scanned row and admits anything above a 0.05 cosine floor, so a query with no real answer still returns something. `MemoryStoreQueryTest` asserts empty results as product behaviour and passes, because its fixtures never reach that branch. The harness disagrees with the unit test about what the system does, and the harness is right. Fix is a relevance floor on the fused score, not on the cosine — but it needs the golden set to avoid trading recall for it. |
-| `RealtimeCallController` is covered indirectly | Barge-in ordering, budget expiry mid-call and tool round-trips are exercised through the wire and bridge tests rather than against the controller itself. A fake-driven test of the orchestration is the obvious next addition. The audio adapters legitimately need a device; the controller does not. |
+| ~~`RealtimeCallController` is covered indirectly~~ | Closed 2026-08-10 by `RealtimeCallControllerTest` (14 fake-driven cases). It found a self-join deadlock in `end()` on its first run — see §2.10. |
 
 ### Dependencies and configuration
 

@@ -22,6 +22,10 @@ object RealtimeModule {
 
     @Provides
     @Singleton
+    fun provideRealtimeProvider(impl: OpenAiRealtimeProvider): RealtimeProvider = impl
+
+    @Provides
+    @Singleton
     fun provideAudioCapture(impl: AndroidAudioCapture): AudioCapture = impl
 
     @Provides
