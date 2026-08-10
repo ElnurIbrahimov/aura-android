@@ -21,7 +21,16 @@ class EvolutionReflectionExecutor @Inject constructor(
     private val providerRegistry: ProviderRegistry,
     private val roleRouter: ModelRoleRouter,
 ) {
-    suspend fun reflect(systemPrompt: kotlin.String, userPrompt: kotlin.String): Result {
+    /**
+     * @param schema when non-null, constrains the reply to this JSON Schema on
+     *   providers that serialise one. Callers must still parse defensively —
+     *   see [com.aura.providers.Provider.supportsResponseSchema].
+     */
+    suspend fun reflect(
+        systemPrompt: kotlin.String,
+        userPrompt: kotlin.String,
+        schema: com.aura.providers.ResponseSchema? = null,
+    ): Result {
         val modelId = roleRouter.resolve(ModelRole.EVOLUTION)
             ?: return Result.Error("No EVOLUTION model configured", "no_model")
         val text = StringBuilder()
@@ -31,7 +40,11 @@ class EvolutionReflectionExecutor @Inject constructor(
                 providerRegistry.chat(
                     modelId,
                     conversation.toMessages(),
-                    ChatOptions(temperature = 0.2, maxTokens = MAX_TOKENS),
+                    ChatOptions(
+                        temperature = 0.2,
+                        maxTokens = MAX_TOKENS,
+                        responseSchema = schema,
+                    ),
                     emptyList(),
                 ).collect { chunk ->
                     chunk.text?.let { text.append(it) }

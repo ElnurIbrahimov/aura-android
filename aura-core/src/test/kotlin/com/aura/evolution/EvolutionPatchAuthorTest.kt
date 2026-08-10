@@ -60,7 +60,7 @@ class EvolutionPatchAuthorTest {
     @Test
     fun `approve with valid patch returns Approved carrying canonical patch json`() = runTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             """{"decision":"approve","reason":"clear fix","patch":{"body":"better body"}}"""
         )
         val author = EvolutionPatchAuthor(
@@ -80,7 +80,7 @@ class EvolutionPatchAuthorTest {
     @Test
     fun `fenced json output is defensively stripped`() = runTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             """
             Here is my review:
             ```json
@@ -105,7 +105,7 @@ class EvolutionPatchAuthorTest {
     @Test
     fun `reject decision maps to Rejected with the model reason`() = runTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             """{"decision":"reject","reason":"not enough evidence","patch":null}"""
         )
         val author = EvolutionPatchAuthor(
@@ -123,7 +123,7 @@ class EvolutionPatchAuthorTest {
     fun `approve with invalid patch is Rejected not Approved`() = runTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
         // Patch body identical to the current body → validator rejects.
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             """{"decision":"approve","reason":"looks fine","patch":{"body":"old body"}}"""
         )
         val author = EvolutionPatchAuthor(
@@ -138,9 +138,14 @@ class EvolutionPatchAuthorTest {
     }
 
     @Test
-    fun `unparseable model output is Rejected`() = runTest {
+    fun `unparseable model output is Inconclusive, not Rejected`() = runTest {
+        // This asserted Rejected until 2026-08-10. Rejected is terminal — the
+        // candidate is resolved and never looked at again — so a stray fence or
+        // a truncated object permanently discarded a self-improvement candidate
+        // on the strength of one badly-formatted reply. Failing to read the
+        // answer is not a judgement about the question.
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             "I think this is a great idea! approve: true"
         )
         val author = EvolutionPatchAuthor(
@@ -150,13 +155,53 @@ class EvolutionPatchAuthorTest {
 
         val result = author.author(candidate())
 
+        assertTrue(
+            result is EvolutionPatchAuthor.Result.Inconclusive,
+            "unreadable output must stay retryable, got $result",
+        )
+    }
+
+    @Test
+    fun `an envelope with no decision is Inconclusive`() = runTest {
+        // Parses fine, carries nothing to act on. The old code folded this into
+        // the same branch as "the model said reject", scoring silence as a no.
+        val reflection = mockk<EvolutionReflectionExecutor>()
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+            """{"reason":"thinking about it"}"""
+        )
+        val author = EvolutionPatchAuthor(
+            reflection, validator, Provider { registry },
+            skillsStoreWith(Skill(id = "s1", name = "T", description = "", body = "old")),
+        )
+
+        assertTrue(author.author(candidate()) is EvolutionPatchAuthor.Result.Inconclusive)
+    }
+
+    @Test
+    fun `an explicit reject is still Rejected`() = runTest {
+        // The boundary the Inconclusive split has to keep: a real judgement
+        // must stay terminal, or nothing ever resolves.
+        val reflection = mockk<EvolutionReflectionExecutor>()
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(
+            """{"decision":"reject","reason":"the skill is fine as written"}"""
+        )
+        val author = EvolutionPatchAuthor(
+            reflection, validator, Provider { registry },
+            skillsStoreWith(Skill(id = "s1", name = "T", description = "", body = "old")),
+        )
+
+        val result = author.author(candidate())
         assertTrue(result is EvolutionPatchAuthor.Result.Rejected)
+        assertEquals(
+            "the skill is fine as written",
+            (result as EvolutionPatchAuthor.Result.Rejected).reason,
+        )
     }
 
     @Test
     fun `transport error surfaces as Error so the candidate stays pending`() = runTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns
+        coEvery { reflection.reflect(any(), any(), any()) } returns
             EvolutionReflectionExecutor.Result.Error("Reflection timed out", "timeout")
         val author = EvolutionPatchAuthor(
             reflection, validator, Provider { registry },
@@ -180,7 +225,7 @@ class EvolutionPatchAuthorTest {
         val result = author.author(candidate())
 
         assertTrue(result is EvolutionPatchAuthor.Result.Rejected)
-        io.mockk.coVerify(exactly = 0) { reflection.reflect(any(), any()) }
+        io.mockk.coVerify(exactly = 0) { reflection.reflect(any(), any(), any()) }
     }
 
     @Test
@@ -194,7 +239,7 @@ class EvolutionPatchAuthorTest {
         val reflection = mockk<EvolutionReflectionExecutor>()
         val prompt = slot<String>()
         // Model hallucinates "m99" which was never shown.
-        coEvery { reflection.reflect(any(), capture(prompt)) } returns EvolutionReflectionExecutor.Result.Ok(
+        coEvery { reflection.reflect(any(), capture(prompt), any()) } returns EvolutionReflectionExecutor.Result.Ok(
             """{"decision":"approve","reason":"merge","patch":{"memoryIds":["m1","m99"],"consolidatedContent":"tea"}}"""
         )
         val author = EvolutionPatchAuthor(
@@ -231,6 +276,6 @@ class EvolutionPatchAuthorTest {
         )
 
         assertTrue(result is EvolutionPatchAuthor.Result.Rejected)
-        io.mockk.coVerify(exactly = 0) { reflection.reflect(any(), any()) }
+        io.mockk.coVerify(exactly = 0) { reflection.reflect(any(), any(), any()) }
     }
 }

@@ -6,13 +6,20 @@ import com.aura.creative.StoryBeat
  * Turns an OUTLINE generation into machine-readable [StoryBeat]s.
  *
  * A long-form run needs a list it can iterate, not prose. The obvious way to get
- * one would be structured output, and it is not available here: no provider in
- * this codebase serialises `ChatOptions.responseFormat` — the field exists and
- * one caller sets it, but nothing puts it on the wire — and there is no
- * `tool_choice`, so even forcing a tool call is not possible. Wiring either
- * across nine providers is real work, and would still need a fallback parser for
- * models that answer in prose anyway. So: build the parser, skip the provider
- * work.
+ * one would be structured output, and when this was written it was not
+ * available: no provider serialised `ChatOptions.responseFormat`, and there was
+ * no `tool_choice`, so even forcing a tool call was impossible. Both are now
+ * wired — see `ChatOptions.responseSchema` — so that reasoning no longer holds.
+ *
+ * This parser stays anyway, and not only for inertia. Structured output is not
+ * universal: `custom` points at a user-supplied endpoint and `moa` fans out to
+ * whatever the aggregator is, so a fallback parser is still needed for exactly
+ * the models most likely to answer in prose. The pipe grammar also streams —
+ * beats can be read as they arrive, one line at a time — where a JSON array
+ * cannot be parsed until its closing bracket. For a generation measured in
+ * minutes that is a real difference, not a stylistic one.
+ *
+ * Worth revisiting if long-form ever stops streaming its outline.
  *
  * The grammar is a single line per beat, pipe-separated, appended to the OUTLINE
  * mode instruction:

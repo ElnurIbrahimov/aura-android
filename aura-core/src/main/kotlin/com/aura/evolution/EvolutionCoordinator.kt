@@ -104,6 +104,19 @@ class EvolutionCoordinator @Inject constructor(
                 is EvolutionPatchAuthor.Result.Rejected -> {
                     candidateDao.setStatus(candidate.id, CandidateStatus.REJECTED.name, "model: ${result.reason}")
                 }
+                is EvolutionPatchAuthor.Result.Inconclusive -> {
+                    // The model replied but nothing usable could be read out of
+                    // it. That is not a judgement about the candidate, so it
+                    // must not resolve it — keep PENDING, same as a transport
+                    // error. Previously this path returned Rejected, so one
+                    // stray fence permanently discarded a candidate.
+                    android.util.Log.i(TAG, "Inconclusive author for ${candidate.id}: ${result.reason}")
+                    candidateDao.setStatus(
+                        candidate.id,
+                        CandidateStatus.PENDING.name,
+                        "author_inconclusive: ${result.reason}",
+                    )
+                }
                 is EvolutionPatchAuthor.Result.Error -> {
                     // Transport error — keep PENDING so a later run retries.
                     candidateDao.setStatus(candidate.id, CandidateStatus.PENDING.name, "author_error: ${result.code}")

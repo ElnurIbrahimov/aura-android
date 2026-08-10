@@ -1,6 +1,7 @@
 package com.aura.evolution
 
 import com.aura.agent.ToolRegistry
+import com.aura.providers.StructuredJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
@@ -19,8 +20,17 @@ import javax.inject.Singleton
  * Failure semantics:
  * - transport/model error → [Result.Error]; the candidate stays PENDING and
  *   is retried on a later run.
- * - reject decision, unparseable output, or invalid patch → [Result.Rejected];
- *   the candidate is resolved REJECTED and never proposed.
+ * - the model said "reject", or said "approve" and handed back a patch that
+ *   fails validation → [Result.Rejected]; the candidate is resolved REJECTED
+ *   and never proposed. Both are *judgements about the candidate*.
+ * - the model's output could not be read at all → [Result.Inconclusive]; the
+ *   candidate stays PENDING.
+ *
+ * That last case used to be [Result.Rejected], which meant a transient
+ * formatting slip — a stray fence, a truncated object — permanently discarded a
+ * self-improvement candidate that nothing would ever look at again. A failure to
+ * parse is not a decision. It is the same class of event as a timeout, which was
+ * already treated as retryable, and it is now treated the same way.
  */
 @Singleton
 class EvolutionPatchAuthor @Inject constructor(
@@ -34,7 +44,16 @@ class EvolutionPatchAuthor @Inject constructor(
 
     sealed interface Result {
         data class Approved(val reason: String, val patchJson: String) : Result
+
+        /** A judgement about the candidate. Terminal — it is never revisited. */
         data class Rejected(val reason: String) : Result
+
+        /**
+         * The model replied, but nothing usable could be read out of it.
+         * Retryable: the candidate stays PENDING.
+         */
+        data class Inconclusive(val reason: String) : Result
+
         data class Error(val code: String, val message: String) : Result
     }
 
@@ -45,7 +64,7 @@ class EvolutionPatchAuthor @Inject constructor(
             is ContextResult.Ok -> built.context
             is ContextResult.Fail -> return Result.Rejected(built.reason)
         }
-        return when (val response = reflection.reflect(SYSTEM_PROMPT, context.prompt)) {
+        return when (val response = reflection.reflect(SYSTEM_PROMPT, context.prompt, ENVELOPE_SCHEMA)) {
             is EvolutionReflectionExecutor.Result.Error ->
                 Result.Error(response.code, response.message)
             is EvolutionReflectionExecutor.Result.Ok ->
@@ -189,11 +208,20 @@ class EvolutionPatchAuthor @Inject constructor(
         rawText: String,
         validation: EvolutionPatchValidator.Context,
     ): Result {
-        val stripped = stripFences(rawText)
-        val envelope = runCatching { json.decodeFromString<AuthorEnvelope>(stripped) }.getOrNull()
-            ?: return Result.Rejected("model output was not valid JSON")
+        val stripped = StructuredJson.stripFences(rawText)
+        val envelope = runCatching { json.decodeFromString<AuthorEnvelope>(stripped) }
+            .onFailure { android.util.Log.w(TAG, "unreadable author envelope: ${it.message}", it) }
+            .getOrNull()
+            ?: return Result.Inconclusive("model output was not valid JSON")
         val reason = envelope.reason.ifBlank { "no reason given" }
-        if (!envelope.decision.trim().equals("approve", ignoreCase = true)) {
+        // A blank decision is unreadable output, not a rejection. The old code
+        // folded the two together, so an envelope that parsed but carried no
+        // decision was scored as "the model said no".
+        val decision = envelope.decision.trim()
+        if (decision.isBlank()) {
+            return Result.Inconclusive("model output carried no decision")
+        }
+        if (!decision.equals("approve", ignoreCase = true)) {
             return Result.Rejected(reason)
         }
         val patch = envelope.patch
@@ -204,24 +232,69 @@ class EvolutionPatchAuthor @Inject constructor(
         }
     }
 
-    /**
-     * Defensive fence-stripping: models wrap JSON in ``` fences or prose
-     * despite the strict-JSON instruction. Extract the outermost object.
-     */
-    private fun stripFences(text: String): String {
-        var t = text.trim()
-        if (t.startsWith("```")) {
-            t = t.removePrefix("```json").removePrefix("```JSON").removePrefix("```").trim()
-            val closing = t.lastIndexOf("```")
-            if (closing >= 0) t = t.substring(0, closing)
-        }
-        val start = t.indexOf('{')
-        val end = t.lastIndexOf('}')
-        if (start >= 0 && end > start) t = t.substring(start, end + 1)
-        return t.trim()
-    }
-
     private companion object {
+        const val TAG = "EvolutionPatchAuthor"
+
+        /**
+         * Mirrors [AuthorEnvelope]. `patch` is deliberately an unconstrained
+         * object: its real shape depends on the [EvolutionAction] and is
+         * described in the per-action user prompt, and it is validated properly
+         * by [EvolutionPatchValidator] afterwards. Pinning a union of four patch
+         * shapes here would duplicate the validator badly and drift from it.
+         *
+         * `patch` is also not `required` — a reject decision legitimately has
+         * none, and requiring it would push the model toward inventing a patch
+         * in order to satisfy the schema, which is the worst possible failure
+         * mode for a system that applies what it authors.
+         */
+        val ENVELOPE_SCHEMA = com.aura.providers.ResponseSchema(
+            name = "author_evolution_patch",
+            schema = kotlinx.serialization.json.buildJsonObject {
+                put("type", kotlinx.serialization.json.JsonPrimitive("object"))
+                put(
+                    "properties",
+                    kotlinx.serialization.json.buildJsonObject {
+                        put(
+                            "decision",
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("type", kotlinx.serialization.json.JsonPrimitive("string"))
+                                put(
+                                    "enum",
+                                    kotlinx.serialization.json.JsonArray(
+                                        listOf(
+                                            kotlinx.serialization.json.JsonPrimitive("approve"),
+                                            kotlinx.serialization.json.JsonPrimitive("reject"),
+                                        ),
+                                    ),
+                                )
+                            },
+                        )
+                        put(
+                            "reason",
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("type", kotlinx.serialization.json.JsonPrimitive("string"))
+                            },
+                        )
+                        put(
+                            "patch",
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("type", kotlinx.serialization.json.JsonPrimitive("object"))
+                            },
+                        )
+                    },
+                )
+                put(
+                    "required",
+                    kotlinx.serialization.json.JsonArray(
+                        listOf(
+                            kotlinx.serialization.json.JsonPrimitive("decision"),
+                            kotlinx.serialization.json.JsonPrimitive("reason"),
+                        ),
+                    ),
+                )
+            },
+        )
+
         const val MAX_ARTIFACT_CHARS = 4_000
         const val MAX_MEMORY_PREVIEW_CHARS = 300
         const val MAX_RELATED_MEMORIES = 9

@@ -98,7 +98,7 @@ class EvolutionEndToEndApplyTest {
 
     private fun reflectionReturning(fixtureJson: String): EvolutionReflectionExecutor {
         val reflection = mockk<EvolutionReflectionExecutor>()
-        coEvery { reflection.reflect(any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(fixtureJson)
+        coEvery { reflection.reflect(any(), any(), any()) } returns EvolutionReflectionExecutor.Result.Ok(fixtureJson)
         return reflection
     }
 

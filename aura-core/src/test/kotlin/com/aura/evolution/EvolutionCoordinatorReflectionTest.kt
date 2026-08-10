@@ -77,6 +77,43 @@ class EvolutionCoordinatorReflectionTest {
     }
 
     @Test
+    fun `inconclusive author keeps candidate pending, never rejects it`() = runTest {
+        // The point of the Inconclusive split. Before it, unreadable model
+        // output returned Rejected and this candidate would be resolved
+        // terminally — discarded on the strength of one badly-formatted reply,
+        // with nothing ever looking at it again.
+        val author = mockk<EvolutionPatchAuthor>()
+        val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)
+        val candidateDao = mockk<EvolutionCandidateDao>(relaxed = true)
+        val settingsDao = mockk<EvolutionSettingsDao>(relaxed = true)
+        val metrics = mockk<EvolutionMetricsRecorder>(relaxed = true)
+        val detectors = mockk<EvolutionCandidateDetectors>(relaxed = true)
+
+        coEvery { settingsDao.all() } returns listOf(EvolutionSettingsEntity(domain = "SKILL", reflectionEnabled = true))
+        coEvery { detectors.runAll() } returns listOf(candidate(id = "c4", targetId = "skill-4"))
+        coEvery { author.author(any()) } returns
+            EvolutionPatchAuthor.Result.Inconclusive("model output was not valid JSON")
+
+        val coordinator = EvolutionCoordinator(
+            detectors, metrics, author, proposalStore, candidateDao, settingsDao, EvolutionSafetyGuard(),
+        )
+        val result = coordinator.runAll()
+
+        assertEquals(0, result.promotedCount)
+        coVerify {
+            candidateDao.setStatus(
+                "c4",
+                CandidateStatus.PENDING.name,
+                "author_inconclusive: model output was not valid JSON",
+                any(),
+            )
+        }
+        // The assertion that matters: it must never be resolved.
+        coVerify(exactly = 0) { candidateDao.setStatus("c4", CandidateStatus.REJECTED.name, any(), any()) }
+        coVerify(exactly = 0) { proposalStore.fromCandidate(any()) }
+    }
+
+    @Test
     fun `transport error keeps candidate pending for retry`() = runTest {
         val author = mockk<EvolutionPatchAuthor>()
         val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)

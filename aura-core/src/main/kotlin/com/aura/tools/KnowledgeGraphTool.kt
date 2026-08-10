@@ -13,11 +13,16 @@ import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
 import com.aura.providers.ResponseFormat
+import com.aura.providers.ResponseSchema
+import com.aura.providers.StructuredJson
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
-import kotlinx.coroutines.flow.toList
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -149,14 +154,21 @@ class KnowledgeGraphTool @Inject constructor(
                 }
             ?: throw IllegalStateException("No configured providers for knowledge graph extraction")
 
-        val flow = providerRegistry.chat(model, messages, options)
-
-        val chunks = flow.toList()
-        return chunks.filter { it.text != null }.joinToString("") { it.text!! }
-            .trim()
-            .removeSurrounding("```json", "```")
-            .removeSurrounding("```", "```")
-            .trim()
+        // `options.responseFormat` was set here for a long time and read by
+        // nothing; the schema below is what actually constrains the shape now.
+        // The fence-stripping stays as a fallback inside StructuredJson — the
+        // `removeSurrounding` pair it replaces silently no-opped unless BOTH
+        // delimiters matched, so a reply opening with ```json and closing with
+        // a bare ``` came through with its fence intact and failed to parse.
+        return StructuredJson.requestJson(
+            registry = providerRegistry,
+            modelId = model,
+            messages = messages,
+            options = options,
+            schema = KG_SCHEMA,
+            timeoutMs = EXTRACTION_TIMEOUT_MS,
+            tag = "KGTool",
+        ) { it } ?: ""
     }
 
     /**
@@ -261,4 +273,69 @@ class KnowledgeGraphTool @Inject constructor(
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t")
+
+    private companion object {
+        /** Generous: 4096 output tokens of graph over a long conversation turn. */
+        const val EXTRACTION_TIMEOUT_MS = 30_000L
+
+        /**
+         * The shape `parseResponse` already expects. Notably it does NOT
+         * constrain `type` with an `enum` of the allowed node/edge types even
+         * though those lists exist: the prompt names them, unknown types map to
+         * `unknown` by design (see the test of the same name), and a hard enum
+         * would make the model drop an entity it could not classify rather than
+         * hand back something the mapper can salvage.
+         *
+         * `properties` is a free-form object, which is the one part Gemini
+         * cannot express — its OpenAPI subset wants typed properties. That is
+         * survivable: `sanitizeForGemini` passes the bare `{"type":"object"}`
+         * through, and a Gemini reply that omits `properties` parses fine
+         * because `parseResponse` treats it as optional.
+         */
+        val KG_SCHEMA = ResponseSchema(
+            name = "extract_knowledge_graph",
+            schema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {
+                    put("nodes", buildJsonObject {
+                        put("type", "array")
+                        put("items", buildJsonObject {
+                            put("type", "object")
+                            put("properties", buildJsonObject {
+                                put("label", buildJsonObject { put("type", "string") })
+                                put("type", buildJsonObject { put("type", "string") })
+                                put("properties", buildJsonObject { put("type", "object") })
+                            })
+                            put("required", buildJsonArray {
+                                add(JsonPrimitive("label"))
+                                add(JsonPrimitive("type"))
+                            })
+                        })
+                    })
+                    put("edges", buildJsonObject {
+                        put("type", "array")
+                        put("items", buildJsonObject {
+                            put("type", "object")
+                            put("properties", buildJsonObject {
+                                put("type", buildJsonObject { put("type", "string") })
+                                put("source_label", buildJsonObject { put("type", "string") })
+                                put("target_label", buildJsonObject { put("type", "string") })
+                                put("weight", buildJsonObject { put("type", "number") })
+                                put("properties", buildJsonObject { put("type", "object") })
+                            })
+                            put("required", buildJsonArray {
+                                add(JsonPrimitive("type"))
+                                add(JsonPrimitive("source_label"))
+                                add(JsonPrimitive("target_label"))
+                            })
+                        })
+                    })
+                })
+                put("required", buildJsonArray {
+                    add(JsonPrimitive("nodes"))
+                    add(JsonPrimitive("edges"))
+                })
+            },
+        )
+    }
 }
