@@ -54,7 +54,7 @@ This is my personal copy.
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v16, 11 Room databases, snapshot-rollback when a restore fails mid-import — pre-existing data survives)
-- 2,591 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 2,605 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - 64 instrumented test methods (Room migration chains + app smoke tests) — run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
