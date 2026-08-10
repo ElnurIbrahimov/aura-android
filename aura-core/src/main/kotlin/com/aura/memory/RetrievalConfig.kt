@@ -27,7 +27,10 @@ data class SignalWeights(
 enum class TieHandling {
     /**
      * Dense: tied values still receive distinct consecutive ranks, broken by
-     * input order. The shipped behaviour, and a bug — see [COMPETITION].
+     * input order. What shipped until 2026-08-10, and a bug — see [COMPETITION].
+     *
+     * Kept as a value rather than deleted so a behaviour report can be bisected
+     * to this one setting instead of to a commit.
      */
     DENSE,
 
@@ -89,7 +92,7 @@ data class RetrievalConfig(
     val weights: SignalWeights = SignalWeights.LEGACY,
     /** Half-life for recency and access-recency scoring, in days. */
     val signalHalfLifeDays: Double = 7.0,
-    val tieHandling: TieHandling = TieHandling.DENSE,
+    val tieHandling: TieHandling = TieHandling.COMPETITION,
     /** Upper bound on query terms sent to FTS and probed for document frequency. */
     val maxQueryTerms: Int = 24,
     /** Candidate pool = max(limit * this, rerankPoolSize + 5). */

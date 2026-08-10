@@ -1,11 +1,11 @@
 {
-  "label": "2026-08-10 scaffold corpus, default config, FakeEmbedder",
-  "ndcg10": 0.7586,
-  "ndcg5": 0.7586,
+  "label": "2026-08-10 scaffold corpus, competition tie handling, FakeEmbedder",
+  "ndcg10": 0.7791,
+  "ndcg5": 0.7791,
   "recall5": 0.8056,
-  "mrr": 0.6806,
+  "mrr": 0.7083,
   "zero_result_rate": 0.0,
   "correctly_empty_rate": 0.0,
   "tolerance": 0.005,
-  "note": "SCAFFOLD BASELINE — these are not quality numbers. The corpus is synthetic (see corpus.jsonl) and the embedder is FakeEmbedder, a character hash with no semantics. What this baseline gates is REGRESSION: a change that drops any figure below it altered retrieval, and that is worth knowing regardless of whether the absolute value means anything. Replace the fixtures with a redacted real export and regenerate before reading a score as quality. correctly_empty_rate is 0.0 and that is a finding, not an oversight: the vector-fallback branch admits anything above 0.05 cosine, so once rows carry embeddings, a query with no lexical match still returns whatever clears that floor. MemoryStoreQueryTest's 'returns empty' cases pass only because their rows have no embedding at all, which is not true of anything stored through MemoryStore.store. Do not raise this figure by loosening the metric."
+  "note": "Raised from 0.7586 when TieHandling.COMPETITION became the default. The gain is entirely in the `lexical` class (0.9332 -> 0.9793): with competition ranking a signal that is constant across the pool gives every candidate rank 1 and drops out, instead of handing fabricated votes to whatever the candidate query happened to order first. Raising the baseline in the same commit is the point of the gate — a future change that reverts to 0.7586 must fail rather than pass because the bar was left low. SCAFFOLD CORPUS: absolute values are meaningless (synthetic corpus, FakeEmbedder has no semantics); what this gates is regression. See docs/RETRIEVAL_EVAL.md. correctly_empty_rate is 0.0 and that is a finding, not an oversight: the vector-fallback branch admits anything above 0.05 cosine, so once rows carry embeddings a query with no lexical match still returns whatever clears that floor. MemoryStoreQueryTest's 'returns empty' cases pass only because their rows have no embedding at all, which is not true of anything stored through MemoryStore.store. Do not raise this figure by loosening the metric."
 }

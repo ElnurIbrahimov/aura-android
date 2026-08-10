@@ -64,7 +64,10 @@ class RetrievalConfigTest {
         assertEquals(Retrieval.DEFAULT_RRF_K, RetrievalConfig.DEFAULT.rrfK)
         assertEquals(Retrieval.DEFAULT_SIGNAL_HALF_LIFE_DAYS, RetrievalConfig.DEFAULT.signalHalfLifeDays)
         assertEquals(SignalWeights.LEGACY, RetrievalConfig.DEFAULT.weights)
-        assertEquals(TieHandling.DENSE, RetrievalConfig.DEFAULT.tieHandling)
+        // COMPETITION since 2026-08-10. DENSE is what shipped before and is
+        // kept as a value so a behaviour report can be bisected to this one
+        // setting rather than to a commit.
+        assertEquals(TieHandling.COMPETITION, RetrievalConfig.DEFAULT.tieHandling)
         assertEquals(true, RetrievalConfig.DEFAULT.touchOnRecall)
         assertEquals(true, RetrievalConfig.DEFAULT.bm25Bigrams)
     }
@@ -72,22 +75,38 @@ class RetrievalConfigTest {
     // ---- tie handling: the bug ------------------------------------------
 
     @Test
-    fun `under DENSE, a constant signal still influences the order`() {
-        // The defect. `importance` is identical on both, so it has nothing to
-        // say — but dense ranking hands out distinct ranks anyway, broken by
-        // input order, which turns it into a silent vote for whatever ordered
-        // the candidate list.
-        val a = scored(mem("a", importance = 0.5f), text = 0.5f, vector = 0.5f)
-        val b = scored(mem("b", importance = 0.5f), text = 0.5f, vector = 0.5f)
+    fun `under DENSE, a tied signal is decided by candidate order`() {
+        // The defect DENSE has, stated as a property rather than as an ordering.
+        //
+        // This must pass `dense` EXPLICITLY. It originally relied on
+        // RetrievalConfig.DEFAULT, and when the default flipped to COMPETITION
+        // it kept passing — for the wrong reason, since a permutation-invariant
+        // fusion also returns different orders for different inputs when
+        // everything is tied. A test naming a specific tie mode has to pin it.
+        val dense = RetrievalConfig.DEFAULT.copy(tieHandling = TieHandling.DENSE)
 
-        val forward = rank(listOf(a, b))
-        val reverse = rank(listOf(b, a))
+        // Every signal is tied EXCEPT text, where `loser` is strictly better.
+        // Under a correct fusion `loser` wins. Under DENSE the four tied signals
+        // hand four fabricated votes to whichever candidate came first, and
+        // four votes beat one.
+        val winnerByOrder = scored(mem("first", importance = 0.5f), text = 0.1f, vector = 0.5f)
+        val loser = scored(mem("second", importance = 0.5f), text = 0.9f, vector = 0.5f)
 
-        assertNotEquals(
-            forward,
-            reverse,
-            "DENSE is expected to be order-sensitive here; if this passes, the bug is already gone",
+        assertEquals(
+            "first",
+            rank(listOf(winnerByOrder, loser), dense).first(),
+            "DENSE is expected to let input order beat a real text-score difference",
         )
+        assertEquals(
+            "second",
+            rank(listOf(loser, winnerByOrder), dense).first(),
+            "…and to reverse when the input order reverses, which is the bug",
+        )
+
+        // COMPETITION picks the genuinely better row either way.
+        val competition = RetrievalConfig.DEFAULT.copy(tieHandling = TieHandling.COMPETITION)
+        assertEquals("second", rank(listOf(winnerByOrder, loser), competition).first())
+        assertEquals("second", rank(listOf(loser, winnerByOrder), competition).first())
     }
 
     @Test

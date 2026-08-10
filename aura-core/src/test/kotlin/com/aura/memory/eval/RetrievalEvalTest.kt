@@ -4,6 +4,7 @@ import com.aura.memory.RetrievalConfig
 import com.aura.memory.SignalWeights
 import com.aura.memory.TieHandling
 import org.junit.Test
+import kotlin.math.abs
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -165,10 +166,16 @@ class RetrievalEvalTest {
             corpus = corpus,
             queries = EvalFixtures.queries().reversed(),
         )
-        assertEquals(
-            a.ndcg10,
-            reversed.ndcg10,
-            "query order changed the score — the corpus is being mutated mid-run",
+        // Tolerance, not exact equality. The first version of this compared
+        // Doubles exactly and failed at 0.779100786129442 vs 0.7791007861294419
+        // — one ulp, from summing the same per-query scores in a different
+        // order. That is float addition being non-associative, not the corpus
+        // being mutated, and asserting exact equality here would make the test
+        // fail for a reason it is not about.
+        assertTrue(
+            abs(a.ndcg10 - reversed.ndcg10) < 1e-9,
+            "query order changed the score — the corpus is being mutated mid-run: " +
+                "${a.ndcg10} vs ${reversed.ndcg10}",
         )
     }
 }

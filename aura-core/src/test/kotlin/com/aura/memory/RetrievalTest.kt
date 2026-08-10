@@ -156,6 +156,14 @@ class RetrievalTest {
 
     @Test
     fun `recently accessed memory beats old one with same text and vector score`() {
+        // This test was misnamed until 2026-08-10: it gave `fresh` textScore 1.0
+        // vs 0.8 and vectorScore 0.8 vs 0.7, so the winner dominated on ALL SIX
+        // signals and the test could not fail for the reason it is named after.
+        // It would have passed with the metadata weights set to zero.
+        //
+        // Text and vector are now genuinely equal, which makes this the only
+        // test in the file where signals actually conflict — and therefore the
+        // only one that says anything about how fusion weights them.
         val now = System.currentTimeMillis()
         val dayMs = 86_400_000L
 
@@ -171,8 +179,8 @@ class RetrievalTest {
         )
 
         val candidates = listOf(
-            ScoredMemory(memory = old, textScore = 0.8f, vectorScore = 0.7f),
-            ScoredMemory(memory = fresh, textScore = 1.0f, vectorScore = 0.8f),
+            ScoredMemory(memory = old, textScore = 0.9f, vectorScore = 0.75f),
+            ScoredMemory(memory = fresh, textScore = 0.9f, vectorScore = 0.75f),
         )
         val result = Retrieval.rankCandidates(
             query = "dark mode",
@@ -181,7 +189,11 @@ class RetrievalTest {
             topK = 2,
             now = now,
         )
-        assertEquals("fresh", result[0].id, "freshly accessed should outrank old")
+        assertEquals(
+            "fresh",
+            result[0].id,
+            "with relevance tied, the four metadata signals must decide — and they favour fresh",
+        )
     }
 
     // ── topK limiting ─────────────────────────────────────────────────────
@@ -268,11 +280,49 @@ class RetrievalTest {
         val topIds = result.map { it.id }
         assertEquals(5, topIds.toSet().size, "all results should have distinct IDs")
 
-        // m10 (keyword match + recent + high importance) should be in the top 3
+        // This assertion used to be `topIds.take(3).contains("m10") ||
+        // topIds.take(3).contains("m2")` — an OR over two of six keyword rows,
+        // checking membership in a 3-slot window on a 10-row pool. It passes by
+        // chance most of the time, which is worse than no assertion because it
+        // looks like coverage.
+        //
+        // The replacement first asserted every top-5 row is a keyword match.
+        // That FAILED, and the failure is the point: `m1` scores 0 on text and
+        // 0.1 on vector — near-total irrelevance — and still reaches rank 2,
+        // because it is the freshest row with 100 accesses, importance 0.9 and
+        // full decay. Relevance is two votes of six; recency, access, decay and
+        // importance are the other four, and they carry it.
+        //
+        // So that is not an invariant of the current fusion, and asserting it
+        // would be asserting a fix that has not been made. What IS true, and
+        // worth pinning:
+        val keywordMatches = setOf("m2", "m3", "m5", "m6", "m8", "m10")
+
+        // 1. The top slot goes to a keyword match. Relevance is outvoted, not
+        //    ignored.
         assertTrue(
-            topIds.take(3).contains("m10") || topIds.take(3).contains("m2"),
-            "a strong keyword match should be in top 3: got ${topIds.take(3)}",
+            topIds.first() in keywordMatches,
+            "the top result should be a keyword match, got ${topIds.first()}",
         )
+
+        // 2. A majority of the top 5 are keyword matches.
+        assertTrue(
+            topIds.count { it in keywordMatches } >= 3,
+            "keyword matches should hold a majority of the top 5: $topIds",
+        )
+
+        // 3. The rows that are irrelevant AND unremarkable stay out. m4, m7 and
+        //    m9 also score zero on both relevance signals; only m1's extreme
+        //    metadata gets it in.
+        assertTrue(
+            topIds.none { it in setOf("m4", "m9") },
+            "an irrelevant row with unremarkable metadata reached the top 5: $topIds",
+        )
+
+        // The gap between assertions 1-3 and "only keyword matches rank" is the
+        // metadata-vs-relevance imbalance, and it is now measurable rather than
+        // arguable — see docs/RETRIEVAL_EVAL.md and the `relevance-weighted`
+        // column of the generated scorecard.
     }
 
     // ── deterministic ordering for equal signals ──────────────────────────
