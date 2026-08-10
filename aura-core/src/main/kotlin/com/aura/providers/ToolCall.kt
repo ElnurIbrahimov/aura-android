@@ -105,3 +105,14 @@ internal fun ToolParameters.toJsonSchema(): kotlinx.serialization.json.JsonObjec
             )
         }
     }
+
+/**
+ * [toJsonSchema] for callers outside this package.
+ *
+ * The renderer is `internal` so nothing outside the provider layer builds tool
+ * schemas by hand; the realtime session legitimately needs the same shape and
+ * would otherwise reimplement it — which is precisely the divergence that let
+ * Gemini drop `enum` from every tool schema.
+ */
+fun toolParametersJson(parameters: ToolParameters): kotlinx.serialization.json.JsonObject =
+    parameters.toJsonSchema()
