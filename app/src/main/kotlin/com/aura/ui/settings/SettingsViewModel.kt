@@ -193,6 +193,8 @@ data class SettingsUiState(
     val decayEnabled: Boolean = true,
     /** Whether the agentic loop makes a pre-answer planning call (default false). */
     val planningEnabled: Boolean = false,
+    /** Whether providers are asked to cache the fixed prompt prefix (default true). */
+    val promptCachingEnabled: Boolean = true,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -360,6 +362,7 @@ class SettingsViewModel @Inject constructor(
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
+            val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val triggers = userPreferences.triggers.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
@@ -429,6 +432,7 @@ class SettingsViewModel @Inject constructor(
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
                 planningEnabled = planningEnabled,
+                promptCachingEnabled = promptCachingEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -659,6 +663,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setPlanningEnabled(enabled)
             _state.update { it.copy(planningEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Toggle prompt caching. Defaults on; this is the kill switch for the case
+     * where a provider mishandles the marker, not a tuning knob.
+     */
+    fun setPromptCachingEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setPromptCachingEnabled(enabled)
+            _state.update { it.copy(promptCachingEnabled = enabled) }
         }
     }
 

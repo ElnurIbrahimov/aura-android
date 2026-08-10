@@ -219,7 +219,13 @@ class MoaProvider(
         val text = StringBuilder()
         var hadError = false
         try {
-            registry.get().chat(modelId, messages, options, emptyList()).collect { chunk ->
+            // Caching forced OFF for reference calls. Each reference model sees
+            // this prompt once and is never asked again, so there is no second
+            // request to hit the cache — and on Anthropic a breakpoint that is
+            // written but never read still bills the 1.25x cache-write premium.
+            // A marker here would be a pure surcharge.
+            val refOptions = options.copy(stableSystemPrefix = 0)
+            registry.get().chat(modelId, messages, refOptions, emptyList()).collect { chunk ->
                 if (!currentCoroutineContext().isActive) return@collect
                 chunk.text?.let { text.append(it) }
                 if (chunk.error != null) {

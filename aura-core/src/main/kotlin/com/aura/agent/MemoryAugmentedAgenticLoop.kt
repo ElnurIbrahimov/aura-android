@@ -383,7 +383,20 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // sampling parameters (temperature/topP/maxTokens) so mood affects
         // generation, not just the prompt's tone directive. Only adjusts —
         // never overrides an explicit caller choice.
-        val effectiveOptions = emotionEngine?.applySampling(options) ?: options
+        val sampled = emotionEngine?.applySampling(options) ?: options
+        // Declare the stable system message as a cacheable prefix.
+        //
+        // `1` because the loop emits exactly one stable system message followed
+        // by one volatile one — see the message assembly below. It is read once
+        // per run rather than per step: the flag cannot meaningfully change
+        // mid-turn, and a DataStore read on the hot path is the sort of thing
+        // that would itself destabilise the prefix it is trying to cache.
+        val cachingEnabled = userPreferences?.let {
+            runCatching { it.promptCachingEnabled.first() }
+                .onFailure { e -> android.util.Log.w("AgenticLoop", "caching pref read failed: ${e.message}", e) }
+                .getOrDefault(true)
+        } ?: true
+        val effectiveOptions = sampled.copy(stableSystemPrefix = if (cachingEnabled) 1 else 0)
         // Response cache fast path (ported from Python Aura's response
         // cache): if this exact short question was answered recently with
         // a pure text reply (no tool calls), replay it instantly instead

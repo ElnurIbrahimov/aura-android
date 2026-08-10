@@ -139,6 +139,7 @@ fun SettingsScreen(
             onSetMoaReferenceModels = viewModel::setMoaReferenceModels,
             onSetMoaAggregatorModel = viewModel::setMoaAggregatorModel,
             onSetPlanningEnabled = viewModel::setPlanningEnabled,
+            onSetPromptCachingEnabled = viewModel::setPromptCachingEnabled,
             onRefreshModels = viewModel::refreshModels,
         )
 

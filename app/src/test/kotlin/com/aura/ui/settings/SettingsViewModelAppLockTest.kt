@@ -116,6 +116,7 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.dreamEnabled } returns flowOf(false)
         every { userPreferences.decayEnabled } returns flowOf(true)
         every { userPreferences.planningEnabled } returns flowOf(false)
+        every { userPreferences.promptCachingEnabled } returns flowOf(true)
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")

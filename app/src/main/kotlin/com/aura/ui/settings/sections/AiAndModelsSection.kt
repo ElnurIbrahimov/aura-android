@@ -77,6 +77,7 @@ fun AiAndModelsSection(
     onSetMoaReferenceModels: (List<String>) -> Unit,
     onSetMoaAggregatorModel: (String) -> Unit,
     onSetPlanningEnabled: (Boolean) -> Unit,
+    onSetPromptCachingEnabled: (Boolean) -> Unit,
     onRefreshModels: () -> Unit,
 ) {
     var activeModelRole by remember { mutableStateOf<String?>(null) }
@@ -282,6 +283,23 @@ fun AiAndModelsSection(
                 )
             }
             Switch(checked = state.planningEnabled, onCheckedChange = onSetPlanningEnabled)
+        }
+
+        Spacer(modifier = Modifier.height(AuraSpacing.sm))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(R.string.prompt_caching), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (state.promptCachingEnabled) {
+                        "On - reuses the fixed part of the prompt across a reply's steps"
+                    } else {
+                        "Off - every step re-sends the whole prompt at full price"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = state.promptCachingEnabled, onCheckedChange = onSetPromptCachingEnabled)
         }
 
         activeModelRole?.let { role ->

@@ -204,6 +204,7 @@
     <string name="pick_a_tool_to_add_the">Pick a tool to add the first step</string>
     <string name="pipeline">Pipeline</string>
     <string name="plan_before_answering">Plan before answering</string>
+    <string name="prompt_caching">Reuse prompt across steps</string>
     <string name="policy">Policy</string>
     <string name="port">Port</string>
     <string name="preferred_model_empty_default">Preferred model (empty = default)</string>

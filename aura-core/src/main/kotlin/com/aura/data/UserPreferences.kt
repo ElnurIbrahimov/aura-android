@@ -83,6 +83,7 @@ internal val KEY_AGENT_ID = stringPreferencesKey("agent_id")
 internal val KEY_TRIGGERS_ENABLED = booleanPreferencesKey("triggers_enabled")
 internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
+internal val KEY_PROMPT_CACHING_ENABLED = booleanPreferencesKey("prompt_caching_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_VIDEO_MODEL = stringPreferencesKey("video_model")
@@ -343,6 +344,26 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setPlanningEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_PLANNING_ENABLED] = enabled }
+    }
+
+    /**
+     * Ask providers to cache the fixed part of the prompt across the steps of a
+     * turn.
+     *
+     * Defaults **on**, unlike [planningEnabled]. Planning costs a round-trip
+     * before the user sees a token, so it has to be opted into; caching costs
+     * nothing, adds no latency, and only ever reduces the bill. What it can do
+     * is expose a provider-side bug, or interact badly with an endpoint that
+     * mishandles a `cache_control` key it does not know — so it ships with a
+     * switch rather than as an unconditional behaviour.
+     *
+     * Turning it off restores byte-for-byte the request shape that shipped
+     * before caching existed.
+     */
+    val promptCachingEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_PROMPT_CACHING_ENABLED] ?: true }
+
+    suspend fun setPromptCachingEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_PROMPT_CACHING_ENABLED] = enabled }
     }
 
     /**

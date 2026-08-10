@@ -331,12 +331,26 @@ class GeminiProvider(
     ): JsonObject = buildJsonObject {
         // Gemini supports system_instruction at the top level
         val systemMessages = messages.filter { it.role == ProviderMessage.Role.system }
+            .filter { it.content.isNotBlank() }
         if (systemMessages.isNotEmpty()) {
-            val systemText = systemMessages.joinToString("\n\n") { it.content }
+            // One part per system message when caching is on, joined into one
+            // when it is off. Gemini's implicit caching needs no marker — it
+            // matches on a common leading prefix — so this is purely about
+            // giving it a prefix that IS stable, and about keeping the wire
+            // bytes unchanged for callers that did not opt in.
+            //
+            // Deliberately implicit-only. Explicit `cachedContents` creates
+            // server-side BILLABLE resources with TTLs the client must delete;
+            // on a phone — process death, task kill, reinstall — those leak
+            // with no reliable cleanup path and no local record of what to
+            // remove. Not a trade worth making for a personal app.
+            val parts = if (options.stableSystemPrefix > 0) {
+                systemMessages.map { msg -> buildJsonObject { put("text", msg.content) } }
+            } else {
+                listOf(buildJsonObject { put("text", systemMessages.joinToString("\n\n") { it.content }) })
+            }
             put("system_instruction", buildJsonObject {
-                put("parts", JsonArray(listOf(buildJsonObject {
-                    put("text", systemText)
-                })))
+                put("parts", JsonArray(parts))
             })
         }
 

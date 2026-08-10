@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -118,14 +119,23 @@ class AnthropicProvider(
                 // Anthropic requires temperature=1 when thinking is enabled.
                 put("temperature", 1.0)
             }
-            systemPrompt?.let { put("system", it) }
+            systemField(systemPrompt, options.stableSystemPrefix)?.let { put("system", it) }
             put("messages", buildAnthropicMessages(anthropicMessages))
             if (tools.isNotEmpty()) {
-                put("tools", kotlinx.serialization.json.JsonArray(tools.map { tool ->
+                put("tools", kotlinx.serialization.json.JsonArray(tools.mapIndexed { i, tool ->
                     buildJsonObject {
                         put("name", tool.name)
                         put("description", tool.description)
                         put("input_schema", tool.parameters.toJsonSchema())
+                        // A second breakpoint, on the LAST tool. The tools array
+                        // sits ahead of `system` in the request, so without one
+                        // here the largest fixed part of the prompt — ~74 tool
+                        // schemas, the bulk of the prefix — would be re-billed
+                        // in full on every step. Anthropic allows four
+                        // breakpoints; this uses two.
+                        if (options.stableSystemPrefix > 0 && i == tools.lastIndex) {
+                            put("cache_control", buildJsonObject { put("type", "ephemeral") })
+                        }
                     }
                 }))
             } else if (forcedSchema != null) {
@@ -420,10 +430,55 @@ class AnthropicProvider(
         }
     }
 
-    private fun splitSystem(messages: List<ProviderMessage>): Pair<String?, List<ProviderMessage>> {
-        val sys = messages.filter { it.role == ProviderMessage.Role.system }.joinToString("\n\n") { it.content }
+    /**
+     * System messages, kept SEPARATE rather than joined.
+     *
+     * They used to be collapsed into one string here, which is fine for a
+     * `"system": "..."` field and impossible for a cache breakpoint — a
+     * breakpoint marks the end of a *block*, so the blocks have to survive.
+     * With caching off they are re-joined at serialisation time and the wire
+     * bytes are exactly what shipped before.
+     */
+    private fun splitSystem(messages: List<ProviderMessage>): Pair<List<String>, List<ProviderMessage>> {
+        val sys = messages.filter { it.role == ProviderMessage.Role.system }
+            .map { it.content }
+            .filter { it.isNotBlank() }
         val rest = messages.filter { it.role != ProviderMessage.Role.system }
-        return sys.ifBlank { null } to rest
+        return sys to rest
+    }
+
+    /**
+     * The `system` field: a plain string when caching is off, an array of text
+     * blocks with a `cache_control` marker when it is on.
+     *
+     * The breakpoint goes on block `stableSystemPrefix - 1` — the last block of
+     * the fixed prefix. Everything from there back, including the tools array
+     * that precedes `system` in the request, becomes cacheable.
+     *
+     * Anthropic silently ignores a breakpoint below its minimum cacheable
+     * length (1024 tokens, 2048 on Haiku). Nothing errors; the request simply
+     * bills full price and reports `cache_read_input_tokens: 0`. That is why
+     * the usage logging landed first — a short prompt reporting no cache hits
+     * looks identical to a broken breakpoint, and only the numbers tell them
+     * apart.
+     */
+    private fun systemField(blocks: List<String>, stablePrefix: Int): JsonElement? {
+        if (blocks.isEmpty()) return null
+        val breakpointAt = stablePrefix - 1
+        if (stablePrefix <= 0 || breakpointAt !in blocks.indices) {
+            return JsonPrimitive(blocks.joinToString("\n\n"))
+        }
+        return kotlinx.serialization.json.JsonArray(
+            blocks.mapIndexed { i, text ->
+                buildJsonObject {
+                    put("type", "text")
+                    put("text", text)
+                    if (i == breakpointAt) {
+                        put("cache_control", buildJsonObject { put("type", "ephemeral") })
+                    }
+                }
+            },
+        )
     }
 
     /**

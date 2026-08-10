@@ -50,6 +50,25 @@ data class ChatOptions(
      */
     val responseSchema: ResponseSchema? = null,
     /**
+     * How many LEADING system messages are byte-identical across the requests
+     * of one run. `0` means caching is off and nothing changes on the wire.
+     *
+     * Cache intent is request-level policy, not message content — a message
+     * cannot know whether it is being resent — so it lives here rather than on
+     * [ProviderMessage]. That also keeps it out of the shared wire DTO, where
+     * every one of six serialisers would have to explicitly *not* emit it and
+     * `toOpenAiJson` leaking an unknown key to a strict endpoint is a 400.
+     *
+     * The *position* a per-message flag would carry is carried by structure
+     * instead: the loop emits a stable system message followed by a volatile
+     * one, and `stableSystemPrefix = 1` says the first is the fixed part.
+     *
+     * Providers with explicit markers (Anthropic) place a breakpoint after this
+     * many system messages. Providers with automatic prefix caching (OpenAI,
+     * Gemini) need no marker and benefit from the stable ordering alone.
+     */
+    val stableSystemPrefix: Int = 0,
+    /**
      * Extended thinking / reasoning budget in tokens. When non-null,
      * the provider enables extended thinking mode:
      * - Anthropic: `thinking: { type: "enabled", budget_tokens: N }`
