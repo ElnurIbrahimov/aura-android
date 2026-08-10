@@ -53,23 +53,28 @@ enum class TieHandling {
     COMPETITION,
 }
 
-/** Which reranker, if any, runs after fusion. */
+/**
+ * Which reranker, if any, runs after fusion.
+ *
+ * Two values, because two is how many there are. The first draft had four —
+ * `LOCAL` for a cross-encoder that does not exist, and a `LLM` /
+ * `LLM_IF_MODEL_SET` pair that would have behaved identically, since the LLM
+ * reranker cannot run without a model either way. Both were distinctions the
+ * code could not honour, which is exactly the defect this config was meant to
+ * help find elsewhere. Add `LOCAL` when there is something for it to call.
+ */
 enum class RerankMode {
-    /** No reranking. */
+    /** No reranking, whatever the caller passes. The kill switch. */
     OFF,
 
-    /** On-device cross-encoder, when one is available. */
-    LOCAL,
-
-    /** The LLM-as-judge reranker, always. */
-    LLM,
-
     /**
-     * The LLM reranker only when the caller passed a model. The shipped
-     * behaviour: the four tool-initiated callers pass none, so they have never
-     * been reranked.
+     * The LLM-as-judge reranker, when the caller supplies a model.
+     *
+     * The shipped behaviour: the four tool-initiated callers supply none, so
+     * they have never been reranked — deliberately, since each would add
+     * 200-500ms to several recalls per turn.
      */
-    LLM_IF_MODEL_SET,
+    LLM,
 }
 
 /**
@@ -108,7 +113,7 @@ data class RetrievalConfig(
     val rerankPoolSize: Int = 20,
     /** Below this many candidates, reranking is skipped as not worth the call. */
     val rerankMinCandidates: Int = 5,
-    val rerankMode: RerankMode = RerankMode.LLM_IF_MODEL_SET,
+    val rerankMode: RerankMode = RerankMode.LLM,
     val bm25K1: Float = 1.2f,
     val bm25B: Float = 0.75f,
     val bm25IdfFloor: Float = 0.1f,
@@ -144,8 +149,13 @@ data class RetrievalConfig(
  * What one query actually did, for the eval harness and for diagnosing a recall
  * that went wrong.
  *
- * Only populated when [RetrievalConfig.trace] is on, because the per-signal rank
- * maps are the interesting part and they are not free to keep.
+ * Only populated when [RetrievalConfig.trace] is on, and read from
+ * [MemoryStore.lastTrace].
+ *
+ * There is deliberately no per-signal rank map here. It is the most interesting
+ * thing this could carry and it is not free to keep, so it stays out until
+ * something actually needs it — a struct with a field nobody fills is the defect
+ * this type was added to help find.
  */
 data class RetrievalTrace(
     /** Which branch produced the results. */

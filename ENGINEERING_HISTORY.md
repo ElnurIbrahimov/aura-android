@@ -358,6 +358,17 @@ the controller's first direct test — the coverage gap and the bug were the sam
 fact, which is the argument for the test rather than for the fix. Fixed by
 cancelling without joining any job the current coroutine is running inside.
 
+**And the sweep committed the same defect twice while documenting it.**
+`RetrievalConfig.rerankMode` and `.trace` were both added by the config commit
+and neither was ever read: the rerank decision tested `rerankModel != null`
+inline at two call sites, and `RetrievalTrace` was a data class nobody
+constructed. Found by grepping every field of the config for reads after the
+`allowedScopes` fix, which is the check worth repeating rather than the fix.
+`rerankMode` also shipped two values the code could not honour — `LOCAL`, for a
+cross-encoder that does not exist, and an `LLM` / `LLM_IF_MODEL_SET` pair that
+would have behaved identically, since neither can rerank without a model. Both
+deleted; the enum is two values because two is how many there are.
+
 **`ToolPolicy.allowedScopes` and `PolicyResult.ScopeDenied` were both declared
 and neither was ever evaluated.** `PolicyEngine` had no scope branch at all, so a
 user who restricted a tool to specific apps or domains got a setting that did

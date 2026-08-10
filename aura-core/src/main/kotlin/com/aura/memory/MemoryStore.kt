@@ -204,6 +204,7 @@ class MemoryStore @Inject constructor(
             val rerankModel = options.rerankModel
             val rewriteModel = options.rewriteModel
             val recentContext = options.recentContext
+            val startedNanos = System.nanoTime()
         // RRF fusion: text match + vector similarity + recency + access + decay + importance.
         // See [Retrieval.rankCandidates] for the RRF scoring details.
         // On hit, call [touch] to bump accessedAt + accessCount + decayScore. This
@@ -268,7 +269,10 @@ class MemoryStore @Inject constructor(
             // full table and decoding every embedding costs O(N) float
             // allocations per fallback recall.
             val all = dao.vectorScanCandidates(scopes, config.vectorFallbackScanLimit)
-            if (all.isEmpty()) return emptyList()
+            if (all.isEmpty()) {
+                trace(RetrievalTrace.Branch.VECTOR_FALLBACK, startedNanos = startedNanos)
+                return emptyList()
+            }
             // Same staleness guard as the main path — and it matters more here,
             // because this branch has NOTHING but the vector signal. A pool of
             // stale vectors would all score 0, fail the cutoff, and the recall
@@ -289,12 +293,21 @@ class MemoryStore @Inject constructor(
                 }
                 .filter { it.vectorScore > 0.05f }
                 .toList()
-            if (scored.isEmpty()) return emptyList()
+            if (scored.isEmpty()) {
+                trace(
+                    RetrievalTrace.Branch.VECTOR_FALLBACK,
+                    candidateCount = all.size,
+                    staleVectorCount = staleInFallback,
+                    startedNanos = startedNanos,
+                )
+                return emptyList()
+            }
             val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit, config = config)
             // Route vector fallback through reranker too — it catches
             // semantic matches that BM25+vector both missed.
-            val results = if (reranker != null && vectorResults.size >= config.rerankMinCandidates && rerankModel != null) {
-                reranker.rerank(text, vectorResults, rerankModel, topK = limit)
+            val reranked = shouldRerank(vectorResults.size, rerankModel)
+            val results = if (reranked) {
+                reranker!!.rerank(text, vectorResults, rerankModel!!, topK = limit)
             } else {
                 vectorResults.take(limit)
             }
@@ -314,6 +327,13 @@ class MemoryStore @Inject constructor(
                     evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
                 }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled in vector fallback failed (non-fatal)", it) }
             }
+            trace(
+                RetrievalTrace.Branch.VECTOR_FALLBACK,
+                candidateCount = scored.size,
+                staleVectorCount = staleInFallback,
+                rerankRan = reranked,
+                startedNanos = startedNanos,
+            )
             return results
         }
 
@@ -430,8 +450,9 @@ class MemoryStore @Inject constructor(
         // Cross-encoder reranking: only worth the LLM calls when we have
         // enough candidates to justify it. With <5 candidates, RRF already
         // ranks them well and the reranker just adds latency + cost.
-        val results = if (reranker != null && rrfResults.size >= config.rerankMinCandidates && rerankModel != null) {
-            reranker.rerank(text, rrfResults, rerankModel, topK = limit)
+        val rerankRan = shouldRerank(rrfResults.size, rerankModel)
+        val results = if (rerankRan) {
+            reranker!!.rerank(text, rrfResults, rerankModel!!, topK = limit)
         } else {
             rrfResults.take(limit)
         }
@@ -452,6 +473,14 @@ class MemoryStore @Inject constructor(
                 evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
             }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled failed (non-fatal)", it) }
         }
+        trace(
+            RetrievalTrace.Branch.LEXICAL,
+            queryTerms = queryWords,
+            candidateCount = scoredCandidates.size,
+            staleVectorCount = staleVectors,
+            rerankRan = rerankRan,
+            startedNanos = startedNanos,
+        )
         return results
     }
 
@@ -733,6 +762,56 @@ class MemoryStore @Inject constructor(
     suspend fun restore(memory: MemoryEntity, edits: List<MemoryEditEntity> = emptyList()) {
         if (edits.isEmpty()) dao.insert(memory) else dao.restoreWithAudit(memory, edits)
     }
+
+    /**
+     * Whether the reranker runs for this result set.
+     *
+     * Routed through [RetrievalConfig.rerankMode] rather than testing
+     * `rerankModel != null` inline at both call sites. Those two conditions were
+     * the entire rerank policy, which meant the config field existed and decided
+     * nothing — the same defect as `ToolPolicy.allowedScopes`, introduced in the
+     * commit that added the config.
+     *
+     * The default reproduces the shipped behaviour exactly: the four
+     * tool-initiated callers pass no model, so they have never been reranked and
+     * still are not. `OFF` is now a genuine kill switch.
+     */
+    private fun shouldRerank(candidateCount: Int, rerankModel: String?): Boolean {
+        if (reranker == null || candidateCount < config.rerankMinCandidates) return false
+        return when (config.rerankMode) {
+            RerankMode.OFF -> false
+            RerankMode.LLM -> rerankModel != null
+        }
+    }
+
+    private fun trace(
+        branch: RetrievalTrace.Branch,
+        queryTerms: List<String> = emptyList(),
+        candidateCount: Int = 0,
+        staleVectorCount: Int = 0,
+        rerankRan: Boolean = false,
+        startedNanos: Long,
+    ) {
+        if (!config.trace) return
+        lastTrace = RetrievalTrace(
+            branch = branch,
+            queryTerms = queryTerms,
+            candidateCount = candidateCount,
+            staleVectorCount = staleVectorCount,
+            rerankRan = rerankRan,
+            elapsedMs = (System.nanoTime() - startedNanos) / 1_000_000,
+        )
+    }
+
+    /**
+     * What the last query actually did, when [RetrievalConfig.trace] is on.
+     *
+     * Single-slot and last-write-wins: this is a debugging and eval affordance,
+     * not a log. Off in production, where it stays null.
+     */
+    @Volatile
+    var lastTrace: RetrievalTrace? = null
+        private set
 
     fun observeCount(): Flow<Int> = dao.count()
     suspend fun count(): Int = dao.countOnce()
