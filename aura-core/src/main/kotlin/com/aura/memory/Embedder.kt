@@ -7,6 +7,27 @@ package com.aura.memory
  * v2 (this task): [CloudEmbedder] wraps [LocalEmbedder] as fallback and calls
  * Ollama Cloud's embeddings API when a key is configured.
  */
+/**
+ * A vector plus the identity of whatever actually produced it.
+ *
+ * The point is that [modelId] describes the vector in hand, not the embedder's
+ * configuration — see [Embedder.embedTagged].
+ */
+data class Embedding(
+    val vector: FloatArray,
+    val modelId: String,
+    val dim: Int,
+) {
+    // FloatArray uses identity equality, which would make two Embeddings with
+    // the same contents unequal. Compare on the tag, which is what callers
+    // actually branch on.
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is Embedding && modelId == other.modelId && dim == other.dim &&
+            vector.contentEquals(other.vector))
+
+    override fun hashCode(): Int = 31 * (31 * modelId.hashCode() + dim) + vector.contentHashCode()
+}
+
 interface Embedder {
 
     /** Embed [text] into a unit-normalized vector. */
@@ -17,6 +38,34 @@ interface Embedder {
 
     /** Dimensionality of the vectors produced by [embed]. */
     fun dimension(): Int
+
+    /**
+     * Embed [text] and report which model ACTUALLY produced the vector.
+     *
+     * [modelId] and [dimension] describe what this embedder is configured to
+     * do; on a fallback path they describe what it tried to do. `CloudEmbedder`
+     * returns a 384-dim local vector when the network call fails, but
+     * `MemoryStore.store` wrote `embeddingModel = "ollama:nomic-embed-text"`
+     * and `embeddingVersion = 768` over it regardless — so the row claimed 768
+     * dimensions while holding 384, and nothing could tell the difference
+     * later.
+     *
+     * The default is correct for any embedder with a single path. Override it
+     * wherever the produced vector might not be the advertised one.
+     */
+    suspend fun embedTagged(text: String): Embedding =
+        Embedding(embed(text), modelId(), dimension())
+
+    /**
+     * Whether a stored row's `embeddingModel` matches what this embedder
+     * produces now.
+     *
+     * On the interface deliberately. Four subsystems hold vectors from this
+     * embedder — memories, conversations, dream clustering, document chunks —
+     * and four independent `!=` comparisons is how the FTS-schema duplication
+     * problem started.
+     */
+    fun isCurrent(rowModelId: String?): Boolean = rowModelId == modelId()
 
     companion object {
         fun toBytes(vec: FloatArray): ByteArray {

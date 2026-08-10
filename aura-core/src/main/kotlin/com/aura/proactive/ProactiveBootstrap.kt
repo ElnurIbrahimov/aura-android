@@ -166,6 +166,16 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
+        // Re-embed reconciliation. Queued unconditionally on start: the check
+        // is one COUNT and the worker exits immediately when it is zero, which
+        // is the normal case. There is no user-facing toggle because there is
+        // no coherent "off" — leaving a corpus half-embedded by two different
+        // models is not a state anyone would choose, it is just broken recall.
+        scope.launch {
+            runCatching { com.aura.memory.ReembedWorker.enqueue(appContext) }
+                .onFailure { android.util.Log.w("ProactiveBootstrap", "reembed enqueue failed", it) }
+        }
+
         // Decay reconciliation — separate flow for the same reason.
         // decayEnabled gates both the periodic schedule and the
         // startup decay pass.

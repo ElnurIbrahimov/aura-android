@@ -161,7 +161,7 @@ class MemoryStoreTest {
     }
 
     @Test
-    fun `rebuildEmbeddings re-embeds only rows with null embedding`() = runTest {
+    fun `rebuildEmbeddings re-embeds rows the current model did not produce`() = runTest {
         val dao = mockk<MemoryDao>(relaxed = true)
         val embedder = FakeEmbedder(384)
         val store = MemoryStore(
@@ -171,10 +171,16 @@ class MemoryStoreTest {
             memoryEditDao = memoryEditDao,
         memoryFeedbackDao,
         )
+        // Selection moved from `allForExport().filter { embedding == null }` to
+        // a DAO query keyed on the MODEL — the null test re-embedded exactly
+        // zero rows after a model change, because a model change nulls nothing.
         val p1 = MemoryEntity(id = "p1", content = "a", source = "user", category = "fact", embedding = null)
         val p2 = MemoryEntity(id = "p2", content = "b", source = "user", category = "fact", embedding = null)
-        val p3 = MemoryEntity(id = "p3", content = "c", source = "user", category = "fact", embedding = ByteArray(384 * 4))
-        coEvery { dao.allForExport() } returns listOf(p1, p2, p3)
+        coEvery { dao.countNeedingReembed(any()) } returns 2
+        // Second page empty: the query IS the work queue, so a successful
+        // update removes the row and the loop terminates when it comes back
+        // empty.
+        coEvery { dao.needingReembed(any(), any()) } returnsMany listOf(listOf(p1, p2), emptyList())
         coEvery { dao.update(any()) } answers { Unit }
 
         val rebuilt = store.rebuildEmbeddings()
@@ -233,7 +239,16 @@ class MemoryStoreTest {
         val p1 = MemoryEntity(id = "p1", content = "a", source = "user", category = "fact", embedding = null)
         val p2 = MemoryEntity(id = "p2", content = "b", source = "user", category = "fact", embedding = null)
         val p3 = MemoryEntity(id = "p3", content = "c", source = "user", category = "fact", embedding = null)
-        coEvery { dao.allForExport() } returns listOf(p1, p2, p3)
+        coEvery { dao.countNeedingReembed(any()) } returns 3
+        coEvery { dao.needingReembed(any(), any()) } returnsMany listOf(listOf(p1, p2, p3), emptyList())
+        // embedTagged is an interface DEFAULT method; a relaxed mockk
+        // intercepts it instead of calling the real implementation, so it must
+        // be stubbed for the delegation to embed() to happen at all.
+        coEvery { embedder.modelId() } returns "fake"
+        coEvery { embedder.dimension() } returns 384
+        coEvery { embedder.embedTagged(any()) } coAnswers {
+            Embedding(embedder.embed(firstArg()), "fake", 384)
+        }
         coEvery { embedder.embed("a") } throws RuntimeException("network blip")
         coEvery { embedder.embed("b") } returns FloatArray(384) { 0f }
         coEvery { embedder.embed("c") } returns FloatArray(384) { 0f }

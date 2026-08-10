@@ -226,6 +226,21 @@ class ConversationStore @Inject constructor(
             ?: return search(trimmed, limit)
 
         // Rank conversations by cosine similarity to the query.
+        //
+        // NOT guarded against a stale embedding model, unlike MemoryStore and
+        // DreamConsolidator. `ConversationEntity` has no `embeddingModel`
+        // column, so there is nothing to compare against — adding one is a Room
+        // migration and belongs in its own change.
+        //
+        // The exposure is real but bounded. After an embedding-model switch,
+        // conversation search ranks by a meaningless cosine until these rows
+        // are rewritten, which happens on the next update since the embedding
+        // is recomputed whenever `searchText` changes. Nothing is persisted
+        // from the ranking, so the damage is a bad ordering rather than a
+        // corrupted corpus — the opposite of the dream-clustering path. A
+        // dimension change degrades gracefully, because `cosineSimilarity`
+        // returns 0 on a size mismatch; a same-dimension swap does not, and
+        // every credible small model is 384.
         data class Scored(val conv: ConversationEntity, val score: Float)
         val scored = existing.mapNotNull { entity ->
             val emb = entity.embedding ?: return@mapNotNull null

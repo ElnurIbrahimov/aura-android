@@ -173,6 +173,36 @@ interface MemoryDao {
     suspend fun allForExport(): List<MemoryEntity>
 
     /**
+     * How many rows carry a vector from something other than [model].
+     *
+     * Keyed on the MODEL, not on `embedding IS NULL`. `rebuildEmbeddings` used
+     * the null test, and a model change nulls nothing — so switching the
+     * embedding model in Settings re-embedded exactly zero rows while every
+     * existing vector silently stopped meaning anything.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM memories " +
+            "WHERE embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model",
+    )
+    suspend fun countNeedingReembed(model: String): Int
+
+    /**
+     * A page of rows needing re-embedding, most-used first.
+     *
+     * Ordered by activity so an interrupted rebuild fixes the memories that
+     * actually get recalled before the ones that do not — the same rationale as
+     * [vectorScanCandidates]. Paged rather than loaded whole: [allForExport]
+     * pulls every row WITH its embedding BLOB into memory, which is the O(N)
+     * heap churn already fixed twice elsewhere in this file.
+     */
+    @Query(
+        "SELECT * FROM memories " +
+            "WHERE embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model " +
+            "ORDER BY accessCount DESC, decayScore DESC LIMIT :limit",
+    )
+    suspend fun needingReembed(model: String, limit: Int): List<MemoryEntity>
+
+    /**
      * Bulk insert for the import path. Skips individual inserts to
      * avoid N round-trips to Room.
      */

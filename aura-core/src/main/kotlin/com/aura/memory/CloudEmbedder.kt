@@ -175,6 +175,37 @@ class CloudEmbedder @Inject constructor(
     }
 
     /**
+     * Same as [embed], but reports the model that produced the vector rather
+     * than the one this embedder is configured with.
+     *
+     * The two differ exactly when the cloud call fails and the local hash
+     * embedder answers instead. `MemoryStore.store` used [modelId] and
+     * [dimension] unconditionally, so those rows were tagged
+     * `ollama:nomic-embed-text` / 768 while holding a 384-dim local vector.
+     * A later model switch could not tell them apart from genuine cloud rows,
+     * and a re-embed keyed on the tag would skip exactly the rows that most
+     * needed redoing.
+     */
+    override suspend fun embedTagged(text: String): Embedding = withContext(Dispatchers.IO) {
+        val vec = embed(text)
+        val apiKey = providerKeys.keyFor("ollama")
+        val parts = providerKeys.embeddingModel.split(":", limit = 2)
+        val cloudConfigured = !apiKey.isNullOrBlank() &&
+            parts.firstOrNull() == "ollama" && !parts.getOrNull(1).isNullOrBlank()
+        // Dimension is the honest discriminator: the local fallback always
+        // produces localEmbedder.dimension(), so a size mismatch against the
+        // configured model means the fallback answered. A cloud model that
+        // happens to share the local dimension is indistinguishable — in which
+        // case the vector is at least the right shape and a wrong tag is the
+        // lesser problem.
+        if (cloudConfigured && vec.size == dimension()) {
+            Embedding(vec, modelId(), dimension())
+        } else {
+            Embedding(vec, localEmbedder.modelId(), vec.size)
+        }
+    }
+
+    /**
      * Makes the HTTP call to the Ollama Cloud embeddings API.
      * Throws on any failure (network, HTTP error, bad response).
      */

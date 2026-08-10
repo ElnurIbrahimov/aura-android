@@ -146,7 +146,14 @@ class MemoryStore @Inject constructor(
         provenance: ConversationProvenance = ConversationProvenance(),
     ): String {
         val id = UUID.randomUUID().toString()
-        val embedding = embedder.embed(content)
+        // embedTagged, not embed: the tag has to describe the vector actually
+        // produced. CloudEmbedder falls back to a 384-dim local hash when the
+        // network call fails, and this used to write the CONFIGURED model and
+        // dimension over it — so the row claimed 768 while holding 384, and a
+        // later re-embed keyed on the tag would skip exactly the rows that
+        // most needed redoing.
+        val tagged = embedder.embedTagged(content)
+        val embedding = tagged.vector
         val now = System.currentTimeMillis()
         dao.insert(
             MemoryEntity(
@@ -156,8 +163,8 @@ class MemoryStore @Inject constructor(
                 category = category,
                 importance = importance,
                 embedding = Embedder.toBytes(embedding),
-                embeddingModel = embedder.modelId(),
-                embeddingVersion = embedder.dimension(),
+                embeddingModel = tagged.modelId,
+                embeddingVersion = tagged.dim,
                 createdAt = now,
                 accessedAt = now,
                 decayScore = 1.0f,
@@ -262,10 +269,26 @@ class MemoryStore @Inject constructor(
             // allocations per fallback recall.
             val all = dao.vectorScanCandidates(scopes, config.vectorFallbackScanLimit)
             if (all.isEmpty()) return emptyList()
-            val scored = all.map { mem ->
-                val embedding = Embedder.fromBytes(mem.embedding!!)
-                ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
-            }.filter { it.vectorScore > 0.05f }
+            // Same staleness guard as the main path — and it matters more here,
+            // because this branch has NOTHING but the vector signal. A pool of
+            // stale vectors would all score 0, fail the cutoff, and the recall
+            // would return empty for a reason no log explains.
+            val staleInFallback = all.count { !embedder.isCurrent(it.embeddingModel) }
+            if (staleInFallback > 0) {
+                Log.w(
+                    "MemoryStore",
+                    "vector fallback: $staleInFallback/${all.size} candidates were embedded by a " +
+                        "different model and cannot be scored; run rebuildEmbeddings()",
+                )
+            }
+            val scored = all.asSequence()
+                .filter { embedder.isCurrent(it.embeddingModel) }
+                .map { mem ->
+                    val embedding = Embedder.fromBytes(mem.embedding!!)
+                    ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
+                }
+                .filter { it.vectorScore > 0.05f }
+                .toList()
             if (scored.isEmpty()) return emptyList()
             val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit, config = config)
             // Route vector fallback through reranker too — it catches
@@ -352,6 +375,10 @@ class MemoryStore @Inject constructor(
             null
         }
         val queryTokens = text.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
+        // Counted, not just skipped: a stale-vector population is invisible
+        // otherwise, and it is the most likely explanation for "recall got
+        // worse after I changed the embedding model".
+        var staleVectors = 0
         val scoredCandidates = textHits.mapIndexed { idx, mem ->
             val embedding = mem.embedding?.let { Embedder.fromBytes(it) }
 
@@ -369,8 +396,20 @@ class MemoryStore @Inject constructor(
                 if (queryTokens.isNotEmpty()) matchedTokens.toFloat() / queryTokens.size else 0f
             }
 
-            // Vector score: cosine similarity if embedding available, else 0.
-            val vectorScore = if (embedding != null) cosineSimilarity(qVec, embedding) else 0f
+            // Vector score: cosine similarity, but only against a vector this
+            // embedder actually produced.
+            //
+            // A vector from a different model is not a weak signal, it is a
+            // meaningless one — and when the dimensions happen to match (every
+            // credible small model is 384, same as the local hash embedder)
+            // cosineSimilarity returns a plausible number with no warning at
+            // all. Scoring 0 and counting it is the honest answer; the count is
+            // what turns "recall got worse and nothing says why" into a number.
+            val vectorScore = when {
+                embedding == null -> 0f
+                !embedder.isCurrent(mem.embeddingModel) -> { staleVectors += 1; 0f }
+                else -> cosineSimilarity(qVec, embedding)
+            }
 
             ScoredMemory(memory = mem, textScore = textScore, vectorScore = vectorScore)
         }
@@ -447,6 +486,12 @@ class MemoryStore @Inject constructor(
          * to load the entire table under the insert mutex.
          */
         internal const val SEMANTIC_DEDUP_SCAN_LIMIT = 200
+
+        /**
+         * Rows per re-embed page. Small enough that an interrupted run loses
+         * little, large enough that the DAO round-trip is not the cost.
+         */
+        internal const val REEMBED_PAGE_SIZE = 200
     }
 
     /**
@@ -561,27 +606,71 @@ class MemoryStore @Inject constructor(
      * rebuild returns the count of successful re-embeds so the UI
      * can show "Rebuilt 142 of 145".
      */
-    suspend fun rebuildEmbeddings(): Int {
-        val pending = dao.allForExport().filter { it.embedding == null }
-        if (pending.isEmpty()) return 0
+    suspend fun rebuildEmbeddings(onProgress: ((done: Int, total: Int) -> Unit)? = null): Int {
+        val model = embedder.modelId()
+        val total = runCatching { dao.countNeedingReembed(model) }
+            .onFailure { Log.w("MemoryStore", "countNeedingReembed failed", it) }
+            .getOrDefault(0)
+        if (total == 0) return 0
+
         var rebuilt = 0
-        // Batch in groups of 5 with parallel async to avoid sequential
-        // cloud round-trips. Each embedding is an independent API call.
-        pending.chunked(5).forEach { batch ->
-            coroutineScope {
-                batch.map { mem ->
-                    async(Dispatchers.IO) {
-                        runCatching {
-                            val vec = embedder.embed(mem.content)
-                            dao.update(mem.copy(embedding = Embedder.toBytes(vec)))
-                        }.onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
-                            .isSuccess
-                    }
-                }.awaitAll().forEach { ok -> if (ok) rebuilt += 1 }
+        // Paged by the DAO query rather than loaded whole, which makes the
+        // query itself the work queue: every successful update removes a row
+        // from the next page, so an interrupted run resumes exactly where it
+        // stopped with no bookkeeping.
+        while (true) {
+            val pending = runCatching { dao.needingReembed(model, REEMBED_PAGE_SIZE) }
+                .onFailure { Log.w("MemoryStore", "needingReembed failed", it) }
+                .getOrDefault(emptyList())
+            if (pending.isEmpty()) break
+
+            var pageSucceeded = 0
+            // Batch in groups of 5 with parallel async to avoid sequential
+            // cloud round-trips. Each embedding is an independent API call.
+            pending.chunked(5).forEach { batch ->
+                coroutineScope {
+                    batch.map { mem ->
+                        async(Dispatchers.IO) {
+                            runCatching {
+                                val tagged = embedder.embedTagged(mem.content)
+                                // The tag MUST be written alongside the vector.
+                                // The previous version updated `embedding` only,
+                                // so a rebuilt row kept its stale
+                                // embeddingModel — and the next run would find
+                                // it again, forever, re-embedding the same rows
+                                // and never converging.
+                                dao.update(
+                                    mem.copy(
+                                        embedding = Embedder.toBytes(tagged.vector),
+                                        embeddingModel = tagged.modelId,
+                                        embeddingVersion = tagged.dim,
+                                    ),
+                                )
+                            }.onFailure { Log.w("MemoryStore", "rebuildEmbeddings: re-embed failed for memory ${mem.id}", it) }
+                                .isSuccess
+                        }
+                    }.awaitAll().forEach { ok -> if (ok) pageSucceeded += 1 }
+                }
+            }
+            rebuilt += pageSucceeded
+            onProgress?.invoke(rebuilt, total)
+
+            // Every row in the page failed — most likely the embedder itself is
+            // down. Stop rather than spin: the query would return the same page
+            // again on the next iteration, forever.
+            if (pageSucceeded == 0) {
+                Log.w("MemoryStore", "rebuildEmbeddings: no progress on a page of ${pending.size}; stopping")
+                break
             }
         }
         return rebuilt
     }
+
+    /** How many rows would be re-embedded by [rebuildEmbeddings] right now. */
+    suspend fun countNeedingReembed(): Int =
+        runCatching { dao.countNeedingReembed(embedder.modelId()) }
+            .onFailure { Log.w("MemoryStore", "countNeedingReembed failed", it) }
+            .getOrDefault(0)
 
     /**
      * Update an existing memory's content + category. Used by the

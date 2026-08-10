@@ -37,6 +37,10 @@ import org.junit.Test
  */
 class DreamConsolidatorTest {
 
+    /** Must match what the mocked embedder reports; see the fixture builder. */
+    private val TEST_EMBEDDING_MODEL = "fake-embedder"
+
+
     /**
      * A memory with a pre-baked 384-dim embedding. The vector
      * encodes a single 32-bit "tag" repeated 12 times (12 * 32 =
@@ -61,6 +65,13 @@ class DreamConsolidatorTest {
             source = "user",
             category = "fact",
             embedding = bytes,
+            // Tagged because clustering now excludes vectors from a different
+            // embedding model — the summaries it writes are persisted as new
+            // memories, so mixing models corrupts the corpus rather than just
+            // mis-ranking a result. An untagged fixture row is indistinguishable
+            // from a stale one, which is exactly the caution the guard exists
+            // for; production rows always carry a tag.
+            embeddingModel = TEST_EMBEDDING_MODEL,
         )
     }
 
@@ -105,7 +116,15 @@ class DreamConsolidatorTest {
         contradictionDao = contradictionDao,
         narrativeSelf = narrativeSelf,
         providerRegistry = provider,
-        embedder = mockk(relaxed = true),
+        // isCurrent() is an interface DEFAULT method, and a relaxed mockk
+        // intercepts it rather than calling the real implementation — so it
+        // returns false for everything and every candidate is filtered out.
+        // Stubbing modelId() alone is not enough; the default has to be stubbed
+        // too, or restored with callOriginal().
+        embedder = mockk(relaxed = true) {
+            every { modelId() } returns TEST_EMBEDDING_MODEL
+            every { isCurrent(any()) } answers { firstArg<String?>() == TEST_EMBEDDING_MODEL }
+        },
         crashLogger = mockk<CrashLogger>(relaxed = true).also {
             // CrashLogger.logException is called from inside catch blocks
             // and uses android.util.Log under the hood; the JVM-unit

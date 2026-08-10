@@ -328,8 +328,25 @@ class DreamConsolidator @Inject constructor(
      */
     private suspend fun fetchCandidates(): List<MemoryEntity> {
         val pool = memoryStore.recent(BATCH_SIZE * 3)
+        // Stale vectors are EXCLUDED, not merely deprioritised.
+        //
+        // This is the most damaging place a mixed-model pool can appear.
+        // Everywhere else a wrong vector produces a wrong ranking, which is
+        // transient and self-correcting. Here the clusters are summarised and
+        // WRITTEN BACK AS NEW MEMORIES, so clustering a fresh vector with a
+        // stale one persists the mistake into the corpus, and no later
+        // re-embed undoes it.
+        val stale = pool.count { it.embedding != null && !embedder.isCurrent(it.embeddingModel) }
+        if (stale > 0) {
+            android.util.Log.w(
+                "DreamConsolidator",
+                "$stale/${pool.size} candidates were embedded by a different model and are " +
+                    "excluded from clustering; run MemoryStore.rebuildEmbeddings()",
+            )
+        }
         return pool.filter { entity ->
             entity.embedding != null &&
+                embedder.isCurrent(entity.embeddingModel) &&
                 entity.decayScore > DECAY_FLOOR &&
                 !entity.tags.split(",").any { it.trim().startsWith(CONSOLIDATED_TAG_PREFIX) }
         }.take(BATCH_SIZE)
