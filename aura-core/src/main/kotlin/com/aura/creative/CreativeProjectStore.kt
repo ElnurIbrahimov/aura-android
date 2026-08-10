@@ -59,7 +59,17 @@ class CreativeProjectStore @Inject constructor(
             templateId = templateId,
             updatedAt = System.currentTimeMillis(),
         )
-        dao.upsert(updated)
+        // Targeted UPDATE, never upsert: REPLACE would delete this row and
+        // cascade away every artifact, branch and job the project owns.
+        dao.updateMetadata(
+            id = updated.id,
+            name = updated.name,
+            description = updated.description,
+            genre = updated.genre,
+            tone = updated.tone,
+            templateId = updated.templateId,
+            updatedAt = updated.updatedAt,
+        )
         return toDomain(updated)
     }
 
@@ -69,7 +79,9 @@ class CreativeProjectStore @Inject constructor(
             worldJson = encodeWorld(world),
             updatedAt = System.currentTimeMillis(),
         )
-        dao.upsert(updated)
+        // The single most destructive call in this class if done with upsert —
+        // it runs after every drafted scene and every World tab save.
+        dao.updateWorld(id = updated.id, worldJson = updated.worldJson, updatedAt = updated.updatedAt)
         return toDomain(updated)
     }
 
@@ -98,12 +110,12 @@ class CreativeProjectStore @Inject constructor(
 
     suspend fun incrementTurn(id: String) {
         val current = dao.getById(id) ?: return
-        dao.upsert(
-            current.copy(
-                turnCount = current.turnCount + 1,
-                lastSessionEnded = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis(),
-            ),
+        val now = System.currentTimeMillis()
+        dao.updateTurn(
+            id = id,
+            turnCount = current.turnCount + 1,
+            lastSessionEnded = now,
+            updatedAt = now,
         )
     }
 

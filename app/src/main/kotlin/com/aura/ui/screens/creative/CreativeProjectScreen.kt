@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,7 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -106,12 +108,22 @@ fun CreativeProjectScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize()) {
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            // Scrollable, not fixed-width. PrimaryTabRow divides the screen
+            // equally between tabs, so every label has to fit whatever 1/n of
+            // the width happens to be — adding a seventh tab took each from
+            // ~240px to ~205px and wrapped every label to three or four lines
+            // ("Ma/nu/scr/ipt"). Content-sized tabs that scroll sideways keep
+            // full words at any count, and `softWrap = false` makes that
+            // structural rather than a thing that survives until the next tab.
+            PrimaryScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = AuraSpacing.md,
+            ) {
                 listOf("World", "Write", "Manuscript", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        text = { Text(label) },
+                        text = { Text(label, maxLines = 1, softWrap = false) },
                     )
                 }
             }
@@ -526,6 +538,7 @@ private fun ProjectMetadataDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
+
 /** Index of the Manuscript tab in the tab row. */
 private const val MANUSCRIPT_TAB = 2
 
@@ -533,142 +546,212 @@ private const val MANUSCRIPT_TAB = 2
  * The long-form drafting surface: plan an outline, review it, draft every scene.
  *
  * A `LazyListScope` extension rather than a `@Composable`, so a finished chapter
- * set is laid out as one item per scene. The other tabs share a single `item { }`,
- * which is fine for a text field and a paragraph and would be pathological for
- * forty thousand words — Compose would measure the whole book every frame.
+ * set lays out as one item per scene. The other tabs share a single `item { }`,
+ * which is fine for a text field and pathological for forty thousand words —
+ * Compose would measure the whole book every frame.
+ *
+ * Everything sits in `Surface` cards matching [WorldSection], because this is one
+ * tab of a screen and not its own app. The first version was bare text on the
+ * background beside tabs full of bordered cards, and looked exactly as
+ * unfinished as that sounds.
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
-    state: com.aura.ui.viewmodel.CreativeStudioUiState,
+    state: CreativeStudioUiState,
     viewModel: CreativeStudioViewModel,
 ) {
     val project = state.selectedProject ?: return
     val beats = project.world.outline
     val run = state.longform
-
-    item(key = "manuscript-header") {
-        Column(Modifier.padding(horizontal = AuraSpacing.xxl2), verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
-            Text("Manuscript", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                text = when {
-                    beats.isEmpty() -> "Plan an outline, then Aura drafts it a scene at a time in the background."
-                    run?.active == true -> "Drafting. You can leave this screen — it keeps going."
-                    else -> "${beats.size} beats planned · ${beats.count { it.status == "drafted" }} written"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
-            )
-        }
-    }
+    val drafted = beats.count { it.status == DRAFTED }
 
     if (beats.isEmpty()) {
         item(key = "manuscript-plan") {
-            var brief by remember { mutableStateOf(project.description) }
-            Column(
-                Modifier.padding(horizontal = AuraSpacing.xxl2),
-                verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
-            ) {
+            ManuscriptCard(title = "Plan the outline") {
+                Text(
+                    "Aura breaks the story into beats, then drafts them one scene at a time in the background.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                )
+                var brief by remember { mutableStateOf(project.description) }
                 OutlinedTextField(
                     value = brief,
                     onValueChange = { brief = it },
                     label = { Text("What is this about?") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
+                    enabled = !state.planningOutline,
                 )
-                Button(
-                    onClick = { viewModel.planOutline(brief) },
-                    enabled = brief.isNotBlank() && !state.planningOutline,
-                ) { Text(if (state.planningOutline) "Planning…" else "Plan outline") }
-                if (state.planningOutline || state.output.isNotBlank()) {
-                    GenerationOutput(state.output, state.planningOutline)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (state.planningOutline) {
+                        CircularProgressIndicator(Modifier.size(AuraSpacing.md))
+                        Text(
+                            "Planning…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AuraThemeTokens.colors.textSecondary,
+                            modifier = Modifier.padding(start = AuraSpacing.sm),
+                        )
+                    } else {
+                        Button(onClick = { viewModel.planOutline(brief) }, enabled = brief.isNotBlank()) {
+                            Text("Plan outline")
+                        }
+                    }
+                }
+            }
+        }
+        // The model's own words, shown only while there is no outline — so a
+        // reply that failed to parse is visible rather than merely reported.
+        if (state.output.isNotBlank()) {
+            item(key = "manuscript-raw") {
+                ManuscriptCard(title = "Model reply") {
+                    SelectionContainer {
+                        Text(state.output, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
         return
     }
 
-    item(key = "manuscript-controls") {
-        Column(
-            Modifier.padding(horizontal = AuraSpacing.xxl2),
-            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
-        ) {
-            val drafted = beats.count { it.status == "drafted" }
-            if (run != null && run.totalScenes > 0) {
-                LinearProgressIndicator(
-                    progress = { drafted.toFloat() / beats.size },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                val current = run.currentIndex.takeIf { it >= 0 }?.let { beats.getOrNull(it) }
+    item(key = "manuscript-progress") {
+        ManuscriptCard(title = "Manuscript") {
+            LinearProgressIndicator(
+                progress = { drafted.toFloat() / beats.size },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val current = run?.currentIndex?.takeIf { it >= 0 }?.let { beats.getOrNull(it) }
+            Text(
+                text = when {
+                    current != null -> "Scene ${run.currentIndex + 1} of ${beats.size} · ${current.title}"
+                    run?.active == true -> "Starting…"
+                    drafted == beats.size -> "All ${beats.size} scenes written"
+                    else -> "$drafted of ${beats.size} scenes written"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (run?.active == true) {
                 Text(
-                    text = when {
-                        current != null -> "Scene ${run.currentIndex + 1} of ${beats.size} — ${current.title}"
-                        run.active -> "Starting…"
-                        else -> "$drafted of ${beats.size} scenes written"
-                    },
+                    "Drafting continues if you leave this screen.",
                     style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
                 )
             }
             run?.error?.let { error ->
                 Text(error, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.error)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 if (run?.active == true) {
-                    Button(onClick = viewModel::cancelDrafting) { Text("Stop") }
-                } else {
-                    Button(onClick = viewModel::startDrafting) {
-                        Text(if (drafted == 0) "Write all scenes" else "Continue drafting")
+                    OutlinedButton(onClick = viewModel::cancelDrafting) {
+                        Icon(Icons.Filled.Stop, contentDescription = null)
+                        Text("Stop")
                     }
-                }
-            }
-            // Only the scene being written, not the whole manuscript above it.
-            if (run?.liveText?.isNotBlank() == true) {
-                Surface(
-                    color = AuraThemeTokens.colors.surface1,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    SelectionContainer {
-                        Text(
-                            text = run.liveText.takeLast(2_000),
-                            modifier = Modifier.padding(AuraSpacing.sm),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                } else {
+                    Button(onClick = viewModel::startDrafting, enabled = drafted < beats.size) {
+                        Text(if (drafted == 0) "Write all scenes" else "Continue drafting")
                     }
                 }
             }
         }
     }
 
+    // The scene being written, and only that. The manuscript so far belongs in
+    // the artifact list; putting it here would redraw a book on every token.
+    if (run?.liveText?.isNotBlank() == true) {
+        item(key = "manuscript-live") {
+            ManuscriptCard(title = "Writing now") {
+                SelectionContainer {
+                    Text(run.liveText.takeLast(LIVE_TEXT_CHARS), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+
+    item(key = "manuscript-beats-header") {
+        Text(
+            "Beats",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = AuraSpacing.xxl2),
+        )
+    }
+
     itemsIndexed(beats, key = { _, beat -> beat.id }) { index, beat ->
-        Row(
+        val done = beat.status == DRAFTED
+        val isCurrent = run?.currentIndex == index
+        val colors = AuraThemeTokens.colors
+        Surface(
+            color = if (isCurrent) colors.surface2 else colors.surface1,
+            shape = MaterialTheme.shapes.medium,
+            border = BorderStroke(
+                AuraSpacing.hairline,
+                if (isCurrent) colors.actionPrimary.copy(alpha = 0.5f) else colors.borderSubtle,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = AuraSpacing.xxl2, vertical = AuraSpacing.xxs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+                .padding(horizontal = AuraSpacing.xxl2),
         ) {
-            val done = beat.status == "drafted"
-            Text(
-                text = if (done) "✓" else "${index + 1}.",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (done) AuraThemeTokens.colors.actionPrimary
-                else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = beat.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (done) AuraThemeTokens.colors.textPrimary
-                    else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
-                )
-                if (beat.summary.isNotBlank()) {
-                    Text(
-                        text = beat.summary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+            Row(
+                Modifier.padding(AuraSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+            ) {
+                if (done) {
+                    Icon(
+                        Icons.Filled.CheckCircleOutline,
+                        contentDescription = "written",
+                        tint = colors.actionPrimary,
+                        modifier = Modifier.size(AuraSpacing.md),
                     )
+                } else {
+                    Text(
+                        "${index + 1}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textTertiary,
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(beat.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (beat.summary.isNotBlank()) {
+                        Text(
+                            beat.summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** A titled card in the shape every other section on this screen uses. */
+@Composable
+private fun ManuscriptCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        color = AuraThemeTokens.colors.surface1,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(AuraSpacing.hairline, AuraThemeTokens.colors.borderSubtle),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AuraSpacing.xxl2),
+    ) {
+        Column(
+            Modifier.padding(AuraSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            content()
+        }
+    }
+}
+
+/** Beat status meaning "a scene exists for this beat". Mirrors LongformRunner. */
+private const val DRAFTED = "drafted"
+
+/** How much of the in-flight scene to show. Enough to read, bounded so it cannot grow without limit. */
+private const val LIVE_TEXT_CHARS = 1_500

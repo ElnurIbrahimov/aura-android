@@ -35,8 +35,17 @@ class CreativeProjectStoreTest {
         assertEquals(WorldBible(), store.decodeWorld(captured.captured.worldJson))
     }
 
+    /**
+     * Captures the targeted UPDATE rather than an upsert.
+     *
+     * `updateWorld` used to call `dao.upsert`, which is `@Insert(REPLACE)` and
+     * therefore DELETE-then-INSERT in SQLite — cascading away every artifact,
+     * branch and job the project owned. It now writes named columns.
+     * `createdAt` is no longer asserted because a column update cannot touch it,
+     * which is the stronger guarantee.
+     */
     @Test
-    fun `updateWorld preserves project identity and stores structured components`() = runTest {
+    fun `updateWorld writes the world json without replacing the row`() = runTest {
         val original = CreativeProjectEntity(
             id = "project-1",
             name = "World",
@@ -45,8 +54,9 @@ class CreativeProjectStoreTest {
             updatedAt = 10L,
         )
         coEvery { dao.getById("project-1") } returns original
-        val captured = slot<CreativeProjectEntity>()
-        coEvery { dao.upsert(capture(captured)) } returns Unit
+        val json = slot<String>()
+        val updatedAt = slot<Long>()
+        coEvery { dao.updateWorld("project-1", capture(json), capture(updatedAt)) } returns Unit
         val world = WorldBible(
             characters = listOf(WorldCharacter(id = "c1", name = "Mara", role = "cartographer")),
             rules = listOf(WorldRule(id = "r1", name = "Maps rewrite memory", description = "Every map changes a remembered route")),
@@ -54,10 +64,10 @@ class CreativeProjectStoreTest {
 
         val updated = store.updateWorld("project-1", world)
 
-        assertEquals(10L, captured.captured.createdAt)
-        assertTrue(captured.captured.updatedAt >= 10L)
+        assertTrue(updatedAt.captured >= 10L)
         assertEquals("Mara", updated!!.world.characters.single().name)
-        assertEquals("Maps rewrite memory", store.decodeWorld(captured.captured.worldJson).rules.single().name)
+        assertEquals("Maps rewrite memory", store.decodeWorld(json.captured).rules.single().name)
+        coVerify(exactly = 0) { dao.upsert(any()) }
     }
 
     @Test

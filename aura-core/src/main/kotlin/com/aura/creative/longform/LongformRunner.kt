@@ -11,6 +11,8 @@ import com.aura.providers.ChatOptions
 import com.aura.providers.ModelRole
 import com.aura.providers.ModelRoleRouter
 import com.aura.providers.ProviderMessage
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -144,15 +146,31 @@ class LongformRunner @Inject constructor(
             runStore.markRunning(jobId, percent(beats))
             val committed = draftScene(jobId, project, beats, nextIndex, model, isStopped)
             scenesThisSlice++
-            if (committed) lastDraftedIndex = nextIndex
-            if (!committed) {
-                // The scene produced nothing usable. Stop rather than spin: with
-                // the beat still un-drafted, looping would call the model again
-                // on the same beat immediately and bill for it.
+            if (committed) {
+                lastDraftedIndex = nextIndex
+            } else {
+                // The scene produced nothing usable, or could not be saved.
+                // Never simply pause here: pausing re-runs the slice, which
+                // regenerates the same beat and bills for it again. On device
+                // this became an unbounded spend loop — a foreign-key failure in
+                // the artifact insert meant no scene could ever commit, and the
+                // run generated scene 1 over and over.
+                //
+                // A few attempts absorb a transient provider error; past that,
+                // the failure is structural and the run stops with a reason.
                 progressBus.clear()
                 runStore.recordAttempt(jobId)
-                runStore.markRunning(jobId, percent(beats))
-                return LongformOutcome.PAUSED_FOR_TIME
+                val attempts = (runStore.get(jobId)?.attempts ?: 0)
+                return if (attempts >= MAX_SCENE_ATTEMPTS) {
+                    runStore.fail(
+                        jobId,
+                        "scene_failed",
+                        "Scene ${nextIndex + 1} could not be written after $attempts attempts.",
+                    )
+                    LongformOutcome.FAILED
+                } else {
+                    LongformOutcome.PAUSED_FOR_TIME
+                }
             }
         }
     }
@@ -215,27 +233,39 @@ class LongformRunner @Inject constructor(
             return false
         }
 
-        val artifactId = runCatching {
-            artifactStore.create(
-                projectId = project.id,
-                branchId = beatBranch(jobId),
-                kind = KIND_SCENE,
-                title = "${index + 1}. ${beat.title}",
-                initialContent = body,
-                authorKind = "generation",
-                modelId = model,
-                prompt = beat.summary.ifBlank { beat.title },
-            ).id
-        }.onFailure { Log.w(TAG, "could not persist scene ${index + 1}: ${it.message}", it) }.getOrNull()
-            ?: return false
-
-        val updated = beats.toMutableList().also {
-            it[index] = beat.copy(status = STATUS_DRAFTED, artifactId = artifactId)
+        // Committing is non-cancellable, and that is the whole point of it.
+        //
+        // WorkManager stops a worker by cancelling its coroutine. Without this,
+        // a stop arriving after the model had already answered cancelled the
+        // database write too — so a scene that was generated, streamed to the
+        // screen and paid for was thrown away, and the beat stayed "planned" so
+        // the next slice generated it again. Observed on device as
+        // "could not persist scene 1: Job was cancelled".
+        //
+        // Same reasoning as BackupManager.restore's insert phase: once the
+        // expensive irreversible part has happened, finishing the cheap durable
+        // part is not optional.
+        val artifactId = withContext(NonCancellable) {
+            runCatching {
+                val id = artifactStore.create(
+                    projectId = project.id,
+                    branchId = beatBranch(jobId),
+                    kind = KIND_SCENE,
+                    title = "${index + 1}. ${beat.title}",
+                    initialContent = body,
+                    authorKind = "generation",
+                    modelId = model,
+                    prompt = beat.summary.ifBlank { beat.title },
+                ).id
+                val updated = beats.toMutableList().also {
+                    it[index] = beat.copy(status = STATUS_DRAFTED, artifactId = id)
+                }
+                projectStore.updateWorld(project.id, project.world.copy(outline = updated))
+                id
+            }.onFailure { Log.w(TAG, "could not persist scene ${index + 1}: ${it.message}", it) }.getOrNull()
         }
-        runCatching { projectStore.updateWorld(project.id, project.world.copy(outline = updated)) }
-            .onFailure { Log.w(TAG, "could not mark beat ${index + 1} drafted: ${it.message}", it) }
         progressBus.clear()
-        return true
+        return artifactId != null
     }
 
     /**
@@ -308,5 +338,14 @@ class LongformRunner @Inject constructor(
          * scenes is far more than seven minutes can produce.
          */
         const val MAX_SCENES_PER_SLICE = 20
+
+        /**
+         * How many times one scene may fail before the run stops.
+         *
+         * A couple of attempts absorb a transient provider error. Beyond that
+         * the cause is structural, and retrying only pays the model again to
+         * produce something that cannot be saved.
+         */
+        const val MAX_SCENE_ATTEMPTS = 3
     }
 }

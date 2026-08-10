@@ -105,4 +105,50 @@ class CreativeArtifactCurrentContentTest {
         coEvery { artifactDao.getById("nope") } returns null
         assertNull(store.currentContent("nope"))
     }
+
+    /**
+     * The artifact must be inserted before the revision that references it.
+     *
+     * `CreativeRevisionEntity` declares a foreign key on
+     * `artifactId -> creative_artifacts.id`. `create()` wrote the revision
+     * first, so SQLite rejected every call with
+     * `SQLITE_CONSTRAINT_FOREIGNKEY` — meaning no artifact had ever been
+     * written to a real database by this method, including the "P0 fix" that
+     * saves Creative Studio output for continuity.
+     *
+     * It survived because the existing test mocks both DAOs, and a mocked DAO
+     * enforces no constraints: the single thing that could fail was the thing
+     * the test removed. Order is the part a mock can still see, so order is
+     * what this asserts.
+     */
+    @Test
+    fun `create inserts the artifact before the revision that references it`() = runTest {
+        val order = mutableListOf<String>()
+        coEvery { artifactDao.upsert(any()) } answers { order += "artifact" }
+        coEvery { revisionDao.upsert(any()) } answers { order += "revision" }
+
+        store.create(projectId = "p1", branchId = "b1", kind = "scene", title = "One", initialContent = "text")
+
+        assertEquals(
+            listOf("artifact", "revision"),
+            order,
+            "the revision has a foreign key to the artifact, so the artifact must exist first",
+        )
+    }
+
+    /** Same invariant for `revise()`, which appends a revision to an existing artifact. */
+    @Test
+    fun `revise writes the revision before repointing the artifact at it`() = runTest {
+        val order = mutableListOf<String>()
+        coEvery { artifactDao.getById("a1") } returns artifact(currentRevisionId = "r1")
+        coEvery { revisionDao.upsert(any()) } answers { order += "revision" }
+        coEvery { artifactDao.upsert(any()) } answers { order += "artifact" }
+
+        store.revise(artifactId = "a1", content = "revised text")
+
+        // The reverse of create(): here the artifact already exists, so the
+        // revision's foreign key is satisfied and the artifact is updated after
+        // to point at it.
+        assertEquals(listOf("revision", "artifact"), order)
+    }
 }

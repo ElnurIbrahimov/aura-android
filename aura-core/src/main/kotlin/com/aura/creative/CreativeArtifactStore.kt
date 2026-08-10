@@ -34,6 +34,32 @@ class CreativeArtifactStore @Inject constructor(
         val now = System.currentTimeMillis()
         val contentHash = sha256(initialContent)
 
+        // Artifact first, revision second. CreativeRevisionEntity declares a
+        // foreign key on artifactId -> creative_artifacts.id, so inserting the
+        // revision first violates it and SQLite rejects the whole call with
+        // SQLITE_CONSTRAINT_FOREIGNKEY. That is what this did, on every call,
+        // for as long as it has existed: no artifact has ever been written to a
+        // real database by this method. It went unnoticed because the test
+        // mocks both DAOs, and a mocked DAO enforces no constraints — so the
+        // one thing that could fail was the one thing removed.
+        //
+        // `currentRevisionId` pointing at a row that does not exist yet is fine:
+        // it carries no foreign key, deliberately, because an artifact has to be
+        // able to name its first revision before that revision can name it back.
+        val artifact = CreativeArtifactEntity(
+            id = artifactId,
+            projectId = projectId,
+            branchId = branchId,
+            kind = kind,
+            title = title,
+            currentRevisionId = revisionId,
+            previewText = initialContent.take(200),
+            status = "ready",
+            createdAt = now,
+            updatedAt = now,
+        )
+        artifactDao.upsert(artifact)
+
         val revision = CreativeRevisionEntity(
             id = revisionId,
             artifactId = artifactId,
@@ -48,20 +74,6 @@ class CreativeArtifactStore @Inject constructor(
             createdAt = now,
         )
         revisionDao.upsert(revision)
-
-        val artifact = CreativeArtifactEntity(
-            id = artifactId,
-            projectId = projectId,
-            branchId = branchId,
-            kind = kind,
-            title = title,
-            currentRevisionId = revisionId,
-            previewText = initialContent.take(200),
-            status = "ready",
-            createdAt = now,
-            updatedAt = now,
-        )
-        artifactDao.upsert(artifact)
         artifact
     }
 
