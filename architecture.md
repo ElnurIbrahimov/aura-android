@@ -90,6 +90,24 @@ aura-android-clean/
 - Candidate dedup on (domain, action, targetId) with a 14-day cooldown
 - Safety guard enforced twice: coordinator auto-apply requires `canAutoApply(domain)` (SKILL never auto-applies) and Settings persists auto-apply only for guard-passing domains
 
+### Screen Control (accessibility)
+- `AuraAccessibilityService` adapts the platform to `A11yController`; everything with logic sits above `NodeLike` so traversal and serialisation are pure-JVM and CI-testable
+- `ScreenControlBridge` is Context-free (the `NotificationCaptureStore` shape), serialises every operation under one mutex, and refuses stale snapshot ids
+- Reads the accessibility TREE, not a screenshot — MediaProjection needs an attached Activity and cannot run while Aura is backgrounded, which is the only state screen control happens in
+- Two tools: `screen_read` (PRIVACY → implicit confirmation) and `screen_act` (DESTRUCTIVE → explicit); both hidden from the model entirely when the master switch is off
+- Bounds: master switch (default off) → OS grant → risk-derived policy → 5min/25-action session bound to one package → non-overridable denylist including Aura's own package → semantic tripwire on irreversible labels → refusal while a password field is visible → notification kill switch
+- `capture_screen` routes through `AccessibilityService.takeScreenshot` when connected: no consent dialog, works backgrounded
+
+### Live Voice (realtime)
+- `RealtimeProvider` sits BESIDE `Provider`, not inside it — `chat` is one-shot and non-suspend; a session is long-lived, duplex and owns an audio sink
+- One implementation (OpenAI over WebSocket, the first in this codebase); Gemini Live deliberately deferred
+- `AudioCapture`/`AudioSink` interfaces keep framing, barge-in and budget testable without hardware
+- 20ms frames (frame size adds directly to server VAD latency); `VOICE_COMMUNICATION` source for platform echo cancellation
+- Barge-in stops playback locally FIRST, then truncates the server to `playedMs()` — what the speaker rendered, not what was written
+- No auto-reconnect: a dropped socket loses server-side state, so a silent retry yields an assistant with amnesia mid-sentence
+- Tool ceiling is WRITE_LOCAL; screen control excluded by name as well as risk. Gates are made impossible rather than handled
+- `RealtimeVoiceService` (typed `microphone` FGS) keeps a call alive backgrounded; its End action closes the socket, not just the service
+
 ### Screen Capture
 - `ScreenCaptureService`: MediaProjection foreground service (type `mediaProjection`), async first frame via ImageReader on a dedicated HandlerThread, row-stride-corrected bitmap, watchdog teardown
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)

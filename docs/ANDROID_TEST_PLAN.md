@@ -100,3 +100,48 @@ Settings. Calendar monitoring has its own independent toggle.
 - Reminder doesn't fire → check notification permissions.
 - Mic doesn't work → check the permission.
 - TTS is silent → check the device volume and that the volume icon in the chat header is on.
+
+---
+
+## Screen control (device only)
+
+Nothing below is checkable from CI. The traversal, serialiser, session bounds
+and guard rules are all unit-tested; what a device adds is whether the platform
+behaves as documented.
+
+| # | Check | Why it needs a device |
+|---|---|---|
+| 1 | Enable in Settings → Privacy, then grant Accessibility access | The two-step flow and the `Settings.Secure` read that detects it |
+| 2 | Ask Aura to read the screen in Chrome, then in a Compose app | Compose emits no view ids; selectors fall back to text and bounds |
+| 3 | Read a WebView-heavy page | Huge flat trees — check the element cap holds and the output stays readable |
+| 4 | Ask it to tap something, then read again | Node action vs gesture fallback, and that `read_after` reports the change |
+| 5 | Ask it to tap a button labelled "Delete" | The tripwire must fire and quote the literal label and app |
+| 6 | Let a session expire, then act again | Re-gating rather than a stale denial |
+| 7 | Switch apps mid-session, then act | Must refuse: sessions are bound to one package |
+| 8 | Ask it to operate Aura itself | Must refuse — self-drive is the rule every other gate depends on |
+| 9 | Open a login screen and ask it to act | Must refuse while a password field is visible |
+| 10 | `capture_screen` with the service on | No MediaProjection consent dialog should appear |
+| 11 | `capture_screen` on a FLAG_SECURE screen (a banking app) | Should fall back cleanly, not error |
+| 12 | Disable the service while a session is live | The bridge must report disconnected rather than hanging |
+
+**OEM note:** Xiaomi, Huawei and Samsung kill accessibility services
+aggressively and some gate the enable flow behind an extra per-OEM toggle. Check
+that the service reconnects, and that the Settings row reflects reality after it
+is killed.
+
+## Live voice (device only)
+
+| # | Check | Why it needs a device |
+|---|---|---|
+| 1 | Start a call on speakerphone and let Aura talk | Echo cancellation. Without it, it interrupts itself in a loop |
+| 2 | Interrupt mid-sentence | Playback must stop immediately, and the reply must not resume from where it was cut |
+| 3 | Ask a follow-up referring to what it just said | Verifies the truncation position was right — a wrong one shows up as the model believing it said more than it did |
+| 4 | Lock the screen mid-call | The foreground service should keep the call alive |
+| 5 | End the call from the notification | Must close the socket, not just the service |
+| 6 | Receive a phone call mid-session | Audio focus loss |
+| 7 | Connect Bluetooth headphones mid-call | SCO routing |
+| 8 | Run to the budget cap | The spoken warning at 80%, then a clean end |
+| 9 | Start a call while chatting with a non-OpenAI model | The sheet must say the model will switch, before the call starts |
+| 10 | Ask it to send an email during a call | Must decline — WRITE_REMOTE is above the voice ceiling |
+| 11 | Turn off wifi mid-call | A retryable error and a Reconnect option, never a silent reconnect |
+| 12 | Long reply in push-to-talk mode | Sentence-boundary TTS: does it read as faster, or as choppier? |
