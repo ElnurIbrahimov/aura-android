@@ -34,8 +34,23 @@ The corpus should be **your actual memories, redacted** — not hand-written
 examples. Real memories have the vocabulary overlap, the near-duplicates and
 the uneven lengths that decide whether a retrieval change helps.
 
-Use the app's backup export, or `MemoryDao.allForExport()`, and convert to
-`corpus.jsonl`:
+Export a backup (Settings → Backup → Export), then:
+
+```bash
+python scripts/build_eval_corpus.py ~/Downloads/aura-backup.json
+```
+
+That writes `corpus.jsonl` with row ids replaced by positional ones, timestamps
+converted to relative days, agent scopes flattened, and patterned identifiers
+redacted — emails, phone numbers, cards, IBANs, API keys, URLs, long digit runs.
+It prints what it redacted and how much.
+
+**Read the output before committing it.** The redaction is assistive, not a
+guarantee: it catches shapes, not meaning, and it cannot catch *"my landlord is
+called Ferhat and he lives upstairs"*. The script prints a redaction count
+specifically so a suspiciously low number is visible rather than reassuring.
+
+The output rows look like:
 
 ```json
 {"id":"m001","content":"...","category":"fact","created_days_ago":40,"accessed_days_ago":12,"access_count":3,"decay_score":0.45,"importance":0.7,"tags":""}
@@ -68,6 +83,18 @@ The classes are deliberately adversarial. Each names a known weakness:
 | `fresh-decoy` | one old relevant row against a wall of fresh irrelevant ones; measures the metadata-vs-relevance imbalance directly |
 | `ambiguous-term` | the answer is old **and** low-importance |
 | `expect-empty` | feeds the zero-result metric |
+
+To get a head start on the file, write your queries one per line and run:
+
+```bash
+python scripts/build_eval_corpus.py backup.json --seed queries.txt --queries queries.jsonl
+```
+
+That emits one stub per query with a candidate pool listed underneath as
+comments, all graded 0 for you to correct. The pool is crude word overlap — a
+different bias from the retrieval system's own, which is the point (see below) —
+and it finds no synonyms at all, so the class that matters most is exactly the
+one you must fill in by hand.
 
 ### 3. Judge by pooling, not by inspection
 

@@ -427,6 +427,26 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         }
         // After a normal run completes, record the answer for repeat
         // questions (done below where the final text is known).
+
+        // The tool list is fixed for the whole run, and deliberately so.
+        //
+        // Picking a smaller per-step tool set to save tokens is the obvious
+        // optimisation and it is **strictly worse than doing nothing**. Every
+        // provider puts tool declarations at the HEAD of the cacheable prefix,
+        // and prefix caching is byte-exact: changing the tool array between
+        // steps invalidates the system block and the entire message history
+        // behind it. A step that saves 6k tokens of schema then pays full price
+        // for 40k tokens of conversation it would otherwise have got at a
+        // tenth of the cost. The saving is visible and the loss is not, which
+        // is what makes it an attractive mistake.
+        //
+        // `ToolRegistry.definitions()` is sorted by name for the same reason —
+        // an unstable order is a total cache miss that reports no error.
+        //
+        // Revisit only if the motivation becomes tool-choice ACCURACY rather
+        // than cost. That is a different problem with a different answer, and
+        // it should be argued on its own terms rather than inheriting this
+        // one's reasoning. Read the cache hit rate in Settings → Usage first.
         val allTools = specialist?.let { s ->
             val allowed = s.toolsAllowed
             if (allowed.isEmpty()) toolRegistry.definitions()

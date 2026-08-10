@@ -36,6 +36,20 @@ data class ModelUsage(
      */
     val cacheHitRate: Double
         get() = if (promptTokens > 0) cachedPromptTokens.toDouble() / promptTokens else 0.0
+
+    /**
+     * Whether this model has ever reported cache figures at all.
+     *
+     * The discriminator between "missed the cache" and "never told us", which
+     * are indistinguishable in [cacheHitRate] — both are zero. It matters
+     * because several providers report no cache fields, and averaging their
+     * zeroes into an aggregate makes working caching look broken.
+     *
+     * A cache WRITE counts: the first call of any cached run writes the prefix,
+     * so a provider that genuinely served nothing from cache still reports one.
+     */
+    val reportsCaching: Boolean
+        get() = cachedPromptTokens > 0 || cacheWritePromptTokens > 0
 }
 
 @Serializable
@@ -53,6 +67,26 @@ data class UsageSnapshot(
     /** See [ModelUsage.cacheHitRate]. */
     val cacheHitRate: Double
         get() = if (promptTokens > 0) cachedPromptTokens.toDouble() / promptTokens else 0.0
+
+    /** Models that report cache figures at all. See [ModelUsage.reportsCaching]. */
+    val cacheReportingModels: List<ModelUsage> get() = models.filter { it.reportsCaching }
+
+    /**
+     * Cache hit rate over only the models that actually report it.
+     *
+     * **This is the number to read**, and it is not [cacheHitRate]. The plain
+     * aggregate divides cached tokens by EVERY model's prompt tokens, including
+     * the providers that never report the field, so a single heavy Ollama user
+     * drags the figure toward zero while Anthropic is caching perfectly. That
+     * would be read as "caching does not work" and the conclusion would be
+     * exactly backwards.
+     */
+    val measuredCacheHitRate: Double
+        get() {
+            val measured = cacheReportingModels
+            val prompt = measured.sumOf { it.promptTokens }
+            return if (prompt > 0) measured.sumOf { it.cachedPromptTokens }.toDouble() / prompt else 0.0
+        }
 }
 
 /**

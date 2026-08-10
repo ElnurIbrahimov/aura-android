@@ -49,6 +49,29 @@ fun UsageSection(
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.65f),
         )
+        // The prompt-cache line. This is the whole measurement behind the
+        // decision on dynamic tool selection, and before it was here that
+        // evidence existed only as a debug log — which in practice means it
+        // would never have been read, and the decision would have been made on
+        // intuition after all the work of making it measurable.
+        if (usage.cacheReportingModels.isNotEmpty()) {
+            val pct = (usage.measuredCacheHitRate * 100).toInt()
+            val reporting = usage.cacheReportingModels.size
+            Text(
+                text = "Prompt cache: $pct% of input tokens served from cache",
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.65f),
+            )
+            Text(
+                // Named explicitly, because the rate is over these models only.
+                // Folding in providers that never report the field would drag
+                // the number toward zero and read as "caching is broken".
+                text = "measured across $reporting of ${usage.models.size} models — " +
+                    "the rest do not report cache figures",
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+            )
+        }
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
         if (usage.models.isEmpty()) {
             Text(
