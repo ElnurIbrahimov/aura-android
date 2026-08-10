@@ -158,7 +158,8 @@ class BM25(
     }
 
     /** [tokenize], honouring this instance's [bigrams] setting. */
-    private fun tokenizeHere(text: String): List<String> = tokenize(text, bigrams)
+    private fun tokenizeHere(text: String): List<String> =
+        RetrievalTokenizer.indexTokens(text, bigrams)
 
     companion object {
         /**

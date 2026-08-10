@@ -226,12 +226,15 @@ class MemoryStore @Inject constructor(
         // an arity limit that silently truncated the user's message. FTS MATCH
         // takes any number of terms, so [MAX_QUERY_TERMS] is now only a sanity
         // bound against someone pasting a document into the chat.
-        val queryWords = retrievalQuery.lowercase()
-            .split(Regex("\\s+"))
-            .filter { it.isNotBlank() && it.length > 2 }
-            .filter { it !in com.aura.core.util.StopWords.ENGLISH }
-            .distinct()
-            .take(config.maxQueryTerms)
+        //
+        // Through RetrievalTokenizer so these terms and BM25's tokens come from
+        // the SAME split. They did not before: this side split on whitespace,
+        // BM25 split on non-alphanumeric, and `corpusDocFreq` was keyed by one
+        // and read by the other. Any word the two disagreed on — apostrophes,
+        // hyphens, slashes — had its corpus df computed, stored, and never
+        // read, silently falling back to candidate-set df. See
+        // RetrievalTokenizer's KDoc.
+        val queryWords = RetrievalTokenizer.queryTerms(retrievalQuery, config.maxQueryTerms)
         // Fetch enough candidates that the reranker actually gets its
         // RERANK_POOL_SIZE pool (limit*3 = 15 used to cap below 20).
         val candidateLimit = maxOf(limit * config.candidateMultiplier, config.rerankPoolSize + 5)
@@ -314,9 +317,24 @@ class MemoryStore @Inject constructor(
             .onFailure { Log.w("MemoryStore", "corpus size lookup failed; BM25 falls back to candidate-set IDF", it) }
             .getOrDefault(textHits.size)
         val corpusDocFreq: Map<String, Int> = runCatching {
-            queryWords.mapNotNull { term ->
+            val unigrams = queryWords.mapNotNull { term ->
                 FtsQuery.quote(term)?.let { quoted -> term to dao.docFreqInScopes(quoted, scopes) }
-            }.toMap()
+            }
+            // Bigrams too, when BM25 is emitting them. Without this they fall
+            // back to candidate-set df — and because bigrams are rarer than
+            // unigrams by construction, their candidate-set df sits relatively
+            // CLOSER to N, so the distortion is worst for the most
+            // discriminating token class. The probe is an FTS phrase query
+            // ("word1 word2"), matching how the bigram token was formed.
+            val bigrams = if (config.bm25Bigrams) {
+                RetrievalTokenizer.queryBigrams(retrievalQuery, config.maxQueryTerms).mapNotNull { bigram ->
+                    val phrase = bigram.replace('_', ' ')
+                    FtsQuery.quote(phrase)?.let { quoted -> bigram to dao.docFreqInScopes(quoted, scopes) }
+                }
+            } else {
+                emptyList()
+            }
+            (unigrams + bigrams).toMap()
         }.onFailure { Log.w("MemoryStore", "document frequency lookup failed; BM25 falls back to candidate-set IDF", it) }
             .getOrDefault(emptyMap())
 
