@@ -124,6 +124,19 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      # always(), not just on failure. This scorecard says what a change did to
+      # retrieval quality, and it is most useful on the runs that PASSED — a
+      # report you can only see when the build is broken cannot tell you whether
+      # a change was an improvement.
+      - name: Upload retrieval eval scorecard
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: retrieval-eval
+          path: aura-core/build/reports/retrieval-eval/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

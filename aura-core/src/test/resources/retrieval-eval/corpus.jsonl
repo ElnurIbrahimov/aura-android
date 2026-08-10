@@ -1,0 +1,35 @@
+// SCAFFOLD CORPUS — synthetic, and its absolute scores mean nothing.
+//
+// Synthetic corpora have uniform style and no natural vocabulary-overlap
+// structure, so essentially every change to retrieval scores as an improvement
+// against them. This file exists so the harness runs and its own tests are not
+// vacuous — not so anyone can cite the numbers.
+//
+// To make the harness real, replace this and queries.jsonl with a redacted
+// export of an actual memory database. See docs/RETRIEVAL_EVAL.md.
+//
+// Every `tags` value carries "scaffold", which is what EvalFixtures.isScaffold()
+// detects and what puts the warning banner on the generated report.
+//
+// Ages are RELATIVE DAYS. Never absolute epoch millis — the corpus would age
+// between runs and drift the recency and decay signals.
+{"id":"m001","content":"Elnur's favourite programming language is Kotlin","category":"preference","created_days_ago":40,"accessed_days_ago":40,"access_count":1,"decay_score":0.45,"importance":0.7,"tags":"scaffold"}
+{"id":"m002","content":"The Aura Android project lives at D drive aura-android-clean","category":"project","created_days_ago":30,"accessed_days_ago":2,"access_count":12,"decay_score":0.95,"importance":0.6,"tags":"scaffold"}
+{"id":"m003","content":"Elnur prefers concise answers with no preamble","category":"preference","created_days_ago":60,"accessed_days_ago":20,"access_count":4,"decay_score":0.6,"importance":0.8,"tags":"scaffold"}
+{"id":"m004","content":"Stripe is unavailable in Azerbaijan so payments go through Lemon Squeezy","category":"fact","created_days_ago":25,"accessed_days_ago":25,"access_count":2,"decay_score":0.5,"importance":0.7,"tags":"scaffold"}
+{"id":"m005","content":"The retrieval pipeline fuses six signals with reciprocal rank fusion","category":"fact","created_days_ago":10,"accessed_days_ago":1,"access_count":8,"decay_score":0.98,"importance":0.6,"tags":"scaffold"}
+{"id":"m006","content":"Grocery list: bananas, oat milk, coffee beans","category":"episode","created_days_ago":1,"accessed_days_ago":1,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
+{"id":"m007","content":"Grocery list: rice, lentils, olive oil, tomatoes","category":"episode","created_days_ago":2,"accessed_days_ago":2,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
+{"id":"m008","content":"Grocery list: bread, eggs, butter, yoghurt","category":"episode","created_days_ago":3,"accessed_days_ago":3,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
+{"id":"m009","content":"Grocery list: apples, pears, walnuts, honey","category":"episode","created_days_ago":4,"accessed_days_ago":4,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
+{"id":"m010","content":"Grocery list: chicken, peppers, garlic, parsley","category":"episode","created_days_ago":5,"accessed_days_ago":5,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
+{"id":"m011","content":"We decided the database migration would run in a background worker","category":"episode","created_days_ago":14,"accessed_days_ago":14,"access_count":1,"decay_score":0.55,"importance":0.6,"tags":"scaffold"}
+{"id":"m012","content":"Elnur is not a programmer and does not write or debug code himself","category":"person","created_days_ago":90,"accessed_days_ago":30,"access_count":6,"decay_score":0.4,"importance":0.9,"tags":"scaffold"}
+{"id":"m013","content":"The morning brief worker runs daily at seven in the morning","category":"fact","created_days_ago":20,"accessed_days_ago":10,"access_count":3,"decay_score":0.7,"importance":0.5,"tags":"scaffold"}
+{"id":"m014","content":"BroadMind is a custom AI architecture research project","category":"project","created_days_ago":50,"accessed_days_ago":15,"access_count":5,"decay_score":0.65,"importance":0.7,"tags":"scaffold"}
+{"id":"m015","content":"Prompt caching cuts token cost on repeated request prefixes","category":"fact","created_days_ago":3,"accessed_days_ago":1,"access_count":2,"decay_score":0.99,"importance":0.6,"tags":"scaffold"}
+{"id":"m016","content":"Elnur drinks his coffee black with no sugar","category":"preference","created_days_ago":70,"accessed_days_ago":45,"access_count":2,"decay_score":0.35,"importance":0.4,"tags":"scaffold"}
+{"id":"m017","content":"The evolution system authors patches and validates them before proposing","category":"fact","created_days_ago":8,"accessed_days_ago":4,"access_count":3,"decay_score":0.9,"importance":0.6,"tags":"scaffold"}
+{"id":"m018","content":"Weekend plan: finish the retrieval harness and go for a long walk","category":"episode","created_days_ago":6,"accessed_days_ago":6,"access_count":0,"decay_score":0.85,"importance":0.3,"tags":"scaffold"}
+{"id":"m019","content":"Causeway studies causal inference and reasoning in language models","category":"project","created_days_ago":45,"accessed_days_ago":18,"access_count":4,"decay_score":0.6,"importance":0.7,"tags":"scaffold"}
+{"id":"m020","content":"The app targets Android eight and above with a minimum SDK of twenty six","category":"fact","created_days_ago":100,"accessed_days_ago":60,"access_count":1,"decay_score":0.25,"importance":0.5,"tags":"scaffold"}

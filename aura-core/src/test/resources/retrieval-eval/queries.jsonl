@@ -1,0 +1,41 @@
+// SCAFFOLD QUERY SET — see the header of corpus.jsonl. Absolute scores from
+// this file mean nothing; it exists so the harness is exercised.
+//
+// Judgments are GRADED: 0 irrelevant, 1 related, 2 relevant, 3 ideal. Binary
+// labels destroy the distinction the set most needs — "this is the answer" vs
+// "this is related and would be acceptable filler".
+//
+// A query with no grade >= 1 is a should-return-nothing case. Those are
+// first-class: recall inventing context for a question it has no answer to is
+// worse than silence, and MemoryStoreQueryTest already asserts that behaviour.
+//
+// Classes are deliberately adversarial — each names a known weakness:
+//   lexical         plain term overlap; the easy case, and the control
+//   synonym-only    ZERO lexical overlap. The only class LocalEmbedder cannot
+//                   possibly serve, so its share and its score are the entire
+//                   business case for a real on-device embedding model.
+//   deictic         "that thing we discussed" — exercises query rewriting
+//   fresh-decoy     one old relevant row against a wall of fresh irrelevant
+//                   ones; measures the metadata-vs-relevance imbalance directly
+//   ambiguous-term  the answer is old AND low-importance
+//   expect-empty    feeds zeroResultRate
+{"qid":"q01","class":"lexical","query":"favourite programming language","judgments":{"m001":3}}
+{"qid":"q02","class":"lexical","query":"where does the aura android project live","judgments":{"m002":3}}
+{"qid":"q03","class":"lexical","query":"reciprocal rank fusion signals","judgments":{"m005":3,"m017":1}}
+{"qid":"q04","class":"lexical","query":"morning brief worker schedule","judgments":{"m013":3}}
+{"qid":"q05","class":"lexical","query":"payments azerbaijan stripe","judgments":{"m004":3}}
+{"qid":"q06","class":"lexical","query":"evolution patches validation","judgments":{"m017":3,"m005":1}}
+{"qid":"q07","class":"lexical","query":"causal inference language models","judgments":{"m019":3}}
+{"qid":"q08","class":"lexical","query":"prompt caching token cost","judgments":{"m015":3}}
+{"qid":"q09","class":"synonym-only","query":"which coding tongue does he like most","judgments":{"m001":3}}
+{"qid":"q10","class":"synonym-only","query":"does he take anything in his espresso","judgments":{"m016":3}}
+{"qid":"q11","class":"synonym-only","query":"can he implement software himself","judgments":{"m012":3}}
+{"qid":"q12","class":"synonym-only","query":"how terse should replies be","judgments":{"m003":3}}
+{"qid":"q13","class":"deictic","query":"what did we decide about that","recent_context":"user: the schema change is going to be slow\nassistant: we could move it off the main thread","judgments":{"m011":3}}
+{"qid":"q14","class":"deictic","query":"remind me what that runs on","recent_context":"user: tell me about the daily summary\nassistant: it is generated each morning","judgments":{"m013":3}}
+{"qid":"q15","class":"fresh-decoy","query":"kotlin language preference","judgments":{"m001":3}}
+{"qid":"q16","class":"fresh-decoy","query":"minimum android sdk version","judgments":{"m020":3}}
+{"qid":"q17","class":"ambiguous-term","query":"list","judgments":{"m006":1,"m007":1,"m008":1,"m009":1,"m010":1}}
+{"qid":"q18","class":"ambiguous-term","query":"research project architecture","judgments":{"m014":3,"m019":2}}
+{"qid":"q19","class":"expect-empty","query":"zzqxv unknownword nonexistent","judgments":{}}
+{"qid":"q20","class":"expect-empty","query":"quantum chromodynamics lattice gauge","judgments":{}}
