@@ -188,6 +188,11 @@ class AnthropicProvider(
                 // This is a deliberate lie about the wire shape, bought to keep
                 // callers from having to special-case Anthropic.
                 val schemaBlockIndices = mutableSetOf<Int>()
+                // Usage arrives split across message_start (input, cache) and
+                // message_delta (output). Held here until both halves exist.
+                var inputTokens = 0
+                var cacheReadTokens = 0
+                var cacheWriteTokens = 0
                 while (true) {
                     val line = source.readUtf8Line() ?: break
                     if (line.isEmpty()) continue
@@ -269,6 +274,31 @@ class AnthropicProvider(
                         // is the natural end-of-stream signal.
                         "message_stop" -> { /* no-op: see comment above */ }
                         "message_delta" -> {
+                            // Anthropic splits usage across two events: input
+                            // counts arrive on message_start, output on
+                            // message_delta. Neither was read before, so this
+                            // provider reported no usage at all and
+                            // ProviderRegistry billed it on content.length.
+                            //
+                            // Emitted BEFORE the finish chunk: the loop stops
+                            // collecting once it sees a finish reason, so usage
+                            // emitted after it would be dropped on every turn.
+                            val outputTokens = ((obj["usage"] as? JsonObject)
+                                ?.get("output_tokens") as? JsonPrimitive)?.intOrNull
+                            if (outputTokens != null || inputTokens > 0) {
+                                emit(
+                                    ProviderChunk(
+                                        usage = Usage(
+                                            promptTokens = inputTokens,
+                                            completionTokens = outputTokens ?: 0,
+                                            totalTokens = inputTokens + (outputTokens ?: 0),
+                                            cachedPromptTokens = cacheReadTokens,
+                                            cacheWritePromptTokens = cacheWriteTokens,
+                                        ),
+                                    ),
+                                )
+                            }
+
                             val stop = (obj["delta"] as? JsonObject)?.get("stop_reason")
                             val reason = when ((stop as? JsonPrimitive)?.content) {
                                 "end_turn" -> FinishReason.stop
@@ -277,6 +307,29 @@ class AnthropicProvider(
                                 else -> null
                             }
                             if (reason != null) emit(ProviderChunk(finishReason = reason))
+                        }
+                        "message_start" -> {
+                            // Input counts, including the two cache figures that
+                            // say whether a prompt-cache breakpoint worked.
+                            // `cache_read_input_tokens` is billed at 0.1x and
+                            // `cache_creation_input_tokens` at 1.25x, so a
+                            // workload that writes a cache it never reads costs
+                            // MORE than not caching. Held until message_delta,
+                            // which is where the output count arrives.
+                            val u = (obj["message"] as? JsonObject)?.get("usage") as? JsonObject
+                            if (u != null) {
+                                inputTokens = (u["input_tokens"] as? JsonPrimitive)?.intOrNull ?: 0
+                                cacheReadTokens =
+                                    (u["cache_read_input_tokens"] as? JsonPrimitive)?.intOrNull ?: 0
+                                cacheWriteTokens =
+                                    (u["cache_creation_input_tokens"] as? JsonPrimitive)?.intOrNull ?: 0
+                                // Anthropic reports cache reads SEPARATELY from
+                                // input_tokens, unlike OpenAI where cached is a
+                                // subset. Fold them in so promptTokens means the
+                                // same thing on both, and cachedPromptTokens
+                                // stays a subset of it everywhere.
+                                inputTokens += cacheReadTokens + cacheWriteTokens
+                            }
                         }
                     }
                 }

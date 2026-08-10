@@ -22,6 +22,28 @@ data class Usage(
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
     val totalTokens: Int = 0,
+    /**
+     * Prompt tokens served from the provider's cache. A subset of
+     * [promptTokens], not an addition to it — every provider reports it that
+     * way, and treating it as extra would double-count the prefix.
+     *
+     * Priced far below a fresh prompt token (Anthropic 0.1x, OpenAI 0.5x), so
+     * this is the number that says whether prompt caching is working at all.
+     * Zero from a provider that reports no usage is indistinguishable from a
+     * genuine miss — [UsageSnapshot] carries call counts alongside so the two
+     * can be told apart in aggregate.
+     */
+    val cachedPromptTokens: Int = 0,
+    /**
+     * Prompt tokens written INTO the cache on this call. Anthropic prices these
+     * at 1.25x a normal prompt token, so a workload that writes a cache it
+     * never reads is more expensive than not caching at all — which is exactly
+     * what one-shot calls with a cache breakpoint would do.
+     *
+     * Only Anthropic reports this separately; the others fold it into
+     * [promptTokens] and leave this zero.
+     */
+    val cacheWritePromptTokens: Int = 0,
 )
 
 @Serializable

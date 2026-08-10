@@ -80,13 +80,52 @@ class ProviderRegistry @Inject constructor(
                         outputChars = outputChars,
                         reportedUsage = exactUsage,
                     )
+                    logUsage(modelId, exactUsage)
                 }
             }
         }.flowOn(Dispatchers.IO)
     }
 
+    /**
+     * One line per call, carrying the prompt-cache figures.
+     *
+     * This is the evidence for whether prompt caching is worth keeping. Reading
+     * it over a week of real turns answers the question that decides whether
+     * dynamic tool selection is worth building at all — a high cache-hit rate
+     * on steps 2..N means the tool schemas are already discounted to near-noise
+     * and there is nothing left for tool selection to save.
+     *
+     * A low rate is a bug report, not a verdict: the most likely causes are a
+     * per-step read making the "stable" prefix differ by one character, or a
+     * prompt under the provider's minimum cacheable length. Both look identical
+     * from the outside, and neither is fixed by sending fewer tools.
+     *
+     * `estimated` is called out explicitly because a zero from a provider that
+     * reports no usage is indistinguishable from a genuine cache miss.
+     */
+    private fun logUsage(modelId: String, usage: Usage?) {
+        if (usage == null) {
+            android.util.Log.d(TAG, "usage $modelId: estimated (provider reported none)")
+            return
+        }
+        val pct = if (usage.promptTokens > 0) {
+            (usage.cachedPromptTokens * 100) / usage.promptTokens
+        } else {
+            0
+        }
+        android.util.Log.d(
+            TAG,
+            "usage $modelId: prompt=${usage.promptTokens} cached=${usage.cachedPromptTokens} " +
+                "($pct%) cacheWrite=${usage.cacheWritePromptTokens} completion=${usage.completionTokens}",
+        )
+    }
+
     fun configured(): List<Provider> = providers.values.filter { it.isConfigured() }
     fun all(): List<Provider> = providers.values.toList()
     fun get(prefix: String): Provider? = byPrefix["$prefix:"]
+
+    private companion object {
+        const val TAG = "ProviderRegistry"
+    }
 }
 

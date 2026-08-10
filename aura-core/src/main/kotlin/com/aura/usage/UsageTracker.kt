@@ -23,7 +23,20 @@ data class ModelUsage(
     val calls: Long = 0,
     /** True when at least one call used Aura's chars/4 fallback. */
     val estimated: Boolean = false,
-)
+    /** Subset of [promptTokens] served from the provider's cache. */
+    val cachedPromptTokens: Long = 0,
+    /** Prompt tokens written into a cache. Anthropic prices these at 1.25x. */
+    val cacheWritePromptTokens: Long = 0,
+) {
+    /**
+     * Share of prompt tokens that came from cache, 0..1.
+     *
+     * Only meaningful when [estimated] is false — an estimated call reports no
+     * cache figures at all, and a zero there means "not measured", not "missed".
+     */
+    val cacheHitRate: Double
+        get() = if (promptTokens > 0) cachedPromptTokens.toDouble() / promptTokens else 0.0
+}
 
 @Serializable
 data class UsageSnapshot(
@@ -32,8 +45,14 @@ data class UsageSnapshot(
     val calls: Long = 0,
     val toolResultChars: Long = 0,
     val models: List<ModelUsage> = emptyList(),
+    val cachedPromptTokens: Long = 0,
+    val cacheWritePromptTokens: Long = 0,
 ) {
     val totalTokens: Long get() = promptTokens + completionTokens
+
+    /** See [ModelUsage.cacheHitRate]. */
+    val cacheHitRate: Double
+        get() = if (promptTokens > 0) cachedPromptTokens.toDouble() / promptTokens else 0.0
 }
 
 /**
@@ -78,6 +97,11 @@ class UsageTracker private constructor(
             estimateTokens(outputChars)
         }
         val estimated = !hasExactBreakdown
+        // Only counted when the breakdown is real. An estimate has no cache
+        // figures, and adding a zero would drag the hit rate down with calls
+        // that never measured one.
+        val cached = if (hasExactBreakdown) reportedUsage!!.cachedPromptTokens.toLong() else 0L
+        val cacheWrite = if (hasExactBreakdown) reportedUsage!!.cacheWritePromptTokens.toLong() else 0L
         val current = _snapshot.value
         val existing = current.models.firstOrNull { it.modelId == modelId }
             ?: ModelUsage(modelId = modelId)
@@ -86,12 +110,16 @@ class UsageTracker private constructor(
             completionTokens = existing.completionTokens + completion,
             calls = existing.calls + 1,
             estimated = existing.estimated || estimated,
+            cachedPromptTokens = existing.cachedPromptTokens + cached,
+            cacheWritePromptTokens = existing.cacheWritePromptTokens + cacheWrite,
         )
         update(
             current.copy(
                 promptTokens = current.promptTokens + prompt,
                 completionTokens = current.completionTokens + completion,
                 calls = current.calls + 1,
+                cachedPromptTokens = current.cachedPromptTokens + cached,
+                cacheWritePromptTokens = current.cacheWritePromptTokens + cacheWrite,
                 models = (current.models.filterNot { it.modelId == modelId } + updatedModel)
                     .sortedByDescending { it.promptTokens + it.completionTokens },
             ),

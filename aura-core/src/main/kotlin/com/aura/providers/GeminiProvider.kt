@@ -458,6 +458,11 @@ class GeminiProvider(
                 promptTokens = meta["promptTokenCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                 completionTokens = meta["candidatesTokenCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                 totalTokens = meta["totalTokenCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                // Implicit context caching. A subset of promptTokenCount, same
+                // convention as OpenAI. Present only once a request repeats a
+                // long enough prefix for Gemini to have cached it.
+                cachedPromptTokens =
+                    meta["cachedContentTokenCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
             )
         } catch (_: Exception) {
             null

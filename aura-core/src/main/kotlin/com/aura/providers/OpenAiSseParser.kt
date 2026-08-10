@@ -54,8 +54,16 @@ internal class OpenAiSseParser {
     fun parseEvent(data: String): List<ProviderChunk> {
         if (data == "[DONE]") return listOf(ProviderChunk(finishReason = FinishReason.stop))
         val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return emptyList() }
-        val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject ?: return emptyList()
-        val delta = (choice["delta"] as? JsonObject) ?: return emptyList()
+
+        // Usage BEFORE the `choices` guard below. When `stream_options`
+        // requests it, OpenAI sends usage on a final event whose `choices` is
+        // an EMPTY ARRAY — so reading usage after that guard drops every
+        // report, on the one event that carries it.
+        val usageChunk = parseUsage(obj)
+
+        val choice = (obj["choices"] as? JsonArray)?.firstOrNull()?.jsonObject
+            ?: return listOfNotNull(usageChunk)
+        val delta = (choice["delta"] as? JsonObject) ?: return listOfNotNull(usageChunk)
 
         // Tool calls — emit one chunk per array entry. resolveIds() updates
         // the index->id map as a side effect.
@@ -92,8 +100,40 @@ internal class OpenAiSseParser {
 
         // Order: tool calls first (so Brain captures the start), then
         // finish (so a finishing event cannot swallow a queued tool
-        // chunk), then thinking, then text.
-        return toolChunks + listOfNotNull(finishChunk, thinkingChunk, textChunk)
+        // chunk), then thinking, then text. Usage last — it is metadata and
+        // must not sit ahead of a finish chunk the caller acts on.
+        return toolChunks + listOfNotNull(finishChunk, thinkingChunk, textChunk, usageChunk)
+    }
+
+    /**
+     * The `usage` object, when present.
+     *
+     * Most OpenAI-compatible servers only send this when the request asked via
+     * `stream_options: {include_usage: true}`, so until that was added this
+     * parser had no usage path at all and twelve of seventeen prefixes were
+     * billed on a `content.length` estimate in [ProviderRegistry].
+     *
+     * `prompt_tokens_details.cached_tokens` is the cache-hit figure. It is a
+     * subset of `prompt_tokens`, not an addition.
+     */
+    private fun parseUsage(obj: JsonObject): ProviderChunk? {
+        val usage = (obj["usage"] as? JsonObject) ?: return null
+        val prompt = (usage["prompt_tokens"] as? JsonPrimitive)?.intOrNull ?: 0
+        val completion = (usage["completion_tokens"] as? JsonPrimitive)?.intOrNull ?: 0
+        val total = (usage["total_tokens"] as? JsonPrimitive)?.intOrNull ?: (prompt + completion)
+        val cached = ((usage["prompt_tokens_details"] as? JsonObject)
+            ?.get("cached_tokens") as? JsonPrimitive)?.intOrNull ?: 0
+        // A usage object of all zeros carries no information and would only
+        // add a no-op chunk for every stream.
+        if (prompt == 0 && completion == 0 && total == 0) return null
+        return ProviderChunk(
+            usage = Usage(
+                promptTokens = prompt,
+                completionTokens = completion,
+                totalTokens = total,
+                cachedPromptTokens = cached,
+            ),
+        )
     }
 
     /**

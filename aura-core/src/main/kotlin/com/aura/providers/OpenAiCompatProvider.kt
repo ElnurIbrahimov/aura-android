@@ -350,6 +350,12 @@ open class OpenAiCompatProvider(
             // think:true/high. Subclasses can override injectThinking().
             injectThinking(this, options.thinkingBudget)
             injectResponseFormat(this, options)
+            // Without this, most OpenAI-compatible servers send no usage object
+            // at all on a streaming request, and ProviderRegistry falls back to
+            // estimating input cost from `content.length`.
+            if (stream && sendsStreamUsage) {
+                put("stream_options", buildJsonObject { put("include_usage", true) })
+            }
             put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->
@@ -414,6 +420,17 @@ open class OpenAiCompatProvider(
     ) {
         body.putOpenAiResponseFormat(options)
     }
+
+    /**
+     * Whether to ask for a usage report via `stream_options`.
+     *
+     * True for every first-party prefix, all of which are real OpenAI-shaped
+     * services that either honour the key or ignore it. Subclasses pointing at
+     * something less predictable should turn it off: an unknown server that
+     * 400s on an unrecognised key breaks the user's chat, and usage reporting
+     * is not worth that trade.
+     */
+    protected open val sendsStreamUsage: Boolean get() = true
 
     /**
      * Whether [ChatOptions.responseSchema] reaches the wire from this provider.
