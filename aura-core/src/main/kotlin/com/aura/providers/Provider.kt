@@ -100,6 +100,23 @@ interface Provider {
     val transcriptionsEndpoint: String? get() = null
 
     /**
+     * Whether this provider serialises [ChatOptions.responseSchema] onto the wire.
+     *
+     * Phrased as "I serialise it", not "the server honours it" — the latter is
+     * not something this code can know. `custom` points at a user-supplied URL
+     * that may be llama.cpp, LM Studio, or a corporate gateway; `moa` fans out
+     * to whatever the aggregator happens to be. Both leave this false, and both
+     * degrade to a prompt-level request for JSON plus a lenient parse, which is
+     * what every caller has to be able to survive anyway.
+     *
+     * Deliberately a property on the provider rather than a static per-prefix
+     * table like [ProviderOutputLimits]. That pattern is right for facts about
+     * a vendor; this is a fact about our own serialiser, and the object already
+     * knows it.
+     */
+    val supportsResponseSchema: Boolean get() = false
+
+    /**
      * Cancel an in-flight request. Implementations should propagate to the underlying HTTP/SDK call.
      */
     suspend fun cancel()

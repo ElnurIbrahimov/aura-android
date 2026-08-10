@@ -59,6 +59,9 @@ class ChatGptSubscriptionProvider(
 ) : Provider {
     override val prefix = "chatgpt"
     override val displayName = "ChatGPT Subscription"
+
+    /** Serialised as the Responses-API `text.format` block. */
+    override val supportsResponseSchema: Boolean get() = true
     @Volatile private var activeEventSource: EventSource? = null
 
     /**
@@ -199,6 +202,27 @@ class ChatGptSubscriptionProvider(
                         put("parameters", tool.parameters.toJsonSchema())
                     }
                 }))
+            }
+            // Structured output, Responses-API shape. Note `name`, `schema` and
+            // `strict` are SIBLINGS of `type` inside `format` — not nested under
+            // a `json_schema` key as they are in Chat Completions. Same class of
+            // divergence as the tool declarations above, which took a 400 for
+            // exactly that reason.
+            options.responseSchema?.let { schema ->
+                put("text", buildJsonObject {
+                    put("format", buildJsonObject {
+                        put("type", "json_schema")
+                        put("name", schema.name)
+                        put("strict", schema.strict)
+                        put("schema", schema.schema)
+                    })
+                })
+            } ?: run {
+                if (options.responseFormat == ResponseFormat.JSON) {
+                    put("text", buildJsonObject {
+                        put("format", buildJsonObject { put("type", "json_object") })
+                    })
+                }
             }
         }
         val request = Request.Builder()

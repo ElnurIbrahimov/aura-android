@@ -349,6 +349,7 @@ open class OpenAiCompatProvider(
             // reasoning_effort and thinking:{type:enabled}. Ollama uses
             // think:true/high. Subclasses can override injectThinking().
             injectThinking(this, options.thinkingBudget)
+            injectResponseFormat(this, options)
             put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->
@@ -397,6 +398,31 @@ open class OpenAiCompatProvider(
         }
         body.put("reasoning_effort", effort)
     }
+
+    /**
+     * Inject `response_format`. Subclasses override when their endpoint speaks
+     * a different dialect, or to opt out entirely.
+     *
+     * Default is the Chat Completions shape via [putOpenAiResponseFormat],
+     * which writes nothing when the caller asked for plain text — so this is a
+     * no-op on every request that does not want JSON, which is nearly all of
+     * them.
+     */
+    protected open fun injectResponseFormat(
+        body: kotlinx.serialization.json.JsonObjectBuilder,
+        options: ChatOptions,
+    ) {
+        body.putOpenAiResponseFormat(options)
+    }
+
+    /**
+     * Whether [ChatOptions.responseSchema] reaches the wire from this provider.
+     *
+     * True here because [injectResponseFormat] serialises it. That is a claim
+     * about this class, not about the twelve endpoints behind it — see
+     * [Provider.supportsResponseSchema].
+     */
+    override val supportsResponseSchema: Boolean get() = true
 
     companion object {
         // 5 minutes: long enough for a slow model + max_tokens worth of tokens,

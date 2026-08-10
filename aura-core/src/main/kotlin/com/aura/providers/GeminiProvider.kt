@@ -54,6 +54,9 @@ class GeminiProvider(
     override val prefix = "gemini"
     override val displayName = "Google Gemini"
 
+    /** Serialised as `generationConfig.responseSchema`, when no tools are declared. */
+    override val supportsResponseSchema: Boolean get() = true
+
     /** Live API key, looked up at call time. */
     private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix) ?: ""
 
@@ -394,6 +397,24 @@ class GeminiProvider(
                 put("thinkingConfig", buildJsonObject {
                     put("thinkingBudget", budget)
                 })
+            }
+            // Structured output. Gated on `tools.isEmpty()`: Gemini rejects
+            // responseSchema alongside functionDeclarations, and a caller
+            // asking for a schema is asking for an answer, not a tool call.
+            // The schema goes through the same sanitizer as tool schemas —
+            // Gemini's OpenAPI subset rejects $ref/$defs/additionalProperties
+            // and friends, and responseSchema takes a caller-supplied
+            // JsonObject that may well contain them.
+            if (tools.isEmpty()) {
+                val schema = options.responseSchema
+                when {
+                    schema != null -> {
+                        put("responseMimeType", "application/json")
+                        put("responseSchema", sanitizeForGemini(schema.schema))
+                    }
+                    options.responseFormat == ResponseFormat.JSON ->
+                        put("responseMimeType", "application/json")
+                }
             }
         })
 

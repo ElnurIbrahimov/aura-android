@@ -208,6 +208,14 @@ class CustomOpenAiCompatProvider(
             put("temperature", options.temperature ?: ChatOptions.DEFAULT_TEMPERATURE)
             put("top_p", options.topP ?: ChatOptions.DEFAULT_TOP_P)
             options.maxTokens?.let { put("max_tokens", it) }
+            // Shares only the response_format fragment with OpenAiCompatProvider,
+            // not the whole body: this provider deliberately does not extend it,
+            // and this build sits inside the SSRF-guarded path. Sending the key
+            // is safe even though `supportsResponseSchema` stays false — the
+            // flag is about what we promise callers, and the endpoint here is a
+            // user-supplied URL we cannot make promises about. Nothing sets a
+            // schema on the chat path today, so in practice this writes nothing.
+            putOpenAiResponseFormat(options)
             put("messages", JsonArray(messages.map { it.toOpenAiJson() }))
             if (tools.isNotEmpty()) {
                 put("tools", JsonArray(tools.map { tool ->

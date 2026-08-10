@@ -50,6 +50,15 @@ class AnthropicProvider(
     override val prefix = "anthropic"
     override val displayName = "Anthropic"
 
+    /**
+     * Serialised as a forced `tool_choice` over a synthetic tool, when no real
+     * tools are declared. Note this covers [ChatOptions.responseSchema] only:
+     * Anthropic has no bare JSON mode, so [ResponseFormat.JSON] on its own puts
+     * nothing on the wire and relies entirely on the prompt plus the caller's
+     * lenient parse.
+     */
+    override val supportsResponseSchema: Boolean get() = true
+
     /** Live API key, looked up at call time. */
     private suspend fun apiKey(): String = providerKeys.keyForAwaiting(prefix) ?: ""
 
@@ -73,9 +82,28 @@ class AnthropicProvider(
         //
         // The budget is only ever clamped DOWN. Raising max_tokens to fit would
         // increase spend behind the caller's back, which a provider must never do.
-        val thinkingBudget = options.thinkingBudget
+        val rawThinkingBudget = options.thinkingBudget
             ?.coerceAtMost(maxTokens - 1)
             ?.takeIf { it >= MIN_THINKING_BUDGET }
+
+        // Structured output. Anthropic has no `response_format`, so a schema is
+        // expressed as a single synthetic tool the model is forced to call, and
+        // the resulting `tool_use` input is streamed back to the caller as text
+        // (see SYNTHETIC_SCHEMA_TOOL and the input_json_delta handling below).
+        //
+        // Only when the caller declared no real tools. Forcing a tool_choice
+        // alongside a real tool set would destroy tool calling outright, and a
+        // caller asking for a schema is asking for an answer, not a tool call.
+        // Every current call site passes tools = emptyList(), so the gate costs
+        // nothing and prevents a catastrophic interaction.
+        val forcedSchema = options.responseSchema?.takeIf { tools.isEmpty() }
+
+        // Extended thinking and forced tool use are mutually exclusive on
+        // Anthropic. Dropping thinking is the cheaper loss: the caller asked for
+        // a machine-readable answer, and losing the reasoning trace costs less
+        // than a non-retryable 400 that loses the answer too.
+        val thinkingBudget = if (forcedSchema != null) null else rawThinkingBudget
+
         val body = buildJsonObject {
             put("model", model)
             put("stream", true)
@@ -100,6 +128,18 @@ class AnthropicProvider(
                         put("input_schema", tool.parameters.toJsonSchema())
                     }
                 }))
+            } else if (forcedSchema != null) {
+                put("tools", kotlinx.serialization.json.JsonArray(listOf(
+                    buildJsonObject {
+                        put("name", forcedSchema.name)
+                        put("description", "Return the result in this exact structure.")
+                        put("input_schema", forcedSchema.schema)
+                    },
+                )))
+                put("tool_choice", buildJsonObject {
+                    put("type", "tool")
+                    put("name", forcedSchema.name)
+                })
             }
         }
         val request = Request.Builder()
@@ -141,6 +181,13 @@ class AnthropicProvider(
                 // two parallel `tool_use` blocks would have their deltas
                 // mis-routed by the Brain's "last seen id" fallback heuristic.
                 val pendingByIndex = mutableMapOf<Int, String>()
+                // Content-block indices belonging to the synthetic schema tool.
+                // Their deltas are re-emitted as TEXT rather than tool-call
+                // arguments, so `responseSchema` means the same thing on every
+                // provider: the text you collect off this flow is the JSON.
+                // This is a deliberate lie about the wire shape, bought to keep
+                // callers from having to special-case Anthropic.
+                val schemaBlockIndices = mutableSetOf<Int>()
                 while (true) {
                     val line = source.readUtf8Line() ?: break
                     if (line.isEmpty()) continue
@@ -155,6 +202,13 @@ class AnthropicProvider(
                                 val id = (block["id"] as? JsonPrimitive)?.content ?: ""
                                 val name = (block["name"] as? JsonPrimitive)?.content ?: ""
                                 val index = (obj["index"] as? JsonPrimitive)?.intOrNull
+                                // The synthetic schema tool is not a tool call the
+                                // caller asked for — swallow the start event and
+                                // mark the index so its deltas become text.
+                                if (forcedSchema != null && name == forcedSchema.name) {
+                                    if (index != null) schemaBlockIndices += index
+                                    continue
+                                }
                                 if (index != null && id.isNotEmpty()) {
                                     pendingByIndex[index] = id
                                 }
@@ -184,8 +238,14 @@ class AnthropicProvider(
                                         // correctly. Fall back to "" for legacy
                                         // Brain fallback if index is missing.
                                         val index = (obj["index"] as? JsonPrimitive)?.intOrNull
-                                        val id = index?.let { pendingByIndex[it] } ?: ""
-                                        emit(ProviderChunk(toolCall = ToolCall(id, "", partial)))
+                                        if (index != null && index in schemaBlockIndices) {
+                                            // Forced-schema block: the accumulated
+                                            // partial_json IS the answer.
+                                            emit(ProviderChunk(text = partial))
+                                        } else {
+                                            val id = index?.let { pendingByIndex[it] } ?: ""
+                                            emit(ProviderChunk(toolCall = ToolCall(id, "", partial)))
+                                        }
                                     }
                                 }
                             }
@@ -195,6 +255,7 @@ class AnthropicProvider(
                             // to keep the map small across long streams.
                             (obj["index"] as? JsonPrimitive)?.intOrNull?.let {
                                 pendingByIndex.remove(it)
+                                schemaBlockIndices.remove(it)
                             }
                         }
                         // `message_stop` is the protocol-level end-of-stream
