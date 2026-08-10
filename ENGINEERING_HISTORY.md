@@ -358,6 +358,20 @@ the controller's first direct test — the coverage gap and the bug were the sam
 fact, which is the argument for the test rather than for the fix. Fixed by
 cancelling without joining any job the current coroutine is running inside.
 
+**`ToolPolicy.allowedScopes` and `PolicyResult.ScopeDenied` were both declared
+and neither was ever evaluated.** `PolicyEngine` had no scope branch at all, so a
+user who restricted a tool to specific apps or domains got a setting that did
+nothing and reported nothing — the §2.4 "dead or placebo surface" pattern, in the
+security layer. It is now evaluated, and it fails closed: an allowlist that is
+configured but unenforceable denies, because a call site forgetting to pass its
+scope must not silently bypass a restriction the user deliberately set. The
+matcher's first version extended a match at a dot so `com.google` would cover
+`com.google.android.gm` — its own test caught that the same rule lets
+`example.com.evil.net` past an `example.com` allowlist, since a package
+hierarchy and a lookalike domain are the same string shape and nothing at that
+layer can tell them apart. The permissive reading was dropped rather than
+special-cased.
+
 **`MemoryReranker` failed silently, twice, and swallowed cancellation.** Both
 `catch (e: Exception)` blocks returned a plausible list with no log — the outer
 one falling back to RRF order, the inner one scoring a whole batch neutral at

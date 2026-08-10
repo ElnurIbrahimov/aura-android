@@ -42,6 +42,81 @@ class PolicyEngineTest {
         assertTrue("Expected Allowed, got $result", result is PolicyResult.Allowed)
     }
 
+    // ---- the scope allowlist, which was declared and never evaluated --------
+
+    private fun scoped(vararg scopes: kotlin.String) = ToolPolicy(
+        toolName = "test_tool",
+        allowedScopes = scopes.toList(),
+    )
+
+    @Test
+    fun `an empty allowlist restricts nothing`() = runTest {
+        // The default and the common case. Empty must mean "no restriction",
+        // not "nothing is allowed", or every tool in the app stops working.
+        coEvery { policyStore.getPolicy("test_tool") } returns ToolPolicy(toolName = "test_tool")
+        val result = engine.evaluate(makeTool(ToolRisk.READ_ONLY), ctx(), scope = "com.whatsapp")
+        assertTrue("Expected Allowed, got $result", result is PolicyResult.Allowed)
+    }
+
+    @Test
+    fun `a scope outside the allowlist is denied`() = runTest {
+        coEvery { policyStore.getPolicy("test_tool") } returns scoped("com.google", "example.com")
+        val result = engine.evaluate(makeTool(ToolRisk.READ_ONLY), ctx(), scope = "com.evil.app")
+        assertTrue("Expected ScopeDenied, got $result", result is PolicyResult.ScopeDenied)
+        assertEquals("com.evil.app", (result as PolicyResult.ScopeDenied).scope)
+    }
+
+    @Test
+    fun `a missing scope against a configured allowlist FAILS CLOSED`() = runTest {
+        // The decision that makes this a control rather than a decoration. A
+        // call site that forgets to pass its scope must not silently bypass a
+        // restriction the user deliberately set. Denying is visible and
+        // debuggable; allowing is neither.
+        coEvery { policyStore.getPolicy("test_tool") } returns scoped("com.google")
+        val result = engine.evaluate(makeTool(ToolRisk.READ_ONLY), ctx(), scope = null)
+        assertTrue("Expected ScopeDenied, got $result", result is PolicyResult.ScopeDenied)
+    }
+
+    @Test
+    fun `an allowlist entry matches exactly or extends at a path separator`() = runTest {
+        // This test failed on its first run and was right to. The matcher also
+        // extended at a dot, so "com.google" would cover "com.google.android.gm"
+        // — and the same rule let "example.com.evil.net" past an "example.com"
+        // allowlist. A package hierarchy and a lookalike domain are the same
+        // string shape; nothing here can tell them apart, so the permissive
+        // reading was dropped rather than special-cased.
+        coEvery { policyStore.getPolicy("test_tool") } returns scoped("com.google", "example.com")
+        val tool = makeTool(ToolRisk.READ_ONLY)
+
+        assertTrue(engine.evaluate(tool, ctx(), scope = "com.google") is PolicyResult.Allowed)
+        assertTrue(engine.evaluate(tool, ctx(), scope = "example.com/inbox") is PolicyResult.Allowed)
+
+        // The lookalike, which is the whole reason for the rule.
+        assertTrue(engine.evaluate(tool, ctx(), scope = "example.com.evil.net") is PolicyResult.ScopeDenied)
+        assertTrue(engine.evaluate(tool, ctx(), scope = "com.googlemail") is PolicyResult.ScopeDenied)
+        // A sub-package is NOT covered. Name the app you mean.
+        assertTrue(engine.evaluate(tool, ctx(), scope = "com.google.android.gm") is PolicyResult.ScopeDenied)
+    }
+
+    @Test
+    fun `scopeDenial is callable on its own for tools that learn their target late`() = runTest {
+        // screen_act only knows its package after reading the foreground app,
+        // long after the policy gate ran, so it calls this directly.
+        coEvery { policyStore.getPolicy("screen_act") } returns
+            ToolPolicy(toolName = "screen_act", allowedScopes = listOf("com.whatsapp"))
+
+        assertEquals(null, engine.scopeDenial("screen_act", "com.whatsapp"))
+        assertTrue(engine.scopeDenial("screen_act", "com.bank.app") is PolicyResult.ScopeDenied)
+    }
+
+    @Test
+    fun `no stored policy means no scope restriction`() = runTest {
+        // Defaults come from ToolPolicyDefaults, which sets no scopes, so an
+        // unconfigured tool must not be gated by a check it never opted into.
+        coEvery { policyStore.getPolicy("screen_act") } returns null
+        assertEquals(null, engine.scopeDenial("screen_act", "com.anything"))
+    }
+
     @Test
     fun blocks_write_local_in_incognito_mode() = runTest {
         val tool = makeTool(ToolRisk.WRITE_LOCAL)

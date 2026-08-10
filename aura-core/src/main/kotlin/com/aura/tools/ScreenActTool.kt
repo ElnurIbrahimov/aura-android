@@ -10,6 +10,7 @@ import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
 import com.aura.agent.policy.ConfirmationLevel
+import com.aura.agent.policy.PolicyEngine
 import com.aura.data.UserPreferences
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
@@ -39,6 +40,7 @@ class ScreenActTool @Inject constructor(
     private val bridge: ScreenControlBridge,
     private val session: ScreenControlSession,
     private val userPreferences: UserPreferences? = null,
+    private val policyEngine: PolicyEngine? = null,
 ) {
     fun definition(): ToolDefinition = ToolDefinition(
         name = "screen_act",
@@ -136,6 +138,19 @@ class ScreenActTool @Inject constructor(
             targetIsPassword = request.kind == ActionRequest.Kind.TYPE && element?.label == "••••",
             auraPackages = ScreenControlGuard.deniedPackages(),
         )?.let { return ToolResult.Error(it.reason, it.code) }
+
+        // The user's app allowlist — layer 6, and the only one they configure by
+        // naming apps rather than by flipping a switch. Checked HERE rather than
+        // in `PolicyEngine.evaluate` because the target package is not known
+        // until the foreground app has been read, which is long after the policy
+        // gate ran. Fails closed: an allowlist that cannot be checked denies.
+        policyEngine?.scopeDenial("screen_act", pkg)?.let {
+            return ToolResult.Error(
+                "Screen control is restricted to specific apps, and ${it.scope} is not one of them. " +
+                    "Change the allowed apps in Settings if that is wrong.",
+                "scope_denied",
+            )
+        }
 
         // The tripwire fires regardless of an open session: a live session means
         // "carry on with this task", not "you may now do the irreversible part
