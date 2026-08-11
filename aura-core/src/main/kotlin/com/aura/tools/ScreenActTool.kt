@@ -42,6 +42,20 @@ class ScreenActTool @Inject constructor(
     private val userPreferences: UserPreferences? = null,
     private val policyEngine: PolicyEngine? = null,
 ) {
+    /**
+     * Counts sessions this tool has opened, so each one needs its own approval.
+     *
+     * A confirmation key is remembered for the life of the conversation, which
+     * is right for "may Aura use this tool" and wrong for "may Aura have five
+     * minutes of screen control" — the second is a budget, and a budget that
+     * renews itself without asking is not a budget. Incrementing after each
+     * open means the next session asks under a key nobody has approved yet.
+     */
+    private val sessionEpoch = java.util.concurrent.atomic.AtomicLong(0)
+
+    /** The confirmation key naming the session that is about to be opened. */
+    internal fun sessionGrantKey(): String = "$SESSION_KEY_PREFIX${sessionEpoch.get()}"
+
     fun definition(): ToolDefinition = ToolDefinition(
         name = "screen_act",
         description =
@@ -160,7 +174,14 @@ class ScreenActTool @Inject constructor(
         if (destructive && TRIPWIRE_KEY !in confirmedTools) {
             return ToolResult.NeedsConfirmation(
                 level = ConfirmationLevel.EXPLICIT.name,
-                toolName = definition().name,
+                // The key granted must be the key checked. This passed
+                // `definition().name`, so approving a tripwire added
+                // "screen_act" and never TRIPWIRE_KEY — which made the tripwire
+                // ask forever (harmless) while silently satisfying the *session*
+                // grant below (not harmless): confirming one irreversible button
+                // handed out a five-minute, twenty-five-action session nobody
+                // was shown the terms of.
+                toolName = TRIPWIRE_KEY,
                 rationale = "Aura wants to ${request.kind.name.lowercase()} \"$label\" in $pkg. " +
                     "That looks like it cannot be undone.",
             )
@@ -170,16 +191,30 @@ class ScreenActTool @Inject constructor(
         // BODY works because the loop treats a body-returned gate identically
         // to a policy-returned one — so this needs no loop changes at all.
         if (session.check(pkg) != null) {
-            if (definition().name !in confirmedTools) {
+            // A confirmation grant is single-use, because a session is.
+            //
+            // This used to check `definition().name`, which is per-conversation
+            // and never expires — so the first approval in a conversation
+            // silently re-opened a fresh full-budget session every time the old
+            // one ran out, in any app, for as long as the conversation lived.
+            // The five-minute, twenty-five-action, one-app bounds the dialog
+            // promises were real for the first session and unbounded after it.
+            //
+            // The epoch makes each grant name a specific session, in the same
+            // way TRIPWIRE_KEY names a specific decision: once spent, the next
+            // session asks under a key nobody has approved yet.
+            val grantKey = sessionGrantKey()
+            if (grantKey !in confirmedTools) {
                 return ToolResult.NeedsConfirmation(
                     level = ConfirmationLevel.EXPLICIT.name,
-                    toolName = definition().name,
+                    toolName = grantKey,
                     rationale = "Aura wants to control the screen in $pkg. This allows up to " +
                         "${ScreenControlSession.MAX_ACTIONS} actions over the next " +
                         "${ScreenControlSession.DURATION_MS / 60_000} minutes, in that app only.",
                 )
             }
             session.open(pkg)
+            sessionEpoch.incrementAndGet()
         }
 
         session.consume(pkg)?.let { return ToolResult.Error(it.reason, "session_denied") }
@@ -246,11 +281,14 @@ class ScreenActTool @Inject constructor(
             runCatching { it.screenControlEnabled.first() }.getOrDefault(false)
         } ?: false
 
-    private companion object {
+    internal companion object {
         /**
          * Separate confirmation key for the tripwire, so approving a session
          * does not also pre-approve every destructive-looking button in it.
          */
         const val TRIPWIRE_KEY = "screen_act:destructive"
+
+        /** Prefix of the single-use session grant key. See [sessionGrantKey]. */
+        const val SESSION_KEY_PREFIX = "screen_act:session:"
     }
 }
