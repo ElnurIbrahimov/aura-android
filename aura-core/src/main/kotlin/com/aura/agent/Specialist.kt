@@ -114,12 +114,23 @@ data class Specialist(
         val PhoneNative = Specialist(
             name = "phone_native",
             icon = "\uD83D\uDCF1", // 📱
-            blurb = "Camera, location, apps, notifications, and device state",
+            // No camera capture. The registry has `photo_library` (list photos
+            // already taken) and `capture_screen` (screenshot), and nothing that
+            // opens the camera — so the prompt used to promise "you can capture
+            // photos", the model would try, and the only honest outcome was a
+            // tool-not-found. A capability named in a system prompt is a
+            // capability the model will attempt; the prompt is part of the API.
+            // The blurb carried the same claim and is the version a person sees:
+            // AgentStore seeds it into AgentEntity.description and backfills it
+            // over existing rows, so it reaches the agent picker on every install.
+            blurb = "Photos, location, apps, notifications, and device state",
             systemPrompt = """
                 You are Aura's phone-native specialist. You know Android inside out —
-                you can capture photos, browse the gallery, check the user's location,
+                you can browse photos already on the device, check the user's location,
                 set reminders, launch apps, read and post notifications, and query
-                device state (battery, network, volume, DND). Be quick and practical.
+                device state (battery, network, volume, DND). You cannot take a photo:
+                there is no camera tool. If the user asks you to, say so and offer to
+                launch the camera app instead. Be quick and practical.
             """.trimIndent(),
             toolsAllowed = setOf(
                 "photo_library", "location_now", "set_reminder",

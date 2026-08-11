@@ -19,7 +19,7 @@ This is my personal copy.
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign — stage-specific prompts)
 - Skills (installable skill cards, skill-backed tool dispatch)
-- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + cross-encoder reranking + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
+- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + LLM relevance rescoring (a prompt scorer, not a cross-encoder model — up to 5 extra model calls per recall) + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
 - Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
@@ -30,7 +30,7 @@ This is my personal copy.
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
 - Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts; none are in the backup schema yet.
-- 4-tab bottom nav (Home, Chat, Memory, Settings) + 21 secondary routes (History, Hands, Tasks, Reminders, Proactive, Skills, Creative, Creative Project, Production, Agent Runs, Beliefs, Evolution Inbox, Evolution Rollback, Diagnostics, Knowledge Graph, Profile, Identity Editor, Tools, Search, Onboarding)
+- 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 29 secondary routes (History, Hands, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, World Model, Taste Profile, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Beliefs, Evolution Rollback, Agent Editor)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, sentence-boundary streaming TTS in continuous voice mode, voice call UI)
 - Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Push-to-talk remains the default and works with every provider.
 - Screen control (accessibility-tree read + tap/type/scroll/swipe in any app, off by default; 5min/25-action sessions bound to one package, non-overridable denylist including Aura itself, semantic tripwire on irreversible labels, refusal while a password field is visible)
@@ -50,14 +50,14 @@ This is my personal copy.
 - Taste engine (preference signal recording, style profiling, model routing, prompt enhancer)
 - Capability router (Exa search, Jina reader, Stability image, Kling video, WorldLabs 3D, ElevenLabs TTS — each requires its own API key)
 - Tool policy engine (layered precedence: built-in risk -> incognito gate -> user policy -> per-run approval, configurable per tool)
-- Agent trace + observability (20 event types via TraceSink, surfaced in Diagnostics screen)
+- Agent trace + observability (`TraceSink`, a 10,000-event in-memory ring buffer surfaced in the Diagnostics screen). 8 of 20 TraceSink event types are emitted by production code: RUN_STARTED, RUN_COMPLETED, RUN_FAILED, STEP_STARTED, TOOL_CALL, TOOL_RESULT, MEMORY_RECALLED, PROVIDER_FAILOVER — all from `MemoryAugmentedAgenticLoop`. The other twelve (RUN_CANCELLED, STEP_COMPLETED, STEP_FAILED, APPROVAL_REQUESTED, APPROVAL_DECIDED, CHECKPOINT, SUBAGENT_SPAWNED, SUBAGENT_COMPLETED, ARTIFACT_CREATED, ARTIFACT_REVISED, CONTEXT_TRUNCATED, KNOWLEDGE_EXTRACTED) are declared and never written, so Diagnostics is a trace of the loop, not an audit trail of the run
 - Document indexing (PDF/text import, chunking, embedding, retrieval)
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v16, 11 Room databases, snapshot-rollback when a restore fails mid-import — pre-existing data survives)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v18, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - 2,690 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
-- 64 instrumented test methods (Room migration chains + app smoke tests) — run via `connectedAndroidTest` on a device
+- 63 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
 Note: the app uses **cloud providers only** — there is no on-device model.
@@ -104,15 +104,15 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 
 ```
 +--------------------------------------------+
-| :app  (Compose UI, 4 tabs + routes)        |
+| :app  (Compose UI, 5 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   29 screens + 33 ViewModels               |
+|   33 nav destinations + 37 ViewModels      |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+
 | :aura-core  (logic library, no Compose)    |
 |   MemoryAugmentedAgenticLoop -> Brain      |
-|   ToolRegistry (76) -> ToolExecutor        |
+|   ToolRegistry (78) -> ToolExecutor        |
 |     -> PolicyEngine (typed gate            |
 |        pause/resume for permission /       |
 |        confirmation / cost approval)       |
@@ -156,14 +156,14 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Evolution Inbox** — review self-improvement proposals, approve/reject.
 - **Evolution Rollback** — revert applied evolution changes.
 - **Knowledge Graph** — browse extracted entities and edges.
-- **Tools** — browse all 76 registered tools with risk levels (complete, searchable list).
+- **Tools** — browse all 78 registered tools, grouped by category and searchable by name or description. No risk column: `ToolsScreen` renders `ToolRegistry.definitions()`, and `ToolDefinition` carries name, description, parameters and category only — `Tool.risk` never reaches the UI. The Risk column in the catalog below is read from the Kotlin source.
 - **Diagnostics** — provider health, model catalog, usage tracking.
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.
 
-## Tool catalog (76 built-in)
+## Tool catalog (78 built-in)
 
-All 76 registered tools (plus any MCP-discovered ones) are browsable in-app on the Tools screen with risk levels. The tables below cover the full built-in set.
+All 78 registered tools (plus any MCP-discovered ones) are browsable in-app on the Tools screen, grouped by category. The Risk column below is the `Tool.risk` value in Kotlin, not something the screen displays. The tables cover the full built-in set — they previously came to 76 rows and called themselves complete, having omitted the two highest-risk tools in the app.
 
 ### Web & research
 | Tool | What it does | Risk |
@@ -194,7 +194,7 @@ All 76 registered tools (plus any MCP-discovered ones) are browsable in-app on t
 | Tool | What it does | Risk |
 |---|---|---|
 | `remember` | Store a memory (heuristic + LLM WriteGate) | WRITE_LOCAL |
-| `recall` | Retrieve memories (BM25 + RRF + cross-encoder reranking) | READ_ONLY |
+| `recall` | Retrieve memories (BM25 + RRF + LLM relevance rescoring) | READ_ONLY |
 | `query_world_model` | Query beliefs, events, opportunities | READ_ONLY |
 | `canon_query` | Ask questions about a creative project's canon | READ_ONLY |
 | `knowledge_graph_extract` | Add knowledge graph nodes/edges | WRITE_LOCAL |
@@ -232,11 +232,24 @@ All 76 registered tools (plus any MCP-discovered ones) are browsable in-app on t
 | `calendar_write` | Create event (two-phase confirmation) | PRIVACY |
 | `contacts_search` | Find contact by name | PRIVACY |
 | `photo_library` | List recent photos | PRIVACY |
-| `capture_screen` | Screenshot via MediaProjection FGS — fresh consent per capture | PRIVACY |
+| `capture_screen` | Screenshot. MediaProjection FGS with fresh consent per capture by default; a silent accessibility screenshot with no dialog when the screen-control master switch is on | PRIVACY |
 | `clipboard_read` | Read clipboard | READ_ONLY |
 | `clipboard_write` | Write clipboard | WRITE_LOCAL |
 | `share` | Android share sheet | WRITE_LOCAL |
 | `biometric_prompt` | Face/fingerprint gate (BIOMETRIC_STRONG) | WRITE_LOCAL |
+
+### Screen control
+
+Both are registered unconditionally so the in-chat enable flow can fire, and both
+are hidden from the model entirely while the screen-control master switch is off
+(`filterUnavailableTools` in `MemoryAugmentedAgenticLoop`). They were absent from
+this catalog for as long as it described itself as complete, which left the only
+DESTRUCTIVE tool in the app undocumented.
+
+| Tool | What it does | Risk |
+|---|---|---|
+| `screen_read` | Read the foreground app's accessibility tree as a numbered element list (actionable / text / full) | PRIVACY |
+| `screen_act` | Tap, long-press, type, clear, scroll, swipe, back/home/recents in the foreground app | DESTRUCTIVE |
 
 ### Communication
 | Tool | What it does | Risk |
@@ -305,7 +318,11 @@ MoA ships with no built-in presets (`moa_presets.json` is empty). Configure a cu
 
 ## Specialists (7)
 
-Keyword-routed (see `SpecialistRouter`). Each has a system prompt and allowed tool set. Tool allowlists are enforced in the loop — a specialist cannot call a tool not in its allowlist. Specialist system prompts are user-customizable via Settings.
+Keyword-routed (see `SpecialistRouter`). Each has a system prompt and an allowed tool set.
+
+The allowlist is **prompt filtering, not execution enforcement**. `MemoryAugmentedAgenticLoop` narrows `ToolRegistry.definitions()` to `Specialist.toolsAllowed` before the request goes out, and resolves MCP base names so an MCP server cannot smuggle a tool past it — so the model is never *offered* a tool outside the set. Nothing checks the set again at dispatch: `ToolExecutor.execute` is never told which specialist is active, so a name the model produces anyway — replayed from tool history, hallucinated, or injected through retrieved context — still runs. The one place a call is refused for being off-allowlist is `DelegateToAgentTool.kt` (lines 240-253), which compares the requested name against the child agent's tool list and writes a synthetic "not in your allowed tool set" result instead of dispatching.
+
+Specialist system prompts are user-customizable via Settings.
 
 - **general** — fallback, all tools
 - **coder** — web search + fetch_url
@@ -313,7 +330,7 @@ Keyword-routed (see `SpecialistRouter`). Each has a system prompt and allowed to
 - **writer** — creative_read_project, creative_add_world_item, recall (fiction, scripts, world-building)
 - **creative** — image generation and visual ideation
 - **executive** — calendar + contacts + remember/recall
-- **phone_native** — all device-state + camera + location tools
+- **phone_native** — photo library, location, reminders, app launch, notification read/post, battery, network, volume, DND (no camera tool exists)
 
 ## Proactive workers
 
@@ -343,13 +360,18 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-16, all committed — migration tests cover
+schema exports span versions 1-17, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
 eleven independent migration chains, and a backup path that has to
-coordinate eleven schemas. That is the main reason `BackupManager.kt` is
-the largest file in the project.
+coordinate eleven schemas — which is why `BackupManager.kt` is one of the
+larger files here. It is not the largest: `MemoryAugmentedAgenticLoop.kt`,
+`MemoryScreen.kt`, `SettingsViewModel.kt`, `ChatViewModel.kt` and
+`DreamConsolidator.kt` are all bigger. The "largest file in the project"
+phrasing stood for several releases and made the eleven-database split look
+better-evidenced than it is. The split is a real cost; it is just not the
+cost of producing the biggest file.
 
 ## Build
 
@@ -367,9 +389,17 @@ upload keystore when `AURA_KEYSTORE_PATH` / `AURA_KEYSTORE_PASSWORD` /
 or the environment. Without those values the build falls back to the debug key
 with a loud warning — fine for local R8 verification, not for distribution.
 
-CI (`.github/workflows/ci.yml`) runs `assembleDebug` + unit tests + lint for both
-modules, plus an `assembleRelease` step (real R8 coverage), on every push and PR
-to `main` and `feat/tier-1-friction`.
+CI (`.github/workflows/ci.yml`) runs on every branch (`branches: ['**']`) and every
+pull request, in three jobs. `gates` is cheap and has no JDK or Gradle: it runs the
+logging-hygiene lint and `scripts/check-version-docs.sh`, which derives every count
+in this file and in architecture.md from source and fails when the prose disagrees.
+`build-test` builds and unit-tests both modules, compiles the instrumented tests
+(no device in CI, so they are compiled and not run), and runs
+`scripts/check-test-count.sh` against the JUnit XML. `lint-release` runs lint on
+both modules and `assembleRelease` for real R8 coverage.
+
+The trigger used to be `[main, feat/tier-1-friction]` while development ran on
+another branch, so 46 commits were gated by nothing at all.
 
 ## Project layout
 
@@ -393,7 +423,7 @@ aura-android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 76 tool implementations + ToolsModule
+│       ├── tools/        # 78 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
 │       ├── proactive/    # MorningBrief + Decay + CalendarCheckWorker + DaemonWorker + ProactiveEvents + ProactiveScheduler
 │       ├── emotion/      # EmotionEngine (4-dimension state) + ResponseProfile
@@ -420,7 +450,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 54 entities, 37 migrations, schema export)
+- Room 2.8.4 (11 databases, 55 entities, 38 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

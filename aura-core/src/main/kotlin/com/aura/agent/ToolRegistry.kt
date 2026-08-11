@@ -129,7 +129,7 @@ class ToolRegistry @Inject constructor() {
      * different prefix, so an unstable order silently costs the cache with no
      * error anywhere. Sorting makes the array a pure function of the tool set.
      *
-     * The cache is incidental — 76 small allocations once or twice per run is
+     * The cache is incidental — 78 small allocations once or twice per run is
      * nothing — but it is free once the version counter exists, and it keeps
      * the sort off the hot path.
      */

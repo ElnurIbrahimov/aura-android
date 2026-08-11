@@ -5,10 +5,20 @@
 | Class | Examples | Storage | Backup |
 |-------|----------|---------|--------|
 | Secret | API keys, OAuth tokens, passwords | SecureDataStore (Keystore) | Never |
-| Personal | Memories, KG, profile, beliefs, taste signals | Room (local) | Encrypted export, user-initiated |
+| Personal | Memories, KG, profile, beliefs, taste signals | Room (local) | Plaintext JSON export, user-initiated — see note below |
 | Artifact | Creative projects, media, canon | Room metadata + app-private files | `.aura` archive (no secrets) |
 | Ephemeral | Ground frames, raw UI snapshots, streaming tokens | In-memory only | Never |
 | Public | Tool definitions, provider lists, model catalogs | Room/cache | N/A |
+
+The Personal export is **not encrypted**. `BackupManager.encodeToJson` is a
+`kotlinx.serialization` `encodeToString` written to `aura-backup-<date>.json`, and
+nothing on that path applies a cipher. What protects the user is omission, not
+encryption: API keys, OAuth tokens and SMTP passwords stay in `SecureDataStore`
+(AES-256-GCM under the Android Keystore) and are never written to the file. Every
+memory, knowledge-graph node, belief and profile fact in it is readable by anything
+that can read the file. This table said "Encrypted export" for several releases,
+which is exactly the kind of claim a user would act on when deciding where to put
+the backup.
 
 ## Ground rules
 

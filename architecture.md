@@ -1,7 +1,7 @@
 # Aura Android — Architecture
 
 **Version:** 0.65.0 (versionCode 80)
-**Branch:** main (the `fix/a-grade-sweep` sweep is merged)
+**Counts:** every number below is derived from source by `scripts/check-version-docs.sh`, which runs in the `gates` CI job. Do not hand-edit one without changing the code it describes.
 
 ## Overview
 
@@ -45,7 +45,7 @@ aura-android-clean/
 - BM25 with IDF (floored at 0.1 for small corpora)
 - RRF 6-signal fusion (text + vector + recency + access + decay + importance)
 - Word prefilter pads unused LIKE slots with a no-match sentinel (never `%%`), filters shared `StopWords`, and sizes the candidate pool so the reranker actually gets its `RERANK_POOL_SIZE`
-- Cross-encoder reranker (batched 4/call, 10s timeout, min-5 guard)
+- LLM relevance rescorer, not a cross-encoder model: `MemoryReranker` prompts a cheap chat model to score (query, memory) pairs, 4 per call (`BATCH_SIZE`), batches issued in parallel, 10s total timeout, skipped below 5 candidates. Over the 20-candidate `rerankPoolSize` that is up to 5 remote calls per recall — but only when the caller passes a `rerankModel`, and the four tool-initiated recall paths pass none, so they are not reranked at all. Falls back to RRF order on timeout or error, and logs when it does
 - Recall caching per (userMessage, agentId)
 - Query rewriting for deictic references
 - Dedup on store via `maybeStore` (bounded semantic-dedup scan)
@@ -96,7 +96,7 @@ aura-android-clean/
 - Reads the accessibility TREE, not a screenshot — MediaProjection needs an attached Activity and cannot run while Aura is backgrounded, which is the only state screen control happens in
 - Two tools: `screen_read` (PRIVACY → implicit confirmation) and `screen_act` (DESTRUCTIVE → explicit); both hidden from the model entirely when the master switch is off
 - Bounds: master switch (default off) → OS grant → risk-derived policy → 5min/25-action session bound to one package → non-overridable denylist including Aura's own package → semantic tripwire on irreversible labels → refusal while a password field is visible → notification kill switch
-- `capture_screen` routes through `AccessibilityService.takeScreenshot` when connected: no consent dialog, works backgrounded
+- `capture_screen` routes through `AccessibilityService.takeScreenshot` when the service is connected **and** `screenControlEnabled` is on: no consent dialog, works backgrounded. With the switch off it falls back to MediaProjection, which does show the per-capture dialog its description promises. The gate used to be `bridge.connected` alone, so a user who turned screen control off still got silent screenshots
 
 ### Live Voice (realtime)
 - `RealtimeProvider` sits BESIDE `Provider`, not inside it — `chat` is one-shot and non-suspend; a session is long-lived, duplex and owns an audio sink
@@ -113,12 +113,12 @@ aura-android-clean/
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v16, ConversationDB v6, ProactiveEventDB v5, TaskDB v5, EvolutionDB v4
+- MemoryDB v17, ConversationDB v6, ProactiveEventDB v5, TaskDB v5, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
-- Backup SCHEMA_VERSION 16 (restore is snapshot-rollback + non-cancellable insert phase)
+- Backup SCHEMA_VERSION 18 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
-### Tools (76)
+### Tools (78)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
 - Research: deep_research (parallel fetch, gap detection), parallel_research
 - Vision, image gen (2), code interpreter (JS sandbox), transcribe, translate
@@ -152,8 +152,10 @@ aura-android-clean/
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
 - 2,690 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
-- 76 registered tools, 17 provider configurations (6 provider classes — 11 of the 17 are
-  `OllamaCloudProvider` with a different base URL), 7 builtin agents
+- 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
+  `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
+  `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
+  `ChatGptSubscriptionProvider` and `CustomOpenAiCompatProvider`), 7 builtin agents
 
 ## Prompt assembly
 
@@ -181,7 +183,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 - **Stopword-only queries** fall back to a substring LIKE — `MATCH ''` is a SQLite syntax error,
   not an empty result.
 - **No lexical overlap** falls back to a bounded vector scan (2,000 most-active scoped rows).
-- **Reranking** (cross-encoder, cheap model) runs over the top 20 when ≥5 candidates survive.
+- **Reranking** runs over the top 20 when ≥5 candidates survive. It is an LLM prompt scorer on a cheap model — 4 candidates per call, batches in parallel, so up to 5 remote calls per recall — not a cross-encoder model. `RetrievalConfig.rerankMode` defaults to `RerankMode.LLM`; the enum's only other value is `OFF`, the kill switch. There is no local cross-encoder mode to select, and the reranker is skipped entirely when the caller passes no model.
 
 ## Consciousness layer
 
