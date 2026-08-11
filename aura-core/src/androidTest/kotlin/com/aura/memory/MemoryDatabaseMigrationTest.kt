@@ -260,8 +260,8 @@ class MemoryDatabaseMigrationTest {
      * not to weaken this test.
      */
     @Test
-    fun migrate6To17_fullChain_validatesAgainstHeadSchema() {
-        val name = "test-aura-memory-6-to-17.db"
+    fun migrate6To18_fullChain_validatesAgainstHeadSchema() {
+        val name = "test-aura-memory-6-to-18.db"
         val db = helper.createDatabase(name, 6)
         // Seed a row so the chain runs against a non-empty table. Column set
         // is the v6 shape; later migrations must carry it forward.
@@ -276,7 +276,7 @@ class MemoryDatabaseMigrationTest {
 
         val migrated = helper.runMigrationsAndValidate(
             name,
-            17,
+            18,
             true,
             MemoryModule.MIGRATION_6_7,
             MemoryModule.MIGRATION_7_8,
@@ -289,6 +289,7 @@ class MemoryDatabaseMigrationTest {
             MemoryModule.MIGRATION_14_15,
             MemoryModule.MIGRATION_15_16,
             MemoryModule.MIGRATION_16_17,
+            MemoryModule.MIGRATION_17_18,
         )
 
         // The v16->v17 hop builds the FTS index and backfills it. A migration
@@ -305,7 +306,7 @@ class MemoryDatabaseMigrationTest {
 
         val cursor = migrated.query("SELECT id, content FROM memories WHERE id = 'm1'")
         cursor.use {
-            assertTrue("seeded memory did not survive the v6 to v17 chain", it.moveToFirst())
+            assertTrue("seeded memory did not survive the v6 to v18 chain", it.moveToFirst())
             assertTrue(it.getString(1) == "chain test memory")
         }
     }
@@ -318,7 +319,7 @@ class MemoryDatabaseMigrationTest {
      * filters on it, which would silently expose old memories to every agent.
      */
     @Test
-    fun migrate6To17_backfillsScopeOnPreexistingRows() {
+    fun migrate6To18_backfillsScopeOnPreexistingRows() {
         val name = "test-aura-memory-scope-backfill.db"
         val db = helper.createDatabase(name, 6)
         db.execSQL(
@@ -330,7 +331,7 @@ class MemoryDatabaseMigrationTest {
 
         val migrated = helper.runMigrationsAndValidate(
             name,
-            17,
+            18,
             true,
             MemoryModule.MIGRATION_6_7,
             MemoryModule.MIGRATION_7_8,
@@ -343,6 +344,7 @@ class MemoryDatabaseMigrationTest {
             MemoryModule.MIGRATION_14_15,
             MemoryModule.MIGRATION_15_16,
             MemoryModule.MIGRATION_16_17,
+            MemoryModule.MIGRATION_17_18,
         )
 
         val cursor = migrated.query("SELECT scope FROM memories WHERE id = 'm2'")
@@ -352,6 +354,65 @@ class MemoryDatabaseMigrationTest {
                 "scope must be backfilled, not NULL",
                 !it.isNull(0) && it.getString(0) == "general",
             )
+        }
+    }
+
+    /**
+     * The v17 to v18 hop adds the living-world tables.
+     *
+     * Two things are worth asserting beyond "it validates". First that the
+     * foreign key onto `creative_projects` actually cascades, because a world
+     * outliving the project it belongs to would be unreachable rows that
+     * nothing ever deletes. Second that the unique index on
+     * (projectId, branchId) holds, since it is the only thing preventing two
+     * worlds ticking the same branch and each overwriting the other's state.
+     */
+    @Test
+    fun migrate17To18_addsLivingWorldTablesWithCascadeAndUniqueness() {
+        val name = "test-aura-memory-17-to-18.db"
+        val db = helper.createDatabase(name, 17)
+        db.execSQL(
+            "INSERT INTO creative_projects (id, name, description, genre, tone, templateId, worldJson, " +
+                "createdAt, updatedAt, turnCount) " +
+                "VALUES ('p1', 'Ashfall', '', '', '', 'novel', '{}', 1000, 1000, 0)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 18, true, MemoryModule.MIGRATION_17_18)
+
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL(
+            "INSERT INTO living_worlds (id, projectId, branchId, rootSeed, branchSalt, parentWorldId, " +
+                "forkedAtTick, worldEpochMs, currentTick, stateJson, status, createdAt, updatedAt) " +
+                "VALUES ('w1', 'p1', 'main', 42, 0, '', 0, 1000, 0, '{}', 'running', 1000, 1000)",
+        )
+        migrated.execSQL(
+            "INSERT INTO living_events (id, worldId, branchId, tickIndex, seq, kind, actorId, targetId, ruleId, " +
+                "magnitudeMilli, summary, notability, narration, narratedAt, createdAt) " +
+                "VALUES ('w1#1.0', 'w1', 'main', 1, 0, 'stock_shift', 'a', '', 'r', 10, 'something happened', " +
+                "0.0, '', 0, 1000)",
+        )
+
+        var threw = false
+        try {
+            migrated.execSQL(
+                "INSERT INTO living_worlds (id, projectId, branchId, rootSeed, branchSalt, parentWorldId, " +
+                    "forkedAtTick, worldEpochMs, currentTick, stateJson, status, createdAt, updatedAt) " +
+                    "VALUES ('w2', 'p1', 'main', 7, 0, '', 0, 1000, 0, '{}', 'running', 1000, 1000)",
+            )
+        } catch (_: Exception) {
+            threw = true
+        }
+        assertTrue("a second world on the same project and branch was allowed", threw)
+
+        migrated.execSQL("DELETE FROM creative_projects WHERE id = 'p1'")
+        migrated.query("SELECT COUNT(*) FROM living_worlds").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM living_events").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("events outlived the world they belong to", 0, it.getInt(0))
         }
     }
 }

@@ -56,6 +56,17 @@ data class AuraBackup(
     val creativeRevisions: List<CreativeRevisionBackup> = emptyList(),
     val creativeBranches: List<CreativeBranchBackup> = emptyList(),
     val canonFacts: List<CanonFactBackup> = emptyList(),
+    /**
+     * Schema v19: living worlds and their history.
+     *
+     * A world is the most irreplaceable thing in a creative project — it is
+     * months of accumulated, unrepeatable history, and unlike a draft the user
+     * cannot rewrite it. Its state is deterministic given the seed, but only
+     * from tick zero forward, and any intervention along the way is not
+     * re-derivable at all.
+     */
+    val livingWorlds: List<LivingWorldBackup> = emptyList(),
+    val livingEvents: List<LivingEventBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
     // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
@@ -117,7 +128,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 18
+        const val SCHEMA_VERSION = 19
     }
 }
 
@@ -621,6 +632,44 @@ data class CanonFactBackup(
     val status: String = "active",
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+// ── Schema v19: living world backup types ──
+
+@Serializable
+data class LivingWorldBackup(
+    val id: String,
+    val projectId: String,
+    val branchId: String,
+    val rootSeed: Long,
+    val branchSalt: Long = 0L,
+    val parentWorldId: String = "",
+    val forkedAtTick: Long = 0L,
+    val worldEpochMs: Long,
+    val currentTick: Long = 0L,
+    val stateJson: String,
+    val status: String = "running",
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Serializable
+data class LivingEventBackup(
+    val id: String,
+    val worldId: String,
+    val branchId: String,
+    val tickIndex: Long,
+    val seq: Int,
+    val kind: String,
+    val actorId: String,
+    val targetId: String = "",
+    val ruleId: String = "",
+    val magnitudeMilli: Long = 0L,
+    val summary: String,
+    val notability: Double = 0.0,
+    val narration: String = "",
+    val narratedAt: Long = 0L,
+    val createdAt: Long,
 )
 
 // ── Schema v10: Taste backup types ──

@@ -20,6 +20,10 @@ import com.aura.creative.ContinuityIssueDao
 import com.aura.creative.ContinuityIssueEntity
 import com.aura.creative.ArtifactDependencyDao
 import com.aura.creative.ArtifactDependencyEntity
+import com.aura.creative.livingworld.LivingWorldDao
+import com.aura.creative.livingworld.LivingWorldEntity
+import com.aura.creative.livingworld.LivingEventDao
+import com.aura.creative.livingworld.LivingEventEntity
 import com.aura.world.BeliefDao
 import com.aura.world.BeliefEntity
 import com.aura.world.EvidenceDao
@@ -71,8 +75,10 @@ import com.aura.kg.NodeEntity
         RoutingOutcomeEntity::class,
         MemoryFeedbackEntity::class,
         MemoryFtsEntity::class,
+        LivingWorldEntity::class,
+        LivingEventEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -100,4 +106,6 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun routingOutcomeDao(): RoutingOutcomeDao
     abstract fun memoryFeedbackDao(): MemoryFeedbackDao
     abstract fun memoryFtsDao(): MemoryFtsDao
+    abstract fun livingWorldDao(): LivingWorldDao
+    abstract fun livingEventDao(): LivingEventDao
 }

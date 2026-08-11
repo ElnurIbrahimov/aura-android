@@ -52,6 +52,10 @@ class CreativeStudioViewModelTest {
         // long-form observer combines against.
         com.aura.creative.longform.LongformProgressBus(),
         mockk(relaxed = true),
+        // A real seeder for the same reason as the progress bus: it is pure,
+        // has no dependencies, and a mock would only hide what it produces.
+        com.aura.creative.livingworld.WorldSeeder(),
+        mockk(relaxed = true),
     )
 
     @Before

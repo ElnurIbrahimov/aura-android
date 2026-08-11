@@ -594,3 +594,32 @@ internal fun KgEdgeProposalBackup.toEntity() = com.aura.dream.KgEdgeProposalEnti
     fromLabel = fromLabel, toLabel = toLabel, similarity = similarity,
     proposedEdge = proposedEdge, status = status, createdAt = createdAt, decidedAt = decidedAt,
 )
+// ── Schema v19: living worlds ──
+
+internal fun com.aura.creative.livingworld.LivingWorldEntity.toBackup() = LivingWorldBackup(
+    id = id, projectId = projectId, branchId = branchId, rootSeed = rootSeed,
+    branchSalt = branchSalt, parentWorldId = parentWorldId, forkedAtTick = forkedAtTick,
+    worldEpochMs = worldEpochMs, currentTick = currentTick, stateJson = stateJson,
+    status = status, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+internal fun LivingWorldBackup.toEntity() = com.aura.creative.livingworld.LivingWorldEntity(
+    id = id, projectId = projectId, branchId = branchId, rootSeed = rootSeed,
+    branchSalt = branchSalt, parentWorldId = parentWorldId, forkedAtTick = forkedAtTick,
+    worldEpochMs = worldEpochMs, currentTick = currentTick, stateJson = stateJson,
+    status = status, createdAt = createdAt, updatedAt = updatedAt,
+)
+
+internal fun com.aura.creative.livingworld.LivingEventEntity.toBackup() = LivingEventBackup(
+    id = id, worldId = worldId, branchId = branchId, tickIndex = tickIndex, seq = seq,
+    kind = kind, actorId = actorId, targetId = targetId, ruleId = ruleId,
+    magnitudeMilli = magnitudeMilli, summary = summary, notability = notability,
+    narration = narration, narratedAt = narratedAt, createdAt = createdAt,
+)
+
+internal fun LivingEventBackup.toEntity() = com.aura.creative.livingworld.LivingEventEntity(
+    id = id, worldId = worldId, branchId = branchId, tickIndex = tickIndex, seq = seq,
+    kind = kind, actorId = actorId, targetId = targetId, ruleId = ruleId,
+    magnitudeMilli = magnitudeMilli, summary = summary, notability = notability,
+    narration = narration, narratedAt = narratedAt, createdAt = createdAt,
+)

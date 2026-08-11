@@ -84,6 +84,16 @@ aura-android-clean/
 - ProactiveAwarenessEngine: staleness (30d), goal-blocker (7d), relationship gap (3d)
 - AgentPresence: proactive outreach message generation
 
+### Living Worlds (`com.aura.creative.livingworld`)
+
+- A creative project's `WorldBible` compiles into a `WorldState` — entities with **stocks** (some in strictly conserved pools), directed **relations**, and executable **rules** — which ticks forward on its own
+- `WorldClock` derives the due tick from wall time (`TICK_REAL_MS = 1h`, one tick = one world day). Tick identity is therefore independent of when a worker ran, which is why WorkManager's 15-minute periodic floor constrains *promptness* and never *outcome*
+- `WorldEngine.tick` is pure, synchronous, and calls no model. Determinism is load-bearing (replay, rewind, fork all depend on it) and is enforced by rule: scaled `Long` quantities not floats, content-keyed SplitMix64 substreams not one sequential generator, sorted lists not map iteration, no wall-clock read inside a tick
+- `WorldEngine.fold` collapses a long absence in closed form, so catch-up cost is constant in absence duration. `LivingWorldRunner` folds everything beyond a 48-tick detail window, then simulates the rest in slices, following `LongformRunner`'s no-Context/`NonCancellable`-commit discipline
+- Events are written **before** the state advance: a crash between the two re-runs identical ticks and the deterministic `worldId#tick.seq` ids make the upsert idempotent, whereas the reverse order would lose the events for good
+- Named `living_*` throughout because `com.aura.world` and the tables `world_events`/`beliefs` already model the *user's* real life — an in-fiction belief landing there would be surfaced to the user as a genuine suggestion
+- `LivingWorldWiringTest` asserts the scheduler is reachable from `ProactiveBootstrap`, that nothing in the package touches `ProactiveEventBus` (a background emit is dropped silently — see `DaemonWorker`), and that the engine stays free of Android and network dependencies
+
 ### Evolution System
 - Pipeline: detectors → **EvolutionPatchAuthor** (one LLM call returns `{decision, reason, patch}`) → **EvolutionPatchValidator** (schema + safety checks; invalid → REJECTED) → ProposalStore → InboxViewModel → approve → ApplySaga → **EvolutionOutcomeScorer** (deterministic, evidence-based, ≥7d post-apply)
 - 4 EvolutionAction types: PATCH_SKILL, RETIRE_SKILL, PROMOTE_TO_HAND, CONSOLIDATE_MEMORIES — each with typed, complete rollback snapshots
@@ -113,10 +123,10 @@ aura-android-clean/
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v17, ConversationDB v6, ProactiveEventDB v5, TaskDB v5, EvolutionDB v4
+- MemoryDB v18, ConversationDB v6, ProactiveEventDB v5, TaskDB v5, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
-- Backup SCHEMA_VERSION 18 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
+- Backup SCHEMA_VERSION 19 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
 ### Tools (78)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
@@ -151,7 +161,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 2,703 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 2,744 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -175,7 +185,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 `MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
 `k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
 
-- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v17), kept current by SQL
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v18), kept current by SQL
   triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
   and forced a full table scan.
 - **BM25** takes its corpus size and per-term document frequency from the index rather than from

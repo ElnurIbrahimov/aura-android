@@ -23,8 +23,8 @@ class AuraBackupSchema13Test {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `schema version is 18`() {
-        assertEquals(18, AuraBackup.SCHEMA_VERSION)
+    fun `schema version is 19`() {
+        assertEquals(19, AuraBackup.SCHEMA_VERSION)
     }
 
     @Test

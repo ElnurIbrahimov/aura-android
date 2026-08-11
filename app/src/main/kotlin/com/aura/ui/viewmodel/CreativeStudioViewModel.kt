@@ -27,6 +27,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,7 +55,99 @@ data class CreativeStudioUiState(
     val longform: LongformRunUi? = null,
     /** True while the outline call is in flight. */
     val planningOutline: Boolean = false,
+    /** Null until the project has a living world. */
+    val livingWorld: LivingWorldUi? = null,
 )
+
+/**
+ * A living world as the Living tab needs to see it.
+ *
+ * [currentTick] and [worldEpochMs] are handed over raw rather than pre-reduced
+ * to "behind by N", because how far behind the world is changes with the wall
+ * clock rather than with any state write. The screen derives it at composition,
+ * which is why it stays right in a process where no worker has ever run.
+ */
+data class LivingWorldUi(
+    val worldId: String,
+    val currentTick: Long,
+    val worldEpochMs: Long,
+    val factions: List<LivingFactionUi>,
+    val events: List<LivingEventUi>,
+    val eventCount: Int,
+)
+
+data class LivingFactionUi(
+    val id: String,
+    val name: String,
+    val territoryMilli: Long,
+    val grainMilli: Long,
+    val coinMilli: Long,
+    val mightMilli: Long,
+    /** Whoever this faction currently resents most, already resolved to a name. */
+    val resents: String,
+)
+
+data class LivingEventUi(
+    val id: String,
+    val tick: Long,
+    val kind: String,
+    val summary: String,
+    val narration: String,
+)
+
+private const val EVENT_PAGE = 200
+private const val TAG = "CreativeStudioVM"
+
+/**
+ * Project the stored world state into the handful of numbers the tab shows.
+ *
+ * Only factions get rows. Locations and characters are seeded and simulated but
+ * have nothing to display until there is somewhere to display it, and a list of
+ * names with no state attached is furniture rather than information.
+ */
+private fun com.aura.creative.livingworld.WorldState.toUi(
+    world: com.aura.creative.livingworld.LivingWorldEntity,
+    events: List<com.aura.creative.livingworld.LivingEventEntity>,
+): LivingWorldUi {
+    val names = entities.associateBy({ it.id }, { it.name })
+    fun stock(entityId: String, key: String): Long =
+        stocks.firstOrNull { it.entityId == entityId && it.key == key }?.amountMilli ?: 0L
+
+    val factions = entities
+        .filter { it.kind == com.aura.creative.livingworld.WorldSeeder.KIND_FACTION && it.diedAtTick == 0L }
+        .map { faction ->
+            val worst = relations
+                .filter { it.fromId == faction.id && it.kind == com.aura.creative.livingworld.WorldSeeder.REL_GRIEVANCE }
+                .maxByOrNull { it.magnitudeMilli }
+            LivingFactionUi(
+                id = faction.id,
+                name = faction.name,
+                territoryMilli = stock(faction.id, com.aura.creative.livingworld.WorldSeeder.STOCK_TERRITORY),
+                grainMilli = stock(faction.id, com.aura.creative.livingworld.WorldSeeder.STOCK_GRAIN),
+                coinMilli = stock(faction.id, com.aura.creative.livingworld.WorldSeeder.STOCK_COIN),
+                mightMilli = stock(faction.id, com.aura.creative.livingworld.WorldEngine.STOCK_MIGHT),
+                resents = worst?.let { names[it.toId] }.orEmpty(),
+            )
+        }
+        .sortedByDescending { it.territoryMilli }
+
+    return LivingWorldUi(
+        worldId = world.id,
+        currentTick = world.currentTick,
+        worldEpochMs = world.worldEpochMs,
+        factions = factions,
+        events = events.map {
+            LivingEventUi(
+                id = it.id,
+                tick = it.tickIndex,
+                kind = it.kind,
+                summary = it.summary,
+                narration = it.narration,
+            )
+        },
+        eventCount = events.size,
+    )
+}
 
 /**
  * A long-form run as the Manuscript tab needs to see it.
@@ -105,6 +199,8 @@ class CreativeStudioViewModel @Inject constructor(
     private val brain: com.aura.agent.Brain,
     private val longformRunStore: com.aura.creative.longform.LongformRunStore,
     private val longformProgressBus: com.aura.creative.longform.LongformProgressBus,
+    private val livingWorldStore: com.aura.creative.livingworld.LivingWorldStore,
+    private val worldSeeder: com.aura.creative.livingworld.WorldSeeder,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
@@ -160,6 +256,7 @@ class CreativeStudioViewModel @Inject constructor(
                     if (observedProjectId != id) {
                         observedProjectId = id
                         observeLongform(id)
+                        observeLivingWorld(id)
                     }
                 }
             }
@@ -204,6 +301,7 @@ class CreativeStudioViewModel @Inject constructor(
             if (project != null && observedProjectId != id) {
                 observedProjectId = id
                 observeLongform(id)
+                observeLivingWorld(id)
             }
         }
     }
@@ -386,6 +484,78 @@ class CreativeStudioViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    private var livingWorldJob: Job? = null
+
+    /**
+     * Watch the project's living world.
+     *
+     * Both halves are Room-backed, so ticks committed by a worker while this
+     * screen was closed — or in a previous process — show up on return with no
+     * polling and no refresh action.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun observeLivingWorld(projectId: String) {
+        livingWorldJob?.cancel()
+        livingWorldJob = viewModelScope.launch {
+            livingWorldStore.observeForProject(projectId)
+                .flatMapLatest { world ->
+                    if (world == null) {
+                        kotlinx.coroutines.flow.flowOf<Pair<com.aura.creative.livingworld.LivingWorldEntity?, List<com.aura.creative.livingworld.LivingEventEntity>>>(null to emptyList())
+                    } else {
+                        livingWorldStore.observeEvents(world.id, EVENT_PAGE)
+                            .map { events -> world to events }
+                    }
+                }
+                .collect { (world, events) ->
+                    if (world == null) {
+                        _state.update { it.copy(livingWorld = null) }
+                        return@collect
+                    }
+                    val worldState = livingWorldStore.decode(world.stateJson)
+                    _state.update { it.copy(livingWorld = worldState.toUi(world, events)) }
+                }
+        }
+    }
+
+    /**
+     * Seed a living world from the project's world bible and start it ticking.
+     *
+     * The bible carries no quantities of any kind, so [setup] supplies the
+     * starting numbers. Defaults are used when the caller does not override
+     * them, but they are the author's to change — a world whose opening
+     * position nobody chose is not one they can reason about.
+     */
+    fun startLivingWorld(setup: com.aura.creative.livingworld.WorldSetup = com.aura.creative.livingworld.WorldSetup()) {
+        val project = _state.value.selectedProject ?: return
+        viewModelScope.launch {
+            runCatching {
+                require(worldSeeder.canSeed(project.world)) {
+                    "Add at least two factions in the World tab first — a world needs someone to disagree."
+                }
+                val branchId = branchStore.createMainBranch(project.id).id
+                val seeded = worldSeeder.seed(project.world, setup)
+                livingWorldStore.create(
+                    projectId = project.id,
+                    branchId = branchId,
+                    state = seeded,
+                    worldEpochMs = System.currentTimeMillis(),
+                )
+                com.aura.creative.livingworld.LivingWorldScheduler.schedule(appContext)
+            }.onSuccess {
+                _state.update { it.copy(message = "The world has begun. It moves once an hour.", error = null) }
+            }.onFailure { error ->
+                Log.w(TAG, "starting living world failed: ${error.message}", error)
+                _state.update { it.copy(error = error.message ?: "Could not start the world.") }
+            }
+        }
+    }
+
+    /** Ask for a slice now rather than at the next periodic window. */
+    fun catchUpLivingWorld() {
+        runCatching { com.aura.creative.livingworld.LivingWorldScheduler.catchUpNow(appContext) }
+            .onFailure { Log.w(TAG, "catch-up enqueue failed: ${it.message}", it) }
     }
 
     fun generate(mode: CreativeMode, prompt: String, perspective: String = "") {

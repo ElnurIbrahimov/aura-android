@@ -618,6 +618,59 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Living worlds: a simulated world attached to a creative project,
+            // plus its event history.
+            //
+            // The DDL below is copied verbatim from the generated 18.json rather
+            // than hand-written, because a migration that produces a schema even
+            // slightly different from the one Room expects fails validation on
+            // every upgrade install while passing every fresh-install test.
+            //
+            // History lives here rather than in `proactive_events` because that
+            // table is swept of everything older than thirty days on every app
+            // start, and a world's past has to outlive a month.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `living_worlds` (`id` TEXT NOT NULL, `projectId` TEXT NOT NULL, " +
+                    "`branchId` TEXT NOT NULL, `rootSeed` INTEGER NOT NULL, `branchSalt` INTEGER NOT NULL, " +
+                    "`parentWorldId` TEXT NOT NULL, `forkedAtTick` INTEGER NOT NULL, `worldEpochMs` INTEGER NOT NULL, " +
+                    "`currentTick` INTEGER NOT NULL, `stateJson` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`), " +
+                    "FOREIGN KEY(`projectId`) REFERENCES `creative_projects`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_living_worlds_projectId` ON `living_worlds` (`projectId`)")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_living_worlds_projectId_branchId` " +
+                    "ON `living_worlds` (`projectId`, `branchId`)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_living_worlds_status` ON `living_worlds` (`status`)")
+
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `living_events` (`id` TEXT NOT NULL, `worldId` TEXT NOT NULL, " +
+                    "`branchId` TEXT NOT NULL, `tickIndex` INTEGER NOT NULL, `seq` INTEGER NOT NULL, " +
+                    "`kind` TEXT NOT NULL, `actorId` TEXT NOT NULL, `targetId` TEXT NOT NULL, `ruleId` TEXT NOT NULL, " +
+                    "`magnitudeMilli` INTEGER NOT NULL, `summary` TEXT NOT NULL, `notability` REAL NOT NULL, " +
+                    "`narration` TEXT NOT NULL, `narratedAt` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`), FOREIGN KEY(`worldId`) REFERENCES `living_worlds`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_living_events_worldId_tickIndex` ON `living_events` (`worldId`, `tickIndex`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_living_events_worldId_notability` ON `living_events` (`worldId`, `notability`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_living_events_worldId_actorId_tickIndex` " +
+                    "ON `living_events` (`worldId`, `actorId`, `tickIndex`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_living_events_worldId_narratedAt` ON `living_events` (`worldId`, `narratedAt`)",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -625,7 +678,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is
@@ -668,6 +721,14 @@ object MemoryModule {
 
     @Provides
     fun provideCreativeSimulationDao(db: MemoryDatabase): CreativeSimulationDao = db.creativeSimulationDao()
+
+    @Provides
+    fun provideLivingWorldDao(db: MemoryDatabase): com.aura.creative.livingworld.LivingWorldDao =
+        db.livingWorldDao()
+
+    @Provides
+    fun provideLivingEventDao(db: MemoryDatabase): com.aura.creative.livingworld.LivingEventDao =
+        db.livingEventDao()
 
     @Provides
     fun provideContinuityIssueDao(db: MemoryDatabase): ContinuityIssueDao = db.continuityIssueDao()

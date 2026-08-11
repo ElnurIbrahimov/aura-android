@@ -76,6 +76,7 @@ internal val KEY_EVOLUTION_ONBOARDING_SHOWN = booleanPreferencesKey("evolution_o
 internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
 internal val KEY_DAEMON_INTERVAL_MINUTES = intPreferencesKey("daemon_interval_minutes")
 internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
+internal val KEY_LIVING_WORLD_ENABLED = booleanPreferencesKey("living_world_enabled")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
@@ -287,6 +288,16 @@ class UserPreferences @Inject constructor(
     val dreamEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DREAM_ENABLED] ?: true }
 
     /**
+     * Whether living worlds tick in the background. Default true, because a
+     * world that only moves while its screen is open is not a living world —
+     * it is an animation. Off cancels the periodic worker; existing worlds keep
+     * their state and resume from their clock when it is turned back on, since
+     * which ticks are due is derived from the wall clock rather than from
+     * whether a worker ever ran.
+     */
+    val livingWorldEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_LIVING_WORLD_ENABLED] ?: true }
+
+    /**
      * Whether the memory decay worker runs every 6h. Default true.
      * When disabled, all memories retain their full decayScore
      * indefinitely — useful for users who want to preserve everything.
@@ -400,6 +411,10 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setDreamEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_DREAM_ENABLED] = enabled }
+    }
+
+    suspend fun setLivingWorldEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_LIVING_WORLD_ENABLED] = enabled }
     }
 
     /**

@@ -119,7 +119,7 @@ fun CreativeProjectScreen(
                 selectedTabIndex = selectedTab,
                 edgePadding = AuraSpacing.md,
             ) {
-                listOf("World", "Write", "Manuscript", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
+                listOf("World", "Living", "Write", "Manuscript", "Simulate", "Council", "Craft", "Tools").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -146,20 +146,21 @@ fun CreativeProjectScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
-                // The Manuscript tab gets real `items()` rather than sharing the
-                // single `item { }` the other tabs sit in. A finished chapter
-                // set is tens of thousands of words; inside one item, Compose
-                // measures the entire book on every frame.
-                if (selectedTab == MANUSCRIPT_TAB) {
-                    manuscriptSection(state, viewModel)
-                } else {
-                    item {
+                // Manuscript and Living get real `items()` rather than sharing
+                // the single `item { }` the other tabs sit in. A finished
+                // chapter set is tens of thousands of words and a year of world
+                // history is thousands of events; inside one item, Compose
+                // measures all of it on every frame.
+                when (selectedTab) {
+                    LIVING_TAB -> livingWorldSection(state, viewModel)
+                    MANUSCRIPT_TAB -> manuscriptSection(state, viewModel)
+                    else -> item {
                         when (selectedTab) {
                             0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
-                            1 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
-                            3 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
-                            4 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
-                            5 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
+                            2 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
+                            4 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
+                            5 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
+                            6 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
                             else -> ToolsRoom(state, viewModel)
                         }
                     }
@@ -540,7 +541,13 @@ private fun ProjectMetadataDialog(
 }
 
 /** Index of the Manuscript tab in the tab row. */
-private const val MANUSCRIPT_TAB = 2
+/**
+ * Tab indices into the `listOf(...)` above. Named because inserting "Living" at
+ * position 1 shifted every tab after it, and a bare `3` in a `when` is the kind
+ * of thing that survives such a shift while quietly meaning something else.
+ */
+private const val LIVING_TAB = 1
+private const val MANUSCRIPT_TAB = 3
 
 /**
  * The long-form drafting surface: plan an outline, review it, draft every scene.

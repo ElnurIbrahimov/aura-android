@@ -200,6 +200,15 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
+        // Living world reconciliation — its own flow, same reason as dream.
+        // A live collector rather than a start-up read, so flipping the toggle
+        // reschedules in the running process instead of at next launch.
+        scope.launch {
+            userPreferences.livingWorldEnabled.distinctUntilChanged().collect { worldsOn ->
+                reconcileLivingWorld(worldsOn)
+            }
+        }
+
         // Re-embed reconciliation. Queued unconditionally on start: the check
         // is one COUNT and the worker exits immediately when it is zero, which
         // is the normal case. There is no user-facing toggle because there is
@@ -307,6 +316,18 @@ class ProactiveBootstrap @Inject constructor(
      * The periodic schedule is then kicked off by
      * [ProactiveScheduler.scheduleDream].
      */
+    private fun reconcileLivingWorld(worldsOn: Boolean) {
+        try {
+            if (worldsOn) {
+                com.aura.creative.livingworld.LivingWorldScheduler.schedule(appContext)
+            } else {
+                com.aura.creative.livingworld.LivingWorldScheduler.cancel(appContext)
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "living world reconcile failed: ${e.message}")
+        }
+    }
+
     private fun reconcileDream(dreamOn: Boolean) {
         try {
             if (dreamOn) {

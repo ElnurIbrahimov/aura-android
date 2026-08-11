@@ -100,6 +100,8 @@ class BackupManager @Inject constructor(
     private val creativeRevisionDao: com.aura.creative.CreativeRevisionDao? = null,
     private val creativeBranchDao: com.aura.creative.CreativeBranchDao? = null,
     private val canonFactDao: com.aura.creative.CanonFactDao? = null,
+    private val livingWorldDao: com.aura.creative.livingworld.LivingWorldDao? = null,
+    private val livingEventDao: com.aura.creative.livingworld.LivingEventDao? = null,
     private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
     private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
     // Schema v11: dream database DAOs.
@@ -320,6 +322,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             creativeRevisions = creativeRevisionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             creativeBranches = creativeBranchDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             canonFacts = canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            livingWorlds = livingWorldDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            livingEvents = livingEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             // Schema v11: dream database.
@@ -754,6 +758,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val creativeRevisionRows = backup.creativeRevisions.map { it.toEntity() }
         val creativeBranchRows = backup.creativeBranches.map { it.toEntity() }
         val canonFactRows = backup.canonFacts.map { it.toEntity() }
+        val livingWorldRows = backup.livingWorlds.map { it.toEntity() }
+        val livingEventRows = backup.livingEvents.map { it.toEntity() }
         val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
         val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
         // Schema v11: dream database.
@@ -801,6 +807,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (creativeRevisionRows.isNotEmpty()) creativeRevisionDao?.insertAll(creativeRevisionRows)
         if (creativeBranchRows.isNotEmpty()) creativeBranchDao?.insertAll(creativeBranchRows)
         if (canonFactRows.isNotEmpty()) canonFactDao?.upsertAll(canonFactRows)
+        // Worlds strictly before their events: living_events carries a foreign
+        // key onto living_worlds, so the reverse order drops every event.
+        if (livingWorldRows.isNotEmpty()) livingWorldDao?.upsertAll(livingWorldRows)
+        if (livingEventRows.isNotEmpty()) livingEventDao?.upsertAll(livingEventRows)
         if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
         if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
         // Schema v11: dream database.
@@ -870,6 +880,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             creativeRevisions = creativeRevisionRows.size,
             creativeBranches = creativeBranchRows.size,
             canonFacts = canonFactRows.size,
+            livingWorlds = livingWorldRows.size,
+            livingEvents = livingEventRows.size,
             preferenceSignals = preferenceSignalRows.size,
             styleProfiles = styleProfileRows.size,
             // Schema v11: dream database.
@@ -1083,6 +1095,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         creativeRevisionDao?.deleteAll()
         creativeBranchDao?.deleteAll()
         canonFactDao?.deleteAll()
+        livingEventDao?.deleteAll()
+        livingWorldDao?.deleteAll()
         preferenceSignalDao?.deleteAll()
         styleProfileDao?.deleteAll()
         // Schema v11: dream database.
@@ -1160,6 +1174,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val creativeRevisions: Int = 0,
             val creativeBranches: Int = 0,
             val canonFacts: Int = 0,
+            val livingWorlds: Int = 0,
+            val livingEvents: Int = 0,
             val preferenceSignals: Int = 0,
             val styleProfiles: Int = 0,
             // Schema v11: dream database.
@@ -1211,7 +1227,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionProposals + evolutionSettings + evolutionRevisions +
                 agents + beliefs + evidence + worldEvents + opportunities +
                 creativeArtifacts + creativeRevisions + creativeBranches +
-                canonFacts + preferenceSignals + styleProfiles +
+                canonFacts + livingWorlds + livingEvents + preferenceSignals + styleProfiles +
                 dreamSummaries + routines + contradictions + kgEdgeProposals +
                 memoryFeedback + documentChunks + referenceIdentities +
                 agentRuns + agentGoals + agentSteps + agentEvents +

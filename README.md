@@ -12,6 +12,7 @@ This is my personal copy.
 
 - 78 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
+- Living worlds (Creative → Living tab): a creative project's world bible compiles into a **simulation that runs on its own**, one world day per real hour, in a WorkManager job. Factions hold scarce quantities — land is a strictly conserved pool, so one faction only gains it by taking it from another — and executable rules fire on thresholds. **The engine never calls a model**: a tick is integer arithmetic, which is what makes it deterministic (and therefore replayable), catchable-up offline, and testable without a key. Quantities are scaled `Long`s and each decision draws from a content-keyed SplitMix64 substream, so adding a rule cannot shift an unrelated outcome. A long absence is collapsed by one closed-form `fold`, so returning after three months costs the same as after three days. Seeded from the world bible with author-supplied starting numbers, since the bible carries no quantities at all
 - Prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite — operate on selected text)
 - Voice calibration (learn user's prose style, mirror in generated content)
 - Tension analyzer (per-scene tension scoring, pacing diagnosis, recommendations)
@@ -55,9 +56,9 @@ This is my personal copy.
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v18, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
-- 2,703 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
-- 63 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v19, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
+- 2,744 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 64 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
 Note: the app uses **cloud providers only** — there is no on-device model.
@@ -347,7 +348,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v17 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
+| MemoryDatabase | v18 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v5 | Proactive events with structured payload |
 | TaskDatabase | v5 | Tasks + reminders |
@@ -360,7 +361,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-17, all committed — migration tests cover
+schema exports span versions 1-18, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -450,7 +451,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 55 entities, 38 migrations, schema export)
+- Room 2.8.4 (11 databases, 57 entities, 39 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0
