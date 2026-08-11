@@ -51,12 +51,26 @@ class MemoryReranker @Inject constructor(
         return try {
             withTimeout(RERANK_TIMEOUT_MS) {
                 val scores = scoreBatch(query, candidates, model)
-                // Sort by reranker score descending, take topK
-                candidates.indices
-                    .map { it to scores.getOrDefault(it, 0f) }
-                    .sortedByDescending { it.second }
-                    .take(topK)
-                    .map { candidates[it.first] }
+                // Candidates the model judged are reordered among themselves;
+                // candidates whose whole BATCH failed keep the exact slot RRF
+                // gave them, because the judged ones only ever swap places with
+                // each other.
+                //
+                // A failed batch used to score 0.5. That is mid-scale, so every
+                // member of it was promoted above every genuinely-judged
+                // candidate the model rated below 0.5 — a batch that never
+                // reached the model outranking one that did. The old
+                // `getOrDefault(it, 0f)` is the mirror mistake: one provider
+                // hiccup buries four perfectly good memories at the bottom.
+                // Neither number is a judgement, so this invents neither.
+                val byScore = candidates.indices.filter { it in scores }
+                    .sortedByDescending { scores.getValue(it) }
+                val out = ArrayList<MemoryEntity>(candidates.size)
+                var next = 0
+                for (i in candidates.indices) {
+                    out += if (i in scores) candidates[byScore[next++]] else candidates[i]
+                }
+                out.take(topK)
             }
         } catch (e: TimeoutCancellationException) {
             // Expected under a slow or overloaded model, and falling back is
@@ -151,12 +165,18 @@ class MemoryReranker @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // A neutral 0.5 for the whole batch is not a small fallback: every
-            // candidate in it ties, so `sortedByDescending` leaves them in RRF
-            // order while the batches that DID score get reordered around them.
-            // The result is a half-reranked list that looks reranked.
-            Log.w(TAG, "batch scoring failed for ${batch.size} candidates; scoring them neutral: ${e.message}", e)
-            return batch.indices.associateWith { 0.5f }
+            // No scores at all for this batch, deliberately. [rerank] reads the
+            // absence as "not judged" and leaves these candidates exactly where
+            // RRF put them. The neutral 0.5 this replaces was a judgement the
+            // model never made, and a mid-scale one, so an unreachable batch
+            // outranked every candidate the model had scored below 0.5.
+            //
+            // Note this is NOT the same case as the model under-responding
+            // below, where the batch did reach the model and only some lines
+            // came back — those candidates keep the 0.5 default, because a
+            // response that omits a line is weak evidence, not absent evidence.
+            Log.w(TAG, "batch scoring failed for ${batch.size} candidates; keeping their RRF order: ${e.message}", e)
+            return emptyMap()
         }
 
         // Parse lines as floats. Models return scores in various formats:
