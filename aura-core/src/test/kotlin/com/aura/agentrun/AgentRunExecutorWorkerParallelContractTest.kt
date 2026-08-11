@@ -18,14 +18,13 @@ class AgentRunExecutorWorkerParallelContractTest {
     }
 
     private fun sourceFromDisk(): String {
-        val roots = listOf(
-            System.getProperty("user.dir") + "/src/main/kotlin/com/aura/agentrun/AgentRunExecutorWorker.kt",
-            System.getProperty("user.dir") + "/aura-core/src/main/kotlin/com/aura/agentrun/AgentRunExecutorWorker.kt",
-        )
-        for (path in roots) {
-            val file = java.io.File(path)
-            if (file.exists()) return file.readText()
-        }
-        throw AssertionError("Could not locate AgentRunExecutorWorker.kt on disk")
+        // sourceDir is the repo's one way of resolving a source path from a test,
+        // and it fails loudly rather than falling through. Hand-rolled user.dir
+        // candidate lists are how NavigationReachabilityTest ended up with a
+        // hardcoded machine path and a bare `return` — see ENGINEERING_HISTORY §2.6.
+        val file = com.aura.agent.sourceDir("src/main/kotlin/com/aura/agentrun")
+            .resolve("AgentRunExecutorWorker.kt")
+        check(file.isFile) { "AgentRunExecutorWorker.kt not found at ${file.absolutePath}" }
+        return file.readText()
     }
 }

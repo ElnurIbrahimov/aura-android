@@ -13,12 +13,30 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Test
 import kotlin.test.assertEquals
 
 class RunHandWorkerTest {
+
+    /**
+     * Same leak as HandRunEnqueuerTest, one level down: `mockkStatic(Log::class)`
+     * replaces the platform logger for the whole JVM. Left in place it turns
+     * every later test's logging into a MockK recording — which is mostly
+     * invisible until something asserts on a log call and passes for the wrong
+     * reason, or until MockK's recorder holds references that outlive the class.
+     * Nothing else needs the stub: both modules set
+     * `unitTests.isReturnDefaultValues = true`, so an unmocked Log call returns
+     * 0 rather than throwing.
+     */
+    @After
+    fun tearDown() {
+        unmockkStatic(Log::class)
+    }
+
     @Test
     fun `terminal worker reloads latest hand before scheduling next occurrence`() = runBlocking {
         mockkStatic(Log::class)

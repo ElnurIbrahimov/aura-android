@@ -73,7 +73,20 @@ class SilentRunCatchingAuditTest {
     fun `every exemption carries a justification`() {
         val undocumented = mutableListOf<String>()
         var exemptions = 0
-        mainSource.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+        // The sibling test guards itself with `scanned > 0`; this one did not,
+        // so an unresolvable source root produced an empty file list, zero
+        // exemptions, and a green `undocumented.isEmpty()` over nothing at all.
+        // `assertTrue(exemptions >= 0)` was the only other assertion and holds
+        // for every possible Int.
+        //
+        // `.toList()` is not decoration: this module's SourceScan declares only
+        // the List overload of requireNonEmpty. The Sequence overload lives in
+        // :app's copy, and the two source sets are deliberately not shared.
+        val files = mainSource.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .toList()
+            .requireNonEmpty("Kotlin sources under ${mainSource.absolutePath}")
+        files.forEach { file ->
             file.readText().lines().forEachIndexed { index, line ->
                 if (EXEMPTION_MARKER !in line) return@forEachIndexed
                 exemptions++
@@ -86,12 +99,10 @@ class SilentRunCatchingAuditTest {
 
         assertTrue(
             undocumented.isEmpty(),
-            "$EXEMPTION_MARKER needs a real reason (>= $MIN_JUSTIFICATION_CHARS chars), not a bare marker:\n" +
+            "$EXEMPTION_MARKER needs a real reason (>= $MIN_JUSTIFICATION_CHARS chars), not a bare marker " +
+                "($exemptions exemption(s) read across ${files.size} file(s)):\n" +
                 undocumented.joinToString("\n"),
         )
-        // Not an upper bound on purpose: capping the count would just push the
-        // next exemption into a silent `.getOrNull()` instead.
-        assertTrue(exemptions >= 0)
     }
 
     /**

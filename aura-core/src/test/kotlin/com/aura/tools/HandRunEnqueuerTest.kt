@@ -12,12 +12,27 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class HandRunEnqueuerTest {
+
+    /**
+     * `mockkObject` rewrites the singleton in place for the whole JVM, not for
+     * the enclosing test. Without this teardown, `AgentRunExecutorService.enqueue`
+     * stayed a no-op stub for every test that happened to run after this one in
+     * the same Gradle worker — so any later test asserting that a run gets
+     * enqueued would pass against a stub it never asked for, and the order it
+     * passed in would depend on class ordering rather than on the code.
+     */
+    @After
+    fun tearDown() {
+        unmockkObject(AgentRunExecutorService)
+    }
 
     @Test
     fun `enqueue serializes ToolContext into run metadata`() = runTest {
