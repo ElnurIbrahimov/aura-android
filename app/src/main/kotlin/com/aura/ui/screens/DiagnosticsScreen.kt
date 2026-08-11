@@ -174,6 +174,62 @@ fun DiagnosticsScreen(
         }
         Spacer(Modifier.height(AuraSpacing.medium))
 
+        // Rebuild the knowledge graph from stored conversations.
+        //
+        // Manual and opt-in because it costs one model call per turn. The graph
+        // was truncated to roughly one turn's worth of connections for as long
+        // as kg_nodes was written with INSERT OR REPLACE against a cascading
+        // child table. That is fixed and the graph grows correctly now, but the
+        // connections lost in between exist only in the conversations that
+        // produced them, so recovering them means paying to re-read those.
+        Surface(
+            color = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.42f),
+            shape = RoundedCornerShape(AuraSpacing.sm),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.padding(AuraSpacing.medium)) {
+                Text(
+                    "Rebuild knowledge graph",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = AuraThemeTokens.colors.textPrimary,
+                )
+                Spacer(Modifier.height(AuraSpacing.xs))
+                Text(
+                    "Re-reads your saved conversations and re-derives the graph. " +
+                        "Costs one model call per turn, so it is not automatic. " +
+                        "Safe to run more than once.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f),
+                )
+                val rebuild = state.kgRebuild
+                if (rebuild != null) {
+                    Spacer(Modifier.height(AuraSpacing.small))
+                    val done = rebuild.turnsDone
+                    val total = rebuild.turnsTotal
+                    Text(
+                        buildString {
+                            append(if (rebuild.running) "Rebuilding… " else "Finished. ")
+                            append("$done of $total turns")
+                            if (rebuild.failures > 0) append(" — ${rebuild.failures} could not be read")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f),
+                    )
+                }
+                Spacer(Modifier.height(AuraSpacing.small))
+                if (rebuild?.running == true) {
+                    OutlinedButton(onClick = viewModel::cancelKnowledgeGraphRebuild) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                } else {
+                    OutlinedButton(onClick = viewModel::rebuildKnowledgeGraph) {
+                        Text("Rebuild from history")
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(AuraSpacing.medium))
+
         state.error?.let { error ->
             Surface(
                 color = AuraThemeTokens.colors.error,

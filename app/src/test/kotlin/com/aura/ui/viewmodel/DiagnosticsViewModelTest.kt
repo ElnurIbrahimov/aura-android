@@ -54,7 +54,7 @@ class DiagnosticsViewModelTest {
         )
         every { logger.entries() } returns entries
 
-        val vm = DiagnosticsViewModel(logger, traceSink, context)
+        val vm = DiagnosticsViewModel(logger, traceSink, context, kgRebuilder = mockk(relaxed = true))
 
         assertFalse(vm.state.value.loading)
         assertEquals(entries, vm.state.value.entries)
@@ -66,7 +66,7 @@ class DiagnosticsViewModelTest {
             listOf(CrashLogEntry(1L, "error", "boom")),
             emptyList(),
         )
-        val vm = DiagnosticsViewModel(logger, traceSink, context)
+        val vm = DiagnosticsViewModel(logger, traceSink, context, kgRebuilder = mockk(relaxed = true))
         assertTrue(vm.state.value.entries.isNotEmpty())
 
         vm.clearAll()
@@ -80,7 +80,7 @@ class DiagnosticsViewModelTest {
         val exported = File(cacheDir, "aura-diagnostics.jsonl").apply { writeText("{}\n") }
         every { logger.entries() } returns emptyList()
         every { logger.exportTo(cacheDir, any()) } returns exported
-        val vm = DiagnosticsViewModel(logger, traceSink, context)
+        val vm = DiagnosticsViewModel(logger, traceSink, context, kgRebuilder = mockk(relaxed = true))
 
         vm.prepareExport()
 
@@ -92,7 +92,7 @@ class DiagnosticsViewModelTest {
     @Test
     fun `load failure is visible and dismissible`() = runTest {
         every { logger.entries() } throws IllegalStateException("disk unavailable")
-        val vm = DiagnosticsViewModel(logger, traceSink, context)
+        val vm = DiagnosticsViewModel(logger, traceSink, context, kgRebuilder = mockk(relaxed = true))
 
         assertTrue(vm.state.value.error?.contains("disk unavailable") == true)
         vm.clearError()
