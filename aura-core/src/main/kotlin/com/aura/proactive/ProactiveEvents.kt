@@ -238,6 +238,7 @@ class ProactiveEvents(
         is ProactiveEventBus.Event.CalendarEventSoon -> copy(id = id)
         is ProactiveEventBus.Event.MemoryDecayWarning -> copy(id = id)
         is ProactiveEventBus.Event.DaemonInsight -> copy(id = id)
+        is ProactiveEventBus.Event.LivingWorldReport -> copy(id = id)
     }
 
     private fun ProactiveEventEntity.toEvent(): ProactiveEventBus.Event? {
@@ -262,6 +263,8 @@ class ProactiveEvents(
             "LocationArrived" -> null
             "MemoryDecayWarning" -> ProactiveEventBus.Event.MemoryDecayWarning(body, title, timestamp, id)
             "DaemonInsight" -> ProactiveEventBus.Event.DaemonInsight(title, body, timestamp, id, payload)
+            "LivingWorldReport" ->
+                ProactiveEventBus.Event.LivingWorldReport(correlationTag, title, body, timestamp, id)
             else -> null
         }
     }
@@ -304,6 +307,18 @@ class ProactiveEvents(
             // already models. Blank stays blank for insights with no finding
             // behind them, and blank never matches in [SalienceFilter].
             payload = findingType,
+        )
+        is ProactiveEventBus.Event.LivingWorldReport -> ProactiveEventEntity(
+            id = id, eventType = "LivingWorldReport",
+            title = title,
+            body = body,
+            timestamp = timestamp,
+            payload = "",
+            // First writer `correlationTag` has ever had. The column and its two
+            // DAO queries arrived in the 4->5 migration and nothing has used
+            // either since. "All reports from this world" and "delete this
+            // world's reports" are exactly what they were shaped for.
+            correlationTag = worldId,
         )
     }
 }

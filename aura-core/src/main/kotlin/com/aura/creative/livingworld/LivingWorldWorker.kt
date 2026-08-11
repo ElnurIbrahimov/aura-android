@@ -32,6 +32,7 @@ class LivingWorldTickWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val runner: LivingWorldRunner,
+    private val reporter: LivingWorldReporter,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -41,6 +42,14 @@ class LivingWorldTickWorker @AssistedInject constructor(
         }.onFailure {
             Log.w(TAG, "living world slice failed: ${it.message}", it)
         }.getOrDefault(TickOutcome.FAILED)
+
+        // Narration is a separate pass, after the ticking, and only when there
+        // is something above the notability floor. A world that merely ran
+        // costs nothing; this is the only place a model can be reached.
+        if (outcome == TickOutcome.CAUGHT_UP || outcome == TickOutcome.PAUSED_FOR_TIME) {
+            runCatching { reporter.reportAll() }
+                .onFailure { Log.w(TAG, "world report failed: ${it.message}", it) }
+        }
 
         if (outcome == TickOutcome.PAUSED_FOR_TIME) {
             LivingWorldScheduler.catchUpNow(applicationContext)

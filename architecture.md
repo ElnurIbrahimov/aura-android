@@ -123,10 +123,10 @@ aura-android-clean/
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v18, ConversationDB v6, ProactiveEventDB v5, TaskDB v5, EvolutionDB v4
+- MemoryDB v18, ConversationDB v6, ProactiveEventDB v5, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
-- Backup SCHEMA_VERSION 19 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
+- Backup SCHEMA_VERSION 20 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
 ### Tools (78)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
@@ -161,7 +161,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 2,744 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 2,781 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,

@@ -171,7 +171,15 @@ object RuleTemplates {
             priority = 10,
             condition = Cond.StockBelow(WorldSeeder.STOCK_GRAIN, setup.grainCapacityMilli / 5),
             effects = listOf(
-                Effect.ClaimPool(WorldSeeder.POOL_TERRITORY, WorldSeeder.STOCK_TERRITORY, 400),
+                // Scaled to the map, not a fixed number. A constant 400 was
+                // 3% of a small world and 0.3% of a large one, so on anything
+                // the author sized generously a conquest moved a rounding
+                // error and nothing ever mattered.
+                Effect.ClaimPool(
+                    WorldSeeder.POOL_TERRITORY,
+                    WorldSeeder.STOCK_TERRITORY,
+                    (setup.territoryTotalMilli / 20).coerceAtLeast(1L),
+                ),
                 Effect.AdjustStock(WorldSeeder.STOCK_GRAIN, setup.grainCapacityMilli / 4),
             ),
             cooldownTicks = 30,

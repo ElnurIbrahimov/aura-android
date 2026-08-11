@@ -212,6 +212,7 @@ object WorldEngine {
             actorId = firing.subject.id,
             ruleId = firing.rule.id,
             magnitudeMilli = updated.amountMilli - existing.amountMilli,
+            stockKey = effect.key,
             summary = "${firing.subject.name}: ${effect.key} $direction (${firing.rule.name}).",
         )
     }
@@ -305,6 +306,7 @@ object WorldEngine {
                 targetId = donor.entityId,
                 ruleId = winner.firing.rule.id,
                 magnitudeMilli = moved,
+                stockKey = stockName,
                 summary = "${winner.firing.subject.name} took $stockName from $donorName.",
             )
         }

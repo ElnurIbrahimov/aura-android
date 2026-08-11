@@ -57,7 +57,14 @@ class LivingWorldWiringTest {
             val body = file.readText().lineSequence()
                 .filterNot { it.trimStart().startsWith("//") || it.trimStart().startsWith("*") }
                 .joinToString("\n")
-            body.contains("eventBus.emit") || body.contains("bus.emit") || body.contains("ProactiveEventBus")
+            // Emitting is the hazard, not naming. The report type itself lives
+            // inside `ProactiveEventBus.Event`, so constructing one is both
+            // necessary and safe; what must not happen is holding the bus and
+            // pushing to it. Banning the bare name flagged the correct code.
+            body.contains("eventBus.emit") ||
+                body.contains("bus.emit") ||
+                body.contains(".tryEmit(") ||
+                Regex(""":\s*ProactiveEventBus\s*[,)]""").containsMatchIn(body)
         }
 
         assertTrue(

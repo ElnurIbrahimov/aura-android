@@ -82,13 +82,22 @@ class LivingWorldStore @Inject constructor(
         world: LivingWorldEntity,
         newState: WorldState,
         throughTick: Long,
-        events: List<WorldEvent>,
+        events: List<ScoredEvent>,
         now: Long,
     ) {
         if (events.isNotEmpty()) {
-            eventDao.upsertAll(events.map { it.toEntity(world, now) })
+            eventDao.upsertAll(events.map { it.event.toEntity(world, now, it.notability) })
         }
         worldDao.commitTick(world.id, throughTick, encode(newState), now)
+    }
+
+    suspend fun topUnnarrated(worldId: String, floor: Double, limit: Int): List<LivingEventEntity> =
+        eventDao.topUnnarrated(worldId, floor, limit)
+
+    suspend fun narratedSince(worldId: String, since: Long): Int = eventDao.narratedSince(worldId, since)
+
+    suspend fun attachNarration(eventId: String, narration: String, now: Long) {
+        eventDao.attachNarration(eventId, narration, now)
     }
 
     suspend fun recentEvents(worldId: String, limit: Int = DEFAULT_EVENT_PAGE): List<LivingEventEntity> =
@@ -96,12 +105,14 @@ class LivingWorldStore @Inject constructor(
 
     suspend fun eventCount(worldId: String): Int = eventDao.count(worldId)
 
+    suspend fun eventById(eventId: String): LivingEventEntity? = eventDao.byId(eventId)
+
     companion object {
         const val DEFAULT_EVENT_PAGE = 200
     }
 }
 
-internal fun WorldEvent.toEntity(world: LivingWorldEntity, now: Long) = LivingEventEntity(
+internal fun WorldEvent.toEntity(world: LivingWorldEntity, now: Long, notability: Double = 0.0) = LivingEventEntity(
     id = idFor(world.id),
     worldId = world.id,
     branchId = world.branchId,
@@ -113,5 +124,6 @@ internal fun WorldEvent.toEntity(world: LivingWorldEntity, now: Long) = LivingEv
     ruleId = ruleId,
     magnitudeMilli = magnitudeMilli,
     summary = summary,
+    notability = notability,
     createdAt = now,
 )

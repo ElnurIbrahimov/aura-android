@@ -96,7 +96,19 @@ class ProactiveAwarenessEngine @Inject constructor(
         val sevenDaysMs = 7L * 24 * 60 * 60 * 1000
         val cutoff = now - sevenDaysMs
         val tasks = taskDao.all()
-        val stuck = tasks.filter { it.status == "pending" && it.createdAt < cutoff }
+        val stuck = tasks.filter {
+            it.status == "pending" &&
+                it.createdAt < cutoff &&
+                // A task that has already gone quiet has been judged: the
+                // evidence says it stopped mattering. Nagging about it here
+                // would have the system contradict itself in the same breath —
+                // dropping it from the list and then pushing a notification
+                // about how long it has been on the list. Quiet means quiet.
+                !com.aura.tasks.TaskSalience.isQuiet(it.salience) &&
+                // Rows the trigger engine parks in the tasks table are content
+                // hashes for watched URLs, not tasks anyone wrote down.
+                !it.description.startsWith(com.aura.tasks.TaskDecayPass.TRIGGER_HASH_PREFIX)
+        }
         if (stuck.isEmpty()) return emptyList()
         val oldest = stuck.minByOrNull { it.createdAt }
         val daysStuck = oldest?.let { ((now - it.createdAt) / (24 * 60 * 60 * 1000)).toInt() } ?: 0

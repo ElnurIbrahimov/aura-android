@@ -31,6 +31,7 @@ enum class TickOutcome {
 @Singleton
 class LivingWorldRunner @Inject constructor(
     private val store: LivingWorldStore,
+    private val tickBus: WorldTickBus? = null,
 ) {
 
     /** Advance every running world as far as its slice allows. */
@@ -84,6 +85,7 @@ class LivingWorldRunner @Inject constructor(
         var state = store.decode(world.stateJson)
         var tick = world.currentTick
         val events = mutableListOf<WorldEvent>()
+        tickBus?.begin(world.id, tick, tick + behind)
 
         if (behind > DETAIL_WINDOW_TICKS) {
             val skipped = behind - DETAIL_WINDOW_TICKS
@@ -104,6 +106,22 @@ class LivingWorldRunner @Inject constructor(
             events += result.events
             behind -= 1
             simulated += 1
+            tickBus?.progress(world.id, tick)
+        }
+
+        // Score at commit time, against one bounded read of what came before.
+        // Novelty is the only factor that needs history, and asking for it once
+        // per slice keeps the scorer's promise of costing nothing per event.
+        val recent = runCatching { store.recentEvents(world.id, NotabilityScorer.NOVELTY_WINDOW) }
+            .onFailure { Log.w(TAG, "novelty window read failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+        val seen = HashMap<String, Int>()
+        for (row in recent) seen.merge(row.kind + "|" + row.actorId, 1, Int::plus)
+        val scored = events.map { event ->
+            val key = event.kind + "|" + event.actorId
+            val before = seen.getOrDefault(key, 0)
+            seen[key] = before + 1
+            ScoredEvent(event, NotabilityScorer.score(event, state, before))
         }
 
         if (tick == startedAtTick) {
@@ -120,11 +138,12 @@ class LivingWorldRunner @Inject constructor(
         // away the slice's whole cost.
         val committed = runCatching {
             withContext(NonCancellable) {
-                store.commitTicks(world, state, tick, events, now())
+                store.commitTicks(world, state, tick, scored, now())
             }
         }.onFailure { Log.w(TAG, "commit failed for $worldId at tick $tick: ${it.message}", it) }
 
         if (committed.isFailure) return TickOutcome.FAILED
+        if (behind <= 0L) tickBus?.clear(world.id)
         return if (behind > 0L) TickOutcome.PAUSED_FOR_TIME else TickOutcome.CAUGHT_UP
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -229,6 +230,15 @@ private fun ProactiveEventBus.Event.toCardModel(context: android.content.Context
     }
     is ProactiveEventBus.Event.DaemonInsight -> HistoryCardModel(
         icon = Icons.Filled.Lightbulb,
+        kind = HistoryCardKind.DaemonInsight,
+        title = this.title,
+        body = this.body,
+        tapHint = null,
+        timestamp = timestamp,
+        onClick = null,
+    )
+    is ProactiveEventBus.Event.LivingWorldReport -> HistoryCardModel(
+        icon = Icons.Filled.Public,
         kind = HistoryCardKind.DaemonInsight,
         title = this.title,
         body = this.body,

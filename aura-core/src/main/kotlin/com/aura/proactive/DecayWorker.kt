@@ -23,6 +23,7 @@ class DecayWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val memoryStore: MemoryStore,
     private val userPreferences: com.aura.data.UserPreferences,
+    private val taskDecayPass: com.aura.tasks.TaskDecayPass? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runNow()
@@ -40,6 +41,10 @@ class DecayWorker @AssistedInject constructor(
         return try {
             if (!userPreferences.decayEnabled.first()) return Result.success()
             memoryStore.runDecayPass()
+            // Tasks decay on the same pass as memories, deliberately. It is the
+            // same question asked of a different table, and two workers asking
+            // it on two schedules is how two answers start disagreeing.
+            taskDecayPass?.run()
             Result.success()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

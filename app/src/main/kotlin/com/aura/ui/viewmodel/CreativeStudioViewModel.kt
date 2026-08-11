@@ -74,7 +74,15 @@ data class LivingWorldUi(
     val factions: List<LivingFactionUi>,
     val events: List<LivingEventUi>,
     val eventCount: Int,
+    /** Non-null only while a worker is mid-slice on this world. */
+    val live: LivingLiveUi? = null,
+    /** Event id currently being narrated on demand. */
+    val narrating: String = "",
 )
+
+data class LivingLiveUi(val currentTick: Long, val targetTick: Long, val phase: String) {
+    val remaining: Long get() = (targetTick - currentTick).coerceAtLeast(0L)
+}
 
 data class LivingFactionUi(
     val id: String,
@@ -93,6 +101,7 @@ data class LivingEventUi(
     val kind: String,
     val summary: String,
     val narration: String,
+    val notability: Double,
 )
 
 private const val EVENT_PAGE = 200
@@ -143,6 +152,7 @@ private fun com.aura.creative.livingworld.WorldState.toUi(
                 kind = it.kind,
                 summary = it.summary,
                 narration = it.narration,
+                notability = it.notability,
             )
         },
         eventCount = events.size,
@@ -201,6 +211,8 @@ class CreativeStudioViewModel @Inject constructor(
     private val longformProgressBus: com.aura.creative.longform.LongformProgressBus,
     private val livingWorldStore: com.aura.creative.livingworld.LivingWorldStore,
     private val worldSeeder: com.aura.creative.livingworld.WorldSeeder,
+    private val worldTickBus: com.aura.creative.livingworld.WorldTickBus,
+    private val worldNarrator: com.aura.creative.livingworld.WorldNarrator,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
@@ -502,19 +514,32 @@ class CreativeStudioViewModel @Inject constructor(
             livingWorldStore.observeForProject(projectId)
                 .flatMapLatest { world ->
                     if (world == null) {
-                        kotlinx.coroutines.flow.flowOf<Pair<com.aura.creative.livingworld.LivingWorldEntity?, List<com.aura.creative.livingworld.LivingEventEntity>>>(null to emptyList())
+                        kotlinx.coroutines.flow.flowOf(LivingSnapshot(null, emptyList(), null))
                     } else {
-                        livingWorldStore.observeEvents(world.id, EVENT_PAGE)
-                            .map { events -> world to events }
+                        // Durable half and live half, joined here. Room carries
+                        // what happened — including ticks committed while this
+                        // screen was closed — and the bus carries what a worker
+                        // is doing right now.
+                        kotlinx.coroutines.flow.combine(
+                            livingWorldStore.observeEvents(world.id, EVENT_PAGE),
+                            worldTickBus.live(world.id),
+                        ) { events, live -> LivingSnapshot(world, events, live) }
                     }
                 }
-                .collect { (world, events) ->
+                .collect { snapshot ->
+                    val world = snapshot.world
                     if (world == null) {
                         _state.update { it.copy(livingWorld = null) }
                         return@collect
                     }
                     val worldState = livingWorldStore.decode(world.stateJson)
-                    _state.update { it.copy(livingWorld = worldState.toUi(world, events)) }
+                    val ui = worldState.toUi(world, snapshot.events).copy(
+                        live = snapshot.live?.let {
+                            LivingLiveUi(it.currentTick, it.targetTick, it.phase)
+                        },
+                        narrating = _state.value.livingWorld?.narrating.orEmpty(),
+                    )
+                    _state.update { it.copy(livingWorld = ui) }
                 }
         }
     }
@@ -549,6 +574,35 @@ class CreativeStudioViewModel @Inject constructor(
                 Log.w(TAG, "starting living world failed: ${error.message}", error)
                 _state.update { it.copy(error = error.message ?: "Could not start the world.") }
             }
+        }
+    }
+
+    private data class LivingSnapshot(
+        val world: com.aura.creative.livingworld.LivingWorldEntity?,
+        val events: List<com.aura.creative.livingworld.LivingEventEntity>,
+        val live: com.aura.creative.livingworld.LiveTick?,
+    )
+
+    /**
+     * Narrate one past event on request.
+     *
+     * Uncapped, unlike the background pass, because one request per deliberate
+     * thumb press is self-limiting — and it is the cheapest way to make a long
+     * history readable without having paid to narrate all of it up front.
+     */
+    fun narrateEvent(eventId: String) {
+        val worldId = _state.value.livingWorld?.worldId ?: return
+        viewModelScope.launch {
+            _state.update { s -> s.copy(livingWorld = s.livingWorld?.copy(narrating = eventId)) }
+            runCatching {
+                val world = livingWorldStore.byId(worldId) ?: error("World not found.")
+                val event = livingWorldStore.eventById(eventId) ?: error("Event not found.")
+                worldNarrator.narrateOne(world, event, System.currentTimeMillis())
+            }.onFailure { error ->
+                Log.w(TAG, "on-demand narration failed: ${error.message}", error)
+                _state.update { it.copy(error = "Could not narrate that moment.") }
+            }
+            _state.update { s -> s.copy(livingWorld = s.livingWorld?.copy(narrating = "")) }
         }
     }
 

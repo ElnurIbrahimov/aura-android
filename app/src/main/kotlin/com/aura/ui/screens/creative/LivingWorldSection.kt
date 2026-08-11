@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -23,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.aura.creative.livingworld.WorldClock
@@ -34,6 +38,7 @@ import com.aura.ui.viewmodel.CreativeStudioUiState
 import com.aura.ui.viewmodel.CreativeStudioViewModel
 import com.aura.ui.viewmodel.LivingEventUi
 import com.aura.ui.viewmodel.LivingFactionUi
+import com.aura.ui.viewmodel.LivingLiveUi
 
 /**
  * The Living tab: a world that runs whether or not anyone is looking at it.
@@ -58,7 +63,9 @@ internal fun LazyListScope.livingWorldSection(
         return
     }
 
-    item(key = "living-now") { WorldNowCard(world.currentTick, world.worldEpochMs, viewModel) }
+    item(key = "living-now") {
+        WorldNowCard(world.currentTick, world.worldEpochMs, world.live, viewModel)
+    }
 
     item(key = "living-factions") {
         LivingCard(title = "Who holds what") {
@@ -99,11 +106,18 @@ internal fun LazyListScope.livingWorldSection(
         )
     }
 
-    items(world.events, key = { it.id }) { event -> EventRow(event) }
+    items(world.events, key = { it.id }) { event ->
+        EventRow(event, world.narrating == event.id, viewModel)
+    }
 }
 
 @Composable
-private fun WorldNowCard(currentTick: Long, worldEpochMs: Long, viewModel: CreativeStudioViewModel) {
+private fun WorldNowCard(
+    currentTick: Long,
+    worldEpochMs: Long,
+    live: LivingLiveUi?,
+    viewModel: CreativeStudioViewModel,
+) {
     // Read the clock at composition rather than taking a precomputed value from
     // state. How far behind the world is changes with time passing, not with
     // anything writing to the database, so a stored figure would be stale the
@@ -122,11 +136,26 @@ private fun WorldNowCard(currentTick: Long, worldEpochMs: Long, viewModel: Creat
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
         )
+        if (live != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(AuraSpacing.md), strokeWidth = AuraSpacing.hairline * 2)
+                Text(
+                    if (live.phase == "narrating") {
+                        "Writing up what happened…"
+                    } else {
+                        "Catching up · ${live.remaining} day(s) to go"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                    modifier = Modifier.padding(start = AuraSpacing.sm),
+                )
+            }
+        }
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            OutlinedButton(onClick = viewModel::catchUpLivingWorld) {
+            OutlinedButton(onClick = viewModel::catchUpLivingWorld, enabled = live == null) {
                 Text(if (behind > 0L) "Catch up now" else "Advance now")
             }
         }
@@ -231,7 +260,7 @@ private fun FactionRow(faction: LivingFactionUi) {
 }
 
 @Composable
-private fun EventRow(event: LivingEventUi) {
+private fun EventRow(event: LivingEventUi, narrating: Boolean, viewModel: CreativeStudioViewModel) {
     Surface(
         color = AuraThemeTokens.colors.surface1,
         shape = MaterialTheme.shapes.medium,
@@ -260,6 +289,25 @@ private fun EventRow(event: LivingEventUi) {
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textSecondary,
                 )
+            } else if (narrating) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(AuraSpacing.md), strokeWidth = AuraSpacing.hairline * 2)
+                    Text(
+                        "Writing…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textSecondary,
+                        modifier = Modifier.padding(start = AuraSpacing.sm),
+                    )
+                }
+            } else if (event.kind != WorldEngine.KIND_QUIET_INTERVAL) {
+                // On demand rather than up front. Narrating a year of history
+                // eagerly would cost a fortune to produce text nobody asked to
+                // read; one press is the cheapest possible way to make an old
+                // moment readable.
+                TextButton(
+                    onClick = { viewModel.narrateEvent(event.id) },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                ) { Text("Tell me about this") }
             }
         }
     }

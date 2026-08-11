@@ -128,7 +128,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 19
+        const val SCHEMA_VERSION = 20
     }
 }
 
@@ -359,6 +359,22 @@ data class TaskBackup(
     val status: String,
     val priority: Int,
     val tags: String,
+    /**
+     * Schema v20. Absent until now, so a recurring task created by
+     * `schedule_task` silently came back one-shot from every restore — the
+     * column existed on the entity, in the database and in the schema export,
+     * and only the backup DTO had never heard of it.
+     */
+    val recurrence: String? = null,
+    /**
+     * Schema v20: the attention model. Defaulted, so older backups restore as
+     * fully bright tasks and are dimmed by their first real decay pass rather
+     * than arriving pre-judged.
+     */
+    val salience: Double = 1.0,
+    val lastTouchedAt: Long = 0L,
+    val deferCount: Int = 0,
+    val quietSince: Long = 0L,
 )
 
 @Serializable

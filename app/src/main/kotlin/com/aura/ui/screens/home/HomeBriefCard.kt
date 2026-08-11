@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.WbSunny
@@ -162,6 +163,9 @@ private fun HomePriority.presentation(): PriorityPresentation = when (this) {
         )
         is ProactiveEventBus.Event.DaemonInsight -> PriorityPresentation(
             Icons.Filled.Lightbulb, item.title, item.body, "",
+        )
+        is ProactiveEventBus.Event.LivingWorldReport -> PriorityPresentation(
+            Icons.Filled.Public, item.title, item.body, "Open the world",
         )
     }
     is HomePriority.Calendar -> PriorityPresentation(

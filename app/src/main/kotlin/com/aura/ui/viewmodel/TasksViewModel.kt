@@ -21,6 +21,8 @@ import javax.inject.Inject
 
 data class TasksUiState(
     val tasks: List<TaskEntity> = emptyList(),
+    /** Pending tasks that have gone quiet. Never hidden, just moved out of the way. */
+    val quietTasks: List<TaskEntity> = emptyList(),
     val reminders: List<ReminderEntity> = emptyList(),
     val loading: Boolean = true,
     /** Filter: "all", "pending", "done" */
@@ -96,7 +98,51 @@ class TasksViewModel @Inject constructor(
                         task.tags.lowercase().contains(needle)
                 }
             }
-            _state.update { it.copy(tasks = filtered) }
+            // The quiet ones are separated rather than dropped. Hiding them
+            // outright would make the list a place things vanish from; a
+            // collapsed section makes it a place things settle into.
+            val loud = filtered.filter { it.status == "done" || !com.aura.tasks.TaskSalience.isQuiet(it.salience) }
+            val quiet = filtered.filter { it.status != "done" && com.aura.tasks.TaskSalience.isQuiet(it.salience) }
+            _state.update { it.copy(tasks = loud, quietTasks = quiet) }
+        }
+    }
+
+    /**
+     * Push a task away.
+     *
+     * The one affordance that makes the whole model work, and the one every
+     * other todo app is missing: a way to say "not now" that the system counts.
+     * Snoozing elsewhere only moves a date; here it is recorded as evidence,
+     * and enough of it makes the task go quiet on its own.
+     */
+    fun deferTask(id: String) {
+        viewModelScope.launch {
+            val task = taskDao.get(id) ?: return@launch
+            taskDao.update(
+                task.copy(
+                    salience = com.aura.tasks.TaskSalience.deferred(task),
+                    deferCount = task.deferCount + 1,
+                    lastTouchedAt = System.currentTimeMillis(),
+                    revivedReason = "",
+                ),
+            )
+            refreshTasks()
+        }
+    }
+
+    /** Bring a quiet task back deliberately. */
+    fun reviveTask(id: String) {
+        viewModelScope.launch {
+            val task = taskDao.get(id) ?: return@launch
+            taskDao.update(
+                task.copy(
+                    salience = com.aura.tasks.TaskSalience.revived(task).coerceAtLeast(0.6),
+                    lastTouchedAt = System.currentTimeMillis(),
+                    quietSince = 0L,
+                    revivedReason = "You brought this back.",
+                ),
+            )
+            refreshTasks()
         }
     }
 
@@ -143,6 +189,11 @@ class TasksViewModel @Inject constructor(
                 dueAt = dueAt,
                 priority = priority.coerceIn(0, 3),
                 tags = tags,
+                // Editing something is the clearest possible statement that it
+                // still matters, so it counts as a touch.
+                salience = com.aura.tasks.TaskSalience.revived(task),
+                lastTouchedAt = System.currentTimeMillis(),
+                quietSince = 0L,
             ))
             refreshTasks()
         }

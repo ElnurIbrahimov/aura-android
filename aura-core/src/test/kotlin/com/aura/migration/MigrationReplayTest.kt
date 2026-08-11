@@ -142,6 +142,7 @@ class MigrationReplayTest {
             listOf(
                 TasksModule.MIGRATION_1_2, TasksModule.MIGRATION_2_3,
                 TasksModule.MIGRATION_3_4, TasksModule.MIGRATION_4_5,
+                TasksModule.MIGRATION_5_6,
             ),
         ),
         DatabaseUnderTest("com.aura.hands.HandDatabase", listOf(HandsModule.MIGRATION_1_2)),

@@ -49,6 +49,23 @@ class ProactiveEventBus @Inject constructor() {
          *   [ProactiveEvents] and [DaemonWorker] keep compiling.
          */
         data class DaemonInsight(val title: String, val body: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L, val findingType: String = "") : Event()
+
+        /**
+         * Something happened in a living world while the user was elsewhere.
+         *
+         * [worldId] is written to the entity's `correlationTag`, which until now
+         * had no writer at all — the column and its two DAO queries were added
+         * in a migration and never used. It becomes "every report from this
+         * world", and the delete-by-tag query becomes how a world's reports go
+         * when the world does.
+         */
+        data class LivingWorldReport(
+            val worldId: String,
+            val title: String,
+            val body: String,
+            override val timestamp: Long = System.currentTimeMillis(),
+            override val id: Long = 0L,
+        ) : Event()
     }
 
     private val _events = MutableSharedFlow<Event>(

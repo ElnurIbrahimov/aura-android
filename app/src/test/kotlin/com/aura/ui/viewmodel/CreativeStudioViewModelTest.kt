@@ -55,6 +55,11 @@ class CreativeStudioViewModelTest {
         // A real seeder for the same reason as the progress bus: it is pure,
         // has no dependencies, and a mock would only hide what it produces.
         com.aura.creative.livingworld.WorldSeeder(),
+        // A real bus for the same reason as the progress bus above: it is a
+        // plain StateFlow holder, and a relaxed mock hands back a null Flow
+        // that the living-world observer combines against.
+        com.aura.creative.livingworld.WorldTickBus(),
+        mockk(relaxed = true),
         mockk(relaxed = true),
     )
 

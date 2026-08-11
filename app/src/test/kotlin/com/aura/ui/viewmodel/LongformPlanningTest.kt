@@ -64,7 +64,8 @@ class LongformPlanningTest {
         mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
         mockk(relaxed = true),
         longformRunStore, LongformProgressBus(),
-        mockk(relaxed = true), com.aura.creative.livingworld.WorldSeeder(), mockk(relaxed = true),
+        mockk(relaxed = true), com.aura.creative.livingworld.WorldSeeder(),
+        com.aura.creative.livingworld.WorldTickBus(), mockk(relaxed = true), mockk(relaxed = true),
     )
 
     @Before

@@ -73,6 +73,30 @@ object TasksModule {
         }
     }
 
+    /**
+     * Migration 5→6: gives tasks an attention model.
+     *
+     * `priority` records what you said a task was worth when you wrote it down
+     * and never moves again. `salience` is what the evidence says it is worth
+     * now — and the two disagree constantly, which is the point.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE tasks ADD COLUMN salience REAL NOT NULL DEFAULT 1.0")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN lastTouchedAt INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN deferCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN quietSince INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE tasks ADD COLUMN revivedReason TEXT NOT NULL DEFAULT ''")
+            // Existing tasks start fully bright and are dimmed by the first
+            // decay pass on their real evidence, rather than being retroactively
+            // judged by a rule they were never created under.
+            db.execSQL("UPDATE tasks SET lastTouchedAt = createdAt WHERE lastTouchedAt = 0")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_tasks_status_salience ON tasks(status, salience)",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): TaskDatabase =
@@ -80,7 +104,7 @@ object TasksModule {
             context,
             TaskDatabase::class.java,
             "aura-tasks.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6),
         ).build()
 
     @Provides

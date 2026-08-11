@@ -200,6 +200,12 @@ data class WorldEvent(
     val targetId: String = "",
     val ruleId: String = "",
     val magnitudeMilli: Long = 0L,
+    /**
+     * Which stock moved, when one did. Blank for events that are not about a
+     * stock. Carried so notability can measure the change against the right
+     * denominator — a number is only large or small relative to something.
+     */
+    val stockKey: String = "",
     val summary: String,
 ) {
     /**

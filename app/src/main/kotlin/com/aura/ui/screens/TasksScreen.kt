@@ -8,6 +8,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +96,7 @@ fun TasksScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var quietExpanded by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showAddReminder by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<ReminderEntity?>(null) }
@@ -245,7 +247,35 @@ fun TasksScreen(
                                     onDone = { viewModel.markDone(task.id) },
                                     onReopen = { viewModel.reopenTask(task.id) },
                                     onEdit = { editingTask = task },
+                                    onDefer = { viewModel.deferTask(task.id) },
                                 )
+                            }
+                        }
+                    }
+
+                    // Tasks that have gone quiet. Collapsed, below everything,
+                    // and never removed — the point is that forgetting costs
+                    // nothing while remembering stays possible.
+                    if (state.quietTasks.isNotEmpty() && state.statusFilter != "done") {
+                        item(key = "quiet-header") {
+                            QuietHeader(
+                                count = state.quietTasks.size,
+                                expanded = quietExpanded,
+                                onToggle = { quietExpanded = !quietExpanded },
+                            )
+                        }
+                        if (quietExpanded) {
+                            items(state.quietTasks, key = { "quiet-" + it.id }) { task ->
+                                SwipeToDeleteContainer(onDelete = { viewModel.deleteTask(task.id) }) {
+                                    TaskRow(
+                                        task = task,
+                                        onDelete = { viewModel.deleteTask(task.id) },
+                                        onDone = { viewModel.markDone(task.id) },
+                                        onReopen = { viewModel.reopenTask(task.id) },
+                                        onEdit = { editingTask = task },
+                                        onRevive = { viewModel.reviveTask(task.id) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -488,6 +518,30 @@ private fun ReminderRow(
     }
 }
 
+/**
+ * The lid on the quiet pile.
+ *
+ * Collapsed by default and stating its own count, so the list reads as
+ * "everything is still here, just out of the way" rather than as things having
+ * been thrown out behind the user's back.
+ */
+@Composable
+private fun QuietHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (expanded) "Quiet ($count)" else "Quiet ($count) — tap to show",
+            style = MaterialTheme.typography.labelLarge,
+            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+        )
+    }
+}
+
 @Composable
 private fun TaskRow(
     task: TaskEntity,
@@ -495,6 +549,8 @@ private fun TaskRow(
     onDone: () -> Unit,
     onReopen: () -> Unit,
     onEdit: () -> Unit,
+    onDefer: (() -> Unit)? = null,
+    onRevive: (() -> Unit)? = null,
 ) {
     val fmt = SimpleDateFormat("MMM d, HH:mm", Locale.US)
     Surface(
@@ -550,6 +606,14 @@ private fun TaskRow(
             if (task.status == "done") {
                 TextButton(onClick = onReopen) { Text(stringResource(R.string.reopen)) }
             } else {
+                if (onRevive != null) {
+                    TextButton(onClick = onRevive) { Text("Bring back") }
+                } else if (onDefer != null) {
+                    // "Not now" rather than "snooze": snoozing moves a date,
+                    // this records that you pushed it away, and enough of that
+                    // is what lets the task go quiet by itself.
+                    TextButton(onClick = onDefer) { Text("Not now") }
+                }
                 TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
             }
             IconButton(onClick = onEdit) {

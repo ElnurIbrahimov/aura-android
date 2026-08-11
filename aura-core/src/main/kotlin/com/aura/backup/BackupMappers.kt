@@ -287,12 +287,18 @@ internal fun TaskEntity.toBackup() = TaskBackup(
     id = id, title = title, description = description,
     createdAt = createdAt, dueAt = dueAt, completedAt = completedAt,
     status = status, priority = priority, tags = tags,
+    recurrence = recurrence,
+    salience = salience, lastTouchedAt = lastTouchedAt,
+    deferCount = deferCount, quietSince = quietSince,
 )
 
 internal fun TaskBackup.toEntity() = TaskEntity(
     id = id, title = title, description = description,
     createdAt = createdAt, dueAt = dueAt, completedAt = completedAt,
     status = status, priority = priority, tags = tags,
+    recurrence = recurrence,
+    salience = salience, lastTouchedAt = lastTouchedAt,
+    deferCount = deferCount, quietSince = quietSince,
 )
 
 internal fun ReminderEntity.toBackup() = ReminderBackup(

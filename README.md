@@ -13,6 +13,8 @@ This is my personal copy.
 - 78 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
 - Living worlds (Creative → Living tab): a creative project's world bible compiles into a **simulation that runs on its own**, one world day per real hour, in a WorkManager job. Factions hold scarce quantities — land is a strictly conserved pool, so one faction only gains it by taking it from another — and executable rules fire on thresholds. **The engine never calls a model**: a tick is integer arithmetic, which is what makes it deterministic (and therefore replayable), catchable-up offline, and testable without a key. Quantities are scaled `Long`s and each decision draws from a content-keyed SplitMix64 substream, so adding a rule cannot shift an unrelated outcome. A long absence is collapsed by one closed-form `fold`, so returning after three months costs the same as after three days. Seeded from the world bible with author-supplied starting numbers, since the bible carries no quantities at all
+- Living world narration: a `NotabilityScorer` (magnitude x scarcity x novelty, plus a bonus when the map changes hands) gates which events are worth a model call at all. Only the top 3 go out, in **one batched request**, on the background model with no thinking budget and a 700-token ceiling, capped at 12 per world per rolling day — counted from the events table itself rather than a counter row that could drift. A world that merely runs costs nothing; unnarrated moments can be written up later on demand, one tap at a time. Reach and surprise are deliberately **absent** from the score rather than faked: both need the belief layer, and three real factors beat five where two are invented
+- Living world reports reach the user through `ProactiveEvents.record` only (never the `replay = 0` bus, where a background emit is dropped silently), and are the first writer `correlationTag` has ever had
 - Prose craft tools (Show Don't Tell, Describe, Expand, Shrink Ray, Twist, Rewrite — operate on selected text)
 - Voice calibration (learn user's prose style, mirror in generated content)
 - Tension analyzer (per-scene tension scoring, pacing diagnosis, recommendations)
@@ -24,6 +26,7 @@ This is my personal copy.
 - Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
+- Task salience: a list that **shrinks on its own**. Every pending task carries a salience score distinct from `priority` — priority is what you said it was worth when you wrote it down and never moves; salience is what the evidence says it is worth now. It halves every ~21 days untouched, drops on each **"Not now"**, and drops hard when a deadline passes and nothing breaks. Below the threshold a task moves into a collapsed **Quiet** section — never deleted, always searchable, and brought back by a tap or an approaching deadline. Deliberately inverts the universal todo-app behaviour of making overdue items louder: repeated deferral is treated as evidence *against* a task, because a list you abandon wholesale is a worse outcome than a task you miss. Rides the existing 6-hourly `DecayWorker`, and every disappearance can state its own reason
 - Agentic loop (ReAct-style, 10 steps max, streams text + tool calls, abort-safe, parallel tool execution, 4k char tool-result truncation budget, reflection after failures, StrategyBandit Thompson Sampling over reasoning strategies)
 - Extended thinking always on (Anthropic thinking block, OpenAI reasoning_effort=high, Gemini thinkingConfig — 32K default budget, configurable in Settings)
 - Optional pre-answer planning pass (off by default — costs an extra model call per message; enable in Settings → AI & Models for tool-heavy work)
@@ -56,8 +59,8 @@ This is my personal copy.
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v19, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
-- 2,744 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v20, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
+- 2,781 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - 64 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -351,7 +354,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | MemoryDatabase | v18 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v5 | Proactive events with structured payload |
-| TaskDatabase | v5 | Tasks + reminders |
+| TaskDatabase | v6 | Tasks + reminders |
 | EvolutionDatabase | v4 | Candidates, proposals, evidence, outcomes (dedup index on domain/action/target) |
 | DreamConsolidationDatabase | v3 | Dream summaries, routines, contradictions, KG edge proposals |
 | AgentDatabase | v3 | Agent definitions and personality profiles |
@@ -451,7 +454,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 57 entities, 39 migrations, schema export)
+- Room 2.8.4 (11 databases, 57 entities, 40 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

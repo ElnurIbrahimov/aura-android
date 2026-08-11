@@ -90,6 +90,9 @@ interface LivingEventDao {
     @Query("UPDATE living_events SET narration = :narration, narratedAt = :narratedAt WHERE id = :id")
     suspend fun attachNarration(id: String, narration: String, narratedAt: Long)
 
+    @Query("SELECT * FROM living_events WHERE id = :id")
+    suspend fun byId(id: String): LivingEventEntity?
+
     @Query("SELECT COUNT(*) FROM living_events WHERE worldId = :worldId")
     suspend fun count(worldId: String): Int
 
