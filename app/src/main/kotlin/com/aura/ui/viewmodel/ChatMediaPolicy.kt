@@ -46,6 +46,63 @@ internal fun calculateImageSampleSize(width: Int, height: Int, target: Int): Int
 private val IMAGE_MARKER = Regex("""\[IMAGE:(.+?)]""")
 
 /**
+ * The tools whose results may carry a `[BROWSER:url]` or `[IMAGE:url]` marker.
+ *
+ * The markers were parsed from the result of **every** tool. `read_url` and
+ * `fetch_url` are READ_ONLY, so they run unattended and return the fetched page
+ * body verbatim — which means a page containing the literal text
+ * `[BROWSER:https://attacker.example/…]` caused that URL to be loaded in a
+ * JavaScript-enabled WebView with no gesture and no SSRF check, and a literal
+ * `[IMAGE:…]` became a GET on an unguarded client. The image case was the worse
+ * of the two: [withImagesFromToolResults] re-derives markers from *stored* tool
+ * results on every conversation reload, so an injected pixel was baked into the
+ * saved conversation and re-fired every time it was opened.
+ *
+ * The intent was always narrow — the call sites' own comments said "from
+ * open_browser_tab tool" and "from image_gen tools" — and `extractCitations`
+ * one line below already took the tool name. These two did not.
+ *
+ * Emitters: `OpenBrowserTabTool`, `ImageGenTool`, `ImageGenCapabilityTool`.
+ *
+ * The name check is the whole defence, and it is sufficient because the URL in
+ * a marker emitted by one of these tools has already been validated where that
+ * can be done safely. `OpenBrowserTabTool` runs `SsrfGuard.validate` before it
+ * emits, on the tool dispatcher; the image tools return a URL from the user's
+ * own configured provider. Re-checking here would mean a blocking DNS lookup on
+ * whatever thread parses the event — and both call sites run inside
+ * `viewModelScope`, i.e. `Dispatchers.Main.immediate`. The guard belongs at the
+ * tool, not on the main thread.
+ */
+internal const val BROWSER_MARKER_TOOL = "open_browser_tab"
+internal val IMAGE_MARKER_TOOLS = setOf("image_gen", "image_generate")
+
+/**
+ * Image URLs a tool result is allowed to contribute, empty for any tool that is
+ * not an image generator.
+ *
+ * Centralised rather than inlined at the call sites so a third consumer of
+ * these markers cannot reintroduce the hole by forgetting the check — which is
+ * exactly how it arose: `extractCitations` took the tool name, and the two
+ * marker parsers beside it did not.
+ */
+internal fun imageUrlsFrom(toolName: String, result: String): List<String> {
+    if (toolName !in IMAGE_MARKER_TOOLS) return emptyList()
+    return IMAGE_MARKER.findAll(result).map { it.groupValues[1] }.toList()
+}
+
+/**
+ * The URL a `[BROWSER:url]` marker asks the in-app browser to open, or null
+ * when the emitting tool is not allowed to ask.
+ */
+internal fun browserUrlFrom(toolName: String, result: String): String? {
+    if (toolName != BROWSER_MARKER_TOOL) return null
+    return BROWSER_MARKER.find(result)?.groupValues?.get(1)
+}
+
+/** Marker [com.aura.tools.OpenBrowserTabTool] emits around a URL to open. */
+private val BROWSER_MARKER = Regex("""\[BROWSER:(.+?)]""")
+
+/**
  * Rebuild each turn's [Conversation.Turn.generatedImages] from its own tool
  * results.
  *
@@ -67,9 +124,7 @@ private val IMAGE_MARKER = Regex("""\[IMAGE:(.+?)]""")
  */
 internal fun Conversation.withImagesFromToolResults(): Conversation = copy(
     turns = turns.map { turn ->
-        val fromTools = turn.toolTurns.flatMap { tt ->
-            IMAGE_MARKER.findAll(tt.result).map { it.groupValues[1] }.toList()
-        }
+        val fromTools = turn.toolTurns.flatMap { tt -> imageUrlsFrom(tt.name, tt.result) }
         if (fromTools.isEmpty()) {
             turn
         } else {

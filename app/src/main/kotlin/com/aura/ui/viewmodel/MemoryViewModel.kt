@@ -194,13 +194,29 @@ class MemoryViewModel @Inject constructor(
         refresh()
     }
 
+    /**
+     * Delete a memory, keeping a snapshot so [undoDelete] can put it back.
+     *
+     * The snapshot used to come from `recent(200).find { it.id == id }`, which
+     * made deletion silently do nothing for anything outside the 200
+     * newest-by-`createdAt` rows. The list on screen is not bounded that way —
+     * search and category views return older rows freely — so the ordinary act
+     * of searching for a memory and swiping it away hit `?: return@launch`,
+     * skipped the delete, showed no message, and left the row in place after
+     * `refresh()`. A memory you tried to forget kept being recalled into future
+     * prompts. `get(id)` is an indexed primary-key lookup with no such bound.
+     *
+     * Deletion no longer depends on the snapshot succeeding: the destructive
+     * intent is honoured either way, and undo degrades to unavailable rather
+     * than taking the delete down with it. That coupling is how the bug got in
+     * — the lookup was added to support undo and quietly became a precondition.
+     */
     fun forget(id: String) {
         viewModelScope.launch {
-            val memory = memoryStore.recent(200).find { it.id == id } ?: return@launch
-            val edits = memoryStore.getEditHistory(id)
-            lastDeleted = DeletedMemory(memory, edits)
+            val memory = memoryStore.get(id)
+            lastDeleted = memory?.let { DeletedMemory(it, memoryStore.getEditHistory(id)) }
             memoryStore.forget(id)
-            _state.update { it.copy(undoMessage = "Memory deleted") }
+            _state.update { it.copy(undoMessage = if (lastDeleted != null) "Memory deleted" else null) }
             refresh()
         }
     }

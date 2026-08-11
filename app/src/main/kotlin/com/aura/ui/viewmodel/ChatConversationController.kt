@@ -98,7 +98,11 @@ internal class ChatConversationController(
             )
         }
         scope.launch {
-            conversationStore.save(_state.value.conversation)
+            // The one save that legitimately shrinks a conversation in place:
+            // clearing keeps the id and empties the turns. Every other caller
+            // gets the default, which refuses to overwrite a stored row that
+            // already has more turns than the snapshot being written.
+            conversationStore.save(_state.value.conversation, allowTruncation = true)
         }
     }
 

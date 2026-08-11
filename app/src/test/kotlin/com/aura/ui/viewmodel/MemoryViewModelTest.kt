@@ -186,7 +186,11 @@ class MemoryViewModelTest {
                 newCategory = "fact",
             ),
         )
-        coEvery { memoryStore.recent(200) } returns listOf(memory)
+        // This used to stub `recent(200)`, which is the lookup the bug lived
+        // in: it mocked the buggy path into succeeding, so the test stayed
+        // green while deletion silently did nothing for any memory outside the
+        // 200 newest rows. `get(id)` is an unbounded primary-key lookup.
+        coEvery { memoryStore.get(memory.id) } returns memory
         coEvery { memoryStore.getEditHistory(memory.id) } returns edits
         val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
 
@@ -197,6 +201,48 @@ class MemoryViewModelTest {
         vm.undoDelete()
         coVerify(exactly = 1) { memoryStore.restore(memory, edits) }
         assertNull(vm.state.value.undoMessage)
+    }
+
+    /**
+     * The regression the fix exists for. A memory reached through search or a
+     * category filter can be arbitrarily old, and the old snapshot lookup —
+     * `recent(200).find { it.id == id }` — returned null for it and hit
+     * `?: return@launch` *before* the delete. No delete, no message, no error,
+     * and the row reappeared on the next refresh. The user swiped again.
+     */
+    @Test
+    fun `deletes a memory that is older than the recent window`() = runTest {
+        coEvery { memoryStore.recent(any()) } returns emptyList()
+        coEvery { memoryStore.get("m-ancient") } returns MemoryEntity(
+            id = "m-ancient",
+            content = "an old secret",
+            source = "user",
+            category = "fact",
+            createdAt = 1L,
+        )
+        coEvery { memoryStore.getEditHistory("m-ancient") } returns emptyList()
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
+
+        vm.forget("m-ancient")
+
+        coVerify(exactly = 1) { memoryStore.forget("m-ancient") }
+        assertEquals("Memory deleted", vm.state.value.undoMessage)
+    }
+
+    /**
+     * Deletion must not depend on the undo snapshot succeeding. Coupling them
+     * is how the bug got in: the lookup was added to support undo and quietly
+     * became a precondition for the delete.
+     */
+    @Test
+    fun `deletes even when no snapshot can be taken, and offers no undo`() = runTest {
+        coEvery { memoryStore.get("m-gone") } returns null
+        val vm = MemoryViewModel(memoryStore, feedbackDao, evolutionHooks)
+
+        vm.forget("m-gone")
+
+        coVerify(exactly = 1) { memoryStore.forget("m-gone") }
+        assertNull(vm.state.value.undoMessage, "undo is unavailable, so it must not be advertised")
     }
 
     @Test

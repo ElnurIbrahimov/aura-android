@@ -436,16 +436,21 @@ class ChatSendController(
                                     inFlightToolCalls = old.inFlightToolCalls.filterNot { it.id == event.id },
                                 )
                             }
-                            // Detect [BROWSER:url] marker from open_browser_tab tool.
-                            // Non-greedy match — URLs don't contain ] in practice.
-                            val browserMarker = Regex("\\[BROWSER:(.+?)\\]").find(event.result)
-                            if (browserMarker != null) {
-                                state.update { old ->
-                                    old.copy(pendingBrowserUrl = browserMarker.groupValues[1])
-                                }
+                            // Both markers are read from the tool that is
+                            // supposed to emit them, and only for URLs that
+                            // survive SsrfGuard — see ChatMediaPolicy. They
+                            // used to be parsed from EVERY tool result,
+                            // including the verbatim page body returned by the
+                            // unattended READ_ONLY `read_url`, which let a
+                            // hostile page open an arbitrary URL in a
+                            // JavaScript-enabled WebView with no gesture at all.
+                            // `extractCitations` below already passed the tool
+                            // name; these two did not.
+                            val browserUrl = browserUrlFrom(event.name, event.result)
+                            if (browserUrl != null) {
+                                state.update { old -> old.copy(pendingBrowserUrl = browserUrl) }
                             }
-                            // Detect [IMAGE:url] markers from image_gen tools.
-                            val imageMarkers = Regex("\\[IMAGE:(.+?)\\]").findAll(event.result).map { it.groupValues[1] }.toList()
+                            val imageMarkers = imageUrlsFrom(event.name, event.result)
                             if (imageMarkers.isNotEmpty()) {
                                 state.update { old ->
                                     val turns = old.conversation.turns

@@ -1,6 +1,7 @@
 package com.aura.agent
 
 import com.aura.memory.escapeLikeWildcards
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -15,7 +16,38 @@ class ConversationStore @Inject constructor(
     private val dao: ConversationDao,
     private val embedder: com.aura.memory.Embedder,
 ) {
-    suspend fun save(conversation: Conversation) {
+    /**
+     * Serialises the read-modify-write in [save].
+     *
+     * `save` is fired from eleven call sites with a bare `scope.launch` and no
+     * ordering between them — the user message is saved as soon as it is typed,
+     * the stream saves again on completion, `cancel()` saves, the media flows
+     * save and then immediately trigger a send that saves again. Each one reads
+     * the row, builds a whole-blob `turnsJson`, and writes it back, with a
+     * network embedding call in the middle. Interleaved, that is a lost update:
+     * the write that *started* first can land last and put back a turn list
+     * missing the assistant's answer. The UI still showed it, because the UI
+     * holds its own state — you found out when you reopened the chat from
+     * History. The same interleaving let a deleted conversation come back, by
+     * carrying a `deletedAt` read before the delete.
+     */
+    private val saveMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * Persist [conversation].
+     *
+     * @param allowTruncation write even when the stored row has more turns than
+     * this snapshot. False is the safe default and makes a lost update
+     * impossible; the one caller that legitimately shrinks a conversation in
+     * place is "clear conversation", which keeps the id and empties the turns,
+     * and says so explicitly.
+     */
+    suspend fun save(conversation: Conversation, allowTruncation: Boolean = false) {
+        // The embedding is computed BEFORE the lock. It is a network call, and
+        // holding a mutex across it would serialise every save in the app
+        // behind the slowest embedder response — the media flows save three
+        // times in a row. Racing here costs a duplicate embed, never a
+        // duplicate write.
         val previous = runCatching { dao.getById(conversation.id) }
             .onFailure { android.util.Log.w("ConversationStore", "save: getById failed for ${conversation.id}: ${it.message}", it) }
             .getOrNull()
@@ -29,32 +61,69 @@ class ConversationStore @Inject constructor(
             }.onFailure { android.util.Log.w("ConversationStore", "save: embed failed for ${conversation.id}: ${it.message}", it) }
                 .getOrNull()
         }
-        val entity = ConversationEntity(
-            id = conversation.id,
-            title = conversation.title,
-            createdAt = conversation.createdAt,
-            updatedAt = System.currentTimeMillis(),
-            systemPrompt = conversation.systemPrompt,
-            model = conversation.model,
-            metadataJson = convJson.encodeToString(conversation.metadata),
-            turnsJson = convJson.encodeToString(conversation.turns),
-            embedding = embedding,
-            contextSummary = conversation.contextSummary,
-            summaryThroughTurn = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size),
-            // Carry forward agentId from the previous row. The [Conversation]
-            // domain object does not expose agentId (it's a storage-layer
-            // concern), so without this lookup the agent association
-            // would be silently lost on every save. The previous row
-            // was already fetched above for the embedding cache check,
-            // so we use it here too.
-            agentId = conversation.agentId ?: previous?.agentId,
-            // Same reasoning for the soft-delete tombstone: a save() must
-            // never resurrect a deleted conversation. If the previous
-            // row was soft-deleted, preserve that state — only an
-            // explicit restore() can clear it.
-            deletedAt = previous?.deletedAt,
-        )
-        dao.insert(entity)
+        saveMutex.withLock {
+            // Re-read inside the lock. The row above was fetched before a
+            // network call that may have taken seconds, and `agentId` /
+            // `deletedAt` are carried from it — a stale read is how a deleted
+            // conversation used to resurrect itself.
+            val current = runCatching { dao.getById(conversation.id) }
+                .onFailure {
+                    android.util.Log.w(
+                        "ConversationStore",
+                        "save: re-read failed for ${conversation.id}: ${it.message}",
+                        it,
+                    )
+                }
+                .getOrNull() ?: previous
+
+            val storedTurnCount = current?.let {
+                runCatching { convJson.decodeFromString<List<Turn>>(it.turnsJson).size }
+                    .onFailure { e ->
+                        android.util.Log.w(
+                            "ConversationStore",
+                            "save: could not count stored turns for ${conversation.id}: ${e.message}",
+                            e,
+                        )
+                    }
+                    .getOrNull()
+            }
+            if (!allowTruncation && storedTurnCount != null && storedTurnCount > conversation.turns.size) {
+                // A newer snapshot already landed. Writing this one would drop
+                // the turns it does not know about — the assistant's reply, in
+                // the case that prompted this guard.
+                android.util.Log.i(
+                    "ConversationStore",
+                    "save: skipping stale snapshot for ${conversation.id} " +
+                        "(${conversation.turns.size} turns vs $storedTurnCount stored)",
+                )
+                return@withLock
+            }
+
+            val entity = ConversationEntity(
+                id = conversation.id,
+                title = conversation.title,
+                createdAt = conversation.createdAt,
+                updatedAt = System.currentTimeMillis(),
+                systemPrompt = conversation.systemPrompt,
+                model = conversation.model,
+                metadataJson = convJson.encodeToString(conversation.metadata),
+                turnsJson = convJson.encodeToString(conversation.turns),
+                embedding = embedding,
+                contextSummary = conversation.contextSummary,
+                summaryThroughTurn = conversation.summaryThroughTurn.coerceIn(0, conversation.turns.size),
+                // Carry forward agentId from the stored row. The [Conversation]
+                // domain object does not expose agentId (it's a storage-layer
+                // concern), so without this lookup the agent association
+                // would be silently lost on every save.
+                agentId = conversation.agentId ?: current?.agentId,
+                // Same reasoning for the soft-delete tombstone: a save() must
+                // never resurrect a deleted conversation. If the stored
+                // row was soft-deleted, preserve that state — only an
+                // explicit restore() can clear it.
+                deletedAt = current?.deletedAt,
+            )
+            dao.insert(entity)
+        }
     }
 
     suspend fun load(id: String): Conversation? {
