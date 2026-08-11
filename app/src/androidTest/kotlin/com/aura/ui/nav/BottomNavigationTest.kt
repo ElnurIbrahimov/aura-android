@@ -34,8 +34,15 @@ class BottomNavigationTest {
             }
         }
 
-        composeRule.onNodeWithTag("bottom-navigation-row")
+        // Each node is asserted against what it actually promises. The BAR is
+        // the 64dp design height; the ROW inside it is 64 minus the Surface's
+        // 2x4dp vertical padding, so 56 — and asserting the design height on the
+        // row failed for a layout that is correct. What matters for the row is
+        // that every target still clears the 48dp accessibility minimum.
+        composeRule.onNodeWithTag("bottom-navigation")
             .assertHeightIsAtLeast(AuraDimensions.bottomNavigationHeight)
+        composeRule.onNodeWithTag("bottom-navigation-row")
+            .assertHeightIsAtLeast(AuraDimensions.minimumTouchTarget)
         val rowBounds = composeRule.onNodeWithTag("bottom-navigation-row")
             .fetchSemanticsNode().boundsInRoot
         val barBounds = composeRule.onNodeWithTag("bottom-navigation")

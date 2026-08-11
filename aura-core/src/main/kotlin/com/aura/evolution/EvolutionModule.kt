@@ -51,10 +51,31 @@ object EvolutionModule {
     fun provideEvolutionSettingsDao(db: EvolutionDatabase): EvolutionSettingsDao = db.settingsDao()
 }
 
+/**
+ * v1 → v2.
+ *
+ * Four columns, not two. `createdAt` and `retentionCount` were added to
+ * `EvolutionSettingsEntity` and recorded in `2.json`, but never added here — so
+ * a database still at v1 migrated to a table Room rejects on open:
+ * `IllegalStateException: Migration didn't properly handle: evolution_settings`,
+ * at startup, every launch, unrecoverable without clearing app data.
+ *
+ * It survived because the tests that catch exactly this are instrumented,
+ * instrumented tests need a device, and CI has none — so they had never been run.
+ *
+ * `createdAt` backfills from `updatedAt` rather than staying 0: a v1 row has a
+ * real modification time, and 0 dates every pre-existing settings row to 1970 in
+ * anything that reads it later.
+ */
 internal val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE evolution_settings ADD COLUMN totalRuns INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE evolution_settings ADD COLUMN totalCandidates INTEGER NOT NULL DEFAULT 0")
+        // SQLite requires a literal default on ADD COLUMN ... NOT NULL, so these
+        // carry one; the entity's own defaults govern newly inserted rows.
+        db.execSQL("ALTER TABLE evolution_settings ADD COLUMN retentionCount INTEGER NOT NULL DEFAULT 50")
+        db.execSQL("ALTER TABLE evolution_settings ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE evolution_settings SET createdAt = updatedAt WHERE createdAt = 0")
     }
 }
 
