@@ -156,6 +156,26 @@ class MoaProvider(
         }
         val scope = this
         val job = scope.coroutineContext[Job]
+        // Starting a run cancels the previous one. This looks like the
+        // stream-clobber defect fixed in the other providers — where a
+        // background call on a shared singleton killed the user's foreground
+        // stream — and an audit flagged it as exactly that. It is not, and the
+        // difference is that MoA has no background caller to collide with.
+        //
+        // Every auxiliary path in the codebase excludes this prefix
+        // deliberately: `CheapModelResolver.MOA_PREFIX` is documented "never a
+        // cheap auxiliary choice, it fans out"; `MemoryAugmentedAgenticLoop`
+        // picks the first non-`moa` chat-usable model when the conversation
+        // model is MoA before invoking the write gate; `ConversationCompactor`
+        // does the same before summarising; `ProviderContextWindows` maps it to
+        // null. So two concurrent MoA runs mean one thing only — the user sent
+        // a second message while the first was still fanning out — and
+        // cancelling the first is both the right UX and a saved fan-out, which
+        // on this provider is N reference models plus an aggregator.
+        //
+        // `MoaProviderTest` asserts this behaviour directly. If a background
+        // caller is ever given the MoA prefix, this becomes the clobber bug and
+        // both this block and that test have to change together.
         synchronized(this@MoaProvider) {
             activeJob?.cancel()
             activeJob = job
