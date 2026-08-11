@@ -134,6 +134,17 @@ class NarrativeSelf @Inject constructor(
         val anchors = state.identityAnchors
         state = NarrativeState(identityAnchors = anchors)
     }
+
+    /**
+     * Replace the whole narrative and persist it. Used by the backup restore
+     * path, which is the only caller that legitimately overwrites every field
+     * at once — [updateFromDream] and [setCoreIdentity] each own a slice, and
+     * neither can express "this is the state from another install".
+     */
+    suspend fun restore(restored: NarrativeState) {
+        state = restored
+        save()
+    }
 }
 
 @Serializable

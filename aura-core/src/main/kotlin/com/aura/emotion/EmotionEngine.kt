@@ -238,6 +238,18 @@ class EmotionEngine @Inject constructor(
         )
     }
 
+    /**
+     * Replace the emotional state from a backup and persist it.
+     *
+     * [load] deliberately refuses to clobber in-memory state when DataStore is
+     * empty, which is right at bootstrap and wrong here: a restore is an
+     * explicit instruction to overwrite.
+     */
+    suspend fun restore(restored: EmotionSnapshot) {
+        stateRef.set(restored)
+        save()
+    }
+
     private fun lerp(current: Float, target: Float, t: Float): Float =
         current + (target - current) * t
 

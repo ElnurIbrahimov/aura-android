@@ -115,6 +115,19 @@ class TheoryOfMind @Inject constructor(
     }
 
     /**
+     * Replace the user model from a backup and persist it.
+     *
+     * The value that actually matters here is `commStyle.sampleCount`:
+     * [toPrompt] stays silent below three samples, so a restore that dropped
+     * the counter gave the user a fresh install that had their memories and
+     * had forgotten how they talk.
+     */
+    suspend fun restore(restored: UserModel) {
+        _model.value = restored
+        save()
+    }
+
+    /**
      * Update the user model from a message.
      * Heuristic: length, question marks, technical terms, sentiment markers.
      */

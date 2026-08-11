@@ -35,7 +35,21 @@ class BackupManagerTest {
     private val userProfileDao = mockk<com.aura.profile.UserProfileDao>(relaxed = true)
     private val providerKeys = mockk<com.aura.providers.ProviderKeys>(relaxed = true)
     private val userPreferences = mockk<com.aura.data.UserPreferences>(relaxed = true)
-    private val context = mockk<android.content.Context>(relaxed = true)
+    /**
+     * Real directories behind the mocked Context.
+     *
+     * The rollback snapshot is spooled to disk now, so `File(context.cacheDir,
+     * …)` runs against whatever the mock returns — and `java.io.File(File,
+     * String)` reads the parent's private `path` field directly, which a MockK
+     * proxy does not have. A relaxed mock therefore fails inside java.io
+     * rather than at the assertion.
+     */
+    private val tmpDir = kotlin.io.path.createTempDirectory("aura-backup-test").toFile()
+        .also { it.deleteOnExit() }
+    private val context = mockk<android.content.Context>(relaxed = true).also {
+        every { it.cacheDir } returns tmpDir
+        every { it.filesDir } returns tmpDir
+    }
     private val reminderScheduler = mockk<com.aura.tasks.ReminderScheduler>(relaxed = true)
     private val handScheduler = mockk<com.aura.hands.HandScheduler>(relaxed = true)
     private val usageTracker = com.aura.usage.UsageTracker()

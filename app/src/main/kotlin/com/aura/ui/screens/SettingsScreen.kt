@@ -249,7 +249,7 @@ fun SettingsScreen(
                 }
             },
             onStageImport = backupViewModel::stageImport,
-            onConfirmImport = { backupViewModel.confirmImport(purgeFirst = false) },
+            onConfirmImport = { replace -> backupViewModel.confirmImport(replace = replace) },
             onCancelImport = backupViewModel::cancelImport,
             onClearResult = backupViewModel::clearResult,
             onNavigateDiagnostics = onNavigateDiagnostics,

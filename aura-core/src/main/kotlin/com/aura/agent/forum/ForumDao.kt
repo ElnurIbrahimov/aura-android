@@ -25,6 +25,16 @@ interface ForumPostDao {
     @Query("SELECT * FROM forum_posts ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recent(limit: Int = 50): List<ForumPostEntity>
 
+    /**
+     * Every post, oldest first. Exists for [com.aura.backup.BackupManager],
+     * which read `recent(200)` and so exported a forum silently truncated to
+     * its newest 200 posts while the sibling council tables next to it used
+     * uncapped `allOnce()` reads. Ascending order so a restore re-inserts
+     * parents before the replies that point at them.
+     */
+    @Query("SELECT * FROM forum_posts ORDER BY createdAt ASC")
+    suspend fun allForBackup(): List<ForumPostEntity>
+
     @Query("SELECT * FROM forum_posts WHERE id = :id")
     suspend fun getById(id: Long): ForumPostEntity?
 
@@ -61,6 +71,14 @@ interface ForumVoteDao {
 
     @Query("SELECT COUNT(*) FROM forum_votes WHERE postId = :postId AND vote = :vote")
     suspend fun count(postId: Long, vote: kotlin.String): Int
+
+    /**
+     * Every vote. The backup used to rebuild this by fanning `forPost` out
+     * over the 200 most recent posts, which cost one query per post and still
+     * dropped every vote attached to an older one.
+     */
+    @Query("SELECT * FROM forum_votes")
+    suspend fun allForBackup(): List<ForumVoteEntity>
 
     @Query("DELETE FROM forum_votes WHERE postId = :postId")
     suspend fun deleteForPost(postId: Long)

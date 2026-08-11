@@ -133,6 +133,18 @@ class BackupManager @Inject constructor(
     private val agentObservationDao: com.aura.agent.state.AgentObservationDao? = null,
     private val forumPostDao: com.aura.agent.forum.ForumPostDao? = null,
     private val forumVoteDao: com.aura.agent.forum.ForumVoteDao? = null,
+    // Schema v18. Appended, not inserted: BackupManagerTest builds this class
+    // with named arguments and omits everything defaulted, so a parameter added
+    // mid-list is a compile break unrelated to what the test checks. The `= null`
+    // defaults are for those test call sites only — Dagger ignores Kotlin
+    // defaults and injects the real singleton for every one of these.
+    private val toolPolicyStore: com.aura.agent.policy.ToolPolicyStore? = null,
+    private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
+    private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
+    private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
+    private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
+    private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
+    private val keyManager: com.aura.security.KeyManager? = null,
 ) {
 
     private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
@@ -253,8 +265,24 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 smtpFrom = userPreferences.smtpFrom.first().takeIf { it.isNotBlank() },
             )
 
-    suspend fun snapshot(
+    suspend fun snapshot(appVersionName: String): AuraBackup =
+        snapshot(appVersionName = appVersionName, strict = false)
+
+    /**
+     * @param strict when true, a table that cannot be read aborts the whole
+     *   snapshot instead of contributing an empty list.
+     *
+     * Export wants `false`: a transient read failure should cost those rows,
+     * not the entire backup. The pre-restore rollback snapshot wants `true`
+     * and used not to get it — the three `getOrDefault(emptyList())` calls on
+     * the evolution tables produced a snapshot indistinguishable from one
+     * where those tables were genuinely empty. Roll that back after a
+     * `purgeAll` and the rows are gone, with nothing in the log tying the loss
+     * to the restore.
+     */
+    internal suspend fun snapshot(
         appVersionName: String,
+        strict: Boolean,
     ): AuraBackup = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         AuraBackup(
@@ -314,9 +342,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             creativeSimulations = creativeSimulationDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             evolutionEvidence = evolutionEvidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             evolutionCandidates = evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            evolutionProposals = runCatching { evolutionProposalDao.allForBackup().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution proposals snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
-            evolutionSettings = runCatching { evolutionSettingsDao.all().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution settings snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
-            evolutionRevisions = runCatching { evolutionRevisionDao.allForBackup().map { it.toBackup() } }.onFailure { android.util.Log.w("BackupManager", "evolution revisions snapshot failed: ${it.message}", it) }.getOrDefault(emptyList()),
+            evolutionProposals = readTable(strict, "evolution proposals") { evolutionProposalDao.allForBackup().map { it.toBackup() } },
+            evolutionSettings = readTable(strict, "evolution settings") { evolutionSettingsDao.all().map { it.toBackup() } },
+            evolutionRevisions = readTable(strict, "evolution revisions") { evolutionRevisionDao.allForBackup().map { it.toBackup() } },
             proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),
@@ -324,12 +352,78 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             agentStates = agentStateDao?.allOnce()?.map { it.toBackup() } ?: emptyList(),
             agentRelationships = agentRelationshipDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
             agentObservations = agentObservationDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
-            forumPosts = forumPostDao?.recent(200)?.map { it.toBackup() } ?: emptyList(),
-            forumVotes = runCatching {
-                val posts = forumPostDao?.recent(200) ?: emptyList()
-                posts.flatMap { post -> forumVoteDao?.forPost(post.id) ?: emptyList() }.distinctBy { it.id }.map { it.toBackup() }
-            }.onFailure { Log.w("BackupManager", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList()),
+            // Uncapped, like agentStates/agentRelationships/agentObservations
+            // above. `recent(200)` truncated the exported forum and then
+            // derived the votes from the same truncated list, so a rollback
+            // could restore fewer posts than it had just purged.
+            forumPosts = readTable(strict, "forum posts") { forumPostDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            forumVotes = readTable(strict, "forum votes") { forumVoteDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            // Schema v18.
+            toolPolicies = readTable(strict, "tool policies") {
+                toolPolicyStore?.allPolicies?.first()?.values?.map { it.toBackup() } ?: emptyList()
+            },
+            consciousness = snapshotConsciousness(strict),
+            keyCanary = encodeKeyCanary(),
         )
+    }
+
+    /**
+     * Read one table, logging any failure and — when [strict] — rethrowing it.
+     *
+     * The strict path exists so the pre-restore snapshot cannot come back
+     * partial. A partial snapshot is the dangerous shape: it reads as "those
+     * tables were empty", so the rollback purges and then restores less than
+     * it destroyed.
+     */
+    private suspend fun <T> readTable(
+        strict: Boolean,
+        label: String,
+        read: suspend () -> List<T>,
+    ): List<T> = runCatching { read() }
+        .onFailure { error ->
+            Log.w("BackupManager", "$label snapshot failed: ${error.message}", error)
+            if (strict) throw error
+        }
+        .getOrDefault(emptyList())
+
+    /**
+     * Snapshot the five consciousness stores, or null when none are wired.
+     *
+     * They are one field rather than five because ENGINEERING_HISTORY §3
+     * records why they waited: backing up one blob would have set an
+     * inconsistent precedent for the other four.
+     */
+    private suspend fun snapshotConsciousness(strict: Boolean): ConsciousnessBackup? = runCatching {
+        val narrative = narrativeSelf?.snapshot()?.toBackup()
+        val drives = intrinsicMotivation?.drives?.value?.values?.map { it.toBackup() } ?: emptyList()
+        val userModel = theoryOfMind?.model?.value?.toBackup()
+        val emotion = emotionEngine?.snapshot()?.toBackup()
+        val affinity = affinityTracker?.exportRaw()?.let { (score, at) -> AffinityBackup(score = score, lastInteractionAt = at) }
+        if (narrative == null && drives.isEmpty() && userModel == null && emotion == null && affinity == null) null
+        else ConsciousnessBackup(narrative, drives, userModel, emotion, affinity)
+    }.onFailure { error ->
+        Log.w("BackupManager", "consciousness snapshot failed: ${error.message}", error)
+        if (strict) throw error
+    }.getOrNull()
+
+    /**
+     * Encrypt the canary probe with this install's Keystore key, or null when
+     * no [com.aura.security.KeyManager] is wired. See [AuraBackup.keyCanary].
+     */
+    private fun encodeKeyCanary(): String? {
+        val km = keyManager ?: return null
+        return runCatching { km.encrypt(KEY_CANARY_PLAINTEXT, km.getOrCreateKey()) }
+            .onFailure { Log.w("BackupManager", "key canary encrypt failed: ${it.message}", it) }
+            .getOrNull()
+    }
+
+    /** True when [canary] decrypts to the probe under this install's key. */
+    private fun canaryMatchesThisInstall(canary: String?): Boolean {
+        val km = keyManager ?: return false
+        if (canary.isNullOrBlank()) return false
+        return runCatching { km.decrypt(canary, km.getOrCreateKey()) }
+            .onFailure { Log.w("BackupManager", "key canary decrypt failed: ${it.message}", it) }
+            .getOrNull() == KEY_CANARY_PLAINTEXT
     }
 
     /**
@@ -358,61 +452,272 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * Memories and conversations are independent of each other and
      * of KG.
      *
-     * This is a destructive import — it does NOT clear tables first.
-     * The OnConflictStrategy.REPLACE means re-importing the same
-     * file is idempotent, but importing a smaller file after a
-     * larger one will leave stale rows. The caller is expected to
-     * call [purgeAll] first if a clean-slate restore is intended.
+     * [RestoreMode.MERGE] does NOT clear tables first: the upserts make
+     * re-importing the same file idempotent, but importing a smaller file
+     * after a larger one leaves stale rows. [RestoreMode.REPLACE] runs
+     * [purgeAll] first and is the clean-slate path; it refuses to start at all
+     * when the pre-restore snapshot could not be taken, because a purge with
+     * nothing behind it is unrecoverable. Both modes overwrite the preferences
+     * the backup carries — a merge is a merge of rows, not of settings, and
+     * the confirmation dialog says so.
      *
      * @return the count of rows written per table.
      */
-    suspend fun restore(backup: AuraBackup): RestoreCounts = withContext(Dispatchers.IO) {
-        // Snapshot current data FIRST so a failed import rolls back to it.
-        // Pre-fix, any insert failure ran purgeAll() alone — wiping the
-        // user's pre-existing data, including tables the backup never
-        // contained.
-        val preRestore = runCatching { snapshot(appVersionName = "pre-restore-rollback") }
-            .onFailure { android.util.Log.w("BackupManager", "pre-restore snapshot failed (rollback unavailable): ${it.message}", it) }
-            .getOrNull()
+    suspend fun restore(
+        backup: AuraBackup,
+        mode: RestoreMode = RestoreMode.MERGE,
+    ): RestoreCounts = withContext(Dispatchers.IO) {
+        // Spooled to disk, not held in heap: the pre-restore AuraBackup used to
+        // stay live for the whole write phase, so the failure most likely to
+        // trigger a rollback — an OutOfMemoryError writing a large import — was
+        // the one the rollback could not survive.
+        val rollbackFile = writeRollbackSnapshot()
+        // REPLACE purges before it writes. Doing that with no snapshot behind it
+        // is the exact shape this wave exists to remove — the user would be one
+        // failed insert away from an empty database and a log line. Refusing is
+        // recoverable; purging is not.
+        if (mode == RestoreMode.REPLACE && rollbackFile == null) {
+            error(
+                "Replace-all restore refused: the pre-restore snapshot could not be taken, " +
+                    "so a failed import could not be undone. Use \"Add to existing\" instead.",
+            )
+        }
+        markRestoreInProgress(mode, rollbackFile != null, backup.appVersionName)
 
         // Non-cancellable write phase: restore runs in a ViewModel scope,
         // where a config change used to cancel mid-insert and leave the DB
         // half-imported with no cleanup at all (the CancellationException
         // rethrow skipped the purge).
-        val counts = withContext(kotlinx.coroutines.NonCancellable) {
-            try {
-                writeRows(backup)
-            } catch (e: Throwable) {
-                // Throwable (not just Exception) so OOM / StackOverflow
-                // also trigger the rollback.
-                android.util.Log.e("BackupManager", "restore failed, rolling back to pre-restore data: ${e.message}", e)
+        val counts = try {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                if (mode == RestoreMode.REPLACE) purgeAll()
                 try {
-                    purgeAll()
-                    if (preRestore != null) writeRows(preRestore)
-                } catch (rollback: Throwable) {
-                    android.util.Log.e("BackupManager", "rollback failed — database may be incomplete: ${rollback.message}", rollback)
+                    writeEverything(backup)
+                } catch (e: Throwable) {
+                    // Throwable (not just Exception) so OOM / StackOverflow
+                    // also trigger the rollback.
+                    android.util.Log.e("BackupManager", "restore failed, rolling back to pre-restore data: ${e.message}", e)
+                    val rolledBack = try {
+                        purgeAll()
+                        val preRestore = readRollbackSnapshot(rollbackFile)
+                        if (preRestore != null) {
+                            writeEverything(preRestore)
+                            true
+                        } else {
+                            android.util.Log.e("BackupManager", "no pre-restore snapshot — purged tables stay empty")
+                            false
+                        }
+                    } catch (rollback: Throwable) {
+                        android.util.Log.e("BackupManager", "rollback failed — database may be incomplete: ${rollback.message}", rollback)
+                        false
+                    }
+                    // The marker is cleared only when the database is known to
+                    // be consistent again. Left in place it is what tells the
+                    // next launch that this install is mid-restore.
+                    if (rolledBack) clearRestoreInProgress()
+                    throw e
                 }
-                throw e
             }
+        } finally {
+            runCatching { rollbackFile?.delete() }
+                .onFailure { android.util.Log.w("BackupManager", "rollback spool cleanup failed: ${it.message}", it) }
         }
+        clearRestoreInProgress()
 
-        // Post-restore writes are outside the guarded phase because they
-        // touch different stores (DataStore, not Room). If any of them
-        // fail, the Room data is already committed — preferences/evolution/
-        // council failure is recoverable (user can re-toggle in Settings).
+        // Post-restore writes stay outside the guarded phase because they
+        // touch stores purgeAll never clears — DataStore and filesDir, not
+        // Room — so they can never need rolling back, and a DataStore failure
+        // must not turn a completed Room restore into a failed one. The user
+        // can re-toggle any of it in Settings.
         runCatching { restorePreferences(backup.preferences) }
             .onFailure { android.util.Log.w("BackupManager", "restorePreferences failed (non-fatal): ${it.message}", it) }
         runCatching { usageTracker.restore(backup.usage) }
             .onFailure { android.util.Log.w("BackupManager", "usageTracker restore failed (non-fatal): ${it.message}", it) }
-        runCatching { restoreEvolution(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreEvolution failed (non-fatal): ${it.message}", it) }
-        // P0 fix: restore strategy bandit weights (were snapshotted but never restored)
-        runCatching { restoreStrategyBandit(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreStrategyBandit failed (non-fatal): ${it.message}", it) }
-        runCatching { restoreCouncil(backup) }
-            .onFailure { android.util.Log.w("BackupManager", "restoreCouncil failed (non-fatal): ${it.message}", it) }
+        runCatching { restoreEvolutionPreferences(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "evolution preferences restore failed (non-fatal): ${it.message}", it) }
+        var toolPolicyCount = 0
+        runCatching { toolPolicyCount = restoreToolPolicies(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreToolPolicies failed (non-fatal): ${it.message}", it) }
+        var consciousnessCount = 0
+        runCatching { consciousnessCount = restoreConsciousness(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "restoreConsciousness failed (non-fatal): ${it.message}", it) }
 
-        counts
+        counts.copy(toolPolicies = toolPolicyCount, consciousness = consciousnessCount)
+    }
+
+    /**
+     * Write every table [purgeAll] can clear, from [backup]. Both the forward
+     * restore and the rollback go through here.
+     *
+     * They used not to. The rollback ran `purgeAll()` and then
+     * `writeRows(preRestore)`, and `writeRows` restores none of what `purgeAll`
+     * clears through `evolutionProposalDao`, `evolutionRevisionDao`,
+     * `evolutionSettingsDao`, `strategyBanditDao`, `agentStateDao`,
+     * `agentRelationshipDao`, `agentObservationDao`, `forumPostDao`,
+     * `forumVoteDao` and `agentDao.deleteAllCustom`. The three restorers that
+     * do cover them ran on the success path only, and took the incoming file
+     * rather than the pre-restore snapshot — so a failed import destroyed the
+     * user's evolution history, learned strategy weights and entire council,
+     * permanently, and reported only the error that started it.
+     */
+    private suspend fun writeEverything(backup: AuraBackup): RestoreCounts {
+        val counts = writeRows(backup)
+        val unreadable = restoreEvolutionRows(backup)
+        // The two below stay guarded, unlike everything above, and the reason is
+        // specific rather than caution. `restoreCouncil` deletes and re-inserts
+        // forum posts whose primary key is `autoGenerate`, and `ForumPostBackup`
+        // carries no id — so the votes it writes next still hold the postIds the
+        // posts had on the exporting device. Wherever those ids do not line up,
+        // `forum_votes.postId` violates its foreign key. Today that costs the
+        // user their council and nothing else; promoting it into the fatal path
+        // before forum posts have a stable id would cost them the whole restore
+        // and roll back a Room import that had already succeeded. Calling them
+        // from here still gets the council and the learned weights back on the
+        // rollback path, which is the loss this method exists to close.
+        runCatching { restoreStrategyBandit(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "strategy bandit write failed: ${it.message}", it) }
+        runCatching { restoreCouncil(backup) }
+            .onFailure { android.util.Log.w("BackupManager", "council write failed: ${it.message}", it) }
+        return counts.copy(evolutionRevisionsUnreadable = unreadable)
+    }
+
+    /**
+     * Serialise the pre-restore state to a file, or null when it could not be
+     * taken. Called with `strict = true` — see [snapshot].
+     *
+     * This is spool-to-disk, not streaming: [encodeToJson] still builds the
+     * whole string. The win is that the string is transient and the decoded
+     * `AuraBackup` is dropped before the write phase begins, so the phase
+     * holds one backup instead of two.
+     */
+    private suspend fun writeRollbackSnapshot(): File? = runCatching {
+        val backup = snapshot(appVersionName = ROLLBACK_VERSION_TAG, strict = true)
+        val file = File(context.cacheDir, ROLLBACK_FILE_NAME)
+        file.bufferedWriter().use { it.write(encodeToJson(backup)) }
+        file
+    }.onFailure {
+        android.util.Log.w("BackupManager", "pre-restore snapshot failed (rollback unavailable): ${it.message}", it)
+    }.getOrNull()
+
+    private fun readRollbackSnapshot(file: File?): AuraBackup? {
+        if (file == null || !file.exists()) return null
+        return runCatching { decodeFromJson(file.readText()) }
+            .onFailure { android.util.Log.e("BackupManager", "rollback snapshot unreadable: ${it.message}", it) }
+            .getOrNull()
+    }
+
+    /**
+     * What a restore that never finished left behind. See
+     * [consumeInterruptedRestore].
+     */
+    @kotlinx.serialization.Serializable
+    data class InterruptedRestore(
+        val startedAt: Long,
+        val mode: String,
+        val sourceVersion: String,
+        val rollbackAvailable: Boolean,
+    )
+
+    private val restoreMarkerFile: File get() = File(context.filesDir, RESTORE_MARKER_FILE_NAME)
+
+    /**
+     * Record that a restore is underway.
+     *
+     * [writeEverything] is about forty-five independent transactions across
+     * eleven databases with no envelope around them, so process death partway
+     * through leaves a database that is half this backup and half whatever was
+     * there before — and nothing said so. The marker outlives the process; the
+     * next launch reads it and can tell the user their data is in a state
+     * neither they nor the app chose.
+     */
+    private fun markRestoreInProgress(mode: RestoreMode, rollbackAvailable: Boolean, sourceVersion: String) {
+        runCatching {
+            restoreMarkerFile.writeText(
+                json.encodeToString(
+                    InterruptedRestore.serializer(),
+                    InterruptedRestore(System.currentTimeMillis(), mode.name, sourceVersion, rollbackAvailable),
+                ),
+            )
+        }.onFailure { android.util.Log.w("BackupManager", "restore marker write failed: ${it.message}", it) }
+    }
+
+    private fun clearRestoreInProgress() {
+        runCatching { if (restoreMarkerFile.exists()) restoreMarkerFile.delete() }
+            .onFailure { android.util.Log.w("BackupManager", "restore marker clear failed: ${it.message}", it) }
+    }
+
+    /** Read the marker without clearing it. For startup logging. */
+    fun peekInterruptedRestore(): InterruptedRestore? {
+        if (!restoreMarkerFile.exists()) return null
+        return runCatching { json.decodeFromString(InterruptedRestore.serializer(), restoreMarkerFile.readText()) }
+            .onFailure { android.util.Log.w("BackupManager", "restore marker unreadable: ${it.message}", it) }
+            .getOrNull()
+            ?: InterruptedRestore(0L, "UNKNOWN", "", rollbackAvailable = false)
+    }
+
+    /**
+     * Read and clear the marker. An unreadable marker still returns a value:
+     * the file existing at all is the signal, and reporting nothing because the
+     * body failed to parse would hide exactly the case it exists to catch.
+     */
+    fun consumeInterruptedRestore(): InterruptedRestore? {
+        val pending = peekInterruptedRestore() ?: return null
+        clearRestoreInProgress()
+        return pending
+    }
+
+    /**
+     * Delete `aura-backup-*.json` files in the cache older than
+     * [EXPORT_RETENTION_MS], returning how many went.
+     *
+     * Every export writes a full plaintext copy of the database —
+     * conversations, memories, profile, preferences — into `cacheDir`, and
+     * nothing ever removed it. One complete copy accumulated per export, for
+     * the life of the install, readable by anything holding the app's uid.
+     */
+    fun pruneCacheExports(now: Long = System.currentTimeMillis()): Int = runCatching {
+        val stale = context.cacheDir?.listFiles()?.filter { file ->
+            file.isFile &&
+                file.name.startsWith("aura-backup-") &&
+                file.name.endsWith(".json") &&
+                now - file.lastModified() > EXPORT_RETENTION_MS
+        }.orEmpty()
+        stale.count { it.delete() }
+    }.onFailure { android.util.Log.w("BackupManager", "cache export prune failed: ${it.message}", it) }
+        .getOrDefault(0)
+
+    private suspend fun restoreToolPolicies(backup: AuraBackup): Int {
+        val store = toolPolicyStore ?: return 0
+        if (backup.toolPolicies.isEmpty()) return 0
+        store.replaceAll(backup.toolPolicies.associate { it.toolName to it.toPolicy() })
+        return backup.toolPolicies.size
+    }
+
+    /**
+     * Write back whichever of the five consciousness stores the backup carries
+     * and this build has wired, returning how many were written.
+     */
+    private suspend fun restoreConsciousness(backup: AuraBackup): Int {
+        val c = backup.consciousness ?: return 0
+        var restored = 0
+        val narrative = c.narrative
+        val ns = narrativeSelf
+        if (narrative != null && ns != null) { ns.restore(narrative.toState()); restored++ }
+        val im = intrinsicMotivation
+        if (c.drives.isNotEmpty() && im != null) {
+            im.restore(c.drives.mapNotNull { it.toStateOrNull() })
+            restored++
+        }
+        val userModel = c.userModel
+        val tom = theoryOfMind
+        if (userModel != null && tom != null) { tom.restore(userModel.toModel()); restored++ }
+        val emotion = c.emotion
+        val ee = emotionEngine
+        if (emotion != null && ee != null) { ee.restore(emotion.toSnapshot()); restored++ }
+        val affinity = c.affinity
+        val at = affinityTracker
+        if (affinity != null && at != null) { at.restoreRaw(affinity.score, affinity.lastInteractionAt); restored++ }
+        return restored
     }
 
     /**
@@ -663,17 +968,53 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         }
     }
 
-private suspend fun restoreEvolution(backup: AuraBackup) {
+    /**
+     * Write the evolution tables, returning how many revision snapshots were
+     * kept as history but cleared as revert sources.
+     *
+     * `snapshotCiphertext` is Keystore ciphertext. Carried to another install
+     * it decrypts to null, `EvolutionSkillRevisionStore.latest` returns null,
+     * and the revert button does nothing and says nothing — so a restored
+     * revision that looks revertible is a lie the UI has no way to detect.
+     * Blanking the field makes the row honest: the summary and metadata still
+     * read as history, and the revert path sees no snapshot because there
+     * genuinely is none.
+     *
+     * Blanking happens only when the file carries a canary and that canary
+     * fails to decrypt, never when it carries none. Every backup written
+     * before schema v18 has no canary, and so does every rollback spool taken
+     * in the moment the Keystore refused to encrypt one — treating absence as
+     * proof of foreignness would destroy the revert sources of exactly the
+     * restores that are legitimately local.
+     */
+    private suspend fun restoreEvolutionRows(backup: AuraBackup): Int {
         backup.evolutionProposals.map { it.toEntity() }.let { rows ->
             if (rows.isNotEmpty()) evolutionProposalDao.insertAll(rows)
         }
-        backup.evolutionRevisions.map { it.toEntity() }.let { rows ->
-            if (rows.isNotEmpty()) evolutionRevisionDao.insertAll(rows)
+        val foreignInstall = !backup.keyCanary.isNullOrBlank() && !canaryMatchesThisInstall(backup.keyCanary)
+        val revisions = backup.evolutionRevisions.map { it.toEntity() }
+        val unreadable = if (foreignInstall) revisions.count { it.snapshotCiphertext.isNotBlank() } else 0
+        val rows = if (foreignInstall) revisions.map { it.copy(snapshotCiphertext = "") } else revisions
+        if (rows.isNotEmpty()) evolutionRevisionDao.insertAll(rows)
+        if (unreadable > 0) {
+            android.util.Log.w(
+                "BackupManager",
+                "$unreadable evolution revision snapshot(s) were encrypted by another install; " +
+                    "kept as history, cleared as revert sources",
+            )
         }
         backup.evolutionSettings.forEach { settings ->
             evolutionSettingsDao.upsert(settings.toEntity())
         }
-        // Restore evolution preferences.
+        return unreadable
+    }
+
+    /**
+     * The two evolution toggles. Split out of the row write because they land
+     * in DataStore, which [purgeAll] never clears and so never needs rolling
+     * back — keeping them here preserves their non-fatal handling.
+     */
+    private suspend fun restoreEvolutionPreferences(backup: AuraBackup) {
         userPreferences.setEvolutionEnabled(backup.preferences.evolutionEnabled)
         userPreferences.setEvolutionIntervalHours(backup.preferences.evolutionIntervalHours)
     }
@@ -844,6 +1185,18 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
             val evolutionCandidates: Int = 0,
             val proactiveInteractions: Int = 0,
             val routingOutcomes: Int = 0,
+            // Schema v18.
+            val toolPolicies: Int = 0,
+            /** How many of the five consciousness stores were written. */
+            val consciousness: Int = 0,
+            /**
+             * Evolution revisions whose snapshot was encrypted by another
+             * install and so was cleared on the way in. Deliberately NOT part
+             * of [total]: it counts rows that were not written as revert
+             * sources, and folding it into a "rows restored" figure would make
+             * the number say the opposite of what happened.
+             */
+            val evolutionRevisionsUnreadable: Int = 0,
         ) {
             // Auto-derived: every non-self Int field summed. Until v0.30.x
             // this was a 17-term hand-sum that fell out of sync with the
@@ -865,10 +1218,61 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
                 agentApprovals + runCheckpoints +
                 artifactDependencies + continuityIssues + creativeSimulations +
                 evolutionEvidence + evolutionCandidates + proactiveInteractions +
-                routingOutcomes
+                routingOutcomes + toolPolicies + consciousness
             )
     }
 
+    /**
+     * How a restore treats what is already on the device.
+     *
+     * [MERGE] writes the file's rows on top of the existing ones; [REPLACE]
+     * runs [purgeAll] first so the device ends up holding exactly what the
+     * file holds. The distinction existed but was unreachable —
+     * `BackupViewModel.confirmImport` took a `purgeFirst` flag and the one
+     * caller passed `false` — so every restore was a merge, while
+     * [restorePreferences] overwrote about twenty-five settings either way.
+     * Naming both modes and putting both on the confirmation dialog is what
+     * turns the destructive one into a choice.
+     *
+     * Declared next to [RestoreCounts] rather than above [restore] so the
+     * restore KDoc still documents restore.
+     */
+    enum class RestoreMode { MERGE, REPLACE }
+
+    companion object {
+        /**
+         * Plaintext probe for [AuraBackup.keyCanary]. Its content is
+         * irrelevant — only whether it survives a decrypt round trip is.
+         */
+        private const val KEY_CANARY_PLAINTEXT = "aura-backup-key-canary-v1"
+
+        private const val ROLLBACK_FILE_NAME = "aura-restore-rollback.json"
+
+        private const val ROLLBACK_VERSION_TAG = "pre-restore-rollback"
+
+        /**
+         * Lives in `filesDir`, not `cacheDir`: the point of the marker is that
+         * it outlives the process that died mid-restore, and the system is free
+         * to evict the cache before that process ever runs again.
+         */
+        internal const val RESTORE_MARKER_FILE_NAME = "aura-restore-in-progress.json"
+
+        /** Seven days. Long enough to re-share an export, short enough to bound the leak. */
+        private const val EXPORT_RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+    }
+
+    /**
+     * Replace the learned strategy weights when [backup] has any.
+     *
+     * The `isNotEmpty()` guard stays, and it is correct in both directions for
+     * one reason: an empty list means "nothing to write", never "delete what is
+     * there". In MERGE mode it stops a backup taken before the bandit existed
+     * from wiping weights the device has since learned — the `clear()` inside
+     * is a replace-this-table, not a merge. On the rollback path and in REPLACE
+     * mode the table has already been emptied by [purgeAll], so skipping an
+     * empty list writes nothing and deletes nothing, which is exactly right:
+     * empty there means the pre-restore snapshot genuinely had no rows.
+     */
     private suspend fun restoreStrategyBandit(backup: AuraBackup) {
         val rows = backup.strategyBandit.map { it.toEntity() }
         if (rows.isNotEmpty()) {
@@ -877,6 +1281,16 @@ private suspend fun restoreEvolution(backup: AuraBackup) {
         }
     }
 
+    /**
+     * Replace the council tables from [backup]. The per-group `isNotEmpty()`
+     * guards stay, for the reason given on [restoreStrategyBandit].
+     *
+     * The forum vote write below is the one part of a restore that can fail on
+     * correct data: posts are re-inserted with fresh auto-generated ids while
+     * the votes still carry the ids from the exporting device, so
+     * `forum_votes.postId` can point at a row that no longer exists. That is
+     * why [writeEverything] calls this inside a guard — see the comment there.
+     */
     private suspend fun restoreCouncil(backup: AuraBackup) {
         // Agent state
         val states = backup.agentStates.map { it.toEntity() }

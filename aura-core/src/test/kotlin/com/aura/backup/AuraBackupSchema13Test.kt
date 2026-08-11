@@ -23,8 +23,8 @@ class AuraBackupSchema13Test {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `schema version is 15`() {
-        assertEquals(16, AuraBackup.SCHEMA_VERSION)
+    fun `schema version is 18`() {
+        assertEquals(18, AuraBackup.SCHEMA_VERSION)
     }
 
     @Test
@@ -134,7 +134,11 @@ class AuraBackupSchema13Test {
 
         val restored = json.decodeFromString<AuraBackup>(json.encodeToString(original))
 
-        assertEquals(16, restored.schemaVersion)
+        // Against the constant, not a literal. This test is about v13 fields
+        // surviving a roundtrip; pinning the current schema number here made it
+        // fail for every unrelated version bump, which is noise rather than
+        // coverage — AuraBackupSerializationTest owns the version assertion.
+        assertEquals(AuraBackup.SCHEMA_VERSION, restored.schemaVersion)
 
         val dep = restored.artifactDependencies.single()
         assertEquals("derived_from", dep.relation)

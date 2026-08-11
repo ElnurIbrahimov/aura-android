@@ -106,7 +106,7 @@ class AuraBackupSerializationTest {
     }
 
     @Test
-    fun `latest schema version is 14`() {
-        assertEquals(16, AuraBackup.SCHEMA_VERSION)
+    fun `latest schema version is 18`() {
+        assertEquals(18, AuraBackup.SCHEMA_VERSION)
     }
 }

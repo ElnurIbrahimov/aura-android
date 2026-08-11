@@ -45,6 +45,30 @@ class BackupViewModel @Inject constructor(
     private val _state = MutableStateFlow(BackupUiState())
     val state: StateFlow<BackupUiState> = _state.asStateFlow()
 
+    init {
+        // A marker still on disk means a restore started and never finished —
+        // process death partway through about forty-five independent
+        // transactions across eleven databases. The database is some mixture of
+        // the file and what was there before, and nothing else in the app can
+        // tell. Surfacing it here, where restore lives, is the honest place.
+        //
+        // Read on the constructing thread on purpose: the file is a few dozen
+        // bytes and usually absent, and deferring it to a coroutine would race
+        // the first composition that reads `lastResult`.
+        backupManager.consumeInterruptedRestore()?.let { pending ->
+            _state.update {
+                it.copy(
+                    lastResult = "A restore from \"${pending.sourceVersion}\" was interrupted before it " +
+                        "finished (${pending.mode.lowercase()}). Your data may be part-restored. " +
+                        (
+                            if (pending.rollbackAvailable) "Re-run the restore to finish it."
+                            else "No rollback snapshot was available; re-run the restore to finish it."
+                            ),
+                )
+            }
+        }
+    }
+
     /**
      * Build the export file in the app cache and expose its URI
      * via [exportFile]. Caller is responsible for launching the
@@ -57,6 +81,10 @@ class BackupViewModel @Inject constructor(
     suspend fun prepareExportFile(): java.io.File? = withContext(Dispatchers.IO) {
         _state.update { it.copy(exportInFlight = true, lastResult = null) }
         try {
+            // Each export leaves a full plaintext copy of the database in the
+            // cache. Pruning at the moment of creating the next one is the only
+            // point that is guaranteed to run whenever they accumulate.
+            backupManager.pruneCacheExports()
             val backup = backupManager.snapshot(appVersionName = BuildConfig.VERSION_NAME)
             val json = backupManager.encodeToJson(backup)
             val file = backupManager.exportFile().apply {
@@ -122,25 +150,38 @@ class BackupViewModel @Inject constructor(
      * purge first — that's a separate step for users who want a
      * clean restore.
      */
-    fun confirmImport(purgeFirst: Boolean) {
+    /**
+     * @param replace true for [BackupManager.RestoreMode.REPLACE].
+     *
+     * The purge no longer happens here. `restore` owns it, because a purge run
+     * outside the guarded write phase is a purge with no rollback behind it —
+     * exactly the shape this wave exists to remove.
+     */
+    fun confirmImport(replace: Boolean) {
         val bytes = _state.value.pendingImportBytes ?: return
         _state.update { it.copy(importInFlight = true, showImportConfirm = false) }
         viewModelScope.launch {
             try {
-                if (purgeFirst) {
-                    backupManager.purgeAll()
-                }
                 // Reuse the backup decoded at stage time; fall back to
                 // decoding only if staging state was lost (process death).
                 val backup = stagedBackup
                     ?: withContext(Dispatchers.IO) { backupManager.decodeFromJson(bytes) }
                 stagedBackup = null
-                val counts = backupManager.restore(backup)
+                val mode = if (replace) BackupManager.RestoreMode.REPLACE else BackupManager.RestoreMode.MERGE
+                val counts = backupManager.restore(backup, mode)
                 val rowSummary = "${counts.memories} memories, " +
                     "${counts.conversations} convos, " +
                     "${counts.nodes + counts.edges} KG, " +
                     "${counts.hands} hands, " +
-                    "${counts.tasks} tasks"
+                    "${counts.tasks} tasks" +
+                    (
+                        if (counts.evolutionRevisionsUnreadable > 0) {
+                            ", ${counts.evolutionRevisionsUnreadable} skill snapshots from another " +
+                                "device kept as history only (not revertible)"
+                        } else {
+                            ""
+                        }
+                        )
                 _state.update {
                     it.copy(
                         importInFlight = false,

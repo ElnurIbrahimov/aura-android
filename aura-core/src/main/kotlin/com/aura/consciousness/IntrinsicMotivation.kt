@@ -193,6 +193,19 @@ class IntrinsicMotivation @Inject constructor(
             if (triggers.isNotBlank()) " — $triggers" else ""
     }
 
+    /**
+     * Replace the drives from a backup and persist them.
+     *
+     * Merged over [defaultDrives] the same way [load] does, so a drive missing
+     * from an older backup keeps its default rather than disappearing from the
+     * map — [assess] indexes it with `!!`.
+     */
+    suspend fun restore(restored: List<DriveState>) {
+        if (restored.isEmpty()) return
+        _drives.value = defaultDrives() + restored.associateBy { it.drive }
+        save()
+    }
+
     private fun defaultDrives(): Map<DriveType, DriveState> = DriveType.entries.associateWith { drive ->
         DriveState(
             drive = drive,

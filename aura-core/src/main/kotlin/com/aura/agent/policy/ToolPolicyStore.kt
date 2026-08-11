@@ -71,6 +71,20 @@ class ToolPolicyStore @Inject constructor(
         }
     }
 
+    /**
+     * Replace the whole policy map in one write.
+     *
+     * Restoring policy by policy through [setPolicy] would decode, merge and
+     * re-encode the map once per tool, and would leave any policy the backup
+     * does not mention in place — which for a restore is wrong: the map is a
+     * single user decision about their whole tool surface, not a per-tool one.
+     */
+    suspend fun replaceAll(policies: Map<kotlin.String, ToolPolicy>) {
+        context.toolPolicyPrefs.edit { prefs ->
+            prefs[KEY_POLICIES] = if (policies.isEmpty()) "" else json.encodeToString(policies)
+        }
+    }
+
     companion object {
         private val KEY_POLICIES = stringPreferencesKey("tool_policies_json")
     }

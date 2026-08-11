@@ -61,6 +61,14 @@ class ProactiveBootstrap @Inject constructor(
     // compile break for reasons unrelated to what the test checks.
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
+    /**
+     * A [javax.inject.Provider], not the manager itself. `BackupManager` pulls
+     * in roughly fifty DAOs across eleven databases; injecting it directly here
+     * would build that entire graph on every cold start so that a file that is
+     * normally absent could be stat-ed. The Provider defers construction to the
+     * one launch in a thousand where the marker actually exists.
+     */
+    private val backupManager: javax.inject.Provider<com.aura.backup.BackupManager>? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -84,6 +92,25 @@ class ProactiveBootstrap @Inject constructor(
      *   runners).
      */
     fun start(scope: kotlinx.coroutines.CoroutineScope = this.scope) {
+        // A restore that never finished leaves a marker in filesDir. Peek, do
+        // not consume: the user-facing message is owned by the Backup section of
+        // Settings, and clearing the marker here would mean the one place that
+        // can explain the state never sees it. This log exists so a bug report
+        // filed before the user ever opens Settings still carries the fact.
+        backupManager?.let { provider ->
+            scope.launch {
+                runCatching { provider.get().peekInterruptedRestore() }
+                    .onFailure { Log.w(TAG, "restore marker check failed: ${it.message}", it) }
+                    .getOrNull()
+                    ?.let { pending ->
+                        Log.w(
+                            TAG,
+                            "a restore from \"${pending.sourceVersion}\" (${pending.mode}) started at " +
+                                "${pending.startedAt} and never completed; database may be part-restored",
+                        )
+                    }
+            }
+        }
         // Load persisted emotion state so it survives cold starts.
         emotionEngine?.let { engine ->
             scope.launch { runCatching { engine.load() }.onFailure { Log.w("Bootstrap", "emotion load failed: ${it.message}", it) } }

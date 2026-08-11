@@ -91,9 +91,33 @@ data class AuraBackup(
     val agentObservations: List<AgentObservationBackup> = emptyList(),
     val forumPosts: List<ForumPostBackup> = emptyList(),
     val forumVotes: List<ForumVoteBackup> = emptyList(),
+    // Schema v18: per-tool policy and the five consciousness stores — see
+    // AuraBackupSchema18.kt for why all five had to land together.
+    val toolPolicies: List<ToolPolicyBackup> = emptyList(),
+    val consciousness: ConsciousnessBackup? = null,
+    /**
+     * A fixed probe encrypted with the exporting install's Keystore key.
+     *
+     * [EvolutionRevisionBackup.snapshotCiphertext] is AES-GCM ciphertext under
+     * a key that never leaves the device, so on any other install it decrypts
+     * to null and `EvolutionSkillRevisionStore.latest` reports "no snapshot" —
+     * which is why every skill revert silently did nothing after a device
+     * migration. The Android Keystore will not export the key itself, so the
+     * restore compares this probe instead: decrypt it, and if the plaintext
+     * comes back the ciphertexts in this file belong to this install. Null
+     * means "this file predates the probe", which is not the same as "foreign"
+     * — see `BackupManager.restoreEvolutionRows`.
+     */
+    val keyCanary: String? = null,
 ) {
     companion object {
-        const val SCHEMA_VERSION = 16
+        /**
+         * 17 is skipped: ENGINEERING_HISTORY §3 specified this work as
+         * `AuraBackupSchema18.kt` before a version number was allocated, and
+         * matching the constant to the filename the plan was recorded under is
+         * less confusing than a file and a version that disagree.
+         */
+        const val SCHEMA_VERSION = 18
     }
 }
 

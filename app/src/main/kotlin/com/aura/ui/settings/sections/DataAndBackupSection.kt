@@ -33,7 +33,7 @@ fun DataAndBackupSection(
     backupState: BackupUiState,
     onExport: () -> Unit,
     onStageImport: (android.net.Uri) -> Unit,
-    onConfirmImport: () -> Unit,
+    onConfirmImport: (replace: Boolean) -> Unit,
     onCancelImport: () -> Unit,
     onClearResult: () -> Unit,
     onNavigateDiagnostics: () -> Unit,
@@ -111,14 +111,24 @@ fun DataAndBackupSection(
                 title = { Text(stringResource(R.string.restore_from_backup)) },
                 text = {
                     Text(
-                        "This will add the rows from the backup file to your existing data. " +
-                        "Existing rows with the same id are replaced; new rows are added. " +
+                        "Add to existing keeps what is already here and writes the backup on top: " +
+                        "rows with the same id are replaced, new rows are added, nothing is deleted.\n\n" +
+                        "Replace all wipes your current data first, so this device ends up holding " +
+                        "exactly what the file holds.\n\n" +
+                        "Either way, the settings in the backup overwrite your current settings - " +
+                        "a merge merges rows, not preferences.\n\n" +
                         "Embeddings are NOT included - after restoring, go to the Memory tab " +
                         "and tap 'Rebuild embeddings' to re-embed everything in one pass."
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = onConfirmImport) { Text(stringResource(R.string.add_to_existing)) }
+                    Row {
+                        TextButton(
+                            onClick = { onConfirmImport(false) },
+                            modifier = Modifier.padding(end = AuraSpacing.xs),
+                        ) { Text(stringResource(R.string.add_to_existing)) }
+                        TextButton(onClick = { onConfirmImport(true) }) { Text("Replace all") }
+                    }
                 },
                 dismissButton = {
                     TextButton(onClick = onCancelImport) { Text(stringResource(R.string.cancel)) }

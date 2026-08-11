@@ -120,6 +120,29 @@ class AffinityTracker @Inject constructor(
         cachedDirective = null
     }
 
+    /**
+     * The stored score and last-interaction timestamp, before decay.
+     *
+     * [load] applies decay before returning, which is correct for reading the
+     * level and wrong for a backup: exporting an already-decayed score and
+     * restoring it lets [applyDecay] run over the same elapsed days a second
+     * time, so every export/restore roundtrip would quietly cost the user
+     * affinity.
+     */
+    suspend fun exportRaw(): Pair<Float, Long> {
+        val prefs = context.affinityStore.data.first()
+        return (prefs[KEY_SCORE] ?: 0f) to (prefs[KEY_LAST_INTERACTION] ?: 0L)
+    }
+
+    /** Write a raw score/timestamp pair back. Restore path only. */
+    suspend fun restoreRaw(score: Float, lastInteractionAt: Long) {
+        context.affinityStore.edit {
+            it[KEY_SCORE] = score.coerceIn(MIN_SCORE, MAX_SCORE)
+            it[KEY_LAST_INTERACTION] = lastInteractionAt
+        }
+        cachedDirective = null
+    }
+
     private fun applyDecay(score: Float, lastInteraction: Long): Float {
         if (lastInteraction == 0L) return score
         val daysSince = ((System.currentTimeMillis() - lastInteraction) / (1000L * 60 * 60 * 24)).toFloat()

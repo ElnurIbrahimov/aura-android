@@ -38,6 +38,11 @@ class BackupViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        // The view model now peeks for an interrupted restore in its init
+        // block. A relaxed MockK of a final Kotlin class does not reliably
+        // return null for a nullable object, so stub it explicitly rather
+        // than let a fabricated value decide what the first state looks like.
+        every { backupManager.consumeInterruptedRestore() } returns null
     }
 
     @After
@@ -92,7 +97,7 @@ class BackupViewModelTest {
     @Test
     fun `confirmImport with no staged bytes is a no-op`() = runTest {
         val vm = BackupViewModel(context, backupManager)
-        vm.confirmImport(purgeFirst = false)
+        vm.confirmImport(replace = false)
         // Restore must not be called when there's nothing staged.
         coVerify(exactly = 0) { backupManager.restore(any()) }
     }
