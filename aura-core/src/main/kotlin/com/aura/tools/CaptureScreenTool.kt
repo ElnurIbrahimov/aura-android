@@ -10,6 +10,7 @@ import com.aura.security.ScreenCaptureHolder
 import com.aura.providers.ToolDefinition
 import com.aura.providers.ToolParameters
 import com.aura.providers.ToolProperty
+import kotlinx.coroutines.flow.first
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,10 +28,39 @@ class CaptureScreenTool @Inject constructor(
      * a given configuration; null simply means the MediaProjection path.
      */
     private val screenControlBridge: com.aura.a11y.ScreenControlBridge? = null,
+    /**
+     * Gates the accessibility screenshot path on the screen-control master
+     * switch. Optional for the same reason as [screenControlBridge]; absent
+     * means the accessibility path is unavailable, not that it is ungated.
+     */
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) {
+    /**
+     * Whether the silent accessibility screenshot path may be used.
+     *
+     * The accessibility route takes a screenshot with **no consent dialog**,
+     * while Aura is backgrounded — which is the whole point of it, and also why
+     * it has to answer to the master switch. It did not: the only condition was
+     * `bridge.connected`, i.e. whether the OS accessibility service was on. A
+     * user who enabled the service for screen control and then turned screen
+     * control **off** in Settings still got silent, dialog-free screenshots,
+     * and this tool's own description told them each capture "shows a one-time
+     * system consent dialog... the user must confirm it".
+     *
+     * Fails closed, matching `ScreenActTool.isEnabled`. With the switch off the
+     * tool falls back to MediaProjection, which does show the dialog the
+     * description promises.
+     */
+    private suspend fun accessibilityCaptureAllowed(): Boolean =
+        userPreferences?.let {
+            runCatching { it.screenControlEnabled.first() }
+                .onFailure { e -> Log.w("CaptureScreen", "screenControlEnabled read failed; denying", e) }
+                .getOrDefault(false)
+        } ?: false
+
     fun definition() = ToolDefinition(
         name = "capture_screen",
-        description = "Capture the device screen and return it as a base64 JPEG. Shows a one-time system consent dialog for each capture; the user must confirm it.",
+        description = "Capture the device screen and return it as a base64 JPEG. Shows a one-time system consent dialog for each capture, unless screen control is enabled — with it on, the capture is silent and needs no dialog.",
         parameters = ToolParameters(
             properties = mapOf(
                 "width" to ToolProperty(type = "integer", description = "Capture width (default 1080)"),
@@ -63,7 +93,7 @@ class CaptureScreenTool @Inject constructor(
             // service off, or on a FLAG_SECURE window there is legitimately
             // nothing to return, and MediaProjection may still succeed.
             val viaA11y = screenControlBridge?.let { bridge ->
-                if (bridge.connected.value) {
+                if (bridge.connected.value && accessibilityCaptureAllowed()) {
                     runCatching { bridge.screenshot(quality) }
                         .onFailure { Log.w("CaptureScreen", "a11y screenshot failed; falling back", it) }
                         .getOrNull()
