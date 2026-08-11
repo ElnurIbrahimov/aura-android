@@ -576,9 +576,25 @@ class AnthropicProvider(
                     // trace is dropped rather than guessed at — which is also what
                     // makes it impossible to replay another provider's reasoning
                     // here, since nothing but this provider ever fills the field.
+                    //
+                    // The third condition is about `appendBlocks` below, which
+                    // MERGES an assistant message into the preceding one when
+                    // both are assistant. A thinking block that lands anywhere
+                    // but first in the merged content is rejected exactly like a
+                    // missing one, so a message that will be merged does not
+                    // contribute one. No current path produces two adjacent
+                    // assistant messages both carrying signed reasoning — a
+                    // tool_result always separates them — so this drops nothing
+                    // today, and cannot start emitting a malformed block if some
+                    // future path does.
                     val priorThinking = msg.thinking
                     val prioSignature = msg.thinkingSignature
-                    if (includeThinking && !priorThinking.isNullOrBlank() && !prioSignature.isNullOrBlank()) {
+                    val startsNewAssistantMessage = out.lastOrNull()?.first != "assistant"
+                    if (includeThinking &&
+                        startsNewAssistantMessage &&
+                        !priorThinking.isNullOrBlank() &&
+                        !prioSignature.isNullOrBlank()
+                    ) {
                         blocks += buildJsonObject {
                             put("type", "thinking")
                             put("thinking", priorThinking)
