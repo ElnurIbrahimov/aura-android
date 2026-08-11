@@ -113,6 +113,34 @@ class CreativeStudioViewModel @Inject constructor(
     private var longformJob: Job? = null
 
     init {
+        // Repair before the first list renders. `creative_artifacts` was written
+        // with INSERT OR REPLACE while `creative_revisions` cascades off it, so
+        // every draft deleted that artifact's revision history — including the
+        // draft being written — and left `currentRevisionId` pointing at a row
+        // that no longer existed. The DAO no longer cascades, but artifacts from
+        // that period still carry the broken pointer, and a broken pointer reads
+        // as an artifact whose content will not open.
+        //
+        // Here rather than in ProactiveBootstrap on purpose: this is where the
+        // damage is visible, it costs one query per artifact and only on the
+        // Creative screen, and adding a constructor argument to
+        // ProactiveBootstrap would break eleven positional test call sites for
+        // a repair that has nothing to do with proactive work. It is idempotent
+        // — an artifact whose pointer resolves is skipped — so running it on
+        // every open is free after the first.
+        viewModelScope.launch {
+            runCatching { artifactStore.repairDanglingRevisionPointers() }
+                .onSuccess { report ->
+                    if (report.touched > 0) {
+                        android.util.Log.i(
+                            "CreativeStudio",
+                            "repaired ${report.repointed} artifact pointer(s); " +
+                                "${report.orphaned} had no surviving revision",
+                        )
+                    }
+                }
+                .onFailure { android.util.Log.w("CreativeStudio", "artifact repair failed: ${it.message}", it) }
+        }
         viewModelScope.launch {
             store.observeAll().collect { projects ->
                 val selectedId = _state.value.selectedProject?.id

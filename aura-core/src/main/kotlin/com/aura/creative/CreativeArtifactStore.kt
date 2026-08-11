@@ -18,6 +18,61 @@ class CreativeArtifactStore @Inject constructor(
 ) {
     private val projectMutex = Mutex()
 
+    /**
+     * Clear artifact pointers left dangling by the cascade that used to delete
+     * revisions, and count what could not be recovered.
+     *
+     * `creative_artifacts` was written with `INSERT OR REPLACE` while
+     * `creative_revisions` declares `ON DELETE CASCADE` against it, so
+     * [addRevision] wrote a revision and then re-saved the artifact to point at
+     * it — deleting every revision of that artifact, including the one written
+     * a line earlier, and re-inserting the artifact with a `currentRevisionId`
+     * that resolved to nothing. The DAO no longer cascades, but the artifacts
+     * that survived that period still carry the broken pointer, and a pointer
+     * into an empty table renders as an artifact whose content will not open.
+     *
+     * Repair rather than delete: the artifact row is the only surviving record
+     * that the work existed. Where a revision survives, the newest becomes
+     * current and `previewText` is re-derived from it. Where none does, the
+     * pointer is cleared and the status set to "failed" so the Creative screens
+     * can say so instead of failing to load — a visible orphan being the same
+     * choice `LongformRunner` already makes when a run dies mid-commit.
+     *
+     * Idempotent: an artifact whose pointer resolves is not touched, so this is
+     * safe to run on every startup and costs one query per artifact once.
+     *
+     * @return how many artifacts were repaired, and how many had no surviving
+     * revision at all.
+     */
+    suspend fun repairDanglingRevisionPointers(): RepairReport = projectMutex.withLock {
+        var repointed = 0
+        var orphaned = 0
+        for (artifact in artifactDao.allForBackup()) {
+            val pointer = artifact.currentRevisionId
+            if (pointer != null && revisionDao.getById(pointer) != null) continue
+
+            val surviving = revisionDao.forArtifact(artifact.id).maxByOrNull { it.createdAt }
+            if (surviving != null) {
+                artifactDao.upsert(
+                    artifact.copy(
+                        currentRevisionId = surviving.id,
+                        previewText = surviving.contentText.take(PREVIEW_CHARS),
+                    ),
+                )
+                repointed++
+            } else if (pointer != null) {
+                artifactDao.upsert(artifact.copy(currentRevisionId = null, status = "failed"))
+                orphaned++
+            }
+        }
+        RepairReport(repointed = repointed, orphaned = orphaned)
+    }
+
+    /** Outcome of [repairDanglingRevisionPointers]. */
+    data class RepairReport(val repointed: Int, val orphaned: Int) {
+        val touched: Int get() = repointed + orphaned
+    }
+
     suspend fun create(
         projectId: String,
         branchId: String,
@@ -53,7 +108,7 @@ class CreativeArtifactStore @Inject constructor(
             kind = kind,
             title = title,
             currentRevisionId = revisionId,
-            previewText = initialContent.take(200),
+            previewText = initialContent.take(PREVIEW_CHARS),
             status = "ready",
             createdAt = now,
             updatedAt = now,
@@ -107,7 +162,7 @@ class CreativeArtifactStore @Inject constructor(
         revisionDao.upsert(revision)
         artifactDao.upsert(artifact.copy(
             currentRevisionId = revisionId,
-            previewText = content.take(200),
+            previewText = content.take(PREVIEW_CHARS),
             updatedAt = now,
         ))
         revision
@@ -165,5 +220,10 @@ class CreativeArtifactStore @Inject constructor(
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         return digest.digest(text.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
+    }
+
+    private companion object {
+        /** Length of the list-card preview. Was three separate literal 200s. */
+        const val PREVIEW_CHARS = 200
     }
 }
