@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The themed-icon layer (Android 13+), where the system discards these
+    colours and tints the alpha channel a single wallpaper-derived one.
+
+    Its own file rather than a reuse of the foreground, because the two have
+    different jobs: the foreground can rely on colour to separate the core from
+    the rings, and this cannot. Everything here is therefore a stroke or a small
+    solid, weighted a little heavier so the mark survives being flattened to one
+    tone at launcher size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M44.42,80.31 A28,28 0 0,1 44.42,27.69" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M63.58,27.69 A28,28 0 0,1 63.58,80.31" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M70.91,60.16 A18,18 0 0,1 37.09,60.16" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M37.09,47.84 A18,18 0 0,1 70.91,47.84" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0" />
+</vector>

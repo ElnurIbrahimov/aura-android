@@ -1,13 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Aura mark: a luminous core inside two rings of radiating arcs.
+
+    Replaces a filled violet disc with a crude five-pointed star on top. That
+    version had three problems. The disc covered almost the whole safe zone, so
+    the gradient background never showed and the launcher tile read as a flat
+    purple circle inside the mask's circle — two circles, no mark. The star was
+    hand-plotted rather than constructed, so its points were uneven. And because
+    the same drawable is used as the `monochrome` layer, Android 13+ themed
+    icons tinted disc and star to a single colour and rendered a featureless
+    blob.
+
+    Strokes rather than fills is what fixes the monochrome case: the gaps
+    survive tinting, so the mark still reads when it is one flat colour.
+
+    The two rings alternate their gaps — the inner pair opens left and right,
+    the outer pair opens top and bottom — which reads as radiating rather than
+    as a target. Geometry is constructed on the circle: arcs of 140° at r=18 and
+    r=28 about (54,54). The outermost extent is 28 + half the 4dp stroke = 30,
+    inside the 33 safe radius an adaptive icon mask can clip to.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Outer ring: opens top and bottom. Brand teal. -->
     <path
-        android:fillColor="#7C3AED"
-        android:pathData="M54,54m-26,0a26,26 0,1 1,52 0a26,26 0,1 1,-52 0"/>
+        android:fillColor="#00000000"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M44.42,80.31 A28,28 0 0,1 44.42,27.69" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M63.58,27.69 A28,28 0 0,1 63.58,80.31" />
+
+    <!-- Inner ring: opens left and right. Brand violet, lightened to hold
+         contrast against the dark end of the background gradient. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#A78BFA"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M70.91,60.16 A18,18 0 0,1 37.09,60.16" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#A78BFA"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M37.09,47.84 A18,18 0 0,1 70.91,47.84" />
+
+    <!-- The core. -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,40 L60,52 L72,54 L62,62 L66,74 L54,68 L42,74 L46,62 L36,54 L48,52 Z"/>
+        android:pathData="M54,54m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
 </vector>
