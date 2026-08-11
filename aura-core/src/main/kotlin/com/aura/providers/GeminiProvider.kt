@@ -77,7 +77,12 @@ class GeminiProvider(
             return@flow
         }
         val request = Request.Builder()
-            .url("$baseUrl/models/$model:streamGenerateContent")
+            // `?alt=sse` is what makes this a stream of one JSON object per line.
+            // Without it Google returns the whole response as a single
+            // pretty-printed JSON ARRAY — `[`, then indented objects, then `]` —
+            // and the line-oriented parser below matched nothing at all, so a
+            // working request produced "empty response" on every turn.
+            .url("$baseUrl/models/$model:streamGenerateContent?alt=sse")
             .addHeader("Content-Type", "application/json")
             .addHeader("X-Goog-Api-Key", key)
             .post(body.toString().toRequestBody("application/json".toMediaType()))
@@ -96,26 +101,61 @@ class GeminiProvider(
             kotlinx.coroutines.withTimeout(STREAM_READ_TIMEOUT_MS) {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    // Try to read error detail from body
-                    val errorDetail = try {
-                        val errBody = resp.body?.string() ?: ""
-                        val errObj = Json.parseToJsonElement(errBody).jsonObject
-                        val error = errObj["error"]?.jsonObject
-                        val msg = error?.get("message")?.jsonPrimitive?.content
-                        msg ?: resp.message
-                    } catch (_: Exception) {
-                        resp.message
-                    }
-                    emit(ProviderChunk(
-                        error = ProviderError("http_${resp.code}", errorDetail, retryable = resp.code == 429 || resp.code in 500..599)
-                    ))
+                    // The hand-rolled reader this replaces consumed the body with
+                    // string() and fell back to `resp.message` — the HTTP reason
+                    // phrase, empty over HTTP/2, which is what Google speaks — for
+                    // any envelope that was not exactly {"error":{"message":…}}.
+                    // The shared parser peeks instead of consuming, keeps the
+                    // whole envelope, and redacts any echo of the key.
+                    val message = OpenAiCompatProvider.failureMessage(null, resp, key)
+                    emit(
+                        ProviderChunk(
+                            error = ProviderError(
+                                "http_${resp.code}",
+                                message,
+                                retryable = resp.code == 429 || resp.code in 500..599,
+                                // Gemini's free tier rate-limits hard and sends a
+                                // Retry-After with it. Discarding it made the loop
+                                // fail over to another provider on a wait it was
+                                // told the length of.
+                                retryAfterMs = if (resp.code == 429) {
+                                    OpenAiCompatProvider.parseRetryAfterMs(resp)
+                                } else {
+                                    null
+                                },
+                            ),
+                        ),
+                    )
                     return@use
                 }
                 val source = resp.body?.source() ?: return@use
                 var sawFinish = false
+                // Gemini has no tool-specific stop code: it reports
+                // finishReason "STOP" on the very chunk that carries a
+                // functionCall. The agentic loop treats "stop" as terminal, so
+                // passing it through recorded every tool call and executed none —
+                // the model said it would search and then nothing happened.
+                //
+                // Fixed here rather than in the loop on purpose. Loosening the
+                // loop's terminal check would change termination for all
+                // seventeen providers to work around one provider's wire quirk.
+                // ChatGptSubscriptionProvider carries the same `sawToolCall` flag
+                // for the same reason.
+                var sawFunctionCall = false
+                // Monotonic across the WHOLE stream. It used to be a per-line
+                // index reset on every chunk, so two chunks each carrying one
+                // call to the same tool both produced `gemini_0_<name>` — one id
+                // for two distinct calls, which the loop then merged into a
+                // single tool turn and answered once.
+                var callIndex = 0
                 while (true) {
-                    val line = source.readUtf8Line() ?: break
-                    if (line.isBlank()) continue
+                    val rawLine = source.readUtf8Line() ?: break
+                    // `?alt=sse` frames each object as `data: {…}`. The prefix is
+                    // stripped when present rather than required, so a bare
+                    // newline-delimited object — what the endpoint used to return
+                    // and what several fixtures still send — parses unchanged.
+                    val line = rawLine.trim().removePrefix("data:").trim()
+                    if (line.isEmpty() || line == "[DONE]") continue
                     val obj = try { Json.parseToJsonElement(line).jsonObject } catch (_: Exception) { continue }
 
                     // Parse candidates[0].content.parts[0].text and functionCall
@@ -124,7 +164,6 @@ class GeminiProvider(
                     val content = candidate?.get("content")?.jsonObject
                     val parts = content?.get("parts")?.jsonArray
                     if (parts != null) {
-                        var partIndex = 0
                         for (part in parts) {
                             val partObj = part as? JsonObject ?: continue
                             // Text part
@@ -140,13 +179,14 @@ class GeminiProvider(
                             if (fnCall != null) {
                                 val fnName = fnCall["name"]?.jsonPrimitive?.content ?: ""
                                 val fnArgs = fnCall["args"]?.toString() ?: "{}"
-                                // P0-AGENTIC-F2: stable per-part ids so parallel
-                                // calls to the same function don't collide. Index
-                                // within the response is deterministic.
-                                val callId = "gemini_${partIndex}_${fnName}"
+                                sawFunctionCall = true
+                                // P0-AGENTIC-F2: stable ids so parallel calls to
+                                // the same function don't collide. Counted across
+                                // the stream, not within one chunk.
+                                val callId = "gemini_${callIndex}_${fnName}"
+                                callIndex++
                                 emit(ProviderChunk(toolCall = ToolCall(id = callId, name = fnName, arguments = fnArgs)))
                             }
-                            partIndex++
                         }
                     }
 
@@ -154,10 +194,14 @@ class GeminiProvider(
                     val finishReason = candidate?.get("finishReason")?.jsonPrimitive?.content
                     if (finishReason != null) {
                         sawFinish = true
-                        val reason = when (finishReason) {
-                            "STOP" -> FinishReason.stop
-                            "MAX_TOKENS" -> FinishReason.length
-                            "SAFETY", "RECITATION", "PROHIBITED" -> FinishReason.stop
+                        val reason = when {
+                            // Checked first even when a call was seen: truncated
+                            // arguments are not a tool call worth dispatching.
+                            finishReason == "MAX_TOKENS" -> FinishReason.length
+                            sawFunctionCall -> FinishReason.tool_calls
+                            // STOP, SAFETY, RECITATION, PROHIBITED and anything
+                            // new all end the turn; the loop has no separate
+                            // filtered-response state to report them as.
                             else -> FinishReason.stop
                         }
                         // Also check usage metadata if present on the final chunk
@@ -165,9 +209,15 @@ class GeminiProvider(
                         emit(ProviderChunk(finishReason = reason, usage = usage))
                     }
                 }
-                // If the stream ended without a finishReason, emit a terminal stop
+                // A stream that ended without a finishReason still needs a
+                // terminal chunk — but one that honours the calls it did make,
+                // or the loop records them and stops without running any.
                 if (!sawFinish) {
-                    emit(ProviderChunk(finishReason = FinishReason.stop))
+                    emit(
+                        ProviderChunk(
+                            finishReason = if (sawFunctionCall) FinishReason.tool_calls else FinishReason.stop,
+                        ),
+                    )
                 }
             }
             } // withTimeout
