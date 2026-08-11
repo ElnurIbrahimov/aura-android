@@ -2,11 +2,15 @@
 # Repository: github.com/ElnurIbrahimov/aura-android
 name: CI
 
+# Every branch, not a hardcoded pair. The list said [main, feat/tier-1-friction]
+# while development ran on feat/p3-longform, so the 46 commits between
+# 2026-08-05 and 2026-08-11 were gated by nothing at all — including a
+# MIGRATION_1_2 that crashed the app on launch for any v1 database.
+# A gate that does not run on the branch you work on is not a gate.
 on:
   push:
-    branches: [main, feat/tier-1-friction]
+    branches: ['**']
   pull_request:
-    branches: [main, feat/tier-1-friction]
   workflow_dispatch:
 
 concurrency:
@@ -88,8 +92,16 @@ jobs:
           path: ~/.gradle/wrapper/dists
           key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
 
-      - name: Cache Gradle home (dependencies and caches)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Split restore/save instead of the combined action, because the combined
+      # action writes its cache in a POST step and POST steps are SKIPPED when a
+      # job is cancelled. That produced a self-sustaining failure: the job times
+      # out -> the cache is never saved -> the next run is cold too -> it times
+      # out as well. CI on this repo had not gone green since 2026-08-05 for
+      # exactly this reason. `if: always()` on the save step breaks the loop —
+      # a run that times out still leaves a warm cache behind for the next one.
+      - name: Restore Gradle home (dependencies and caches)
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches/modules-2
@@ -103,8 +115,35 @@ jobs:
             ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}-
             ${{ runner.os }}-gradle-
 
-      - name: Build and test
-        run: ./gradlew :aura-core:assembleDebug :aura-core:testDebugUnitTest :app:assembleDebug :app:testDebugUnitTest
+      # One task list per step, smallest first. A single 4-task invocation gave
+      # no signal about WHERE the 90 minutes went, and a timeout killed the whole
+      # thing with nothing reported. Ordered so the cheapest failure surfaces
+      # first on a cold cache.
+      - name: Build and test :aura-core
+        run: ./gradlew :aura-core:assembleDebug :aura-core:testDebugUnitTest
+
+      - name: Build and test :app
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest
+
+      # Compile-only. Instrumented tests need a device and CI has none, so these
+      # 25 Room MigrationTestHelper methods have never executed — which is how
+      # MIGRATION_1_2 shipped two of the four columns it needed and crashed the
+      # app on launch. Compiling them will not run the assertions, but it does
+      # stop them rotting invisibly against entity changes, which is the failure
+      # that actually happened.
+      - name: Compile instrumented tests (no device required)
+        run: ./gradlew :aura-core:assembleDebugAndroidTest :app:assembleDebugAndroidTest
+
+      - name: Save Gradle home (dependencies and caches)
+        if: always() && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/transforms-4
+            ~/.gradle/caches/9.7.0
+            ~/.gradle/caches/jars-9
+          key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}-build
 
       # README.md and architecture.md state the test count in the present tense,
       # and it drifted from 2,152 to 2,225 unnoticed — check-version-docs.sh
@@ -177,8 +216,12 @@ jobs:
           path: ~/.gradle/wrapper/dists
           key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
 
-      - name: Cache Gradle home (dependencies and caches)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restore/save split for the same reason as build-test: a cancelled job
+      # skips POST steps, so the combined action never persists a cache on the
+      # runs that most need one.
+      - name: Restore Gradle home (dependencies and caches)
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches/modules-2
@@ -204,6 +247,17 @@ jobs:
       # exercises R8 without needing the upload keystore.
       - name: Build release (R8 / minification)
         run: ./gradlew :app:assembleRelease
+
+      - name: Save Gradle home (dependencies and caches)
+        if: always() && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/transforms-4
+            ~/.gradle/caches/9.7.0
+            ~/.gradle/caches/jars-9
+          key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}-lint
 
       - name: Upload lint reports on failure
         if: failure()
