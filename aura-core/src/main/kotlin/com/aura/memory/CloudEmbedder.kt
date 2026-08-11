@@ -52,49 +52,42 @@ class CloudEmbedder @Inject constructor(
     }
 
     /**
-     * Embedding dimensionality. Returns the dimension for the currently
-     * configured model rather than always 384 (the local embedder
-     * default). Without this, picking a non-384-dim cloud model
-     * (e.g. nomic-embed-text = 768, mxbai-embed-large = 1024,
-     * bge-large = 1024) caused every cloudEmbed() call to fall back
-     * to the local embedder because the dimension validation
-     * in cloudEmbed() compared vec.size against the hard-coded 384.
+     * Embedding dimensionality, learned from the wire rather than declared here.
      *
-     * The model id is the part AFTER the provider prefix (e.g. for
-     * "ollama:nomic-embed-text" the model is "nomic-embed-text"),
-     * matching the parse in embed(). Unknown models default to 384
-     * with a runtime warning so new Ollama catalog entries don't
-     * break the embedding pipeline.
+     * This used to be a hardcoded model→dimension table with a 384 default for
+     * anything unlisted, and every consequence of that was silent. A 768- or
+     * 1024-dim model absent from the table failed the size check in
+     * [cloudEmbed] on every call and fell back to the local hash sketch
+     * permanently — and because `dimension()` was also what [embedTagged] used
+     * to decide whether the cloud had answered, the row was still tagged with
+     * the CLOUD model id. `isCurrent()` then returned true for every one of
+     * those rows, `countNeedingReembed` returned zero, and
+     * `RetrievalTrace.staleVectorCount` reported 0 for a corpus whose entire
+     * vector signal was a hash of the text. The table was also simply wrong:
+     * `mxbai-embed-large` was listed at 768 and is 1024.
+     *
+     * A model's dimension is a fact its own first response states, so nothing
+     * here needs it in advance and nothing here guesses. Before the first
+     * successful call for a model this reports the local embedder's dimension,
+     * which is the honest answer: that is the size of the vector this embedder
+     * would produce right now.
      */
-    override fun dimension(): Int {
-        val model = selectedModelName()
-        if (model.isBlank()) return localEmbedder.dimension()
-        return when (model) {
-            // 384-dim models — match LocalEmbedder.
-            "local-hash-v2", "all-minilm:l6-v2", "all-minilm:l12-v2",
-            "snowflake-arctic-embed:33m", "snowflake-arctic-embed:110m",
-            "bge-small", "bge-small-en-v1.5", "bge-small-zh-v1.5" -> 384
-            // 768-dim models.
-            "nomic-embed-text", "nomic-embed-text:v1.5",
-            "all-mpnet-base-v2", "bge-base", "bge-base-en-v1.5",
-            "mxbai-embed-large", "snowflake-arctic-embed:335m" -> 768
-            // 1024-dim models.
-            "bge-large", "bge-large-en-v1.5", "bge-large-zh-v1.5",
-            "bge-m3", "cohere-embed-multilingual-v3" -> 1024
-            // 1536-dim OpenAI.
-            "text-embedding-ada-002", "text-embedding-3-small" -> 1536
-            "text-embedding-3-large" -> 3072
-            else -> {
-                android.util.Log.w(
-                    "CloudEmbedder",
-                    "Unknown embedding model '$model' — defaulting to 384. " +
-                        "Add the model to dimension() in CloudEmbedder.kt to avoid " +
-                        "fallback to the local 384-dim embedder.",
-                )
-                384
-            }
-        }
-    }
+    override fun dimension(): Int =
+        observedDimensions[selectedModelName()] ?: localEmbedder.dimension()
+
+    /**
+     * Dimension per model, learned from that model's first successful response
+     * and kept for the process lifetime.
+     *
+     * Keyed by model because the user can change the embedding model in
+     * Settings at any moment, and a dimension learned for one says nothing
+     * about the next. The key is [selectedModelName]'s form — the part after
+     * the `ollama:` prefix — which is the same string [cloudEmbed] receives as
+     * `model`, so the write and the read cannot drift apart. Concurrent
+     * because [embedTagged] runs on `Dispatchers.IO` and several recalls can be
+     * in flight at once.
+     */
+    private val observedDimensions = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /**
      * Parse the configured model id the same way embed() does:
@@ -120,9 +113,29 @@ class CloudEmbedder @Inject constructor(
             size > MAX_CACHE_ENTRIES
     }
 
-    override suspend fun embed(text: String): FloatArray = withContext(Dispatchers.IO) {
-        // 1. Resolve the configured cloud model (if any) so the cache key
-        //    can be scoped to it.
+    /**
+     * [embedTagged] does the work; this is the untagged view of it.
+     *
+     * The two used to be independent, and [embedTagged] recovered "did the
+     * cloud answer?" by comparing `vec.size` against `dimension()`. That
+     * heuristic cannot tell a cloud model from the local fallback whenever the
+     * two share a dimension — which is every 384-dim model, and, once
+     * `dimension()` stopped guessing, every model before its first successful
+     * call. Deriving one function from the other removes the guess entirely:
+     * the branch that produced the vector is the branch that names it.
+     */
+    override suspend fun embed(text: String): FloatArray = embedTagged(text).vector
+
+    /**
+     * Embed [text] and report which model ACTUALLY produced the vector.
+     *
+     * `MemoryStore.store` writes this tag into `embeddingModel` and
+     * `Embedder.isCurrent` compares it back, so a local-fallback vector tagged
+     * with the cloud model is not a cosmetic error: the row becomes invisible
+     * to `countNeedingReembed` and is never repaired, and `staleVectorCount`
+     * reports 0 for a corpus whose vectors mean nothing.
+     */
+    override suspend fun embedTagged(text: String): Embedding = withContext(Dispatchers.IO) {
         val apiKey = providerKeys.keyFor("ollama")
         val selected = providerKeys.embeddingModel
         val parts = selected.split(":", limit = 2)
@@ -130,79 +143,42 @@ class CloudEmbedder @Inject constructor(
             parts.firstOrNull() == "ollama" && it.isNotBlank()
         }
         val cloudConfigured = !apiKey.isNullOrBlank() && model != null
-        val cloudCacheKey = "$selected:${sha256Hex(text)}"
-        val localCacheKey = "$LOCAL_MODEL_ID:${sha256Hex(text)}"
-        val cacheKey = if (cloudConfigured) cloudCacheKey else localCacheKey
+        val digest = sha256Hex(text)
 
-        // 2. Check cache under the model-scoped key.
-        synchronized(cache) {
-            cache[cacheKey]?.let { return@withContext it }
-        }
-
-        // 3. Try cloud only for a selected Ollama catalog model.
         if (cloudConfigured) {
+            // Cache key is scoped to the model, so switching models in Settings
+            // never serves a vector from the previous one.
+            val cloudCacheKey = "$selected:$digest"
+            synchronized(cache) { cache[cloudCacheKey] }?.let {
+                return@withContext Embedding(it, modelId(), it.size)
+            }
             try {
                 val vec = cloudEmbed(text, apiKey!!, model!!)
                 synchronized(cache) { cache[cloudCacheKey] = vec }
-                return@withContext vec
+                return@withContext Embedding(vec, modelId(), vec.size)
             } catch (e: Exception) {
-                // P1 MEMORY B3: pre-fix, every cloud embed
-                // failure (auth, network, rate-limit, model
-                // 404, parse error) was silently swallowed
-                // and fell through to the local fallback.
-                // The user would see "I prefer dark mode"
-                // stored with a 384-dim local hash embedding
-                // instead of their configured Ollama model's
-                // real 768/1024-dim embedding — silently
-                // degrading recall quality. Now log so the
-                // failure is visible in logcat and the
-                // user can see "Aura: cloud embed failed
-                // (see logcat for cause), falling back to local".
+                // Every cloud embed failure — auth, network, rate limit, a 404
+                // on the model, a parse error — used to be swallowed here, so a
+                // user who had configured nomic-embed-text silently stored
+                // 384-dim hash sketches instead and nothing said so.
                 Log.w("CloudEmbedder", "cloud embed failed for model=$model, falling back to local", e)
             }
-            // Transient cloud failure: return the local-hash vector for
-            // this call but DO NOT cache it — a cached fallback would
-            // permanently masquerade as a cloud vector for this text and
-            // keep degrading recall long after the outage ends.
-            return@withContext localEmbedder.embed(text)
+            // Returned but NOT cached: a cached fallback would masquerade as a
+            // cloud vector for this text and keep degrading recall long after
+            // the outage ended.
+            val fallback = localEmbedder.embed(text)
+            return@withContext Embedding(fallback, localEmbedder.modelId(), fallback.size)
         }
 
-        // 4. No cloud model configured — the local embedder IS the
-        //    configured embedder; caching under its own model key is safe.
+        // No cloud model configured — the local embedder IS the configured
+        // embedder, so caching under its own model key is safe.
+        val localCacheKey = "$LOCAL_MODEL_ID:$digest"
+        synchronized(cache) { cache[localCacheKey] }?.let {
+            return@withContext Embedding(it, localEmbedder.modelId(), it.size)
+        }
         val vec = localEmbedder.embed(text)
         synchronized(cache) { cache[localCacheKey] = vec }
-        vec
-    }
-
-    /**
-     * Same as [embed], but reports the model that produced the vector rather
-     * than the one this embedder is configured with.
-     *
-     * The two differ exactly when the cloud call fails and the local hash
-     * embedder answers instead. `MemoryStore.store` used [modelId] and
-     * [dimension] unconditionally, so those rows were tagged
-     * `ollama:nomic-embed-text` / 768 while holding a 384-dim local vector.
-     * A later model switch could not tell them apart from genuine cloud rows,
-     * and a re-embed keyed on the tag would skip exactly the rows that most
-     * needed redoing.
-     */
-    override suspend fun embedTagged(text: String): Embedding = withContext(Dispatchers.IO) {
-        val vec = embed(text)
-        val apiKey = providerKeys.keyFor("ollama")
-        val parts = providerKeys.embeddingModel.split(":", limit = 2)
-        val cloudConfigured = !apiKey.isNullOrBlank() &&
-            parts.firstOrNull() == "ollama" && !parts.getOrNull(1).isNullOrBlank()
-        // Dimension is the honest discriminator: the local fallback always
-        // produces localEmbedder.dimension(), so a size mismatch against the
-        // configured model means the fallback answered. A cloud model that
-        // happens to share the local dimension is indistinguishable — in which
-        // case the vector is at least the right shape and a wrong tag is the
-        // lesser problem.
-        if (cloudConfigured && vec.size == dimension()) {
-            Embedding(vec, modelId(), dimension())
-        } else {
-            Embedding(vec, localEmbedder.modelId(), vec.size)
-        }
+        Embedding(vec, localEmbedder.modelId(), vec.size)
     }
 
     /**
@@ -239,14 +215,27 @@ class CloudEmbedder @Inject constructor(
         return FloatArray(embeddingArray.size) { i ->
             embeddingArray[i].jsonPrimitive.content.toFloat()
         }.also { vec ->
-            // Validate dimension — if the API returns a different dimension
-            // than expected (e.g. 768 from a larger model), log and fall back
-            // to local embedder rather than storing a mismatched vector.
-            if (vec.size != dimension()) {
-                android.util.Log.w("CloudEmbedder",
-                    "API returned ${vec.size}-dim embedding but expected ${dimension()}. " +
-                    "Falling back to local embedder. Change the embedding model in Settings to match.")
-                throw RuntimeException("embedding dimension mismatch: ${vec.size} != ${dimension()}")
+            // An empty vector is not merely a small one: recorded as this
+            // model's dimension it would make every later response "mismatch"
+            // and pin the model to the local fallback for the whole process.
+            if (vec.isEmpty()) {
+                throw RuntimeException("Ollama Cloud returned an empty embedding for model=$model")
+            }
+            // The FIRST successful response defines this model's dimension;
+            // later ones are checked against it. Checking against a hardcoded
+            // table instead is what made every unlisted model — and
+            // mxbai-embed-large, which the table had at the wrong size — fail
+            // permanently and invisibly. See dimension().
+            val known = observedDimensions.putIfAbsent(model, vec.size)
+            if (known != null && known != vec.size) {
+                android.util.Log.w(
+                    "CloudEmbedder",
+                    "model=$model returned a ${vec.size}-dim embedding after previously " +
+                        "returning $known; refusing it so the store keeps one shape per model",
+                )
+                throw RuntimeException(
+                    "embedding dimension changed for model=$model: got ${vec.size}, previously $known",
+                )
             }
         }
     }

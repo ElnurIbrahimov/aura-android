@@ -163,6 +163,25 @@ data class SettingsUiState(
     val imageModels: List<String> = emptyList(),
     val videoModels: List<String> = emptyList(),
     val voiceModels: List<String> = emptyList(),
+    /**
+     * Embedding models, for the embedding role picker.
+     *
+     * Its own list for the same reason image, video and voice have theirs, and
+     * for a sharper one: the picker used to filter [availableModels], which is
+     * `capability.isChatUsable` — Chat or Unknown. `OpenAiCompatProvider`
+     * classifies on ID SEGMENTS split by `-_/.`, so every id carrying an
+     * `embed` segment (`nomic-embed-text`, `mxbai-embed-large`,
+     * `snowflake-arctic-embed:110m`) became [ModelCapability.Embedding] and was
+     * excluded from the one list the picker read. The exact models a user picks
+     * this control to reach were the exact models it could not show.
+     *
+     * It is a union, not a swap. Ids the classifier does not recognise —
+     * `bge-large`, `bge-m3`, `all-minilm:l6-v2`, `bge-small-en-v1.5`, none of
+     * which contain an `embed` segment — land on `Unknown`, and those ARE in
+     * [availableModels] and ARE offered today. Filtering for `Embedding` alone
+     * would fix one half of the picker by breaking the other.
+     */
+    val embeddingModels: List<String> = emptyList(),
     val modelsLoading: Boolean = false,
     val modelsError: String? = null,
     val providerTests: Map<String, ProviderTestResult> = emptyMap(),
@@ -1301,6 +1320,27 @@ class SettingsViewModel @Inject constructor(
                 voiceModels = catalog.allModels
                     .filter { it.capability == com.aura.providers.ModelCapability.Speech }
                     .map { it.id }.distinct().sorted(),
+                // `Embedding` OR chat-usable, which is a strict superset of what
+                // the picker showed before: the classifier tags only ids with an
+                // `embed` segment, so `bge-m3` and `all-minilm:l6-v2` are
+                // `Unknown` and were already on offer. Narrowing to `Embedding`
+                // alone would silently take them away.
+                //
+                // Restricted to `ollama:` here rather than in the picker,
+                // because the restriction is a fact about the embedder and not
+                // about the UI: `CloudEmbedder.embedTagged` only calls the cloud
+                // when the configured id parses as `ollama:<model>`, and for any
+                // other prefix it silently returns a local hash sketch. Offering
+                // an OpenAI embedding model would look like it worked and would
+                // not.
+                embeddingModels = catalog.allModels
+                    .filter {
+                        it.capability == com.aura.providers.ModelCapability.Embedding ||
+                            it.capability.isChatUsable
+                    }
+                    .map { it.id }
+                    .filter { it.startsWith("ollama:") }
+                    .distinct().sorted(),
                 modelsLoading = catalog.providers.values.any { provider ->
                     provider.status == ProviderStatus.Loading
                 },

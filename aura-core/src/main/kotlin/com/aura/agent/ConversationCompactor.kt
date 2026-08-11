@@ -80,10 +80,20 @@ class ConversationCompactor @Inject constructor(
         // A deep_research turn might be 4000 chars (~1000 tokens); "yes" is 3
         // chars (~1 token). Turn-count-based thresholds treat them equally;
         // token-based triggers correctly compact sooner for heavy turns.
+        // Tool output is the reason this class exists and it was not in the
+        // count. `Turn.toolTurns` carries the call name, its arguments and its
+        // result, and `Conversation.toMessages` puts all three on the wire — a
+        // single web_fetch or deep_research turn contributes up to
+        // MAX_TOOL_RESULT_CHARS of result (4,000, the ceiling the loop truncates
+        // to) against a `user` of a dozen characters. Summing only user +
+        // assistant therefore measured the smallest part of a tool-heavy
+        // conversation, and the model reached its real context limit long before
+        // the estimate reached the threshold.
         val estimatedTokens = unsummarizedTurns.sumOf { turn ->
             val userChars = turn.user?.length ?: 0
             val assistantChars = turn.assistant?.length ?: 0
-            (userChars + assistantChars) / 4
+            val toolChars = turn.toolTurns.sumOf { it.name.length + it.args.length + it.result.length }
+            (userChars + assistantChars + toolChars) / 4
         }
         if (estimatedTokens <= resolveThreshold(compactModel, lookupContextWindow(compactModel))) return conversation
 

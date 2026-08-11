@@ -329,75 +329,76 @@ class CloudEmbedderTest {
     // silently got local 384-dim embeddings.
 
     @Test
-    fun `dimension returns 384 for local-hash-v2 and 384-dim models`() {
-        for (model in listOf(
-            "local-hash-v2",
-            "ollama:all-minilm:l6-v2",
-            "ollama:snowflake-arctic-embed:110m",
-            "ollama:bge-small-en-v1.5",
-        )) {
-            val keys = mockk<ProviderKeys>(relaxed = true) {
-                every { embeddingModel } returns model
-            }
-            val local = mockk<LocalEmbedder>(relaxed = true)
-            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-            assertEquals(384, sut.dimension(), "model '$model' should return 384")
+    fun `dimension is unknown until a response states it, then it is the response's`() = runTest {
+        // The whole defect in one test. Pre-fix, dimension() answered from a
+        // hardcoded table and 384 for anything unlisted, so an unlisted model's
+        // real vector failed the size check on every call and the embedder fell
+        // back to the local hash sketch permanently. Nothing here is told the
+        // dimension in advance.
+        val vec1024 = FloatArray(1024) { 0.25f }
+        val httpClient = mockHttp("""{"embedding":[${vec1024.joinToString(",") { it.toString() }}]}""")
+        val local = mockk<LocalEmbedder>(relaxed = true) {
+            every { dimension() } returns 384
         }
+        val keys = providerKeys(key = "sk-test-key", model = "ollama:some-model-nobody-listed")
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        assertEquals(384, sut.dimension(), "before any response, the honest answer is the local dimension")
+
+        val result = sut.embed("test text")
+
+        assertEquals(1024, result.size, "an unlisted model's real vector must not be rejected")
+        assertEquals(1024, sut.dimension(), "the first successful response defines the dimension")
     }
 
     @Test
-    fun `dimension returns 768 for nomic-embed-text and 768-dim models`() {
-        for (model in listOf(
-            "ollama:nomic-embed-text",
-            "ollama:nomic-embed-text:v1.5",
-            "ollama:all-mpnet-base-v2",
-            "ollama:mxbai-embed-large",
-            "ollama:bge-base-en-v1.5",
-        )) {
-            val keys = mockk<ProviderKeys>(relaxed = true) {
-                every { embeddingModel } returns model
-            }
-            val local = mockk<LocalEmbedder>(relaxed = true)
-            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-            assertEquals(768, sut.dimension(), "model '$model' should return 768")
-        }
-    }
-
-    @Test
-    fun `dimension returns 1024 for bge-large and 1024-dim models`() {
-        for (model in listOf(
-            "ollama:bge-large",
-            "ollama:bge-large-en-v1.5",
-            "ollama:bge-m3",
-            "ollama:cohere-embed-multilingual-v3",
-        )) {
-            val keys = mockk<ProviderKeys>(relaxed = true) {
-                every { embeddingModel } returns model
-            }
-            val local = mockk<LocalEmbedder>(relaxed = true)
-            val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-            assertEquals(1024, sut.dimension(), "model '$model' should return 1024")
-        }
-    }
-
-    @Test
-    fun `dimension returns 1536 for OpenAI text-embedding-3-small`() {
-        val keys = mockk<ProviderKeys>(relaxed = true) {
-            every { embeddingModel } returns "ollama:text-embedding-3-small"
-        }
+    fun `mxbai-embed-large is accepted at its real 1024 dimensions`() = runTest {
+        // The table said 768. mxbai-embed-large is 1024. Under the table this
+        // model could never produce a cloud vector at all, and every row it
+        // "embedded" was a local hash sketch wearing the cloud model's name.
+        val vec = FloatArray(1024) { 0.1f }
+        val httpClient = mockHttp("""{"embedding":[${vec.joinToString(",") { it.toString() }}]}""")
         val local = mockk<LocalEmbedder>(relaxed = true)
-        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-        assertEquals(1536, sut.dimension())
+        val keys = providerKeys(key = "sk-test-key", model = "ollama:mxbai-embed-large")
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        val result = sut.embed("test text")
+
+        assertEquals(1024, result.size)
+        coVerify(exactly = 0) { local.embed(any()) }
     }
 
     @Test
-    fun `dimension returns 3072 for OpenAI text-embedding-3-large`() {
-        val keys = mockk<ProviderKeys>(relaxed = true) {
-            every { embeddingModel } returns "ollama:text-embedding-3-large"
-        }
+    fun `a local fallback vector is tagged with the local model, never the cloud one`() = runTest {
+        // The tag is what `isCurrent` compares and what `countNeedingReembed`
+        // keys on. Tagging a 384-dim hash sketch as the cloud model makes every
+        // such row look current forever, which is how staleVectorCount reported
+        // 0 for a corpus with no real vectors in it.
+        val httpClient = mockHttpException()
         val local = mockk<LocalEmbedder>(relaxed = true)
-        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-        assertEquals(3072, sut.dimension())
+        coEvery { local.embed(any()) } returns FloatArray(384) { 0.5f }
+        every { local.modelId() } returns "local-hash-v2"
+        val keys = providerKeys(key = "sk-test-key", model = "ollama:nomic-embed-text")
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        val tagged = sut.embedTagged("test text")
+
+        assertEquals("local-hash-v2", tagged.modelId)
+        assertEquals(384, tagged.dim)
+    }
+
+    @Test
+    fun `a cloud vector is tagged with the configured model and its real size`() = runTest {
+        val embedBody = """{"embedding":[${sampleEmbedding.joinToString(",") { it.toString() }}]}"""
+        val httpClient = mockHttp(embedBody)
+        val local = mockk<LocalEmbedder>(relaxed = true)
+        val keys = providerKeys(key = "sk-test-key", model = "ollama:nomic-embed-text")
+
+        val sut = CloudEmbedder(local, keys, httpClient)
+        val tagged = sut.embedTagged("test text")
+
+        assertEquals("ollama:nomic-embed-text", tagged.modelId)
+        assertEquals(768, tagged.dim)
     }
 
     @Test
@@ -410,20 +411,6 @@ class CloudEmbedderTest {
         }
         val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
         assertEquals(512, sut.dimension())
-    }
-
-    @Test
-    fun `dimension defaults to 384 with warning for unknown model`() {
-        val keys = mockk<ProviderKeys>(relaxed = true) {
-            every { embeddingModel } returns "ollama:totally-new-model-2026"
-        }
-        val local = mockk<LocalEmbedder>(relaxed = true)
-        val sut = CloudEmbedder(local, keys, mockk(relaxed = true))
-        // Unknown models fall back to 384 with a Log.w warning —
-        // this is a safety net so the embedding pipeline doesn't
-        // break for new Ollama catalog entries. The user sees the
-        // Log.w in logcat and can add the model to the when{}.
-        assertEquals(384, sut.dimension())
     }
 
     @Test

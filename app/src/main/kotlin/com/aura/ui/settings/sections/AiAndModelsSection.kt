@@ -304,7 +304,14 @@ fun AiAndModelsSection(
 
         activeModelRole?.let { role ->
             val selectableModels = when (role) {
-                "embedding" -> state.availableModels.filter { it.startsWith("ollama:") }
+                // Not `availableModels`: that list is `capability.isChatUsable`,
+                // and the classifier tags any id with an `embed` segment as
+                // Embedding — so nomic-embed-text and mxbai-embed-large, the
+                // models this picker exists for, could never appear in it. The
+                // `ollama:` restriction now lives in the ViewModel, next to the
+                // reason for it, along with why the new list still includes the
+                // ids the classifier calls Unknown.
+                "embedding" -> state.embeddingModels
                 "image" -> state.imageModels
                 "video" -> state.videoModels
                 "voice" -> state.voiceModels

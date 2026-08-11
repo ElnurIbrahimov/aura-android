@@ -1,9 +1,12 @@
 package com.aura.memory
 
+import android.util.Log
 import com.aura.agent.Brain
 import com.aura.agent.BrainChunk
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,8 +94,27 @@ class QueryRewriter @Inject constructor(
                     rewritten
                 }
             }
+        } catch (e: TimeoutCancellationException) {
+            // Expected under a slow model, and falling back to the raw query is
+            // correct — but it must be visible. A rewriter that has timed out on
+            // every deictic query for a month is indistinguishable from one that
+            // works, because the output is always a plausible query.
+            Log.w(TAG, "query rewrite timed out after ${REWRITE_TIMEOUT_MS}ms; using the original query", e)
+            query
+        } catch (e: CancellationException) {
+            // The CALLER gave up: a cancelled recall, a closed conversation.
+            // Swallowing it breaks cooperative cancellation and leaves the model
+            // call running for a result nobody is waiting for. The previous
+            // `catch (e: Exception)` caught this, because CancellationException
+            // is an Exception — the same defect just fixed in MemoryReranker,
+            // one file away, on this same recall path.
+            throw e
         } catch (e: Exception) {
-            query // best-effort — fall back to original
+            // Anything else is a real failure: no model configured, a provider
+            // error, a malformed response. Silent, this made a permanently
+            // broken rewriter look exactly like a working one.
+            Log.w(TAG, "query rewrite failed (${e.javaClass.simpleName}); using the original query: ${e.message}", e)
+            query
         }
     }
 
@@ -143,6 +165,7 @@ class QueryRewriter @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "QueryRewriter"
         const val REWRITE_TIMEOUT_MS = 5_000L
     }
 }
