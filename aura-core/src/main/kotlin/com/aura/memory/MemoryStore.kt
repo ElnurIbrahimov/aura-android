@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.sqrt
 import java.util.UUID
 import javax.inject.Inject
@@ -247,16 +248,63 @@ class MemoryStore @Inject constructor(
         // RERANK_POOL_SIZE pool (limit*3 = 15 used to cap below 20).
         val candidateLimit = maxOf(limit * config.candidateMultiplier, config.rerankPoolSize + 5)
         val ftsQuery = FtsQuery.build(queryWords)
-        val textHits = if (ftsQuery != null) {
-            dao.searchFts(ftsQuery, scopes, candidateLimit)
+        // Over-fetched by [RetrievalConfig.ftsOverfetch]. `searchFts` orders by
+        // `decayScore DESC` — freshness — so at the bare candidate limit the
+        // pool was "the N freshest rows sharing any word with the query", and
+        // every stage after it (BM25, vectors, RRF, the LLM reranker) re-ranked
+        // a set that had been selected with no relevance signal at all. The
+        // widened window is BM25's to select from; see the config field for why
+        // this is a widening rather than the exact `matchinfo()` ordering.
+        val keywordHits = if (ftsQuery != null) {
+            dao.searchFts(ftsQuery, scopes, candidateLimit * config.ftsOverfetch)
         } else {
             // Every term was a stopword, too short, or pure punctuation. FTS
             // cannot express that — `MATCH ''` is a syntax error, not an empty
             // result — so fall back to the substring LIKE, which is also what
             // the Memory-screen search bar uses.
-            dao.searchByTextInScopes("%$escapedText%", scopes, candidateLimit)
+            dao.searchByTextInScopes("%$escapedText%", scopes, candidateLimit * config.ftsOverfetch)
         }
-        val qVec = embedder.embed(retrievalQuery)
+        // The embedder is the only network call on the recall path and it had no
+        // deadline. Null here means "rank this recall without the vector
+        // signal" — degraded and immediate, rather than a turn hung behind a
+        // vector nobody is waiting for. Logged, because a recall that silently
+        // loses one of its two relevance signals is indistinguishable from a
+        // working one in the output.
+        val qVec: FloatArray? = withTimeoutOrNull(config.embedTimeoutMs) { embedder.embed(retrievalQuery) }
+        if (qVec == null) {
+            Log.w(
+                "MemoryStore",
+                "query embedding did not return within ${config.embedTimeoutMs}ms; " +
+                    "ranking this recall on the lexical signal alone",
+            )
+        }
+        // The second arm of the pool. This is the only place a relevance signal
+        // reaches pool SELECTION: without it a memory that shares no word with
+        // the query can never become a candidate here, because the vector
+        // fallback below runs only when the keyword arm is completely empty and
+        // one incidental word match is enough to prevent that.
+        //
+        // The `embedding != null` test is redundant against the DAO — the query
+        // carries `WHERE ... embedding IS NOT NULL` — and is kept because the
+        // `!!` below needs it to be local, not a fact about a string in a
+        // @Query annotation.
+        val vectorPool: List<MemoryEntity> = if (qVec == null || config.vectorPoolSize <= 0) {
+            emptyList()
+        } else {
+            runCatching { dao.vectorScanCandidates(scopes, config.vectorFallbackScanLimit) }
+                .onFailure { Log.w("MemoryStore", "vector arm of the candidate pool failed; pool is keyword-only", it) }
+                .getOrDefault(emptyList())
+                .asSequence()
+                .filter { it.embedding != null && embedder.isCurrent(it.embeddingModel) }
+                .map { it to cosineSimilarity(qVec, Embedder.fromBytes(it.embedding!!)) }
+                .filter { it.second >= config.minRelevance }
+                .sortedByDescending { it.second }
+                .take(config.vectorPoolSize)
+                .map { it.first }
+                .toList()
+        }
+        val keywordIds = keywordHits.mapTo(HashSet(keywordHits.size)) { it.id }
+        val textHits = keywordHits + vectorPool.filterNot { it.id in keywordIds }
 
         if (textHits.isEmpty()) {
             // Vector fallback: no text overlap between query and any stored
@@ -285,14 +333,27 @@ class MemoryStore @Inject constructor(
                         "different model and cannot be scored; run rebuildEmbeddings()",
                 )
             }
-            val scored = all.asSequence()
-                .filter { embedder.isCurrent(it.embeddingModel) }
-                .map { mem ->
-                    val embedding = Embedder.fromBytes(mem.embedding!!)
-                    ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
-                }
-                .filter { it.vectorScore > 0.05f }
-                .toList()
+            // No query vector means this branch has no signal whatsoever: it has
+            // hardcoded textScore = 0 by construction, so ranking here without a
+            // cosine would be ranking on recency and decay alone and calling the
+            // result a semantic match.
+            val scored = if (qVec == null) {
+                emptyList()
+            } else {
+                all.asSequence()
+                    .filter { embedder.isCurrent(it.embeddingModel) }
+                    .map { mem ->
+                        val embedding = Embedder.fromBytes(mem.embedding!!)
+                        ScoredMemory(memory = mem, textScore = 0f, vectorScore = cosineSimilarity(qVec, embedding))
+                    }
+                    // Was `> 0.05f`, which is the noise floor of a 384-dim hash
+                    // sketch rather than a relevance threshold — so a query with
+                    // no answer still returned whatever random rows cleared it,
+                    // straight into the system prompt. Same scale, same units,
+                    // higher bar. See [RetrievalConfig.minRelevance].
+                    .filter { it.vectorScore >= config.minRelevance }
+                    .toList()
+            }
             if (scored.isEmpty()) {
                 trace(
                     RetrievalTrace.Branch.VECTOR_FALLBACK,
@@ -302,7 +363,10 @@ class MemoryStore @Inject constructor(
                 )
                 return emptyList()
             }
-            val vectorResults = Retrieval.rankCandidates(text, qVec, scored, limit, config = config)
+            // `queryEmbedding` is accepted and unused by rankCandidates (see its
+            // KDoc); an empty array is the honest stand-in when the embed timed
+            // out, and `scored` is already empty in that case.
+            val vectorResults = Retrieval.rankCandidates(text, qVec ?: FloatArray(0), scored, limit, config = config)
             // Route vector fallback through reranker too — it catches
             // semantic matches that BM25+vector both missed.
             val reranked = shouldRerank(vectorResults.size, rerankModel)
@@ -356,6 +420,13 @@ class MemoryStore @Inject constructor(
         // all of it in a single query, but that needs @RawQuery plus manual
         // BLOB parsing and there is no @RawQuery precedent in this DAO — see
         // ENGINEERING_HISTORY §3 for the recorded follow-up.
+        //
+        // `textHits` is now the union of two arms — an over-fetched FTS window
+        // and a cosine-ranked vector window — so the BM25 index is built over
+        // rows that may contain none of the query terms. That is intended: they
+        // score 0 lexically, which under COMPETITION tie handling is exactly
+        // "this signal has nothing to say about them", and they carry their
+        // relevance in the vector signal instead.
         val corpusSize = runCatching { dao.countInScopes(scopes) }
             .onFailure { Log.w("MemoryStore", "corpus size lookup failed; BM25 falls back to candidate-set IDF", it) }
             .getOrDefault(textHits.size)
@@ -428,20 +499,55 @@ class MemoryStore @Inject constructor(
             val vectorScore = when {
                 embedding == null -> 0f
                 !embedder.isCurrent(mem.embeddingModel) -> { staleVectors += 1; 0f }
+                // Ordered AFTER the staleness test on purpose: a timed-out embed
+                // must not also suppress the stale-vector count, which is the
+                // number that explains "recall got worse after I changed model".
+                qVec == null -> 0f
                 else -> cosineSimilarity(qVec, embedding)
             }
 
             ScoredMemory(memory = mem, textScore = textScore, vectorScore = vectorScore)
         }
 
+        // Relevance floor, applied before fusion so a candidate with no evidence
+        // does not occupy a pool slot and shift everyone else's ranks.
+        //
+        // It is NOT a floor on the RRF score. RRF is a function of RANKS: a pool
+        // of uniformly irrelevant candidates still has a rank-1 member and still
+        // produces the full range of fused scores, so the fused score says
+        // nothing about whether anything was relevant.
+        //
+        // It is also NOT `max(textScore, vectorScore) >= minRelevance`, which is
+        // the obvious form and is wrong. The two are not the same scale.
+        // `vectorScore` is a cosine. `textScore` is `BM25.normalizedScore`, a
+        // ratio to `sum(idf) * (k1 + 1)` over every distinct query token —
+        // including bigrams that no document contains, which have df 0 and so
+        // the LARGEST idf in the sum. Query "kotlin android" against rows that
+        // each contain both words normalises to 0.033, because idf(kotlin) and
+        // idf(android) are floored to 0.1 (df = N) while idf(kotlin_android) is
+        // ln(13). A shared threshold discards exact lexical matches and keeps
+        // hash-sketch noise, and ReembedOnModelChangeTest fails on precisely
+        // that row.
+        //
+        // So: any lexical evidence at all keeps a candidate — it got into the
+        // FTS window by matching a real query term — and a candidate with none,
+        // which is what the vector arm contributes, must clear the cosine floor.
+        // That is exactly the case the old `vectorScore > 0.05f` was meant to
+        // gate and did not.
+        val relevantCandidates = if (config.minRelevance <= 0f) {
+            scoredCandidates
+        } else {
+            scoredCandidates.filter { it.textScore > 0f || it.vectorScore >= config.minRelevance }
+        }
+
         // RRF ranking: overfetch to RERANK_POOL_SIZE, then let the
         // reranker (if available) pick the final topK from the pool.
         // Without a reranker, RRF returns topK directly.
-        val rrfTopN = if (reranker != null) minOf(config.rerankPoolSize, scoredCandidates.size) else limit
+        val rrfTopN = if (reranker != null) minOf(config.rerankPoolSize, relevantCandidates.size) else limit
         val rrfResults = Retrieval.rankCandidates(
             query = text,
-            queryEmbedding = qVec,
-            candidates = scoredCandidates,
+            queryEmbedding = qVec ?: FloatArray(0),
+            candidates = relevantCandidates,
             topK = rrfTopN,
             now = System.currentTimeMillis(),
             config = config,
@@ -480,7 +586,7 @@ class MemoryStore @Inject constructor(
             // it fired at all is the first question when a deictic query returns
             // the wrong thing.
             rewrittenQuery = retrievalQuery.takeIf { it != text },
-            candidateCount = scoredCandidates.size,
+            candidateCount = relevantCandidates.size,
             staleVectorCount = staleVectors,
             rerankRan = rerankRan,
             startedNanos = startedNanos,

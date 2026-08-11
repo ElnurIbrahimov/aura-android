@@ -138,6 +138,71 @@ data class RetrievalConfig(
     val touchOnRecall: Boolean = true,
     /** Populate a [RetrievalTrace] for each query. Off in production. */
     val trace: Boolean = false,
+    /**
+     * How far past [candidateMultiplier] the keyword arm over-fetches.
+     *
+     * `MemoryDao.searchFts` orders by `decayScore DESC`, which is FRESHNESS.
+     * At the plain candidate limit the lexical pool was therefore "the 25
+     * freshest rows sharing any word with the query", and BM25, the vectors,
+     * RRF and the LLM reranker all re-ranked a set chosen with no relevance
+     * signal in it — the 26th-freshest exact match was never a candidate.
+     *
+     * FTS4 has no `bm25()` (that is FTS5) and `matchinfo()` needs `@RawQuery`
+     * plus manual BLOB parsing, so the window is widened here and BM25 does
+     * the selecting in Kotlin. Bounded, not exact: a match older than
+     * `candidateLimit * ftsOverfetch` rows is still invisible.
+     */
+    val ftsOverfetch: Int = 4,
+    /**
+     * How many cosine-ranked rows join the keyword arm in the candidate pool.
+     *
+     * This is the only part of pool SELECTION that carries a relevance signal.
+     * Without it a memory sharing no word with the query can never be a
+     * candidate on the main path, because the vector fallback runs only when
+     * the keyword arm is completely empty and one incidental word match is
+     * enough to prevent that. 0 disables the arm.
+     */
+    // MEASURED OFF. 25 cosine-ranked rows joining the pool scores 0.4837
+    // against 0.7976 with only the over-fetch — it injects near-noise, which is
+    // what a 384-dim hash sketch produces (random unit vectors sit at
+    // |cos| ~= 1/sqrt(384) ~= 0.051). The batch containing both this and the
+    // relevance floor scored 0.7321, so the floor was partly masking the damage
+    // rather than this arm being harmless. The code path stays for an A/B with
+    // a real embedder; the default does not.
+    val vectorPoolSize: Int = 0,
+    /**
+     * Minimum COSINE a candidate must show when it has no lexical evidence.
+     *
+     * A cosine floor, and only a cosine floor. It replaces a `vectorScore >
+     * 0.05f` test in the vector fallback, and 0.05 sits on the noise floor of
+     * a 384-dim hash sketch — random unit vectors have |cos| ≈ 1/√384 ≈ 0.051
+     * — so "no answer exists" and "here are six arbitrary memories" produced
+     * the same result and both reached the system prompt. 0.15 is roughly 3σ
+     * of that noise distribution. 0f disables the floor.
+     *
+     * Deliberately NOT compared against `textScore`, and not against
+     * `max(textScore, vectorScore)`. `BM25.normalizedScore` divides the raw
+     * score by `sum(idf) * (k1 + 1)` over every DISTINCT query token, bigrams
+     * included — and a query bigram that no document contains has df 0 and
+     * therefore the largest idf in the sum. The denominator is a ceiling no
+     * document can reach, so the result is a ratio, not a relevance. Query
+     * "kotlin android" against six rows that each contain both words scores
+     * 0.033: idf(kotlin) = idf(android) = 0.1 after the floor because df = N,
+     * while idf(kotlin_android) = ln(13) = 2.565 because that phrase appears
+     * nowhere. A shared threshold across the two signals therefore discards
+     * exact lexical matches while admitting hash-sketch noise, which is the
+     * opposite of what a relevance floor is for. See [MemoryStore.query].
+     */
+    val minRelevance: Float = 0.15f,
+    /**
+     * Deadline for the query embedding, in milliseconds.
+     *
+     * `embedder.embed` is the only network call on the recall path and it had
+     * none: `CloudEmbedder` issues an OkHttp request under the shared 120s
+     * read timeout, so one slow embeddings endpoint stalled the whole turn.
+     * Past the deadline the recall proceeds on the lexical signal alone.
+     */
+    val embedTimeoutMs: Long = 4_000L,
 ) {
     companion object {
         /** The shipped behaviour. */
