@@ -21,13 +21,33 @@ import com.aura.ui.theme.AuraSpacing
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.Icons
 
+/**
+ * Settings surface for the overnight council.
+ *
+ * Two controls, both with real readers: `councilEnabled` gates the council
+ * block in `DaemonWorker.doWork`, and `councilActivityLevel` is passed to
+ * `CouncilOrchestrator.runFromFindings` as the session cap.
+ *
+ * There is deliberately no auto-apply toggle. `councilAutoApply` persists and
+ * round-trips through backup, but nothing in the app can *apply* an
+ * `Intervention` — the council's output is a proposal, and the only consumer is
+ * the insight event this section's daemon path emits. A switch that stores a
+ * value and changes no behaviour is worse than no switch: it reads as a working
+ * control. The preference and its `AuraBackup` field stay so already-saved
+ * values keep round-tripping and the backup schema needs no version bump —
+ * exactly the treatment `ModelRole.VERIFIER` records for the same situation.
+ * Building the apply pipeline is a feature; removing a control that does
+ * nothing is a fix, and this is the fix.
+ *
+ * Takes plain values rather than `State<T>`, matching every other section
+ * (`EmotionDaemonSection`, `DreamConsolidationSection`), so `SettingsScreen`
+ * can pass fields off its already-collected state.
+ */
 @Composable
 fun CouncilSettingsSection(
-    councilEnabled: androidx.compose.runtime.State<Boolean>,
-    councilAutoApply: androidx.compose.runtime.State<Boolean>,
-    councilActivityLevel: androidx.compose.runtime.State<Int>,
+    councilEnabled: Boolean,
+    councilActivityLevel: Int,
     onToggleEnabled: (Boolean) -> Unit,
-    onToggleAutoApply: (Boolean) -> Unit,
     onActivityLevelChange: (Int) -> Unit,
 ) {
     SettingsSection(
@@ -53,43 +73,25 @@ fun CouncilSettingsSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(checked = councilEnabled.value, onCheckedChange = onToggleEnabled)
+                Switch(checked = councilEnabled, onCheckedChange = onToggleEnabled)
             }
 
-            if (councilEnabled.value) {
-                // Auto-apply toggle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = AuraSpacing.xs),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-apply interventions", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "Skip approval — apply council proposals automatically",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(checked = councilAutoApply.value, onCheckedChange = onToggleAutoApply)
-                }
-
-                // Activity level slider
+            if (councilEnabled) {
+                // Activity level slider — the number of findings the council
+                // debates per cycle, one full session each.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = AuraSpacing.xs),
                 ) {
-                    Text("Activity level: ${councilActivityLevel.value}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Findings debated per night: $councilActivityLevel", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "1 = minimal, 5 = active",
+                        "Each one costs a full debate — up to 4 agents, 2 rounds, a vote",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Slider(
-                        value = councilActivityLevel.value.toFloat(),
+                        value = councilActivityLevel.toFloat(),
                         onValueChange = { onActivityLevelChange(it.toInt()) },
                         valueRange = 1f..5f,
                         steps = 3,

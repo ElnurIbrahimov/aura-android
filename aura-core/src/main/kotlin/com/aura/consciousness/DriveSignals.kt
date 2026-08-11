@@ -36,6 +36,15 @@ class DriveSignals @Inject constructor(
         val contradictionCount: Int,
         val lowConfidenceSkillCount: Int,
         val refreshedAt: Long,
+        /**
+         * Total nodes in the graph, the denominator for CURIOSITY. Without it
+         * `IntrinsicMotivation.assess` divides the gap count by a constant 20
+         * and saturates on any real graph. Defaulted and last so existing
+         * direct constructions in tests keep compiling — but see
+         * `MemoryAugmentedAgenticLoopMotivationTest.cannedSignals()`, whose
+         * fixture then silently supplies a zero denominator.
+         */
+        val kgNodeCount: Int = 0,
     )
 
     @Volatile
@@ -59,6 +68,11 @@ class DriveSignals @Inject constructor(
                 contradictionCount = countOr(prev?.contradictionCount ?: 0) { contradictionDao.unresolvedCount() },
                 lowConfidenceSkillCount = countOr(prev?.lowConfidenceSkillCount ?: 0) { strategyBanditDao.lowConfidenceCount() },
                 refreshedAt = System.currentTimeMillis(),
+                // A fourth indexed COUNT per TTL window, on the same table the
+                // gap count already scans. The class KDoc's "3 indexed COUNT
+                // queries" becomes 4; the TTL is what keeps that off the hot
+                // path, not the number of queries.
+                kgNodeCount = countOr(prev?.kgNodeCount ?: 0) { kgDao.nodeCount() },
             )
             cache = snapshot
             snapshot

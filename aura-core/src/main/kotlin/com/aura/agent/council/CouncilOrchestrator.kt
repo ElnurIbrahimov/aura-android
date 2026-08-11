@@ -64,17 +64,22 @@ class CouncilOrchestrator @Inject constructor(
      *
      * @param findings Proactive findings from the awareness engine
      * @param userContext Background info about the user (calendar, mood, etc.)
+     * @param maxFindings How many of the most urgent findings to debate. Each
+     *   one costs a full session — up to four agents, two debate rounds, a
+     *   vote — so this is the knob that decides what an overnight council
+     *   costs. `DaemonWorker` passes the user's council activity level here;
+     *   the default preserves the previous hardcoded 3.
      * @return list of council results, one per finding that was debated
      */
     suspend fun runFromFindings(
         findings: List<ProactiveAwarenessEngine.ProactiveFinding>,
         userContext: kotlin.String = "",
+        maxFindings: Int = 3,
     ): List<CouncilResult> {
         if (findings.isEmpty()) return emptyList()
 
         val results = mutableListOf<CouncilResult>()
-        // Pick top 3 findings by urgency to keep cost bounded
-        val topFindings = findings.sortedByDescending { it.urgency }.take(3)
+        val topFindings = findings.sortedByDescending { it.urgency }.take(maxFindings.coerceAtLeast(1))
 
         for (finding in topFindings) {
             val result = runSession(

@@ -93,12 +93,19 @@ class ModelRoleRouter @Inject constructor(
      *
      * The taste tier sits **below** the explicit preference, not above it. It
      * used to be first, which meant a learned recommendation could silently
-     * override a model the user had deliberately pinned. That has never actually
-     * happened — `resolve` queries `tasteEngine.bestModelForRole(role.name)`
-     * (e.g. "PLANNER") while the only production writer, the agentic loop's
-     * `recordRoutingOutcome`, records under "general" and "agent:<id>", so no
-     * key has ever matched — but a latent override of an explicit user choice is
-     * not worth keeping just because it is currently inert.
+     * override a model the user had deliberately pinned.
+     *
+     * Until the agentic loop was fixed to record under
+     * [ModelRole.CONVERSATION]`.name`, this tier was dead: `resolve` queried
+     * `bestModelForRole(role.name)` — "PLANNER", "CONVERSATION" — while the only
+     * production writer recorded under "general" and "agent:<id>", so no key
+     * matched. It is live now, which is why the ordering matters: a learned
+     * recommendation informs an *unset* role and never overrules a set one.
+     * Note that only CONVERSATION accumulates outcomes today, and
+     * `UserPreferences.forRole(CONVERSATION)` is `defaultModel` — which almost
+     * every install has set — so in practice the tier still resolves ahead of
+     * nothing. The other roles fall straight through to the conversation
+     * default, as they always have.
      */
     suspend fun resolve(role: ModelRole): kotlin.String? {
         // 1. What the user chose.

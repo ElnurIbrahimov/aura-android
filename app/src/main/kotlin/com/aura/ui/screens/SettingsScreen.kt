@@ -29,6 +29,7 @@ import com.aura.ui.settings.SettingsViewModel
 import com.aura.ui.settings.UsageViewModel
 import com.aura.ui.settings.sections.AiAndModelsSection
 import com.aura.ui.settings.sections.AppearanceSection
+import com.aura.ui.settings.sections.CouncilSettingsSection
 import com.aura.ui.settings.sections.DataAndBackupSection
 import com.aura.ui.settings.sections.DreamConsolidationSection
 import com.aura.ui.settings.sections.EmotionDaemonSection
@@ -188,6 +189,16 @@ fun SettingsScreen(
             daemonIntervalMinutes = state.daemonIntervalMinutes,
             onSetDaemonEnabled = viewModel::setDaemonEnabled,
             onSetDaemonInterval = viewModel::setDaemonIntervalMinutes,
+        )
+
+        // Directly after the daemon section because the council only runs
+        // inside a daemon cycle — turning this on with the daemon off does
+        // nothing, and the adjacency is the cheapest way to say so.
+        CouncilSettingsSection(
+            councilEnabled = state.councilEnabled,
+            councilActivityLevel = state.councilActivityLevel,
+            onToggleEnabled = viewModel::setCouncilEnabled,
+            onActivityLevelChange = viewModel::setCouncilActivityLevel,
         )
 
         TriggersSection(

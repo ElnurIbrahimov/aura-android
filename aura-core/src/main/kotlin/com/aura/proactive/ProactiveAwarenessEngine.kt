@@ -39,6 +39,14 @@ class ProactiveAwarenessEngine @Inject constructor(
     private val emotionEngine: EmotionEngine? = null,
 ) {
     data class ProactiveFinding(
+        /**
+         * The finding's kind, drawn from [ProactiveFindingType.wire]. It stays a
+         * `String` because it travels through `MotivationAccumulator.source` and
+         * into a `TEXT` column, but every value here must have an entry in
+         * [ProactiveFindingType] — `ProactiveFindingTypeCoverageTest` fails the
+         * build otherwise. That registration is what lets [SalienceFilter] match
+         * a finding against the events already recorded.
+         */
         val type: kotlin.String,
         val title: kotlin.String,
         val message: kotlin.String,

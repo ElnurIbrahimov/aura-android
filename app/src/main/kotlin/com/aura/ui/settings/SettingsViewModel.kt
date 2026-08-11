@@ -206,6 +206,10 @@ data class SettingsUiState(
     val daemonEnabled: Boolean = false,
     /** Daemon thinking-worker cadence in minutes (default 60). */
     val daemonIntervalMinutes: Int = com.aura.data.UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES,
+    /** Whether the overnight council debates during daemon runs (default false). */
+    val councilEnabled: Boolean = false,
+    /** How many findings the council debates per cycle, 1-5 (default 3). */
+    val councilActivityLevel: Int = 3,
     /** Whether the dream consolidator is enabled (default true). */
     val dreamEnabled: Boolean = true,
     /** Whether the memory decay worker is enabled (default true). */
@@ -380,6 +384,8 @@ class SettingsViewModel @Inject constructor(
             }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val daemonIntervalMinutes = userPreferences.daemonIntervalMinutes.first()
+            val councilEnabled = userPreferences.councilEnabled.first()
+            val councilActivityLevel = userPreferences.councilActivityLevel.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
@@ -451,6 +457,8 @@ class SettingsViewModel @Inject constructor(
                 evolutionAutoApply = evolutionAutoApply,
                 daemonEnabled = daemonEnabled,
                 daemonIntervalMinutes = daemonIntervalMinutes,
+                councilEnabled = councilEnabled,
+                councilActivityLevel = councilActivityLevel,
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
                 planningEnabled = planningEnabled,
@@ -653,6 +661,28 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDaemonIntervalMinutes(minutes)
             _state.update { it.copy(daemonIntervalMinutes = minutes) }
+        }
+    }
+
+    /**
+     * Toggle the overnight council. `DaemonWorker` reads the preference at the
+     * start of every cycle, so there is no schedule to reconfigure — the next
+     * daemon wake picks up the change.
+     */
+    fun setCouncilEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setCouncilEnabled(enabled)
+            _state.update { it.copy(councilEnabled = enabled) }
+        }
+    }
+
+    fun setCouncilActivityLevel(level: Int) {
+        viewModelScope.launch {
+            userPreferences.setCouncilActivityLevel(level)
+            // Mirror the clamp rather than trusting the slider:
+            // `setCouncilActivityLevel` coerces to 1..5 before writing, and the
+            // UI must show what was stored.
+            _state.update { it.copy(councilActivityLevel = level.coerceIn(1, 5)) }
         }
     }
 

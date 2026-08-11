@@ -385,6 +385,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         recentTopics: String = "",
     ): Flow<AgentEvent> = flow {
         val runId = "run_${java.util.UUID.randomUUID()}"
+        // Wall clock for the whole run, for the routing outcome recorded at the
+        // end. `latencyMs = 0L` was passed there literally, which made every
+        // model look equally fast and left the taste engine with nothing to
+        // prefer on.
+        val runStartedAt = System.currentTimeMillis()
         traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_STARTED, redactedPayload = "model=$model, agentId=$agentId")
         // Neuromodulated sampling: map the emotional state onto LLM
         // sampling parameters (temperature/topP/maxTokens) so mood affects
@@ -1395,14 +1400,27 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         val finalConv = if (lastRecall != null) {
             modeledConversation.attachRecallToLastTurn(lastRecall)
         } else modeledConversation
+        // `success = finished`, not `true`. A run that hit max_steps without
+        // finishing emitted an error above and still recorded a success here, so
+        // `bestModelForRole` ranked by a column that was 100% by construction.
+        //
+        // This is a partial fix and says so: `finished` is also set true when a
+        // step ends in a provider error, so a hard failure still records as a
+        // success. Distinguishing those needs `stepError`, which is declared
+        // inside the step loop and is out of scope here — hoisting it is a
+        // separate change, not a comment.
+        //
+        // `modelRole` is the ModelRole name because that is the key
+        // `ModelRoleRouter.resolve` reads back; the per-agent split lives in
+        // `agentScope`, which is what it is for.
         runCatching {
             tasteEngine?.recordRoutingOutcome(
-                modelRole = agentId?.let { "agent:$it" } ?: "general",
+                modelRole = com.aura.providers.ModelRole.CONVERSATION.name,
                 modelId = effectiveModel,
-                success = true,
-                latencyMs = 0L,
+                success = finished,
+                latencyMs = System.currentTimeMillis() - runStartedAt,
                 costClass = "chat",
-                outcomeType = "loop_completed",
+                outcomeType = if (finished) "loop_completed" else "max_steps_exceeded",
                 agentScope = agentId?.let { "agent:$it" } ?: "general",
             )
         }.onFailure { android.util.Log.w("AgenticLoop", "routing outcome failed: ${it.message}", it) }

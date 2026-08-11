@@ -99,6 +99,17 @@ class TasteEngine @Inject constructor(
 
     /**
      * Record a model routing outcome for learning.
+     *
+     * [modelRole] must be a [com.aura.providers.ModelRole] name — "CONVERSATION",
+     * "PLANNER" — because that is the only key [bestModelForRole] is ever called
+     * with, from `ModelRoleRouter.resolve(role)`. The agentic loop used to write
+     * "general" and "agent:<id>" here, so `statsForRole` matched no row and the
+     * learner produced a recommendation exactly never.
+     *
+     * [agentScope] is the per-agent partition and keeps its "general" /
+     * "agent:<id>" form. The two fields answer different questions — *what job
+     * was this model doing* versus *whose memory does this belong to* — and
+     * collapsing them into one is what broke the learner.
      */
     suspend fun recordRoutingOutcome(
         modelRole: kotlin.String,

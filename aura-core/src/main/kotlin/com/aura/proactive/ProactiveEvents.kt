@@ -261,7 +261,7 @@ class ProactiveEvents(
             // a producer or geofence implementation for this advertised event.
             "LocationArrived" -> null
             "MemoryDecayWarning" -> ProactiveEventBus.Event.MemoryDecayWarning(body, title, timestamp, id)
-            "DaemonInsight" -> ProactiveEventBus.Event.DaemonInsight(title, body, timestamp, id)
+            "DaemonInsight" -> ProactiveEventBus.Event.DaemonInsight(title, body, timestamp, id, payload)
             else -> null
         }
     }
@@ -297,7 +297,13 @@ class ProactiveEvents(
             title = title,
             body = body,
             timestamp = timestamp,
-            payload = "",
+            // The `payload` column has carried "" since it was added; this is its
+            // first real use. It holds the originating finding type rather than a
+            // new column because the value is exactly one opaque token per row and
+            // a schema bump would need a migration for something a TEXT column
+            // already models. Blank stays blank for insights with no finding
+            // behind them, and blank never matches in [SalienceFilter].
+            payload = findingType,
         )
     }
 }

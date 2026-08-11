@@ -32,18 +32,32 @@ class KnowledgeGraphRepository @Inject constructor(
         // Entity resolution: dedup new nodes/edges against existing
         // graph to prevent paraphrase duplicates. Best-effort: if the
         // resolver is unavailable, insert directly (current behavior).
-        val (nodesToInsert, edgesToInsert) = if (entityResolver != null) {
+        val resolution = if (entityResolver != null) {
             val existingNodes = dao.allNodes().map { KgNode.fromEntity(it) }
             val existingEdges = dao.allEdges().map { KgEdge.fromEntity(it) }
-            val result = entityResolver.resolve(nodes, edges, existingNodes, existingEdges)
-            if (result.mergedNodeCount > 0 || result.mergedEdgeCount > 0) {
-                android.util.Log.i("KgRepository",
-                    "Entity resolution: merged ${result.mergedNodeCount} nodes, ${result.mergedEdgeCount} edges")
+            entityResolver.resolve(nodes, edges, existingNodes, existingEdges).also { result ->
+                if (result.mergedNodeCount > 0 || result.mergedEdgeCount > 0) {
+                    android.util.Log.i("KgRepository",
+                        "Entity resolution: merged ${result.mergedNodeCount} nodes, ${result.mergedEdgeCount} edges")
+                }
             }
-            result.nodesToInsert to result.edgesToInsert
         } else {
-            nodes to edges
+            KgResolutionResult(
+                nodesToInsert = nodes,
+                edgesToInsert = edges,
+                idRemap = emptyMap(),
+                mergedNodeCount = 0,
+                mergedEdgeCount = 0,
+            )
         }
+        val nodesToInsert = resolution.nodesToInsert
+        // Reinforced edges go through the SAME loop as new ones, and that is the
+        // whole ordering requirement: the loop below reads the stored row's
+        // `createdAt` first, keeps it, and stamps `lastReinforced = now`. Write
+        // them any other way — or skip them, as the resolver alone would — and
+        // `lastReinforced > createdAt` is never true, so `BeliefPromoter` never
+        // promotes anything.
+        val edgesToInsert = resolution.edgesToInsert + resolution.edgesToReinforce
         for (node in nodesToInsert) {
             val id = node.id.ifBlank { KgId.node(node.type, node.label) }
             // `@Upsert` overwrites every column of the entity handed to it, and
@@ -69,6 +83,23 @@ class KnowledgeGraphRepository @Inject constructor(
                 }
             )
         }
+        // Re-mentioned nodes. The extractor produced no new *content* for these
+        // — the resolver matched them to rows that already hold the label, type
+        // and properties — so the only honest changes are "seen again now" and a
+        // confidence that cannot go down. Deliberately not routed through the
+        // loop above: that one stamps this turn's provenance, which would move a
+        // node's `sourceTurnId` off the turn that actually introduced it every
+        // time it came up again. `updatedAt` still has to move, because
+        // `recentNodesSince` is what the morning brief reads.
+        for (touched in resolution.nodesToTouch) {
+            val stored = dao.getNode(touched.id) ?: continue
+            dao.insertNode(
+                stored.copy(
+                    confidence = maxOf(stored.confidence, touched.confidence),
+                    updatedAt = now,
+                )
+            )
+        }
         for (edge in edgesToInsert) {
             val id = edge.id.ifBlank { KgId.edge(edge.type, edge.sourceId, edge.targetId) }
             // REPLACE overwrites the whole row, so without this the original
@@ -92,7 +123,13 @@ class KnowledgeGraphRepository @Inject constructor(
         // Structural belief conflicts are cheap enough to resolve inline — a
         // single indexed lookup per predicate, no model call. Best-effort:
         // never fail a KG save because revision had a problem.
-        runCatching { beliefConflictProbe?.check(edges.map { it.toEntity() }) }
+        // `edgesToInsert`, not `edges`: after resolution an edge's target may
+        // have been remapped onto an existing node, and the probe resolves that
+        // target to a label to compare against the stored belief. Checking the
+        // pre-resolution ids would compare against a node id that was never
+        // written. With no resolver the two lists are identical, so this is a
+        // no-op on the direct-construction path the tests use.
+        runCatching { beliefConflictProbe?.check(edgesToInsert.map { it.toEntity() }) }
             .onFailure { android.util.Log.w("KgRepository", "belief probe failed: ${it.message}", it) }
     }
 

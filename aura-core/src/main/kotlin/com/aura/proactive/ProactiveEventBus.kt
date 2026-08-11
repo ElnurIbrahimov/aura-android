@@ -36,7 +36,19 @@ class ProactiveEventBus @Inject constructor() {
         ) : Event()
         data class CalendarEventSoon(val title: String, val minutesUntil: Int, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
         data class MemoryDecayWarning(val memoryId: String, val preview: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
-        data class DaemonInsight(val title: String, val body: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L) : Event()
+        /**
+         * @param findingType the [ProactiveFindingType.wire] value of the
+         *   [ProactiveAwarenessEngine.ProactiveFinding] this insight came from,
+         *   or blank when it did not come from one (the curiosity scan, the
+         *   council, the LLM insight). [SalienceFilter] reads it back out of the
+         *   persisted `payload` column to answer "have I surfaced this kind of
+         *   thing lately" — before it existed, every finding was flattened to
+         *   the bare event name "DaemonInsight" and the filter's recency and
+         *   novelty terms could never match. Last in the parameter list, and
+         *   defaulted, so the existing positional constructions in
+         *   [ProactiveEvents] and [DaemonWorker] keep compiling.
+         */
+        data class DaemonInsight(val title: String, val body: String, override val timestamp: Long = System.currentTimeMillis(), override val id: Long = 0L, val findingType: String = "") : Event()
     }
 
     private val _events = MutableSharedFlow<Event>(

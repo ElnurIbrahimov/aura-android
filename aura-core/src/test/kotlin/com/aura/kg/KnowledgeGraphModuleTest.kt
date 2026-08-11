@@ -27,7 +27,7 @@ class KnowledgeGraphModuleTest {
         val probe = mockk<BeliefConflictProbe>(relaxed = true)
         coEvery { probe.check(any(), any()) } returns 0
 
-        val repo = KnowledgeGraphModule.provideKnowledgeGraphRepository(dao, probe)
+        val repo = KnowledgeGraphModule.provideKnowledgeGraphRepository(dao, probe, KgEntityResolver())
         val edge = KgEdge(id = "", type = EdgeType.USES, sourceId = KgId.USER_NODE_ID, targetId = "kotlin")
         val provenance = ConversationProvenance("conv-1", 123L)
 

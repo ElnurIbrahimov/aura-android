@@ -87,6 +87,12 @@ class SettingsViewModelEvolutionGuardTest {
         every { userPreferences.videoModel } returns flowOf("")
         every { userPreferences.voiceModel } returns flowOf("")
         every { userPreferences.daemonEnabled } returns flowOf(false)
+        // The Council section is wired into Settings now, so reload() reads these.
+        // A relaxed MockK returns an EMPTY Flow, and first() on an empty flow throws
+        // NoSuchElementException — which fails every test in the class, not just the
+        // ones about councils.
+        every { userPreferences.councilEnabled } returns flowOf(false)
+        every { userPreferences.councilActivityLevel } returns flowOf(3)
         every { userPreferences.daemonIntervalMinutes } returns flowOf(UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES)
         every { userPreferences.dreamEnabled } returns flowOf(false)
         every { userPreferences.decayEnabled } returns flowOf(true)

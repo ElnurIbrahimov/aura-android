@@ -163,8 +163,16 @@ class DaemonWorker @AssistedInject constructor(
             generateLlmInsight()
 
             // 9. Council — agents debate findings and propose interventions
+            // getOrDefault(false), not true: `UserPreferences.councilEnabled`
+            // defaults to false precisely because a council session is the most
+            // expensive thing the daemon can do, and a transient DataStore read
+            // failure must not be the thing that opts a user in. This only
+            // differs on a read failure, which is rare — but the failure it
+            // guards against is silently spending money.
             val councilEnabled = runCatching { userPreferences.councilEnabled.first() }
-                .onFailure { Log.w("DaemonWorker", "runCatching failed: ${it.message}", it) }.getOrDefault(true)
+                .onFailure { Log.w("DaemonWorker", "councilEnabled read failed: ${it.message}", it) }.getOrDefault(false)
+            val councilActivityLevel = runCatching { userPreferences.councilActivityLevel.first() }
+                .onFailure { Log.w("DaemonWorker", "councilActivityLevel read failed: ${it.message}", it) }.getOrDefault(3)
             if (councilEnabled) {
                 runCatching {
                 councilOrchestrator?.let { orchestrator ->
@@ -188,7 +196,7 @@ class DaemonWorker @AssistedInject constructor(
                                 append("Tasks due: ${due.joinToString("; ") { it.title }}\n")
                             }
                         }
-                        val results = orchestrator.runFromFindings(salient, councilContext)
+                        val results = orchestrator.runFromFindings(salient, councilContext, maxFindings = councilActivityLevel)
                         for (result in results) {
                             if (result.quorumReached && result.proposal != null) {
                                 val body = when (result.proposal) {
@@ -216,10 +224,21 @@ class DaemonWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * Surface a finding. `findingType` is the whole point: without it the row
+     * lands as an anonymous "DaemonInsight" and [SalienceFilter] has nothing to
+     * recognise it by on the next cycle, so the same stale-memories nudge
+     * scores as brand new every fifteen minutes forever.
+     *
+     * Note this is reached only when [MotivationAccumulator] returns
+     * `shouldDeliver` (or when there is no accumulator at all), so a finding
+     * that scores below the motivation bar leaves no row and stays novel.
+     */
     private suspend fun postFinding(finding: ProactiveAwarenessEngine.ProactiveFinding) {
         eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
             title = finding.title,
             body = finding.message,
+            findingType = finding.type,
         ))
     }
 

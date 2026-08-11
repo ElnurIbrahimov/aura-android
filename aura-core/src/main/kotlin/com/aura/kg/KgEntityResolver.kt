@@ -16,14 +16,22 @@ import kotlin.math.min
  * - High label similarity (Levenshtein distance ≤ 2 for short labels,
  *   ≤ 30% character difference for longer labels)
  *
- * When a match is found, the new node is merged into the existing one:
- * - The existing node's ID is reused (so edges point to the right node)
- * - Confidence is updated: new = max(existing, new) + 0.05 boost
- * - Access count is incremented
+ * When a match is found, the new node is merged into the existing one: the
+ * existing node's ID is reused, so edges point at the right node, and the node
+ * itself comes back in [KgResolutionResult.nodesToTouch] rather than in
+ * `nodesToInsert`.
  *
- * For edges: if an edge with the same (sourceId, targetId, type) already
- * exists, the new edge is not inserted. Instead, the existing edge's
- * confidence is updated: new = max(existing, new) + 0.05.
+ * That distinction is load-bearing, not bookkeeping. A resolver that only
+ * reported what to *insert* would make `saveGraph` skip every re-mention
+ * entirely, and two things depend on a re-mention being written:
+ * `KnowledgeGraphDao.recentNodesSince` (the morning brief's "facts learned
+ * yesterday") reads `updatedAt`, and `BeliefPromoter.qualifies()` tests
+ * `lastReinforced > createdAt` as its proxy for "seen in more than one turn".
+ * Dropping a duplicate edge before anything stamps `lastReinforced` would mean
+ * no edge ever clears that bar and no belief is ever promoted — the exact
+ * regression this split exists to prevent. Duplicates therefore come back in
+ * [KgResolutionResult.edgesToReinforce], and the caller writes them through
+ * the same path as new edges.
  *
  * This prevents the KG from growing with paraphrase duplicates:
  * "user → likes → Kotlin" and "user → enjoys → Kotlin" don't create
@@ -53,8 +61,9 @@ class KgEntityResolver @Inject constructor() {
 
         // ID remapping: new node ID → existing node ID (if matched)
         val idRemap = mutableMapOf<String, String>()
-        val resolvedNodes = mutableListOf<KgNode>()
         val newNodesToInsert = mutableListOf<KgNode>()
+        val nodesToTouch = mutableListOf<KgNode>()
+        val touchedIds = mutableSetOf<String>()
 
         // Track nodes we've already processed in this batch to
         // prevent intra-batch duplicates (same entity mentioned in
@@ -69,22 +78,26 @@ class KgEntityResolver @Inject constructor() {
             }
             val existing = findMatch(newNode, existingByLabel, existingNodes)
             if (existing != null) {
-                // Merge: reuse existing ID, boost confidence
+                // Merge: reuse the existing ID so edges land on the right node,
+                // and hand the caller the *new* node under the *existing* id.
+                // The caller needs both halves: the id to find the row, and this
+                // turn's confidence to raise the stored one.
                 idRemap[newNode.id] = existing.id
-                // Don't add to resolvedNodes — the existing node stays.
-                // The caller can optionally update the existing node's
-                // confidence + access count.
+                if (touchedIds.add(existing.id)) {
+                    nodesToTouch.add(newNode.copy(id = existing.id))
+                }
             } else {
                 // No match — keep as new
-                resolvedNodes.add(newNode)
                 newNodesToInsert.add(newNode)
                 processedLabels[newNode.label.lowercase()] = newNode
             }
         }
 
-        // Remap edge source/target IDs and dedup edges
+        // Remap edge source/target IDs and split new from already-seen
         val existingEdgeKeys = existingEdges.map { edgeKey(it) }.toMutableSet()
         val resolvedEdges = mutableListOf<KgEdge>()
+        val edgesToReinforce = mutableListOf<KgEdge>()
+        val reinforcedKeys = mutableSetOf<String>()
 
         for (edge in newEdges) {
             val remappedSource = idRemap[edge.sourceId] ?: edge.sourceId
@@ -94,13 +107,21 @@ class KgEntityResolver @Inject constructor() {
             if (key !in existingEdgeKeys) {
                 resolvedEdges.add(remapped)
                 existingEdgeKeys.add(key) // prevent intra-batch dups too
+            } else if (reinforcedKeys.add(key)) {
+                // Seen before. NOT dropped: this is the second sighting that
+                // `BeliefPromoter` is waiting for, and it only becomes visible
+                // once the row's `lastReinforced` moves. Deduped against
+                // `reinforcedKeys` so the same edge repeated twice inside one
+                // turn still writes once.
+                edgesToReinforce.add(remapped)
             }
-            // If edge already exists, skip — caller can boost confidence
         }
 
         return KgResolutionResult(
             nodesToInsert = newNodesToInsert,
             edgesToInsert = resolvedEdges,
+            nodesToTouch = nodesToTouch,
+            edgesToReinforce = edgesToReinforce,
             idRemap = idRemap,
             mergedNodeCount = idRemap.size,
             mergedEdgeCount = newEdges.size - resolvedEdges.size,
@@ -192,6 +213,20 @@ class KgEntityResolver @Inject constructor() {
 data class KgResolutionResult(
     val nodesToInsert: List<KgNode>,
     val edgesToInsert: List<KgEdge>,
+    /**
+     * Nodes that already exist and were mentioned again. Carries this turn's
+     * confidence under the *stored* node's id. Defaulted, and placed before the
+     * non-defaulted `idRemap`, which is safe because every construction of this
+     * type uses named arguments — the resolver's own `return` and nothing else
+     * in the tree.
+     */
+    val nodesToTouch: List<KgNode> = emptyList(),
+    /**
+     * Edges that already exist and were asserted again. These must still be
+     * written — see this file's class KDoc for what stops working if they are
+     * not.
+     */
+    val edgesToReinforce: List<KgEdge> = emptyList(),
     /** Map of new node ID → existing node ID (for edges that were remapped) */
     val idRemap: Map<String, String>,
     val mergedNodeCount: Int,
