@@ -29,6 +29,21 @@ internal class OpenAiSseParser {
     private val toolCallIndexToId = mutableMapOf<Int, String>()
 
     /**
+     * Whether this stream has asked for a tool.
+     *
+     * `[DONE]` carries no finish reason of its own, so it was reported as `stop`
+     * unconditionally. Several OpenAI-compatible gateways stream a `tool_calls`
+     * delta and then close with `[DONE]` alone, never sending a `finish_reason`
+     * event — the agentic loop stops on "stop", so those turns ended with the
+     * call recorded and never executed. Same failure
+     * [ChatGptSubscriptionProvider] tracks its own `sawToolCall` for.
+     *
+     * Per-parser, and a parser is created per stream, so it cannot leak between
+     * requests.
+     */
+    private var sawToolCall = false
+
+    /**
      * Parse one SSE `data:` event into zero or more [ProviderChunk]s.
      *
      * Returns a list rather than a single chunk because a single SSE event
@@ -52,7 +67,11 @@ internal class OpenAiSseParser {
      * a finishReason (which some servers emit) is still routed correctly.
      */
     fun parseEvent(data: String): List<ProviderChunk> {
-        if (data == "[DONE]") return listOf(ProviderChunk(finishReason = FinishReason.stop))
+        if (data == "[DONE]") {
+            return listOf(
+                ProviderChunk(finishReason = if (sawToolCall) FinishReason.tool_calls else FinishReason.stop),
+            )
+        }
         val obj = try { Json.parseToJsonElement(data).jsonObject } catch (e: Exception) { return emptyList() }
 
         // Usage BEFORE the `choices` guard below. When `stream_options`
@@ -68,6 +87,10 @@ internal class OpenAiSseParser {
         // Tool calls — emit one chunk per array entry. resolveIds() updates
         // the index->id map as a side effect.
         val toolChunks = parseToolCalls(delta)
+        // Any entry at all, including an arguments-only continuation delta: the
+        // stream is mid-tool-call either way, and a `[DONE]` arriving after it
+        // must not be reported as a clean stop.
+        if (toolChunks.isNotEmpty()) sawToolCall = true
 
         // Text content.
         //

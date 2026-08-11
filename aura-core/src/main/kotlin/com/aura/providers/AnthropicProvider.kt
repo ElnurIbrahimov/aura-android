@@ -173,7 +173,31 @@ class AnthropicProvider(
             kotlinx.coroutines.withTimeout(STREAM_READ_TIMEOUT_MS) {
             call.execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    emit(ProviderChunk(error = ProviderError("http_${resp.code}", resp.message, retryable = resp.code == 429 || resp.code in 500..599)))
+                    // `resp.message` is the HTTP reason phrase, which HTTP/2
+                    // abolished — Anthropic speaks HTTP/2, so this was the empty
+                    // string on every failure and the user was shown a bare
+                    // "http_400". The body says exactly which field was rejected
+                    // ("Expected `thinking` … but found `tool_use`"), and the
+                    // shared parser reads it with peekBody, leaving the source
+                    // untouched, and redacts any echo of the key.
+                    val message = OpenAiCompatProvider.failureMessage(null, resp, key)
+                    emit(
+                        ProviderChunk(
+                            error = ProviderError(
+                                "http_${resp.code}",
+                                message,
+                                retryable = resp.code == 429 || resp.code in 500..599,
+                                // A 429 carries the server's own backoff. The
+                                // loop waits it out and retries the SAME model
+                                // rather than burning a failover slot.
+                                retryAfterMs = if (resp.code == 429) {
+                                    OpenAiCompatProvider.parseRetryAfterMs(resp)
+                                } else {
+                                    null
+                                },
+                            ),
+                        ),
+                    )
                     return@use
                 }
                 val source = resp.body?.source() ?: return@use
