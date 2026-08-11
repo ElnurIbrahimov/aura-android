@@ -14,6 +14,26 @@ data class ProviderMessage(
     val name: String? = null,
     @SerialName("tool_calls") val toolCalls: List<ToolCall>? = null,
     @SerialName("tool_call_id") val toolCallId: String? = null,
+    /**
+     * Reasoning this assistant turn produced, for providers that require it
+     * back on the next request.
+     *
+     * Only Anthropic reads it. It is on the shared DTO rather than an
+     * Anthropic-specific type because [com.aura.agent.Conversation.toMessages]
+     * builds one message list for all seventeen providers and cannot know which
+     * one will receive it. Every other serialiser builds its JSON explicitly and
+     * therefore ignores this field — which is the requirement, since an unknown
+     * key on a strict endpoint is a 400.
+     */
+    val thinking: String? = null,
+    /**
+     * The signature Anthropic issued over [thinking]. A thinking block replayed
+     * without it, or with one this account never received, is rejected — so a
+     * trace that arrives here unsigned (a conversation saved before signatures
+     * were captured, or reasoning produced by a different provider) is dropped
+     * rather than sent and guessed at.
+     */
+    val thinkingSignature: String? = null,
 ) {
     @Serializable
     enum class Role { system, user, assistant, tool }

@@ -6,6 +6,24 @@ import kotlinx.serialization.Serializable
 data class ProviderChunk(
     val text: String? = null,
     val thinking: String? = null,
+    /**
+     * Anthropic's HMAC over the reasoning it just streamed, delivered on its own
+     * `signature_delta` event after the last `thinking_delta`.
+     *
+     * It exists because a thinking block has to be handed back verbatim on the
+     * next request — Anthropic rejects an assistant turn that issued a
+     * `tool_use` while extended thinking is on unless the block that preceded it
+     * comes back too, and it rejects the block itself unless this value comes
+     * with it. Without somewhere to put the signature there was nowhere to put
+     * the thinking either, so step 2 of every tool call took a 400 and the turn
+     * died with the call recorded and never executed.
+     *
+     * Null on every other provider. That is what makes replaying one model's
+     * reasoning to another impossible rather than merely unwise: nothing but
+     * [com.aura.providers.AnthropicProvider] ever fills it, and the serialiser
+     * drops an unsigned trace.
+     */
+    val thinkingSignature: String? = null,
     val toolCall: ToolCall? = null,
     val finishReason: FinishReason? = null,
     val usage: Usage? = null,

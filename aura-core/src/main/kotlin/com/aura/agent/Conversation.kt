@@ -105,8 +105,22 @@ data class Conversation(
                 // steps in the same turn are tool-only by construction (a step
                 // that produced text would have opened its own turn).
                 var assistantText: String? = turn.assistant ?: ""
+                // The reasoning belongs to the same step as the turn's assistant
+                // text — the step that produced both — so it rides the same
+                // message and is cleared at the same moment. Anthropic requires
+                // it back on the assistant turn that issued a tool_use while
+                // extended thinking is on, and rejects the whole request without
+                // it; carrying it on every step's message instead would claim the
+                // model reasoned again before a tool call it made in silence.
+                var thinking: String? = turn.thinking
+                var thinkingSignature: String? = turn.thinkingSignature
                 if (stepGroups.isEmpty()) {
-                    out += ProviderMessage(role = ProviderMessage.Role.assistant, content = assistantText ?: "")
+                    out += ProviderMessage(
+                        role = ProviderMessage.Role.assistant,
+                        content = assistantText ?: "",
+                        thinking = thinking,
+                        thinkingSignature = thinkingSignature,
+                    )
                 }
                 for ((_, group) in stepGroups) {
                     out += ProviderMessage(
@@ -115,8 +129,12 @@ data class Conversation(
                         toolCalls = group.map {
                             com.aura.providers.ToolCall(id = it.id, name = it.name, arguments = it.args)
                         },
+                        thinking = thinking,
+                        thinkingSignature = thinkingSignature,
                     )
                     assistantText = null
+                    thinking = null
+                    thinkingSignature = null
                     for (toolTurn in group) {
                         val resultForModel = if (toolTurn.result.length > maxToolResultChars) {
                             toolTurn.result.take(maxToolResultChars) + "\n[... truncated]"
@@ -143,11 +161,31 @@ data class Conversation(
     )
 
     /** Append or fill in an assistant turn. */
-    fun addAssistant(text: String, agentId: String? = null, thinking: String? = null): Conversation {
+    fun addAssistant(
+        text: String,
+        agentId: String? = null,
+        thinking: String? = null,
+        thinkingSignature: String? = null,
+    ): Conversation {
         if (turns.isEmpty() || turns.last().assistant != null || turns.last().user == null) {
-            return copy(turns = turns + Turn(assistant = text, agentId = agentId, thinking = thinking), updatedAt = System.currentTimeMillis())
+            return copy(
+                turns = turns + Turn(
+                    assistant = text,
+                    agentId = agentId,
+                    thinking = thinking,
+                    thinkingSignature = thinkingSignature,
+                ),
+                updatedAt = System.currentTimeMillis(),
+            )
         }
-        return replaceLastTurn(turns.last().copy(assistant = text, agentId = agentId, thinking = thinking))
+        return replaceLastTurn(
+            turns.last().copy(
+                assistant = text,
+                agentId = agentId,
+                thinking = thinking,
+                thinkingSignature = thinkingSignature,
+            ),
+        )
     }
 
     /**
@@ -257,6 +295,18 @@ data class Turn(
      * produce thinking output or thinking was disabled.
      */
     val thinking: String? = null,
+    /**
+     * Anthropic's signature over [thinking], collected from
+     * ProviderChunk.thinkingSignature during the same stream.
+     *
+     * Stored because the value is only useful on a LATER request: Anthropic
+     * requires the thinking block back, signed, on the assistant turn that
+     * issued a tool call, and a conversation reloaded from disk has to be able
+     * to reproduce it. Null for every provider but Anthropic, and null for turns
+     * saved before this field existed — [Conversation.toMessages] drops an
+     * unsigned trace, so those replay exactly as they did before.
+     */
+    val thinkingSignature: String? = null,
 )
 
 /**

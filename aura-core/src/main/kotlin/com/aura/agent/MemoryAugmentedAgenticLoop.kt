@@ -906,6 +906,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             val toolCallArgs = mutableMapOf<String, StringBuilder>()
             val accumulatedText = StringBuilder()
             val accumulatedThinking = StringBuilder()
+            // Anthropic emits this once, at the end of the thinking block, and
+            // requires it back on the next request. A plain var rather than a
+            // builder: it is one opaque token, not a stream of deltas.
+            var accumulatedThinkingSignature: String? = null
             var finishReason: String? = null
             var stepError: String? = null
 
@@ -926,6 +930,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 stepError = null
                 accumulatedText.clear()
                 accumulatedThinking.clear()
+                // A signature is only valid for the reasoning it was issued
+                // over. Carrying one across a failover would attach the first
+                // model's signature to the second model's answer, which the
+                // signing provider rejects on the following request.
+                accumulatedThinkingSignature = null
                 toolCalls.clear()
                 toolCallStarts.clear()
                 toolCallArgs.clear()
@@ -935,6 +944,11 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     brain.stream(currentModel, messages, tools, effectiveOptions).collect { chunk ->
                         when (chunk) {
                             is BrainChunk.Thinking -> {
+                                // Arrives on its own chunk, after the last text
+                                // delta, so it is captured independently of the
+                                // prose. That chunk's text is empty, which the
+                                // append and the emit below both treat as a no-op.
+                                chunk.signature?.let { accumulatedThinkingSignature = it }
                                 accumulatedThinking.append(chunk.text)
                                 emit(AgentEvent.ThinkingDelta(chunk.text))
                             }
@@ -1027,7 +1041,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
 
             if (accumulatedText.isNotEmpty()) {
                 val thinkingText = accumulatedThinking.toString().ifBlank { null }
-                currentConversation = currentConversation.addAssistant(accumulatedText.toString(), thinking = thinkingText)
+                currentConversation = currentConversation.addAssistant(
+                    accumulatedText.toString(),
+                    thinking = thinkingText,
+                    // Only meaningful paired with the text it signs; storing one
+                    // without the other would produce a block Anthropic rejects.
+                    thinkingSignature = if (thinkingText != null) accumulatedThinkingSignature else null,
+                )
             }
             for ((id, args) in toolCalls) {
                 val name = toolCallStarts[id] ?: ""

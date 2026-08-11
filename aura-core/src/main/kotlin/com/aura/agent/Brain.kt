@@ -139,7 +139,18 @@ class Brain @Inject constructor(
 
 sealed class BrainChunk {
     data class Text(val text: String) : BrainChunk()
-    data class Thinking(val text: String) : BrainChunk()
+    /**
+     * Reasoning output, and — on Anthropic only — the signature that
+     * authenticates it.
+     *
+     * Deliberately a second field on the existing case rather than a new
+     * BrainChunk subclass: the agentic loop's `when (chunk)` over this sealed
+     * class is exhaustive with no `else`, so a new case would be a compile error
+     * at a call site that has nothing to say about signatures. [signature] is
+     * null on every chunk that carries only text, and [text] is empty on the one
+     * chunk that carries only a signature.
+     */
+    data class Thinking(val text: String, val signature: String? = null) : BrainChunk()
     data class ToolCallStart(val id: String, val name: String) : BrainChunk()
     data class ToolCallDelta(val id: String, val argumentsDelta: String) : BrainChunk()
     data class ToolCallEnd(val id: String, val name: String, val arguments: String) : BrainChunk()
@@ -211,7 +222,13 @@ sealed class BrainChunk {
                 val id = nameById.keys.lastOrNull() ?: return Text("")
                 return ToolCallDelta(id, tc.arguments)
             }
-            p.thinking?.let { return Thinking(it) }
+            // Anthropic sends the signature on its own event, after the last
+            // thinking_delta, so a chunk can carry one without the other. Reading
+            // `thinking` alone let the signature fall through to `Text("")` and
+            // vanish, which is the same as never having parsed it.
+            if (p.thinking != null || p.thinkingSignature != null) {
+                return Thinking(p.thinking.orEmpty(), p.thinkingSignature)
+            }
             p.text?.let { return Text(it) }
             return Text("")
         }

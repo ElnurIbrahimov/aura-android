@@ -120,7 +120,10 @@ class AnthropicProvider(
                 put("temperature", 1.0)
             }
             systemField(systemPrompt, options.stableSystemPrefix)?.let { put("system", it) }
-            put("messages", buildAnthropicMessages(anthropicMessages))
+            // Thinking blocks are replayed only when this request has thinking
+            // ON. With it off they are surplus at best, so the wire bytes stay
+            // byte-identical to what shipped before for every non-thinking call.
+            put("messages", buildAnthropicMessages(anthropicMessages, includeThinking = thinkingBudget != null))
             if (tools.isNotEmpty()) {
                 put("tools", kotlinx.serialization.json.JsonArray(tools.mapIndexed { i, tool ->
                     buildJsonObject {
@@ -268,6 +271,21 @@ class AnthropicProvider(
                                 "thinking_delta" -> {
                                     val thinking = (delta["thinking"] as? JsonPrimitive)?.content
                                     if (thinking != null) emit(ProviderChunk(thinking = thinking))
+                                }
+                                // The HMAC Anthropic issues over the reasoning it
+                                // just streamed, sent once after the last
+                                // thinking_delta. There was no case for it here,
+                                // so it was parsed past — and with it went any
+                                // possibility of replaying the thinking block,
+                                // which this API demands back on the assistant
+                                // turn that issued a tool_use. Step 2 of every
+                                // tool call answered 400 "Expected `thinking` or
+                                // `redacted_thinking`, but found `tool_use`".
+                                "signature_delta" -> {
+                                    val signature = (delta["signature"] as? JsonPrimitive)?.content
+                                    if (!signature.isNullOrEmpty()) {
+                                        emit(ProviderChunk(thinkingSignature = signature))
+                                    }
                                 }
                                 "input_json_delta" -> {
                                     val partial = (delta["partial_json"] as? JsonPrimitive)?.content
@@ -511,8 +529,18 @@ class AnthropicProvider(
      * `role=tool` results become `tool_result` blocks inside a user
      * message. Adjacent same-role messages are merged because the API
      * requires user/assistant alternation.
+     *
+     * @param includeThinking whether this request enabled extended thinking. A
+     *        prior turn's reasoning is replayed only then — the API requires the
+     *        block back on any assistant turn that issued a `tool_use` while
+     *        thinking is on, and has no use for it when it is off. Passing the
+     *        request's own state rather than reading it from the message keeps
+     *        the non-thinking wire bytes exactly as they were.
      */
-    private fun buildAnthropicMessages(messages: List<ProviderMessage>): JsonArray {
+    private fun buildAnthropicMessages(
+        messages: List<ProviderMessage>,
+        includeThinking: Boolean,
+    ): JsonArray {
         val out = mutableListOf<Pair<String, MutableList<JsonObject>>>() // role -> content blocks
         fun appendBlocks(role: String, blocks: List<JsonObject>) {
             if (blocks.isEmpty()) return
@@ -532,6 +560,31 @@ class AnthropicProvider(
                 }))
                 ProviderMessage.Role.assistant -> {
                     val blocks = mutableListOf<JsonObject>()
+                    // The reasoning block, first and verbatim.
+                    //
+                    // With extended thinking on, Anthropic requires the assistant
+                    // turn that issued a tool_use to come back WITH the thinking
+                    // that preceded it, in first position. Sending the tool_use
+                    // alone answers 400 "Expected `thinking` or
+                    // `redacted_thinking`, but found `tool_use`" — which is every
+                    // step 2 of every tool call, on a provider whose thinking is
+                    // on by default.
+                    //
+                    // Both halves are required. The signature is the API's own
+                    // HMAC over the text; a block missing it, or carrying one this
+                    // account never received, is rejected outright. So an unsigned
+                    // trace is dropped rather than guessed at — which is also what
+                    // makes it impossible to replay another provider's reasoning
+                    // here, since nothing but this provider ever fills the field.
+                    val priorThinking = msg.thinking
+                    val prioSignature = msg.thinkingSignature
+                    if (includeThinking && !priorThinking.isNullOrBlank() && !prioSignature.isNullOrBlank()) {
+                        blocks += buildJsonObject {
+                            put("type", "thinking")
+                            put("thinking", priorThinking)
+                            put("signature", prioSignature)
+                        }
+                    }
                     if (msg.content.isNotBlank()) {
                         blocks += buildJsonObject {
                             put("type", "text")
