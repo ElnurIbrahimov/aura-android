@@ -6,11 +6,33 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 
 @Dao
 interface KnowledgeGraphDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * `@Upsert`, not `@Insert(REPLACE)`. REPLACE is a DELETE followed by an
+     * INSERT, and `kg_edges` declares CASCADE against `kg_nodes.id` on **both**
+     * endpoints — so re-saving a node deleted every edge touching it. Since
+     * [com.aura.kg.KgId.node] hashes (type, label), a node keeps its id across
+     * mentions, and the extractor labels the user as `user` on essentially
+     * every turn: the graph was being truncated to one turn's worth of edges,
+     * continuously, in a way nothing reported.
+     *
+     * It also made the world model unreachable. [saveGraph] inserts nodes
+     * before edges, so the cascade wiped each edge just before the loop below
+     * read its original `createdAt` — leaving `createdAt == lastReinforced` on
+     * every write, which is exactly the "seen in more than one turn" test
+     * `BeliefPromoter.qualifies()` requires. Zero beliefs could ever be
+     * promoted.
+     *
+     * Note `@Upsert` overwrites every column of the entity passed to it, so it
+     * does not by itself preserve `createdAt`/`accessCount`/`lastAccessed` —
+     * see [KnowledgeGraphRepository.saveGraph], which carries them forward the
+     * same way it already did for edges.
+     */
+    @Upsert
     suspend fun insertNode(node: NodeEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -97,7 +119,8 @@ interface KnowledgeGraphDao {
     @Query("SELECT * FROM kg_edges")
     suspend fun allEdges(): List<EdgeEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Backup restore. `@Upsert` for the same cascade reason as [insertNode]. */
+    @Upsert
     suspend fun insertAllNodes(rows: List<NodeEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

@@ -46,6 +46,13 @@ class KnowledgeGraphRepository @Inject constructor(
         }
         for (node in nodesToInsert) {
             val id = node.id.ifBlank { KgId.node(node.type, node.label) }
+            // `@Upsert` overwrites every column of the entity handed to it, and
+            // KgNode defaults createdAt/accessCount/lastAccessed at *parse*
+            // time — so without this read-back, every re-mention would reset a
+            // node's first-seen date to now and discard its read counter, which
+            // `searchNodes` ranks by. Same shape as the edge loop below, and
+            // the same reason: the extractor supplies content, not history.
+            val existing = dao.getNode(id)
             dao.insertNode(
                 node.copy(
                     id = id,
@@ -53,7 +60,13 @@ class KnowledgeGraphRepository @Inject constructor(
                     sourceConversationId = provenance.conversationId,
                     sourceTurnTimestamp = provenance.turnTimestamp,
                     updatedAt = now,
-                ).toEntity()
+                ).toEntity().let { fresh ->
+                    if (existing == null) fresh else fresh.copy(
+                        createdAt = existing.createdAt,
+                        accessCount = existing.accessCount,
+                        lastAccessed = existing.lastAccessed,
+                    )
+                }
             )
         }
         for (edge in edgesToInsert) {

@@ -5,14 +5,37 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * ## The same defect [CreativeProjectDao] documents, one level down
+ *
+ * That KDoc explains why `INSERT OR REPLACE` on `creative_projects` destroyed
+ * every artifact belonging to a project, and fixed it with targeted updates.
+ * `creative_artifacts` is a CASCADE parent too — of `creative_revisions`,
+ * `artifact_dependencies` and `continuity_issues` — and it was left on REPLACE.
+ *
+ * The consequence was worse than the original, because the write path re-saves
+ * the artifact on *every* draft: `CreativeArtifactStore.addRevision` inserted
+ * the new revision and then re-saved the artifact to point `currentRevisionId`
+ * at it. The re-save deleted the artifact row, cascade-deleted every revision
+ * of that artifact **including the one written on the line above**, and then
+ * re-inserted the artifact pointing at a revision that no longer existed.
+ * `archive()` and `restore()` did the same. Revision history could not
+ * accumulate; the artifact row survived, so the Creative screens still listed
+ * work whose content was gone.
+ *
+ * `@Upsert` is a genuine UPDATE-or-INSERT and fires no delete, so children
+ * survive. `CascadeParentReplaceAuditTest` now fails the build for the whole
+ * class of defect rather than for one instance of it.
+ */
 @Dao
 interface CreativeArtifactDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(artifact: CreativeArtifactEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(artifacts: List<CreativeArtifactEntity>)
 
     @Query("SELECT * FROM creative_artifacts WHERE projectId = :projectId ORDER BY updatedAt DESC")

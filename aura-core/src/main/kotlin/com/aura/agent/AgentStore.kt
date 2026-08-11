@@ -72,14 +72,47 @@ class AgentStore @Inject constructor(
             )
         }
         dao.insertAll(agents)
-        // Seed initial state for each agent so the Council has mood/energy from day one.
-        stateStore?.let { store ->
-            agents.forEach { agent ->
-                runCatching { store.ensureState(agent.id) }
-                    .onFailure { Log.w("AgentStore", "seedState ${agent.id}: ${it.message}", it) }
-            }
-        }
         } // end seedMutex.withLock
+    }
+
+    /**
+     * Give every agent an `agent_state` row, creating any that are missing.
+     *
+     * This used to live inside [seedBuiltins], after `dao.insertAll`, and was
+     * therefore unreachable once `dao.count() > 0` — which is every launch
+     * after the first. That was survivable only for as long as nothing deleted
+     * the rows. Something did: `agents` was written with `INSERT OR REPLACE`
+     * while five tables cascade off it, so re-saving an agent — which
+     * `refreshBuiltinDescriptions` did on every launch, and the agent editor
+     * does on every save — deleted its state, relationships, observations,
+     * forum posts and votes.
+     *
+     * Losing them was silent in both directions. `AgentStateDao`'s writers are
+     * all `UPDATE … WHERE agentId = :agentId`, so they matched zero rows and
+     * reported success forever after; and the council UI substitutes a
+     * transient default when `getState` returns null, so the screens showed
+     * plausible neutral moods over an empty table.
+     *
+     * The REPLACE is fixed, so nothing deletes these rows any more. This runs
+     * on every startup anyway, because the rows already lost cannot come back
+     * on their own, and because [create] never called `ensureState` at all —
+     * user-created agents have never had a state row.
+     */
+    suspend fun ensureAllAgentStates() {
+        val store = stateStore ?: return
+        val agents = runCatching { dao.allOnce() }
+            .onFailure { Log.w("AgentStore", "ensureAllAgentStates: listing agents failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+        var repaired = 0
+        for (agent in agents) {
+            runCatching {
+                if (store.getState(agent.id) == null) {
+                    store.ensureState(agent.id)
+                    repaired++
+                }
+            }.onFailure { Log.w("AgentStore", "ensureState ${agent.id}: ${it.message}", it) }
+        }
+        if (repaired > 0) Log.i("AgentStore", "recreated $repaired missing agent_state row(s)")
     }
 
     /**

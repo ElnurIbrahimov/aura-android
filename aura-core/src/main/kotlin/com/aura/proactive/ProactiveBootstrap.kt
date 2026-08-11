@@ -107,6 +107,13 @@ class ProactiveBootstrap @Inject constructor(
             agentStore.seedBuiltins()
             runCatching { agentStore.refreshBuiltinDescriptions() }
                 .onFailure { Log.w("Bootstrap", "builtin description refresh failed: ${it.message}", it) }
+            // After the refresh, not before: this repairs agent_state rows, and
+            // the refresh is what used to destroy them (REPLACE on a CASCADE
+            // parent — fixed, but installs carrying the damage still need the
+            // rows back). Also covers user-created agents, which never got a
+            // state row at all because `create` never called ensureState.
+            runCatching { agentStore.ensureAllAgentStates() }
+                .onFailure { Log.w("Bootstrap", "agent state repair failed: ${it.message}", it) }
         }
         // Check Google/Microsoft integration connection state.
         scope.launch {

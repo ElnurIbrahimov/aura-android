@@ -1,19 +1,18 @@
 package com.aura.creative
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 /**
- * ## Never use [upsert] to modify an existing project
+ * ## The incident this DAO was hardened against
  *
  * `OnConflictStrategy.REPLACE` compiles to SQLite's `INSERT OR REPLACE`, which
  * is a **DELETE followed by an INSERT** — not an update. Three tables declare
  * `onDelete = CASCADE` against `creative_projects`: [CreativeArtifactEntity],
  * [CreativeBranchEntity] and [CreativeGenerationJobEntity]. Replacing a project
- * row therefore destroys every artifact, revision, branch and generation job
+ * row therefore destroyed every artifact, revision, branch and generation job
  * belonging to it.
  *
  * Not theoretical. A long-form run drafted thirteen scenes on a device and
@@ -23,14 +22,22 @@ import kotlinx.coroutines.flow.Flow
  * Each scene was written, then its beat was marked, and marking the beat is what
  * deleted the scene. Saving the World tab did the same thing.
  *
- * The targeted updates below name their columns and cannot cascade. [upsert] and
- * [insertAll] remain for genuine inserts — creation, and backup restore into
- * emptied tables.
+ * The original fix added the targeted updates below, which name their columns
+ * and cannot cascade, and left [upsert]/[insertAll] on REPLACE "for genuine
+ * inserts". That was safe here and wrong everywhere else: the same defect was
+ * still live on five other CASCADE parents, including [CreativeArtifactDao] one
+ * level down, where writing a revision deleted every revision of that artifact.
+ * A fix applied to one of six places.
+ *
+ * [upsert] is now a real `@Upsert` — an UPDATE-or-INSERT that fires no delete —
+ * so it is safe on an existing row, and `CascadeParentReplaceAuditTest` fails
+ * the build if REPLACE returns anywhere in this tree. The targeted updates
+ * remain because naming your columns is still the clearer way to change one
+ * field, and because they do not require reading the row first.
  */
 @Dao
 interface CreativeProjectDao {
-    /** Insert only. To change an existing row, use one of the targeted updates below. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(project: CreativeProjectEntity)
 
     @Query("UPDATE creative_projects SET worldJson = :worldJson, updatedAt = :updatedAt WHERE id = :id")
@@ -60,7 +67,7 @@ interface CreativeProjectDao {
     )
     suspend fun updateTurn(id: String, turnCount: Int, lastSessionEnded: Long, updatedAt: Long)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(projects: List<CreativeProjectEntity>)
 
     @Query("SELECT * FROM creative_projects ORDER BY updatedAt DESC")

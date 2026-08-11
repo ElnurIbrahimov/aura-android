@@ -2,9 +2,8 @@ package com.aura.agent
 
 import androidx.room.Dao
 import androidx.room.Delete
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -27,10 +26,10 @@ interface AgentDao {
     @Query("SELECT * FROM agents WHERE isBuiltin = 0")
     suspend fun customs(): List<AgentEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(agent: AgentEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(agents: List<AgentEntity>)
 
     @Delete

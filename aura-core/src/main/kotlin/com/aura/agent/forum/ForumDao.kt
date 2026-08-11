@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -30,7 +31,7 @@ interface ForumPostDao {
     @Query("SELECT DISTINCT threadId FROM forum_posts WHERE type = 'proposal' AND status = 'open' ORDER BY createdAt DESC")
     suspend fun openProposalThreads(): List<kotlin.String>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insert(post: ForumPostEntity): Long
 
     @Query("UPDATE forum_posts SET status = :status WHERE id = :id")
