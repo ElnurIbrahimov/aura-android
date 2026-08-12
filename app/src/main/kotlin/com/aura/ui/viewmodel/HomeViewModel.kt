@@ -31,6 +31,8 @@ import java.util.Date
 import java.util.Locale
 import android.util.Log
 
+private const val TAG = "HomeViewModel"
+
 /**
  * Memory decayed below this threshold is "fading" and surfaces in the
  * morning brief. Mirrors the threshold in
@@ -227,6 +229,33 @@ class HomeViewModel @Inject constructor(
             proactiveEvents.history.collect { events ->
                 updateObserved { it.copy(proactiveCount = events.size) }
             }
+        }
+    }
+
+    /**
+     * Record that a proactive suggestion was tapped.
+     *
+     * The first positive signal this system has ever produced. `"dismissed"`
+     * was the only action anything wrote, which drove the salience filter's
+     * negative ratio to 1.0 on the first dismissal and put every finding's
+     * best possible score under the threshold — permanently. It also left
+     * `AdaptiveTimingEngine`'s `"tapped"`/`"acted"` branches unreachable, so
+     * every hour scored zero and no time was ever a good time.
+     *
+     * `"acted"` is the stronger of the two and is written only when the tap
+     * actually led somewhere; a card with nothing behind it is a tap and no
+     * more.
+     */
+    fun recordProactiveTap(eventId: Long, acted: Boolean) {
+        if (eventId <= 0L) return
+        viewModelScope.launch {
+            runCatching {
+                proactiveEvents.recordInteraction(
+                    eventId,
+                    eventType = "proactive",
+                    action = if (acted) "acted" else "tapped",
+                )
+            }.onFailure { Log.w(TAG, "recording proactive tap failed: ${it.message}", it) }
         }
     }
 

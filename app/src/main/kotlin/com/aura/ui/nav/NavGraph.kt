@@ -192,23 +192,8 @@ fun NavGraph(
                     onOpenCapabilities = { navController.navigate(Route.Capabilities.path) },
                     onOpenEvolution = { navController.navigate(Route.EvolutionInbox.path) },
             onOpenCouncil = { navController.navigate(Route.Council.path) },
-                    onOpenCalendar = {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                            data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
-                            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        // Guard: devices without a calendar app throw
-                        // ActivityNotFoundException. Fail soft rather than crash.
-                        try {
-                            navController.context.startActivity(intent)
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            android.widget.Toast.makeText(
-                                navController.context,
-                                "No calendar app found",
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    },
+                    onProactiveAction = { action -> dispatchProactiveAction(action, navController) },
+                    onOpenCalendar = { openCalendarApp(navController) },
                 )
             }
             composable(
@@ -301,12 +286,20 @@ fun NavGraph(
             composable(Route.Hands.path) { HandsScreen(onBack = { navController.popBackStack() }) }
             composable(Route.Tasks.path) { TasksScreen(onOpenSchedule = { navController.navigate(Route.Schedule.path) }) }
             composable(Route.Tools.path) { ToolsScreen(onBack = { navController.popBackStack() }) }
-            composable(Route.Proactive.path) { ProactiveHistoryScreen(onBack = { navController.popBackStack() }) }
+            composable(Route.Proactive.path) {
+                ProactiveHistoryScreen(
+                    onBack = { navController.popBackStack() },
+                    onProactiveAction = { action -> dispatchProactiveAction(action, navController) },
+                )
+            }
             composable(Route.Dreams.path) {
                 DreamsScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.WorldModel.path) {
-                WorldModelScreen(onBack = { navController.popBackStack() })
+                WorldModelScreen(
+                    onBack = { navController.popBackStack() },
+                    onProactiveAction = { action -> dispatchProactiveAction(action, navController) },
+                )
             }
             composable(Route.TasteProfile.path) {
                 TasteProfileScreen(onBack = { navController.popBackStack() })
@@ -423,5 +416,54 @@ fun NavGraph(
             onNavigate = { route -> navController.navigate(route) },
             onDismiss = { showSearch = false },
         )
+    }
+}
+
+/**
+ * Hand off to the system calendar app.
+ *
+ * Extracted so the proactive dispatcher and the Home callback share one
+ * implementation — including the ActivityNotFoundException guard, which devices
+ * without a calendar app need and which is easy to forget on a second copy.
+ */
+private fun openCalendarApp(navController: androidx.navigation.NavHostController) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+        data = android.net.Uri.parse("content://com.android.calendar/time/${System.currentTimeMillis()}")
+        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    try {
+        navController.context.startActivity(intent)
+    } catch (e: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(
+            navController.context,
+            "No calendar app found",
+            android.widget.Toast.LENGTH_SHORT,
+        ).show()
+    }
+}
+
+/**
+ * The one place a proactive suggestion turns into something happening.
+ *
+ * Shared by the Home card and the proactive history, and reached by both
+ * findings and world-model opportunities, so a route can only be wrong in one
+ * place. `ProactiveActionRouteTest` checks every route this can be handed
+ * actually exists — two of them ("graph", "calendar") did not, and stayed
+ * harmless only because nothing had ever navigated.
+ */
+private fun dispatchProactiveAction(
+    action: com.aura.proactive.ProactiveAction,
+    navController: androidx.navigation.NavHostController,
+) {
+    when (action) {
+        is com.aura.proactive.ProactiveAction.Navigate ->
+            navController.navigate(action.route)
+        is com.aura.proactive.ProactiveAction.OpenChat ->
+            navController.navigate(
+                if (action.draft.isBlank()) TopLevelRoute.Chat.route
+                else "chat?draft=" + android.net.Uri.encode(action.draft),
+            )
+        com.aura.proactive.ProactiveAction.OpenCalendarApp -> openCalendarApp(navController)
+        com.aura.proactive.ProactiveAction.None -> Unit
     }
 }

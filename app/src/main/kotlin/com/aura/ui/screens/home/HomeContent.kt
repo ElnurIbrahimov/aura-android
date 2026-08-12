@@ -107,6 +107,14 @@ fun HomeContent(
     onOpenTasks: () -> Unit = {},
 
     onOpenCalendar: () -> Unit = {},
+    /**
+     * Dispatch for a proactive suggestion's action. Implemented in `NavGraph`,
+     * which is where the nav controller lives; the card only knows what it is
+     * proposing, not how to get there.
+     */
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
+    /** Records that a suggestion was tapped, and whether it led anywhere. */
+    onProactiveTap: (Long, Boolean) -> Unit = { _, _ -> },
 
     onOpenReminders: () -> Unit = {},
 
@@ -283,6 +291,8 @@ fun HomeContent(
                             onOpenCapabilities = onOpenCapabilities,
                             onOpenEvolution = onOpenEvolution,
                             onOpenCouncil = onOpenCouncil,
+                            onProactiveAction = onProactiveAction,
+                            onProactiveTap = onProactiveTap,
                         )
 
                     }
@@ -326,6 +336,8 @@ fun HomeContent(
                 onOpenCapabilities = onOpenCapabilities,
                 onOpenEvolution = onOpenEvolution,
                 onOpenCouncil = onOpenCouncil,
+            onProactiveAction = onProactiveAction,
+            onProactiveTap = onProactiveTap,
 
                 )
 
@@ -366,6 +378,8 @@ fun HomeContent(
                 onOpenCapabilities = onOpenCapabilities,
                 onOpenEvolution = onOpenEvolution,
                 onOpenCouncil = onOpenCouncil,
+            onProactiveAction = onProactiveAction,
+            onProactiveTap = onProactiveTap,
 
                 )
 
@@ -397,6 +411,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
     onOpenCapabilities: () -> Unit = {},
     onOpenEvolution: () -> Unit = {},
     onOpenCouncil: () -> Unit = {},
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
+    onProactiveTap: (Long, Boolean) -> Unit = { _, _ -> },
 ) {
     val priority = selectHomePriority(state)
 
@@ -450,7 +466,21 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
                         is ProactiveEventBus.Event.MemoryDecayWarning -> onOpenMemory()
 
-    else -> {}
+                        // Was `else -> {}`: a card you could tap that did
+                        // nothing, rendering an empty action label. The
+                        // finding type is the only key a persisted row
+                        // carries, so the action is derived from it.
+                        is ProactiveEventBus.Event.DaemonInsight -> {
+                            val action = com.aura.proactive.ProactiveFindingType.from(event.findingType)
+                                ?.action ?: com.aura.proactive.ProactiveAction.None
+                            onProactiveTap(event.id, action != com.aura.proactive.ProactiveAction.None)
+                            onProactiveAction(action)
+                        }
+
+                        is ProactiveEventBus.Event.LivingWorldReport -> {
+                            onProactiveTap(event.id, true)
+                            onProactiveAction(com.aura.proactive.ProactiveAction.Navigate("creative"))
+                        }
                     }
 
                     is HomePriority.Calendar -> onOpenCalendar()

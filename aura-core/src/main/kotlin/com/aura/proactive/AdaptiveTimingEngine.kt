@@ -3,13 +3,30 @@ package com.aura.proactive
 import javax.inject.Inject
 import javax.inject.Singleton
 import android.util.Log
+import java.util.Calendar
+import kotlin.math.abs
 
 /**
- * Adaptive Timing Engine — learns when the user engages vs dismisses
- * proactive messages and only sends during high-engagement windows.
+ * Learns which hours the user is receptive to proactive messages.
  *
  * Inspired by ProActor (ACL 2026) timing-aware scheduling and
  * ProMemAssist (UIST 2025) context-aware deferral.
+ *
+ * Two defects made this permanently unable to say yes, and both are fixed here.
+ *
+ * **The scale could not represent a positive.** Scores were normalised by
+ * dividing by their own maximum, coerced to at least 1, then clamped to
+ * `[0, 1]`. Since `"dismissed"` was the only interaction anything ever
+ * recorded, every raw score was negative, every normalised score clamped to 0,
+ * and `isGoodTime()`'s `>= 0.4` was false for the life of the install — not on
+ * a fresh one, but always. The replacement maps the signed score through a
+ * saturating curve with a real neutral point, so **no evidence is 0.5 rather
+ * than 0**, and "not actively a bad time" is the default rather than "never".
+ *
+ * **The buckets were UTC and the lookup was local.** Rows were bucketed by
+ * `timestamp / 3_600_000 % 24` — hours since the epoch, i.e. the UTC hour —
+ * while [isGoodTime] read `Calendar.HOUR_OF_DAY`, which is local. Four hours
+ * out here, and silently wrong everywhere off Greenwich.
  */
 @Singleton
 class AdaptiveTimingEngine @Inject constructor(
@@ -18,30 +35,37 @@ class AdaptiveTimingEngine @Inject constructor(
     suspend fun hourlyEngagement(): FloatArray {
         val interactions = runCatching {
             proactiveInteractionDao.recent(200)
-        }.onFailure { Log.w("AdaptiveTimingEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyList())
+        }.onFailure { Log.w(TAG, "interaction read failed: ${it.message}", it) }.getOrDefault(emptyList())
 
-        val scores = FloatArray(24) { 0f }
+        val raw = FloatArray(24) { 0f }
         for (interaction in interactions) {
-            val hour = ((interaction.timestamp / (1000L * 60 * 60)) % 24).toInt()
+            val hour = localHourOf(interaction.timestamp)
             when (interaction.action) {
-                "tapped", "acted" -> scores[hour] += 1f
-                "dismissed", "snoozed" -> scores[hour] -= 0.5f
+                "tapped", "acted" -> raw[hour] += 1f
+                "dismissed", "snoozed" -> raw[hour] -= 0.5f
             }
         }
-        val max = scores.maxOrNull()?.coerceAtLeast(1f) ?: 1f
-        return scores.map { (it / max).coerceIn(0f, 1f) }.toFloatArray()
+        return FloatArray(24) { normalize(raw[it]) }
     }
 
-    suspend fun isGoodTime(): Boolean {
-        val scores = hourlyEngagement()
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        return scores[hour] >= 0.4f
-    }
+    /** The current hour's receptivity, as a continuous value rather than a verdict. */
+    suspend fun receptivityNow(): Float = hourlyEngagement()[currentLocalHour()]
 
+    suspend fun isGoodTime(): Boolean = receptivityNow() >= GOOD_TIME_THRESHOLD
+
+    /**
+     * The most receptive hour, or [DEFAULT_HOUR] when nothing is known.
+     *
+     * Has no production caller and deliberately keeps none — see the plan. The
+     * argmax is corrected anyway so it is not a trap: seeded at `-1f` rather
+     * than `0f`, because under the new scale a blank install is 0.5 everywhere
+     * and the old seed would have returned hour 0.
+     */
     suspend fun bestTime(): Int {
         val scores = hourlyEngagement()
-        var bestHour = 9
-        var bestScore = 0f
+        if (scores.all { it == NEUTRAL }) return DEFAULT_HOUR
+        var bestHour = DEFAULT_HOUR
+        var bestScore = -1f
         for (hour in 0..23) {
             if (scores[hour] > bestScore) {
                 bestScore = scores[hour]
@@ -49,5 +73,47 @@ class AdaptiveTimingEngine @Inject constructor(
             }
         }
         return bestHour
+    }
+
+    /**
+     * Map a signed score onto `[0, 1]` with a genuine neutral.
+     *
+     * Saturating rather than linear so a single lucky hour cannot dominate, and
+     * centred on 0.5 so the absence of evidence is neither an endorsement nor a
+     * veto.
+     */
+    private fun normalize(raw: Float): Float =
+        (NEUTRAL + NEUTRAL * (raw / (abs(raw) + SOFTNESS))).coerceIn(0f, 1f)
+
+    companion object {
+        private const val TAG = "AdaptiveTimingEngine"
+
+        /**
+         * Local hour of a timestamp.
+         *
+         * Uses the *current* default zone for a historical row on purpose: a
+         * habit belongs to the frame the user lives in now, not the one they
+         * were in during a trip. The alternative is storing an offset per row
+         * for a signal that is about behaviour rather than about instants.
+         */
+        internal fun localHourOf(timestampMs: Long): Int =
+            Calendar.getInstance().apply { timeInMillis = timestampMs }.get(Calendar.HOUR_OF_DAY)
+
+        internal fun currentLocalHour(): Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+        /** No evidence either way. */
+        const val NEUTRAL = 0.5f
+
+        /** How many net points it takes to move meaningfully off neutral. */
+        private const val SOFTNESS = 2f
+
+        /**
+         * Below this an hour is actively bad. Under the neutral-centred scale
+         * this reads as "not a hostile hour" rather than "a proven good one",
+         * which is the right bar now that notifications are gated separately.
+         */
+        const val GOOD_TIME_THRESHOLD = 0.4f
+
+        private const val DEFAULT_HOUR = 9
     }
 }

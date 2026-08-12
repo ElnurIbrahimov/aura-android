@@ -36,6 +36,7 @@ import com.aura.ui.theme.AuraSpacing
 @Composable
 fun WorldModelScreen(
     onBack: () -> Unit = {},
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
     viewModel: WorldModelViewModel = viewModel(),
 ) {
     val beliefs by viewModel.beliefs.collectAsStateWithLifecycle()
@@ -93,7 +94,13 @@ fun WorldModelScreen(
                         modifier = Modifier.padding(top = AuraSpacing.md),
                     )
                 }
-                items(opportunities, key = { it.id }) { OpportunityCard(it, viewModel::resolveOpportunity) }
+                items(opportunities, key = { it.id }) { opportunity ->
+                    OpportunityCard(opportunity) { id, approve ->
+                        // Approving now performs the suggestion instead of only
+                        // recording that it was approved.
+                        onProactiveAction(viewModel.resolveOpportunity(id, approve))
+                    }
+                }
             }
             if (contradictions.isNotEmpty()) {
                 item {

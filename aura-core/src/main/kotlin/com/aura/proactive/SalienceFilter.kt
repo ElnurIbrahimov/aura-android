@@ -121,6 +121,22 @@ class SalienceFilter @Inject constructor(
         val engine = policyEngine ?: return 1f
         val summary = interactionDao?.summary().orEmpty()
         if (summary.isEmpty()) return 1f
+
+        // A minimum sample before appetite is allowed to move at all.
+        //
+        // `adaptFromSummary` computes a negative ratio over the whole
+        // interaction table, and for most of this feature's life the only
+        // action anything recorded was "dismissed". So a single tap of the X
+        // on the Home card drove that ratio to 1.0, the multiplier to 0.4, and
+        // the highest score any finding can reach to 0.342 — under the 0.49
+        // threshold, for every finding, permanently. One dismissal muted the
+        // entire system and nothing said so.
+        //
+        // Five is the same principle as the interruption ledger's sample
+        // floor: a ratio over one row is not evidence about a person.
+        val total = summary.sumOf { it.count }
+        if (total < MIN_INTERACTIONS_FOR_APPETITE) return 1f
+
         return engine.adaptFromSummary(summary, listOf(BASELINE_POLICY)).first().weight
     }
 
@@ -130,6 +146,9 @@ class SalienceFilter @Inject constructor(
 
         /** How far back "have I surfaced this lately" looks, in recorded events. */
         const val RECENT_EVENT_WINDOW = 30
+
+        /** Interactions required before appetite may move off 1.0. */
+        const val MIN_INTERACTIONS_FOR_APPETITE = 5
 
         /**
          * Baseline the policy engine adjusts. Only its `weight` is read back —

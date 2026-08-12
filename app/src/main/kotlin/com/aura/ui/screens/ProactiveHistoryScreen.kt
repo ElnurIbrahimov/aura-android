@@ -90,6 +90,7 @@ data class HistoryCardModel(
 @Composable
 fun ProactiveHistoryScreen(
     onBack: () -> Unit = {},
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
     viewModel: ProactiveHistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -120,7 +121,7 @@ fun ProactiveHistoryScreen(
                 item { EmptyState() }
             }
             items(reversed) { event ->
-                val model = event.toCardModel(context)
+                val model = event.toCardModel(context, onProactiveAction, { id, type, action, _ -> viewModel.onEventAction(id, type, action) })
                 HistoryCard(
                     model = model,
                     modifier = if (model.onClick != null) Modifier.clickable(onClick = model.onClick) else Modifier,
@@ -174,7 +175,11 @@ private fun EmptyState() {
 
 // ── Event → model mapping ──────────────────────────────────────────────────
 
-private fun ProactiveEventBus.Event.toCardModel(context: android.content.Context): HistoryCardModel = when (this) {
+private fun ProactiveEventBus.Event.toCardModel(
+    context: android.content.Context,
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
+    onInteraction: (Long, String, String, String?) -> Unit = { _, _, _, _ -> },
+): HistoryCardModel = when (this) {
     is ProactiveEventBus.Event.MorningBriefReady -> HistoryCardModel(
         icon = Icons.Filled.WbSunny,
         kind = HistoryCardKind.MorningBrief,
@@ -228,15 +233,28 @@ private fun ProactiveEventBus.Event.toCardModel(context: android.content.Context
             },
         )
     }
-    is ProactiveEventBus.Event.DaemonInsight -> HistoryCardModel(
-        icon = Icons.Filled.Lightbulb,
-        kind = HistoryCardKind.DaemonInsight,
-        title = this.title,
-        body = this.body,
-        tapHint = null,
-        timestamp = timestamp,
-        onClick = null,
-    )
+    is ProactiveEventBus.Event.DaemonInsight -> {
+        // Was `onClick = null, tapHint = null` — a card that stated something
+        // and offered nothing. The finding type is the only key a persisted
+        // row carries, so the action is derived from it.
+        val action = com.aura.proactive.ProactiveFindingType.from(findingType)?.action
+            ?: com.aura.proactive.ProactiveAction.None
+        val hint = com.aura.proactive.ProactiveActions.label(action).takeIf { it.isNotBlank() }
+        HistoryCardModel(
+            icon = Icons.Filled.Lightbulb,
+            kind = HistoryCardKind.DaemonInsight,
+            title = this.title,
+            body = this.body,
+            tapHint = hint,
+            timestamp = timestamp,
+            onClick = if (action == com.aura.proactive.ProactiveAction.None) null else {
+                {
+                    onInteraction(id, "proactive", "acted", null)
+                    onProactiveAction(action)
+                }
+            },
+        )
+    }
     is ProactiveEventBus.Event.LivingWorldReport -> HistoryCardModel(
         icon = Icons.Filled.Public,
         kind = HistoryCardKind.DaemonInsight,

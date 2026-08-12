@@ -42,6 +42,16 @@ class DaemonWorker @AssistedInject constructor(
     private val providerRegistry: ProviderRegistry,
     private val conversationStore: ConversationStore,
     private val eventBus: ProactiveEventBus,
+    /**
+     * The durable delivery path.
+     *
+     * [ProactiveEventBus] is `replay = 0`, so an emit from this worker — which
+     * runs in a process that usually has no live collector — is dropped and
+     * never persisted. Every insight this class produced was disappearing that
+     * way. `ProactiveEvents.record` inserts to Room first and re-emits
+     * afterwards, which is why it is the only path used below.
+     */
+    private val proactiveEvents: ProactiveEvents,
     private val calendarReadTool: CalendarReadTool,
     private val memoryStore: MemoryStore,
     private val taskDao: TaskDao,
@@ -79,7 +89,12 @@ class DaemonWorker @AssistedInject constructor(
             } else findings
 
             // 3+4. Motivation scoring + adaptive timing — post only if both pass
-            val isGoodTime = adaptiveTimingEngine?.isGoodTime() ?: true
+            // The continuous value, not the verdict. The old code computed a
+            // receptivity score and then threw it away for a two-valued
+            // 0.7/0.3 branch, which discarded exactly the resolution the
+            // engine exists to provide.
+            val receptivity = adaptiveTimingEngine?.receptivityNow() ?: AdaptiveTimingEngine.NEUTRAL
+            val isGoodTime = receptivity >= AdaptiveTimingEngine.GOOD_TIME_THRESHOLD
             for (finding in salient) {
                 if (motivationAccumulator != null) {
                     val message = MotivationAccumulator.PotentialMessage(
@@ -89,7 +104,7 @@ class DaemonWorker @AssistedInject constructor(
                         timeSinceSimilar = 0.7f,
                         emotionalUrgency = finding.urgency,
                         curiosityDrive = 0.3f,
-                        userReceptivity = if (isGoodTime) 0.7f else 0.3f,
+                        userReceptivity = receptivity,
                     )
                     val score = runCatching { motivationAccumulator!!.evaluate(message) }
                         .onFailure { Log.w(TAG, "motivation: ${it.message}", it) }
@@ -116,17 +131,17 @@ class DaemonWorker @AssistedInject constructor(
                             timeSinceSimilar = 0.8f,
                             emotionalUrgency = top.urgency,
                             curiosityDrive = 1.0f,
-                            userReceptivity = if (isGoodTime) 0.6f else 0.3f,
+                            userReceptivity = receptivity,
                         )
                         val score = motivationAccumulator.evaluate(msg)
                         if (score.shouldDeliver) {
-                            eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+                            proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
                                 title = "Curiosity: ${top.entityName}",
                                 body = top.question,
                             ))
                         }
                     } else {
-                        eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+                        proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
                             title = "Curiosity: ${top.entityName}",
                             body = top.question,
                         ))
@@ -206,7 +221,7 @@ class DaemonWorker @AssistedInject constructor(
                                     is com.aura.agent.council.Intervention.SelfCare -> result.proposal.rationale
                                     is com.aura.agent.council.Intervention.Memory -> result.proposal.connection
                                 }
-                                eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+                                proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
                                     title = "Council: ${result.proposal.summary}",
                                     body = body,
                                 ))
@@ -235,7 +250,7 @@ class DaemonWorker @AssistedInject constructor(
      * that scores below the motivation bar leaves no row and stays novel.
      */
     private suspend fun postFinding(finding: ProactiveAwarenessEngine.ProactiveFinding) {
-        eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+        proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
             title = finding.title,
             body = finding.message,
             findingType = finding.type,
@@ -329,7 +344,7 @@ class DaemonWorker @AssistedInject constructor(
             val chunks = providerRegistry.chat(backgroundModel, messages).toList()
             val insight = chunks.joinToString("") { it.text ?: "" }.trim()
             if (insight.isNotBlank() && insight != "SKIP") {
-                eventBus.emit(ProactiveEventBus.Event.DaemonInsight(
+                proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
                     title = "Thought of something",
                     body = insight,
                 ))

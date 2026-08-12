@@ -51,8 +51,29 @@ class ProactiveAwarenessEngine @Inject constructor(
         val title: kotlin.String,
         val message: kotlin.String,
         val urgency: Float, // 0-1
-        val actionRoute: kotlin.String? = null,
-    )
+    ) {
+        /**
+         * What tapping this does, derived from [type] rather than carried.
+         *
+         * It used to be a string set at each of the eight construction sites,
+         * read only as a relevance weight, and never navigated to — so two of
+         * the eight were wrong without anyone noticing: `"graph"` matched no
+         * route, and `"calendar"` had no screen at all. Deriving it means there
+         * is exactly one mapping, and it lives beside the persisted wire value,
+         * which is the only key a tap on a history card actually has.
+         */
+        val action: ProactiveAction
+            get() = ProactiveFindingType.from(type)?.action ?: ProactiveAction.None
+
+        /** Kept for the relevance weight in [SalienceFilter]. */
+        val actionRoute: kotlin.String?
+            get() = when (val a = action) {
+                is ProactiveAction.Navigate -> a.route
+                is ProactiveAction.OpenChat -> "chat"
+                ProactiveAction.OpenCalendarApp -> "calendar"
+                ProactiveAction.None -> null
+            }
+    }
 
     suspend fun runAll(): List<ProactiveFinding> {
         val findings = mutableListOf<ProactiveFinding>()
@@ -87,7 +108,6 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${stale.size} memories haven't been used in 30+ days",
             message = "These memories are fading. Review them to keep what matters and let go of what doesn't.",
             urgency = 0.2f,
-            actionRoute = "memory",
         ))
     }
 
@@ -119,7 +139,6 @@ class ProactiveAwarenessEngine @Inject constructor(
                 if (daysStuck > 14) "Consider cancelling or breaking it into smaller steps."
                 else "Want to break it down or reschedule?",
             urgency = if (daysStuck > 14) 0.7f else 0.4f,
-            actionRoute = "tasks",
         ))
     }
 
@@ -141,7 +160,6 @@ class ProactiveAwarenessEngine @Inject constructor(
                 else -> "Haven't heard from you in a while. I'm here when you need me."
             },
             urgency = if (daysSince > 7) 0.5f else 0.3f,
-            actionRoute = "chat",
         ))
     }
 
@@ -154,7 +172,6 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${events.size} event(s) today",
             message = events.joinToString(", "),
             urgency = 0.6f,
-            actionRoute = "calendar",
         ))
     }
 
@@ -179,7 +196,6 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${contradictions.size} conflicting relationship(s) in knowledge graph",
             message = contradictions.joinToString("; "),
             urgency = 0.5f,
-            actionRoute = "graph",
         ))
     }
 
@@ -192,7 +208,6 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "You seem tense lately",
             message = "Your tension has been high. Want to take a break or talk through what's on your mind?",
             urgency = 0.5f,
-            actionRoute = "chat",
         ))
     }
 
@@ -233,7 +248,6 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${highPriority.size} high-priority tasks pending",
             message = "You have a lot of high-priority tasks. Want to review priorities?",
             urgency = 0.5f,
-            actionRoute = "tasks",
         ))
     }
 }

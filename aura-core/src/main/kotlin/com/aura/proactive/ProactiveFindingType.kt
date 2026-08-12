@@ -16,15 +16,21 @@ package com.aura.proactive
  * `ProactiveFindingTypeCoverageTest` fails the build if a check in
  * [ProactiveAwarenessEngine] emits a type with no entry here.
  */
-enum class ProactiveFindingType(val wire: String) {
-    STALE_MEMORIES("stale_memories"),
-    STUCK_TASKS("stuck_tasks"),
-    RELATIONSHIP_GAP("relationship_gap"),
-    DEADLINE_APPROACHING("deadline_approaching"),
-    CONTRADICTION_ALERT("contradiction_alert"),
-    STRESS_CORRELATION("stress_correlation"),
-    PATTERN_ALERT("pattern_alert"),
-    PRIORITY_SHIFT("priority_shift"),
+enum class ProactiveFindingType(val wire: String, val action: ProactiveAction) {
+    STALE_MEMORIES("stale_memories", ProactiveAction.Navigate("memory")),
+    STUCK_TASKS("stuck_tasks", ProactiveAction.Navigate("tasks")),
+    RELATIONSHIP_GAP("relationship_gap", ProactiveAction.OpenChat()),
+
+    /** No Aura screen shows a calendar; this hands off to the system app. */
+    DEADLINE_APPROACHING("deadline_approaching", ProactiveAction.OpenCalendarApp),
+
+    /** `"graph"` until now, which matched no route and would have thrown. */
+    CONTRADICTION_ALERT("contradiction_alert", ProactiveAction.Navigate("knowledge_graph")),
+    STRESS_CORRELATION("stress_correlation", ProactiveAction.OpenChat()),
+
+    /** The one check that describes a state rather than proposing a move. */
+    PATTERN_ALERT("pattern_alert", ProactiveAction.None),
+    PRIORITY_SHIFT("priority_shift", ProactiveAction.Navigate("tasks")),
     ;
 
     companion object {

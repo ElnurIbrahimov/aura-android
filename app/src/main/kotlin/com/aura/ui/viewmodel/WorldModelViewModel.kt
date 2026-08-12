@@ -38,10 +38,38 @@ class WorldModelViewModel @Inject constructor(
     val contradictions: StateFlow<List<ContradictionEntity>> = contradictionDao.observeByStatus("UNRESOLVED")
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    fun resolveOpportunity(id: String, approve: Boolean) {
-        viewModelScope.launch {
-            opportunityDao.resolve(id, if (approve) "approved" else "dismissed", System.currentTimeMillis())
+    /**
+     * Approve or dismiss an opportunity — and, when approving, actually do it.
+     *
+     * `suggestedActionJson` is written on all six opportunity kinds and, until
+     * now, parsed by nothing: "Approve" flipped a status column and the
+     * suggestion it described never happened. The status is `"executed"` rather
+     * than `"approved"` for the same reason — `"approved"` had no consumer
+     * either.
+     *
+     * @return the action to dispatch, or [com.aura.proactive.ProactiveAction.None].
+     */
+    fun resolveOpportunity(id: String, approve: Boolean): com.aura.proactive.ProactiveAction {
+        val action = if (!approve) {
+            com.aura.proactive.ProactiveAction.None
+        } else {
+            opportunities.value.firstOrNull { it.id == id }
+                ?.let { com.aura.proactive.ProactiveActions.parse(it.suggestedActionJson) }
+                ?: com.aura.proactive.ProactiveAction.None
         }
+        // "executed" only when there was in fact something to execute. An
+        // opportunity whose suggested action is absent or unparseable is still
+        // approved and still does nothing, and recording it as executed would
+        // be the same kind of lie the unread `suggestedActionJson` already was.
+        val status = when {
+            !approve -> "dismissed"
+            action != com.aura.proactive.ProactiveAction.None -> "executed"
+            else -> "approved"
+        }
+        viewModelScope.launch {
+            opportunityDao.resolve(id, status, System.currentTimeMillis())
+        }
+        return action
     }
 
     fun verifyBelief(id: String) {
