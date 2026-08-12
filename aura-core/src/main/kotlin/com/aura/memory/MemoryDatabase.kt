@@ -78,8 +78,9 @@ import com.aura.kg.NodeEntity
         LivingWorldEntity::class,
         LivingEventEntity::class,
         CorrectionEntity::class,
+        com.aura.curiosity.OpenQuestionEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -110,4 +111,5 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun livingWorldDao(): LivingWorldDao
     abstract fun livingEventDao(): LivingEventDao
     abstract fun correctionDao(): CorrectionDao
+    abstract fun openQuestionDao(): com.aura.curiosity.OpenQuestionDao
 }

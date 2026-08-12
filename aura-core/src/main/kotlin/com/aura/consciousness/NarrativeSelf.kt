@@ -111,6 +111,23 @@ class NarrativeSelf @Inject constructor(
     }
 
     /**
+     * Replace the open questions, leaving the rest of the narrative alone.
+     *
+     * [updateFromDream] writes all three of growth, concerns and questions at
+     * once, and passes the questions straight back in from the previous
+     * snapshot — so with no other writer the field could only ever stay empty,
+     * which it has for every user since it shipped. The curiosity scan runs
+     * late in the dream cycle, after the graph has been densified and the gaps
+     * it can see are the real ones, so it needs to set this field on its own.
+     */
+    fun updateOpenQuestions(questions: List<String>) {
+        state = state.copy(
+            unresolvedQuestions = questions.take(5),
+            lastUpdated = System.currentTimeMillis(),
+        )
+    }
+
+    /**
      * Update the relationship state note.
      */
     fun updateRelationshipState(note: String) {

@@ -114,12 +114,15 @@ class IntrinsicMotivation @Inject constructor(
      * @param lowConfidenceSkillCount Skills with confidence < 0.5
      * @param hoursSinceLastInteraction Time since last user message
      * @param contradictionCount Active contradictions in dream cycle
+     * @param openQuestion The question Aura currently wants to ask, if any.
+     *   Appended last with a default so existing positional calls keep working.
      */
     fun assess(
         kgGapCount: Int,
         lowConfidenceSkillCount: Int,
         hoursSinceLastInteraction: Float,
         contradictionCount: Int,
+        openQuestion: String? = null,
     ) {
         val now = System.currentTimeMillis()
 
@@ -137,7 +140,15 @@ class IntrinsicMotivation @Inject constructor(
             DriveType.CURIOSITY to current[DriveType.CURIOSITY]!!.copy(
                 intensity = curiosityIntensity,
                 satisfaction = 1f - curiosityIntensity,
-                triggers = if (kgGapCount > 0) listOf("$kgGapCount unexplored topics") else emptyList(),
+                // The question, when there is one. "14 unexplored topics" is a
+                // count: it tells the model it is curious and not what about,
+                // which is not something it can act on. The count stays as the
+                // fallback for the window before the nightly scan has run.
+                triggers = when {
+                    !openQuestion.isNullOrBlank() -> listOf(openQuestion)
+                    kgGapCount > 0 -> listOf("$kgGapCount unexplored topics")
+                    else -> emptyList()
+                },
             ),
             DriveType.COMPETENCE to current[DriveType.COMPETENCE]!!.copy(
                 intensity = competenceIntensity,

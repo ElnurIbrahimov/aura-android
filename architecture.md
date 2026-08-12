@@ -123,10 +123,10 @@ aura-android-clean/
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v20, ConversationDB v6, ProactiveEventDB v6, TaskDB v6, EvolutionDB v4
+- MemoryDB v21, ConversationDB v6, ProactiveEventDB v6, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
-- Backup SCHEMA_VERSION 22 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
+- Backup SCHEMA_VERSION 23 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
 ### Tools (78)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
@@ -161,7 +161,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 2,845 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 2,862 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -185,7 +185,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 `MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
 `k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
 
-- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v20), kept current by SQL
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v21), kept current by SQL
   triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
   and forced a full table scan.
 - **BM25** takes its corpus size and per-term document frequency from the index rather than from

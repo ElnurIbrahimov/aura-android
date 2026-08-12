@@ -65,6 +65,7 @@ class DreamConsolidator @Inject constructor(
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
     private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
+    private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val providerRegistry: ProviderRegistry,
     private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
@@ -263,6 +264,25 @@ class DreamConsolidator @Inject constructor(
                 throw cancelled
             } catch (t: Throwable) {
                 android.util.Log.w("DreamConsolidator", "promoteBeliefs: ${t.message}", t)
+            }
+
+            // 10b. CURIOSITY — look for something worth asking about.
+            //      Runs after densify (9) and promote (10) on purpose: both
+            //      add edges, and a node that just gained one is no longer a
+            //      gap. Scanning earlier would raise questions the cycle was
+            //      about to answer for itself.
+            //
+            //      This is also the first writer NarrativeSelf's
+            //      unresolvedQuestions has ever had — phase 8b passes the
+            //      field back in from its own snapshot, so with nothing else
+            //      writing it, it stayed empty for every user since it shipped.
+            try {
+                val raised = curiosityStore?.scanAndAuthor() ?: 0
+                report = report.copy(questionsRaised = raised)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                android.util.Log.w("DreamConsolidator", "curiosity scan: ${t.message}", t)
             }
 
             // 11. WORLD EVENT — record that a dream cycle completed so the

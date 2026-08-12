@@ -42,6 +42,8 @@ data class DreamCycleReport(
     val profileUpdated: Boolean = false,
     // Phase 10: promote reinforced KG edges into world-model beliefs
     val beliefsPromoted: Int = 0,
+    /** 1 when this cycle found something Aura wants to ask about. */
+    val questionsRaised: Int = 0,
     // Phase 8b: narrative-self update from this cycle's summaries
     val narrativeUpdated: Boolean = false,
 ) {
@@ -57,6 +59,7 @@ data class DreamCycleReport(
         // Currently the only production signal that phase 10 (belief
         // promotion) ever ran at all.
         if (beliefsPromoted > 0) append(", $beliefsPromoted beliefs promoted")
+        if (questionsRaised > 0) append(", a question to ask")
     }
 
     companion object {

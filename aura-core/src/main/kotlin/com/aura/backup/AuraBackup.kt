@@ -78,6 +78,7 @@ data class AuraBackup(
     val livingWorlds: List<LivingWorldBackup> = emptyList(),
     val livingEvents: List<LivingEventBackup> = emptyList(),
     val corrections: List<CorrectionBackup> = emptyList(),
+    val openQuestions: List<OpenQuestionBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
     // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
@@ -139,7 +140,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 22
+        const val SCHEMA_VERSION = 23
     }
 }
 
@@ -704,6 +705,30 @@ data class LivingWorldBackup(
     val status: String = "running",
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+/**
+ * Aura's open questions, including the ones already answered and refused.
+ *
+ * The refusals are the reason this is in the backup. "Never ask about this
+ * again" is enforced by the row existing; a restore without them would have
+ * Aura cheerfully re-ask everything the user has already told it to drop, which
+ * is the single worst thing this feature could do.
+ */
+@Serializable
+data class OpenQuestionBackup(
+    val id: String,
+    val kind: String,
+    val subjectKind: String,
+    val subjectId: String,
+    val question: String,
+    val status: String,
+    val answerable: String = "user",
+    val answerMemoryId: String? = null,
+    val askedAt: Long? = null,
+    val timesAsked: Int = 0,
+    val answeredAt: Long? = null,
+    val createdAt: Long = 0L,
 )
 
 /**

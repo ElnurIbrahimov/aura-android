@@ -124,6 +124,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
+    private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val responseCache: ResponseCache? = null,
@@ -741,6 +742,9 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             lowConfidenceSkillCount = signals?.lowConfidenceSkillCount ?: 0,
                             hoursSinceLastInteraction = hoursSince,
                             contradictionCount = signals?.contradictionCount ?: 0,
+                            openQuestion = curiosityStore?.let { store ->
+                                runCatching { store.current()?.question }.getOrNull()
+                            },
                         )
                         intrinsicMotivation?.save()
                     }.onFailure { android.util.Log.w("AgenticLoop", "motivation assess failed: ${it.message}", it) }

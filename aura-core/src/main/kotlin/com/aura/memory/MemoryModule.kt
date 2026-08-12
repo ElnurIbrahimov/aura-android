@@ -709,6 +709,32 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Aura's open questions. The curiosity drive has always been
+            // computable — gapNodeCount() has counted unexplored graph nodes
+            // since it shipped — and has never had anywhere to put a question.
+            //
+            // DDL copied verbatim from the generated 21.json rather than
+            // hand-written, because a migration producing a schema even
+            // slightly different from the one Room expects fails validation on
+            // every upgrade install while passing every fresh-install test.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `open_questions` (`id` TEXT NOT NULL, `kind` TEXT NOT NULL, " +
+                    "`subjectKind` TEXT NOT NULL, `subjectId` TEXT NOT NULL, `question` TEXT NOT NULL, " +
+                    "`status` TEXT NOT NULL, `answerable` TEXT NOT NULL, `answerMemoryId` TEXT, " +
+                    "`askedAt` INTEGER, `timesAsked` INTEGER NOT NULL, `answeredAt` INTEGER, " +
+                    "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_open_questions_status` ON `open_questions` (`status`)")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_open_questions_subjectKind_subjectId` " +
+                    "ON `open_questions` (`subjectKind`, `subjectId`)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_open_questions_createdAt` ON `open_questions` (`createdAt`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -716,7 +742,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is
@@ -729,6 +755,9 @@ object MemoryModule {
 
     @Provides
     fun provideCorrectionDao(db: MemoryDatabase): CorrectionDao = db.correctionDao()
+
+    @Provides
+    fun provideOpenQuestionDao(db: MemoryDatabase): com.aura.curiosity.OpenQuestionDao = db.openQuestionDao()
 
     @Provides
     fun provideMemoryDao(db: MemoryDatabase): MemoryDao = db.memoryDao()

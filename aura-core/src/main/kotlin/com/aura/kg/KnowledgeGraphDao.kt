@@ -123,6 +123,23 @@ interface KnowledgeGraphDao {
     )
     suspend fun gapNodeCount(): Int
 
+    /**
+     * The gap nodes themselves, newest first.
+     *
+     * [gapNodeCount] has always returned how many there are, and that count is
+     * the whole of what the CURIOSITY drive knows — so the drive could say "14
+     * unexplored topics" and never which fourteen. A question needs the rows.
+     * Same correlated COUNT, same index-backed cost, bounded by [limit].
+     */
+    @Query(
+        """
+        SELECT * FROM kg_nodes n WHERE
+            (SELECT COUNT(*) FROM kg_edges e WHERE e.sourceId = n.id OR e.targetId = n.id) < 2
+        ORDER BY n.createdAt DESC LIMIT :limit
+        """
+    )
+    suspend fun gapNodes(limit: Int = 20): List<NodeEntity>
+
     @Query("SELECT COUNT(*) FROM kg_edges")
     suspend fun edgeCount(): Int
 

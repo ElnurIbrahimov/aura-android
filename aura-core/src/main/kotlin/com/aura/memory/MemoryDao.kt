@@ -171,6 +171,30 @@ interface MemoryDao {
     suspend fun top(limit: Int = 50): List<MemoryEntity>
 
     /**
+     * Facts that mattered once and have never been confirmed since.
+     *
+     * Old, important, still live, and never corrected. These are the memories
+     * most likely to be quietly wrong — a job, a city, a preference stated a
+     * year ago and true at the time — and the ones decay handles worst, because
+     * importance keeps them fresh precisely when they are least verifiable.
+     *
+     * Excludes anything already corrected: the user has spoken about it, and
+     * asking again would be asking them to repeat themselves.
+     */
+    @Query(
+        "SELECT * FROM memories m WHERE m.retiredAt IS NULL " +
+            "AND m.importance >= :minImportance AND m.createdAt <= :olderThan " +
+            "AND m.category IN ('fact', 'preference', 'person', 'project') " +
+            "AND NOT EXISTS (SELECT 1 FROM corrections c WHERE c.targetId = m.id AND c.undoneAt IS NULL) " +
+            "ORDER BY m.importance DESC, m.createdAt ASC LIMIT :limit",
+    )
+    suspend fun staleAssumptions(
+        minImportance: Float,
+        olderThan: Long,
+        limit: Int = 20,
+    ): List<MemoryEntity>
+
+    /**
      * All memories, ordered by createdAt ascending so the export is
      * deterministic. Used by the backup module. No limit — the
      * export wants everything, even if the personal-use table is

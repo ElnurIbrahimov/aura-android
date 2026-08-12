@@ -105,6 +105,36 @@ internal fun MemoryBackup.toEntity() = MemoryEntity(
     retiredReason = retiredReason,
 )
 
+internal fun com.aura.curiosity.OpenQuestionEntity.toBackup() = OpenQuestionBackup(
+    id = id,
+    kind = kind,
+    subjectKind = subjectKind,
+    subjectId = subjectId,
+    question = question,
+    status = status,
+    answerable = answerable,
+    answerMemoryId = answerMemoryId,
+    askedAt = askedAt,
+    timesAsked = timesAsked,
+    answeredAt = answeredAt,
+    createdAt = createdAt,
+)
+
+internal fun OpenQuestionBackup.toEntity() = com.aura.curiosity.OpenQuestionEntity(
+    id = id,
+    kind = kind,
+    subjectKind = subjectKind,
+    subjectId = subjectId,
+    question = question,
+    status = status,
+    answerable = answerable,
+    answerMemoryId = answerMemoryId,
+    askedAt = askedAt,
+    timesAsked = timesAsked,
+    answeredAt = answeredAt,
+    createdAt = createdAt,
+)
+
 internal fun com.aura.memory.CorrectionEntity.toBackup() = CorrectionBackup(
     id = id,
     targetKind = targetKind,
