@@ -54,6 +54,7 @@ fun EvolutionInboxScreen(
     // card's "Reject" button alone.
     var rejectingProposal by remember { mutableStateOf<EvolutionProposalEntity?>(null) }
     val proposals = viewModel.proposals.collectAsStateWithLifecycle().value
+    val applied = viewModel.applied.collectAsStateWithLifecycle().value
     val settings = viewModel.settings.collectAsStateWithLifecycle().value
     val showOnboarding = viewModel.showOnboarding.collectAsStateWithLifecycle().value
 
@@ -109,6 +110,33 @@ fun EvolutionInboxScreen(
                     onDetail = { selectedProposal = proposal },
                     onRollback = { onRollback(proposal.id) },
                 )
+            }
+            if (applied.isNotEmpty()) {
+                item(key = "applied-header") {
+                    Text(
+                        "Already applied",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(
+                            start = AuraSpacing.md,
+                            end = AuraSpacing.md,
+                            top = AuraSpacing.md,
+                        ),
+                    )
+                    Text(
+                        "Changes Aura has made. Undo any of them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = AuraSpacing.md),
+                    )
+                }
+                items(applied, key = { it.id }) { proposal ->
+                    ProposalCard(
+                        proposal = proposal,
+                        onApprove = {},
+                        onReject = {},
+                        onDetail = { selectedProposal = proposal },
+                        onRollback = { onRollback(proposal.id) },
+                    )
+                }
             }
         }
     }

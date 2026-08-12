@@ -182,11 +182,18 @@ class EvolutionCoordinator @Inject constructor(
         val durationMs: kotlin.Long,
     )
 
-    private companion object {
-        const val TAG = "EvolutionCoordinator"
+    companion object {
+        private const val TAG = "EvolutionCoordinator"
+
+        /**
+         * Score a candidate must reach before an LLM call is spent authoring a
+         * patch for it. Public because the detectors calibrate their scores
+         * against it — a bar that moves without them is a bar that silently
+         * changes which candidates are ever seen.
+         */
         const val AUTHORING_SCORE_THRESHOLD = 0.7f
         // Maximum LLM authoring calls per evolution run. Prevents cost
         // explosion when many candidates accumulate between runs.
-        const val MAX_AUTHORING_CALLS_PER_RUN = 10
+        private const val MAX_AUTHORING_CALLS_PER_RUN = 10
     }
 }

@@ -3,6 +3,11 @@ package com.aura.evolution
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aura.memory.DuplicateCluster
+import com.aura.memory.MemoryEntity
+import com.aura.memory.MemoryStore
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -19,6 +24,7 @@ class EvolutionCandidateDetectorsTest {
     private lateinit var db: EvolutionDatabase
     private lateinit var detectors: EvolutionCandidateDetectors
     private lateinit var recorder: EvolutionEvidenceRecorder
+    private val memoryStore = mockk<MemoryStore>(relaxed = true)
 
     @Before
     fun setup() {
@@ -26,7 +32,8 @@ class EvolutionCandidateDetectorsTest {
         db = Room.inMemoryDatabaseBuilder(context, EvolutionDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        detectors = EvolutionCandidateDetectors(db.evidenceDao(), db.candidateDao())
+        coEvery { memoryStore.findNearDuplicateClusters(any(), any(), any()) } returns emptyList()
+        detectors = EvolutionCandidateDetectors(db.evidenceDao(), db.candidateDao(), memoryStore)
         recorder = EvolutionEvidenceRecorder(db.evidenceDao())
     }
 
@@ -53,17 +60,64 @@ class EvolutionCandidateDetectorsTest {
     }
 
     @Test
-    fun `detects memory consolidation candidate after 10 recalls`() = runBlocking {
-        repeat(10) {
+    fun `consolidation is proposed for near-duplicates, not for heavily recalled memories`() = runBlocking {
+        // Twenty-one recalls of one memory used to be the entire signal, so the
+        // memory Aura reached for most often was the one it most wanted to
+        // merge away. Recall count now proposes nothing on its own.
+        repeat(21) {
             recorder.record(
                 domain = EvolutionDomain.MEMORY,
                 kind = "memory_recalled",
                 sourceEntityId = "mem_popular",
             )
         }
-        val candidates = detectors.runAll()
-        assertTrue(candidates.any { it.targetId == "mem_popular" && it.action == EvolutionAction.CONSOLIDATE_MEMORIES.name })
+        assertTrue(
+            "being useful is not evidence a memory is redundant",
+            detectors.runAll().none { it.action == EvolutionAction.CONSOLIDATE_MEMORIES.name },
+        )
+
+        coEvery { memoryStore.findNearDuplicateClusters(any(), any(), any()) } returns listOf(
+            DuplicateCluster(
+                memories = listOf(memory("mem_b", "I drink tea"), memory("mem_a", "I drink tea daily")),
+                meanSimilarity = 0.94f,
+            ),
+        )
+        val candidate = detectors.runAll()
+            .single { it.action == EvolutionAction.CONSOLIDATE_MEMORIES.name }
+        // Lowest id anchors the cluster so re-detection refreshes one row.
+        assertEquals("mem_a", candidate.targetId)
+        assertTrue("a 0.94 cluster must clear the authoring bar: ${candidate.score}", candidate.score >= 0.7f)
+        // The cluster travels with the candidate; the authoring step used to
+        // rebuild its own unrelated list of "recent" memories instead.
+        assertEquals(
+            listOf("mem_a", "mem_b"),
+            EvolutionPatchJson.json
+                .decodeFromString(MemoryClusterArgs.serializer(), candidate.argsJson).memoryIds,
+        )
     }
+
+    @Test
+    fun `a weak cluster is recorded but stays below the authoring bar`() = runBlocking {
+        coEvery { memoryStore.findNearDuplicateClusters(any(), any(), any()) } returns listOf(
+            DuplicateCluster(
+                memories = listOf(memory("m1", "a"), memory("m2", "b")),
+                meanSimilarity = 0.86f,
+            ),
+        )
+        val candidate = detectors.runAll()
+            .single { it.action == EvolutionAction.CONSOLIDATE_MEMORIES.name }
+        assertTrue(
+            "a barely-similar pair must not spend an LLM call: ${candidate.score}",
+            candidate.score < EvolutionCoordinator.AUTHORING_SCORE_THRESHOLD,
+        )
+    }
+
+    private fun memory(id: String, content: String) = MemoryEntity(
+        id = id,
+        content = content,
+        source = "user",
+        category = "preference",
+    )
 
     @Test
     fun `detects promotion candidate after 5 invocations`() = runBlocking {

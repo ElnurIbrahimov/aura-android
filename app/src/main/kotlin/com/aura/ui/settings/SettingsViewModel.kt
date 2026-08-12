@@ -205,6 +205,7 @@ data class SettingsUiState(
     val evolutionEnabled: Boolean = false,
     val evolutionIntervalHours: Int = 24,
     val evolutionAutoApply: Boolean = false,
+    val evolutionProposalsEnabled: Boolean = false,
     val daemonEnabled: Boolean = false,
     /** Daemon thinking-worker cadence in minutes (default 60). */
     val daemonIntervalMinutes: Int = com.aura.data.UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES,
@@ -393,6 +394,10 @@ class SettingsViewModel @Inject constructor(
             val evolutionAutoApply = runCatching {
                 evolutionSettingsStore.all().any { it.autoApplyApproved }
             }.onFailure { Log.w("SettingsViewModel", "runCatching failed: ${it.message}", it) }.getOrDefault(false)
+            val evolutionProposalsEnabled = runCatching {
+                evolutionSettingsStore.all().any { it.reflectionEnabled }
+            }.onFailure { Log.w("SettingsViewModel", "reflection read failed: ${it.message}", it) }
+                .getOrDefault(false)
             val daemonEnabled = userPreferences.daemonEnabled.first()
             val daemonIntervalMinutes = userPreferences.daemonIntervalMinutes.first()
             val councilEnabled = userPreferences.councilEnabled.first()
@@ -482,6 +487,7 @@ class SettingsViewModel @Inject constructor(
                 evolutionEnabled = evolutionEnabled,
                 evolutionIntervalHours = evolutionIntervalHours,
                 evolutionAutoApply = evolutionAutoApply,
+                evolutionProposalsEnabled = evolutionProposalsEnabled,
                 daemonEnabled = daemonEnabled,
                 daemonIntervalMinutes = daemonIntervalMinutes,
                 councilEnabled = councilEnabled,
@@ -622,6 +628,30 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setEvolutionIntervalHours(hours)
             _state.update { it.copy(evolutionIntervalHours = hours) }
+        }
+    }
+
+    /**
+     * Whether Aura may turn the improvements it has noticed into proposals.
+     *
+     * This is the switch that decides whether evolution does anything at all.
+     * `EvolutionSettingsEntity.reflectionEnabled` defaults to false and had no
+     * writer anywhere in the app — only tests ever set it — so the coordinator
+     * skipped every candidate on the device and no proposal had ever been
+     * created. Detectors ran, evidence accumulated, and the inbox stayed empty
+     * by construction rather than because there was nothing to say.
+     *
+     * Turning it on is propose-only: proposals appear in the inbox for review.
+     * Applying them is a separate, independent switch.
+     */
+    fun setEvolutionProposals(enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                for (domain in com.aura.evolution.EvolutionDomain.entries) {
+                    evolutionSettingsStore.setReflectionEnabled(domain, enabled)
+                }
+            }.onFailure { Log.w("SettingsVM", "setEvolutionProposals failed: ${it.message}", it) }
+            _state.update { it.copy(evolutionProposalsEnabled = enabled) }
         }
     }
 

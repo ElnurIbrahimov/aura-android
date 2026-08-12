@@ -224,6 +224,16 @@ data class MemoryBackup(
     val embeddingModel: String? = null,
     /** Schema version of the embedding vector. 0 = pre-field. */
     val embeddingVersion: Int = 0,
+    /**
+     * Retirement state. A retired memory is superseded, not deleted, so a
+     * restore that dropped these would resurrect every memory a consolidation
+     * or correction had replaced — silently reintroducing facts the user had
+     * already told Aura were wrong. Null in older backups, which is correct:
+     * nothing was retired before the column existed.
+     */
+    val retiredAt: Long? = null,
+    val supersededBy: String? = null,
+    val retiredReason: String? = null,
 )
 
 @Serializable

@@ -53,7 +53,13 @@ class UseSkillToolEvolutionHookTest {
     }
 
     @Test
-    fun `invoke missing skill records skill_failed evidence`() = runBlocking {
+    fun `a name that matches no skill is a lookup miss, not a skill failure`() = runBlocking {
+        // This branch was the ONLY writer of skill_failed in the app, and it
+        // recorded the literal id "_unknown_" — so the one signal feeding the
+        // PATCH_SKILL detector accumulated under an id that resolves to
+        // nothing, and every candidate it could raise named a skill that could
+        // not be fetched, patched, or displayed. No skill ran here, so nothing
+        // about a skill failed.
         coEvery { skillsStore.awaitLoaded() } returns Unit
         coEvery { skillsStore.findByName("Missing") } returns null
         coEvery { skillsStore.skills } returns MutableStateFlow(emptyList())
@@ -64,7 +70,8 @@ class UseSkillToolEvolutionHookTest {
         tool.tool.execute(ToolCall("c1", "use_skill", mapOf("name" to "Missing")), ToolContext("conv-2"))
 
         assertEquals(1, captured.size)
-        assertEquals("skill_failed", captured[0].kind)
-        assertTrue(captured[0].payloadJson.contains("skill_not_found"))
+        assertEquals("skill_lookup_missed", captured[0].kind)
+        assertEquals("Missing", captured[0].sourceEntityId)
+        assertTrue(!captured[0].sourceEntityId.contains("_unknown_"))
     }
 }

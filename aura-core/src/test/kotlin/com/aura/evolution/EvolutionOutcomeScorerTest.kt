@@ -25,6 +25,7 @@ class EvolutionOutcomeScorerTest {
         status: String = ProposalStatus.APPLIED.name,
         resolvedAt: Long? = now - 8 * day,
         patchJson: String = """{"body":"x"}""",
+        rollbackSnapshotJson: String = "{}",
     ) = EvolutionProposalEntity(
         id = "p1",
         domain = EvolutionDomain.SKILL.name,
@@ -33,6 +34,26 @@ class EvolutionOutcomeScorerTest {
         status = status,
         resolvedAt = resolvedAt,
         patchJson = patchJson,
+        rollbackSnapshotJson = rollbackSnapshotJson,
+    )
+
+    private fun consolidationSnapshot(vararg sourceIds: String) = EvolutionPatchJson.json
+        .encodeToString(
+            ConsolidateMemoriesSnapshot.serializer(),
+            ConsolidateMemoriesSnapshot(
+                consolidatedMemoryId = "merged",
+                sources = sourceIds.map {
+                    com.aura.memory.MemoryEntity(id = it, content = it, source = "user", category = "fact")
+                },
+            ),
+        )
+
+    private fun memoryRecall(sourceId: String, at: Long) = EvolutionEvidenceEntity(
+        id = java.util.UUID.randomUUID().toString(),
+        domain = EvolutionDomain.MEMORY.name,
+        kind = "memory_recalled",
+        sourceEntityId = sourceId,
+        createdAt = at,
     )
 
     @Test
@@ -142,11 +163,76 @@ class EvolutionOutcomeScorerTest {
     }
 
     @Test
-    fun `consolidation that survived scores 0_7`() = runTest {
+    fun `consolidation is judged on whether the merged memory still gets recalled`() = runTest {
+        // The old scorer returned a flat 0.7 named "consolidation_survived_Nd"
+        // and read no evidence at all, so a merge that destroyed a fact the
+        // user relied on daily scored the same as one that worked.
+        val applied = now - 8 * day
         val dao = mockk<EvolutionEvidenceDao>(relaxed = true)
-        val outcome = EvolutionOutcomeScorer(dao)
-            .score(proposal(action = EvolutionAction.CONSOLIDATE_MEMORIES.name), now)
-        assertEquals(0.7f, outcome?.score)
+        coEvery { dao.forSource("m1", any()) } returns listOf(
+            memoryRecall("m1", applied - day),
+            memoryRecall("m1", applied - 2 * day),
+        )
+        coEvery { dao.forSource("m2", any()) } returns emptyList()
+        coEvery { dao.forSource("merged", any()) } returns listOf(
+            memoryRecall("merged", applied + day),
+            memoryRecall("merged", applied + 2 * day),
+        )
+        val scorer = EvolutionOutcomeScorer(dao)
+        val carried = scorer.score(
+            proposal(
+                action = EvolutionAction.CONSOLIDATE_MEMORIES.name,
+                rollbackSnapshotJson = consolidationSnapshot("m1", "m2"),
+            ),
+            now,
+        )
+        assertEquals(0.9f, carried?.score)
+        assertEquals("consolidated_memory_carries_recall", carried?.signal)
+
+        // Same merge, but the fact stopped being found afterwards.
+        coEvery { dao.forSource("merged", any()) } returns emptyList()
+        val lost = scorer.score(
+            proposal(
+                action = EvolutionAction.CONSOLIDATE_MEMORIES.name,
+                rollbackSnapshotJson = consolidationSnapshot("m1", "m2"),
+            ),
+            now,
+        )
+        assertEquals(0.2f, lost?.score)
+        assertEquals("consolidated_memory_never_recalled", lost?.signal)
+    }
+
+    @Test
+    fun `consolidation with nothing to lose is neutral, not good`() = runTest {
+        val dao = mockk<EvolutionEvidenceDao>(relaxed = true)
+        coEvery { dao.forSource(any(), any()) } returns emptyList()
+        val outcome = EvolutionOutcomeScorer(dao).score(
+            proposal(
+                action = EvolutionAction.CONSOLIDATE_MEMORIES.name,
+                rollbackSnapshotJson = consolidationSnapshot("m1", "m2"),
+            ),
+            now,
+        )
+        assertEquals(0.5f, outcome?.score)
+        assertEquals("consolidation_no_recall_baseline", outcome?.signal)
+    }
+
+    @Test
+    fun `equal event counts either side of apply do not read as a regression`() = runTest {
+        // The before-rate divided by 14 while the after-rate divided by the
+        // elapsed days, so at day 7 — when proposals are first scored — an
+        // unchanged failure count read twice as high after as before, and
+        // every patch that changed nothing scored "worse".
+        val applied = now - 7 * day
+        val dao = mockk<EvolutionEvidenceDao>(relaxed = true)
+        coEvery { dao.byKind(EvolutionDomain.SKILL.name, "skill_failed", any()) } returns listOf(
+            evidence("skill_failed", "s1", applied - 2 * day),
+            evidence("skill_failed", "s1", applied - day),
+            evidence("skill_failed", "s1", applied + day),
+            evidence("skill_failed", "s1", applied + 2 * day),
+        )
+        val outcome = EvolutionOutcomeScorer(dao).score(proposal(resolvedAt = applied), now)
+        assertEquals("failure_rate_unchanged", outcome?.signal)
     }
 
     @Test

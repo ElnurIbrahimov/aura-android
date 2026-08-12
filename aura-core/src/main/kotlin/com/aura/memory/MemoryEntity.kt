@@ -41,6 +41,23 @@ data class MemoryEntity(
     val embeddingModel: kotlin.String? = null,
     /** Version of the embedding model for cache invalidation. */
     val embeddingVersion: Int = 0,
+    /**
+     * When this memory stopped being retrievable, or null while it is live.
+     *
+     * Retirement exists because the two ways a memory can stop being true are
+     * not the same thing. A mistake should vanish; a fact the world moved past
+     * is history, and history that is deleted cannot be asked about later. Both
+     * leave the row in place — nothing here is ever destroyed — so being wrong
+     * about being wrong stays recoverable.
+     *
+     * Read paths filter on this. Export does not: a backup that dropped retired
+     * rows would quietly make a restore destructive.
+     */
+    @ColumnInfo(name = "retiredAt") val retiredAt: kotlin.Long? = null,
+    /** The memory that replaced this one, when one did. */
+    @ColumnInfo(name = "supersededBy") val supersededBy: kotlin.String? = null,
+    /** Why it was retired — "consolidated", "corrected", "superseded". */
+    @ColumnInfo(name = "retiredReason") val retiredReason: kotlin.String? = null,
 ) {
     // Room requires equals/hashCode; ByteArray needs special handling
     override fun equals(other: Any?): Boolean {

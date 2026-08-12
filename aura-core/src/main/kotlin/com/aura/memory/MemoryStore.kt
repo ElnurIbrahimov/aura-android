@@ -680,6 +680,164 @@ class MemoryStore @Inject constructor(
             .onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryForgotten failed (non-fatal)", it) }
     }
 
+    /**
+     * Groups of memories that appear to say the same thing.
+     *
+     * This exists because the consolidation detector used to fire on *recall
+     * count* — a memory recalled twenty-one times in a month became a candidate
+     * to be merged away. That is backwards twice over: heavy recall is evidence
+     * a memory is working, and it says nothing whatever about whether a second
+     * memory duplicates it. The signal for "these should be one memory" is that
+     * they are near-copies, which is a question about content.
+     *
+     * Comparison is confined to memories sharing a scope and category, so a
+     * cluster can never propose a merge that would widen who can recall a fact.
+     * Pairs are joined transitively: A~B and B~C means one cluster, not two.
+     *
+     * @param minSimilarity floor for two memories to be called near-copies.
+     *   Deliberately below [SEMANTIC_DEDUP_THRESHOLD] — anything at or above
+     *   that was already blocked at write time, so the pairs worth finding here
+     *   are the ones that got past it.
+     */
+    suspend fun findNearDuplicateClusters(
+        poolLimit: Int = 300,
+        minSimilarity: Float = NEAR_DUPLICATE_THRESHOLD,
+        maxClusters: Int = 10,
+    ): List<DuplicateCluster> {
+        val pool = dao.recentWithEmbeddings(poolLimit)
+        val clusters = mutableListOf<DuplicateCluster>()
+        for ((_, group) in pool.groupBy { it.scope to it.category }) {
+            if (group.size < 2) continue
+            val vectors = group.map { Embedder.fromBytes(it.embedding!!) }
+            val parent = IntArray(group.size) { it }
+            fun find(i: Int): Int {
+                var root = i
+                while (parent[root] != root) root = parent[root]
+                return root
+            }
+            // Similarities are kept so the score can report how alike the
+            // members actually are rather than merely that they crossed a line.
+            val sims = mutableMapOf<Pair<Int, Int>, Float>()
+            for (i in group.indices) {
+                for (j in i + 1 until group.size) {
+                    // A changed embedding model leaves rows at different
+                    // dimensions; comparing them produces a number, not a
+                    // meaning.
+                    if (vectors[i].size != vectors[j].size) continue
+                    val sim = cosineSimilarity(vectors[i], vectors[j])
+                    if (sim < minSimilarity) continue
+                    sims[i to j] = sim
+                    parent[find(i)] = find(j)
+                }
+            }
+            if (sims.isEmpty()) continue
+            for ((root, members) in group.indices.groupBy { find(it) }) {
+                if (members.size < 2) continue
+                val within = sims.filterKeys { (a, b) -> find(a) == root && find(b) == root }.values
+                if (within.isEmpty()) continue
+                clusters += DuplicateCluster(
+                    memories = members.map { group[it] },
+                    meanSimilarity = within.average().toFloat(),
+                )
+            }
+        }
+        return clusters.sortedByDescending { it.meanSimilarity }.take(maxClusters)
+    }
+
+    /**
+     * Replace [sources] with a single memory that inherits what they earned.
+     *
+     * Consolidation used to mint a fresh row at a hardcoded importance of 0.7
+     * and hard-delete the originals, so merging two memories the user relied on
+     * daily produced one average-looking memory with no history, no tags and an
+     * access count of zero — the merge itself demoted the fact. Everything that
+     * represents accumulated evidence is therefore carried forward rather than
+     * reset: importance and decay take the strongest source, the access count
+     * sums, tags union, and the creation date stays with the oldest source
+     * because that is when the fact was actually learned.
+     *
+     * Sources are retired, not deleted, so undoing this is a restore.
+     *
+     * @return the consolidated memory's id.
+     */
+    suspend fun consolidate(
+        sources: List<MemoryEntity>,
+        content: String,
+        category: String,
+        now: Long = System.currentTimeMillis(),
+    ): String {
+        require(sources.size >= 2) { "consolidate needs at least 2 sources" }
+        val scopes = sources.map { it.scope }.toSet()
+        require(scopes.size == 1) { "consolidate cannot span scopes: $scopes" }
+        val oldest = sources.minBy { it.createdAt }
+        val id = store(
+            content = content,
+            source = "evolution:consolidate",
+            category = category,
+            importance = sources.maxOf { it.importance },
+            tags = sources.flatMap { it.tags.split(",") }.map { it.trim() }
+                .filter { it.isNotEmpty() }.distinct().sorted(),
+            scope = scopes.first(),
+            provenance = ConversationProvenance(
+                conversationId = oldest.sourceConversationId,
+                turnTimestamp = oldest.sourceTurnTimestamp,
+            ),
+        )
+        // The remaining fields have no parameter on store() because nothing
+        // else has a reason to set them. Written straight through rather than
+        // via update(), which is the user-edit path and would log an edit the
+        // user did not make.
+        dao.getById(id)?.let { stored ->
+            dao.update(
+                stored.copy(
+                    createdAt = oldest.createdAt,
+                    accessedAt = sources.maxOf { it.accessedAt },
+                    accessCount = sources.sumOf { it.accessCount },
+                    decayScore = sources.maxOf { it.decayScore },
+                    metadata = json.encodeToString(
+                        ConsolidationProvenance.serializer(),
+                        ConsolidationProvenance(sources.map { it.id }, now),
+                    ),
+                ),
+            )
+        }
+        for (source in sources) {
+            retire(source.id, supersededBy = id, reason = REASON_CONSOLIDATED, now = now)
+        }
+        return id
+    }
+
+    /**
+     * Stop [id] being retrievable without destroying it.
+     *
+     * The distinction from [forget] is the whole point: a memory that has been
+     * superseded is history, and background machinery that decides a memory
+     * should stop surfacing must never be the thing that decides it should
+     * stop existing. [supersededBy] names what replaced it when something did.
+     *
+     * @return true when this call performed the retirement; false when the row
+     *   was missing or already retired, so a re-run cannot rewrite the reason.
+     */
+    suspend fun retire(
+        id: String,
+        supersededBy: String? = null,
+        reason: String = "superseded",
+        now: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val changed = dao.retire(id, supersededBy, reason, now) > 0
+        if (changed) {
+            runCatching { evolutionHooks?.onMemoryForgotten(id) }
+                .onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryForgotten failed (non-fatal)", it) }
+        }
+        return changed
+    }
+
+    /** Undo [retire], putting the row back into recall exactly as it was. */
+    suspend fun unretire(id: String) = dao.unretire(id)
+
+    /** Retired rows, newest first. */
+    suspend fun retired(limit: Int = 100): List<MemoryEntity> = dao.retired(limit)
+
     suspend fun recordFeedback(memoryId: String, kind: String, note: String = "") {
         val row = MemoryFeedbackEntity(
             id = java.util.UUID.randomUUID().toString(),
@@ -1009,3 +1167,38 @@ internal fun escapeLikeWildcards(s: String): String = s
  * light mode") to be stored separately.
  */
 private const val SEMANTIC_DEDUP_THRESHOLD = 0.92f
+
+/** [MemoryEntity.retiredReason] written when a consolidation supersedes a row. */
+const val REASON_CONSOLIDATED = "consolidated"
+
+/**
+ * Cosine floor for calling two memories near-copies of each other.
+ *
+ * Below [SEMANTIC_DEDUP_THRESHOLD] on purpose: 0.92 and above never reaches
+ * storage, so the duplicates that survive to need consolidating all sit under
+ * it. 0.85 is loose enough to catch a fact restated months apart in different
+ * words and tight enough that "I prefer dark mode" and "I prefer light mode"
+ * stay apart.
+ */
+const val NEAR_DUPLICATE_THRESHOLD = 0.85f
+
+/** A group of memories that appear to state the same fact. */
+data class DuplicateCluster(
+    val memories: List<MemoryEntity>,
+    val meanSimilarity: Float,
+)
+
+/**
+ * What a consolidated memory was made of, stored in its [MemoryEntity.metadata].
+ *
+ * The sources are retired rather than deleted, so this is a live pointer to
+ * rows that still exist — which is what lets the memory answer "where did this
+ * come from" long after the proposal that merged them has been swept.
+ */
+@kotlinx.serialization.Serializable
+data class ConsolidationProvenance(
+    val consolidatedFrom: List<String> = emptyList(),
+    val consolidatedAt: Long = 0L,
+)
+
+private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }

@@ -57,7 +57,7 @@ class UseSkillTool @Inject constructor(
             skillsStore.awaitLoaded()
             val skill: Skill = skillsStore.findByName(name.trim())
                 ?: run {
-                    evolutionHooks?.onSkillFailed("_unknown_", "skill_not_found", conversationId = ctx.conversationId)
+                    evolutionHooks?.onSkillLookupMissed(name.trim(), conversationId = ctx.conversationId)
                     return@Tool ToolResult.Error(
                         "No skill named '$name'. Available: " +
                             skillsStore.skills.value.joinToString { it.name }.ifBlank { "(none yet)" },

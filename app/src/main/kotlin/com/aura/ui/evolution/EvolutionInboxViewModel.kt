@@ -45,13 +45,32 @@ class EvolutionInboxViewModel @Inject constructor(
     private val _showOnboarding = MutableStateFlow(false)
     val showOnboarding: StateFlow<Boolean> = _showOnboarding.asStateFlow()
 
+    /**
+     * Changes Aura has already made that can still be undone.
+     *
+     * Kept separate from [proposals] so the inbox stays a list of things
+     * awaiting a decision, but loaded at the same time — an applied proposal is
+     * exactly the one a rollback needs to find, and it appears in no other list
+     * in the app.
+     */
+    private val _applied = MutableStateFlow<List<EvolutionProposalEntity>>(emptyList())
+    val applied: StateFlow<List<EvolutionProposalEntity>> = _applied.asStateFlow()
+
     fun load() {
         viewModelScope.launch {
             _proposals.value = proposalDao.open()
+            _applied.value = runCatching {
+                proposalDao.appliedSince(System.currentTimeMillis() - ROLLBACK_WINDOW_MS)
+            }.onFailure { Log.w("EvoInboxVM", "applied load failed: ${it.message}", it) }
+                .getOrDefault(emptyList())
             _settings.value = EvolutionDomain.entries.map { settingsDao.get(it.name) ?: EvolutionSettingsEntity(it.name) }
             _showOnboarding.value = !userPreferences.evolutionOnboardingShown.first() && _proposals.value.isEmpty()
         }
     }
+
+    /** Find a proposal by id across both lists, for the rollback screen. */
+    fun find(id: String): EvolutionProposalEntity? =
+        _proposals.value.firstOrNull { it.id == id } ?: _applied.value.firstOrNull { it.id == id }
 
     fun dismissOnboarding() {
         viewModelScope.launch {
@@ -106,5 +125,10 @@ class EvolutionInboxViewModel @Inject constructor(
             settingsDao.upsert(current.copy(enabled = enabled, updatedAt = System.currentTimeMillis()))
             load()
         }
+    }
+
+    companion object {
+        /** How long an applied change stays offered for rollback. */
+        const val ROLLBACK_WINDOW_MS = 30L * 24 * 60 * 60 * 1000
     }
 }

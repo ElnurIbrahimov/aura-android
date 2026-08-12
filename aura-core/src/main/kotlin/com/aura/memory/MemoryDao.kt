@@ -29,7 +29,7 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE id = :id")
     suspend fun getById(id: String): MemoryEntity?
 
-    @Query("SELECT * FROM memories ORDER BY createdAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recent(limit: Int = 50): List<MemoryEntity>
 
     /**
@@ -37,7 +37,7 @@ interface MemoryDao {
      * [limit] so the morning brief can show "what you learned in the
      * last 24h" without scanning the full table on large installs.
      */
-    @Query("SELECT * FROM memories WHERE createdAt >= :sinceMs ORDER BY createdAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE createdAt >= :sinceMs AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recentSince(sinceMs: Long, limit: Int = 20): List<MemoryEntity>
 
     /**
@@ -46,22 +46,25 @@ interface MemoryDao {
      * are fading." Returns up to [limit] rows ordered by decayScore
      * ASC (most-faded first).
      */
-    @Query("SELECT * FROM memories WHERE decayScore <= :threshold ORDER BY decayScore ASC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE decayScore <= :threshold AND retiredAt IS NULL ORDER BY decayScore ASC LIMIT :limit")
     suspend fun decayedBelow(threshold: Float, limit: Int = 20): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE category = :category ORDER BY createdAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE category = :category AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byCategory(category: String, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope = :scope ORDER BY accessedAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE scope = :scope AND retiredAt IS NULL ORDER BY accessedAt DESC LIMIT :limit")
     suspend fun byScope(scope: String, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope = 'general' OR scope LIKE :scopePrefix ORDER BY accessedAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE (scope = 'general' OR scope LIKE :scopePrefix) AND retiredAt IS NULL ORDER BY accessedAt DESC LIMIT :limit")
     suspend fun withinScope(scopePrefix: String, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byScopes(scopes: List<String>, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
+    @Query(
+        "SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' " +
+            "AND retiredAt IS NULL ORDER BY decayScore DESC LIMIT :limit",
+    )
     suspend fun searchByTextInScopes(query: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
 
     /**
@@ -78,7 +81,7 @@ interface MemoryDao {
      */
     @Query(
         "SELECT m.* FROM memories m JOIN memories_fts f ON f.rowid = m.rowid " +
-            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes) " +
+            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes) AND m.retiredAt IS NULL " +
             "ORDER BY m.decayScore DESC LIMIT :limit",
     )
     suspend fun searchFts(ftsQuery: String, scopes: List<String>, limit: Int = 50): List<MemoryEntity>
@@ -92,7 +95,7 @@ interface MemoryDao {
      * clamped them all to the same floor, so the lexical signal ranked
      * essentially at random.
      */
-    @Query("SELECT COUNT(*) FROM memories WHERE scope IN (:scopes)")
+    @Query("SELECT COUNT(*) FROM memories WHERE scope IN (:scopes) AND retiredAt IS NULL")
     suspend fun countInScopes(scopes: List<String>): Int
 
     /**
@@ -102,7 +105,7 @@ interface MemoryDao {
      */
     @Query(
         "SELECT COUNT(*) FROM memories m JOIN memories_fts f ON f.rowid = m.rowid " +
-            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes)",
+            "WHERE f.content MATCH :ftsQuery AND m.scope IN (:scopes) AND m.retiredAt IS NULL",
     )
     suspend fun docFreqInScopes(ftsQuery: String, scopes: List<String>): Int
 
@@ -143,7 +146,7 @@ interface MemoryDao {
         insertEdits(edits)
     }
 
-    @Query("SELECT * FROM memories WHERE scope IN (:scopes) ORDER BY createdAt DESC")
+    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND retiredAt IS NULL ORDER BY createdAt DESC")
     suspend fun allByScopes(scopes: List<String>): List<MemoryEntity>
 
     /**
@@ -153,15 +156,18 @@ interface MemoryDao {
      * table and decoding every embedding into memory.
      */
     @Query(
-        "SELECT * FROM memories WHERE scope IN (:scopes) AND embedding IS NOT NULL " +
+        "SELECT * FROM memories WHERE scope IN (:scopes) AND embedding IS NOT NULL AND retiredAt IS NULL " +
             "ORDER BY accessCount DESC, decayScore DESC LIMIT :limit"
     )
     suspend fun vectorScanCandidates(scopes: List<String>, limit: Int): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE content LIKE :query ESCAPE '\\' ORDER BY decayScore DESC LIMIT :limit")
+    @Query(
+        "SELECT * FROM memories WHERE content LIKE :query ESCAPE '\\' AND retiredAt IS NULL " +
+            "ORDER BY decayScore DESC LIMIT :limit",
+    )
     suspend fun searchByText(query: String, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories ORDER BY decayScore DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE retiredAt IS NULL ORDER BY decayScore DESC LIMIT :limit")
     suspend fun top(limit: Int = 50): List<MemoryEntity>
 
     /**
@@ -183,7 +189,8 @@ interface MemoryDao {
      */
     @Query(
         "SELECT COUNT(*) FROM memories " +
-            "WHERE embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model",
+            "WHERE retiredAt IS NULL " +
+            "AND (embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model)",
     )
     suspend fun countNeedingReembed(model: String): Int
 
@@ -198,7 +205,8 @@ interface MemoryDao {
      */
     @Query(
         "SELECT * FROM memories " +
-            "WHERE embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model " +
+            "WHERE retiredAt IS NULL " +
+            "AND (embedding IS NULL OR embeddingModel IS NULL OR embeddingModel != :model) " +
             "ORDER BY accessCount DESC, decayScore DESC LIMIT :limit",
     )
     suspend fun needingReembed(model: String, limit: Int): List<MemoryEntity>
@@ -225,6 +233,29 @@ interface MemoryDao {
     @Query("UPDATE memories SET tags = :tags WHERE id = :id")
     suspend fun updateTags(id: String, tags: String)
 
+    /**
+     * Retire a memory instead of deleting it: it stops being retrievable and
+     * stays readable by id, so a rollback restores the row rather than a copy
+     * of it reconstructed from a snapshot.
+     *
+     * The `retiredAt IS NULL` guard makes this idempotent — re-running an apply
+     * after a crash must not overwrite the first retirement's reason or move
+     * its timestamp forward.
+     */
+    @Query(
+        "UPDATE memories SET retiredAt = :now, supersededBy = :supersededBy, retiredReason = :reason " +
+            "WHERE id = :id AND retiredAt IS NULL",
+    )
+    suspend fun retire(id: String, supersededBy: String?, reason: String, now: Long): Int
+
+    /** Undo [retire]. */
+    @Query("UPDATE memories SET retiredAt = NULL, supersededBy = NULL, retiredReason = NULL WHERE id = :id")
+    suspend fun unretire(id: String)
+
+    /** Retired rows, newest first — the history view and rollback both read this. */
+    @Query("SELECT * FROM memories WHERE retiredAt IS NOT NULL ORDER BY retiredAt DESC LIMIT :limit")
+    suspend fun retired(limit: Int = 100): List<MemoryEntity>
+
     @Query("DELETE FROM memories WHERE id = :id")
     suspend fun delete(id: String)
 
@@ -244,10 +275,10 @@ interface MemoryDao {
     @Query("UPDATE memories SET decayScore = decayScore * :factor WHERE createdAt < :cutoff")
     suspend fun applyDecay(cutoff: Long, factor: Float)
 
-    @Query("SELECT COUNT(*) FROM memories")
+    @Query("SELECT COUNT(*) FROM memories WHERE retiredAt IS NULL")
     fun count(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM memories")
+    @Query("SELECT COUNT(*) FROM memories WHERE retiredAt IS NULL")
     suspend fun countOnce(): Int
 
     /**
@@ -256,7 +287,7 @@ interface MemoryDao {
      * says "I prefer dark mode" across three conversations, only the
      * first one should be stored.
      */
-    @Query("SELECT COUNT(*) FROM memories WHERE content = :content LIMIT 1")
+    @Query("SELECT COUNT(*) FROM memories WHERE content = :content AND retiredAt IS NULL LIMIT 1")
     suspend fun existsByContent(content: String): Int
 
     /**
@@ -276,7 +307,7 @@ interface MemoryDao {
      * the previous full-table scan decoded every embedding in the DB under
      * the insert mutex on every auto-store.
      */
-    @Query("SELECT * FROM memories WHERE embedding IS NOT NULL ORDER BY createdAt DESC LIMIT :limit")
+    @Query("SELECT * FROM memories WHERE embedding IS NOT NULL AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recentWithEmbeddings(limit: Int): List<MemoryEntity>
 
     /**

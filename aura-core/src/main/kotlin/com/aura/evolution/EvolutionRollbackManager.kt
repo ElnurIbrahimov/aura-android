@@ -97,9 +97,18 @@ class EvolutionRollbackManager @Inject constructor(
                     .onFailure { android.util.Log.w(TAG, "rollback: decode ConsolidateMemoriesSnapshot failed: ${it.message}", it) }
                     .getOrNull()
                     ?: return RollbackResult.Error("snapshot is not a valid ConsolidateMemoriesSnapshot")
-                store.forget(snap.consolidatedMemoryId)
+                // An empty id means the apply recorded its snapshot and then
+                // failed before the write — there is nothing to remove, and
+                // the sources were never retired.
+                if (snap.consolidatedMemoryId.isNotBlank()) {
+                    store.forget(snap.consolidatedMemoryId)
+                }
+                // Un-retire rather than re-insert. The rows were never deleted,
+                // so restoring from the snapshot would overwrite whatever has
+                // happened to them since — including any recall that touched
+                // them — with a copy taken at apply time.
                 for (source in snap.sources) {
-                    store.restore(source)
+                    store.unretire(source.id)
                 }
                 RollbackResult.Ok("removed consolidated memory and restored ${snap.sources.size} source memories")
             }

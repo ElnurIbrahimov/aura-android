@@ -36,11 +36,16 @@ fun EvolutionRollbackScreen(
     viewModel: EvolutionInboxViewModel = hiltViewModel(),
 ) {
     val proposals by viewModel.proposals.collectAsStateWithLifecycle()
+    val applied by viewModel.applied.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
-    val proposal = remember(proposals, proposalId) { proposals.firstOrNull { it.id == proposalId } }
+    // Both lists: this screen is only ever reached for an APPLIED proposal,
+    // which by definition is not in the open inbox.
+    val proposal = remember(proposals, applied, proposalId) {
+        proposals.firstOrNull { it.id == proposalId } ?: applied.firstOrNull { it.id == proposalId }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(AuraSpacing.md)) {
         IconButton(onClick = onBack) {

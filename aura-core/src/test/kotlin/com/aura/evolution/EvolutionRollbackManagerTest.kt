@@ -88,7 +88,7 @@ class EvolutionRollbackManagerTest {
     }
 
     @Test
-    fun `rollback consolidate memories forgets consolidated and restores all sources`() = runTest {
+    fun `rollback consolidate memories forgets consolidated and un-retires all sources`() = runTest {
         val m1 = MemoryEntity(id = "m1", content = "a", source = "user", category = "fact")
         val m2 = MemoryEntity(id = "m2", content = "b", source = "user", category = "fact")
         val proposal = appliedProposal(
@@ -105,15 +105,18 @@ class EvolutionRollbackManagerTest {
         coEvery { dao.getById("p1") } returns proposal
         coEvery { dao.open() } returns emptyList()
         coEvery { memoryStore.forget(any()) } just Runs
-        coEvery { memoryStore.restore(any(), any()) } just Runs
         val manager = EvolutionRollbackManager(dao, mockk(relaxed = true), EvolutionMetrics(), null, memoryStore)
 
         val result = manager.rollback("p1")
 
         assertTrue(result is EvolutionRollbackManager.RollbackResult.Ok)
         coVerify { memoryStore.forget("c1") }
-        coVerify { memoryStore.restore(match { it.id == "m1" }, any()) }
-        coVerify { memoryStore.restore(match { it.id == "m2" }, any()) }
+        // Un-retired, not re-inserted from the snapshot. The rows were never
+        // deleted, so writing the snapshot back over them would discard
+        // anything that happened to them between apply and rollback.
+        coVerify { memoryStore.unretire("m1") }
+        coVerify { memoryStore.unretire("m2") }
+        coVerify(exactly = 0) { memoryStore.restore(any(), any()) }
     }
 
     @Test

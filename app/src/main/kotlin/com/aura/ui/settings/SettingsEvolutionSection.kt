@@ -41,6 +41,22 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             Spacer(modifier = Modifier.padding(top = AuraSpacing.xs))
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Suggest improvements", modifier = Modifier.weight(1f))
+                Switch(
+                    checked = state.evolutionProposalsEnabled,
+                    onCheckedChange = { viewModel.setEvolutionProposals(it) },
+                )
+            }
+            Text(
+                "Aura watches how its skills and memories are actually used. With this on, what it " +
+                    "notices becomes a proposal in the inbox for you to read and decide on. Nothing " +
+                    "changes on its own.",
+                style = MaterialTheme.typography.labelSmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = AuraSpacing.xxs),
+            )
+            Spacer(modifier = Modifier.padding(top = AuraSpacing.xs))
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Auto-apply approved proposals", modifier = Modifier.weight(1f))
                 Switch(checked = autoApply, onCheckedChange = { viewModel.setEvolutionAutoApply(it) })
             }

@@ -126,40 +126,46 @@ class EvolutionApplySaga @Inject constructor(
         if (patch.memoryIds.size < 2) return ApplyResult.Error(proposal.id, "fewer than 2 memoryIds in patch")
         if (patch.consolidatedContent.isBlank()) return ApplyResult.Error(proposal.id, "consolidatedContent is blank")
         // D7: fetch the FULL source entities up front. Only the ones that
-        // still exist are deleted, and exactly those are snapshotted.
+        // still exist are retired, and exactly those are snapshotted.
         val sources = patch.memoryIds.distinct().mapNotNull { id -> store.get(id) }
         if (sources.size < 2) {
             return ApplyResult.Error(proposal.id, "fewer than 2 source memories still exist")
         }
-        // Scope selection: keep a shared scope when all sources agree,
-        // otherwise fall back to "general" (no single correct scope exists
-        // for a cross-agent consolidation).
+        // A consolidation that spans scopes is refused rather than widened.
+        // The old behaviour stored the merged memory in "general", which is
+        // visible to every agent — so merging a private project memory with a
+        // general one silently broadened who could recall it. There is no
+        // correct scope for that merge, and inventing one is a disclosure, not
+        // a default.
         val sourceScopes = sources.map { it.scope }.toSet()
-        val targetScope = when {
-            sourceScopes.size == 1 -> sourceScopes.first()
-            else -> {
-                android.util.Log.w(TAG,
-                    "applyConsolidateMemories: cross-scope consolidation " +
-                        "(${sourceScopes.size} distinct scopes: $sourceScopes) — " +
-                        "storing consolidated memory in 'general' (visible to all agents)")
-                "general"
-            }
-        }
-        // Store the consolidated memory BEFORE deleting sources. If store()
-        // throws, the originals are untouched — no data loss.
-        val storedId = runCatching {
-            store.store(
-                patch.consolidatedContent,
-                "evolution:consolidate",
-                patch.category ?: "consolidated",
-                0.7f,
-                scope = targetScope,
+        if (sourceScopes.size > 1) {
+            return ApplyResult.Error(
+                proposal.id,
+                "sources span ${sourceScopes.size} scopes ($sourceScopes); refusing to widen to 'general'",
             )
-        }.onFailure { android.util.Log.w(TAG, "apply: consolidated store failed: ${it.message}", it) }
+        }
+        val targetScope = sourceScopes.first()
+        // Snapshot BEFORE the state change, so a crash between the two leaves a
+        // rollback that describes work which never happened rather than work
+        // that happened and cannot be undone.
+        proposalStore.recordRollbackSnapshot(
+            proposal.id,
+            json.encodeToString(
+                ConsolidateMemoriesSnapshot.serializer(),
+                ConsolidateMemoriesSnapshot(consolidatedMemoryId = "", sources = sources),
+            ),
+        )
+        val storedId = runCatching {
+            store.consolidate(
+                sources = sources,
+                content = patch.consolidatedContent,
+                category = patch.category ?: "consolidated",
+            )
+        }.onFailure { android.util.Log.w(TAG, "apply: consolidate failed: ${it.message}", it) }
             .getOrNull()
             ?: return ApplyResult.Error(proposal.id, "consolidated content was not stored")
-        // D7: snapshot the consolidated id + full source entities BEFORE the
-        // destructive step so rollback is an exact inverse.
+        // Re-record now that the consolidated id exists. Rollback needs it to
+        // remove the replacement, and it is unknowable before the write.
         proposalStore.recordRollbackSnapshot(
             proposal.id,
             json.encodeToString(
@@ -167,9 +173,6 @@ class EvolutionApplySaga @Inject constructor(
                 ConsolidateMemoriesSnapshot(consolidatedMemoryId = storedId, sources = sources),
             ),
         )
-        for (mem in sources) {
-            store.forget(mem.id)
-        }
         proposalStore.markApplied(proposal.id, "consolidated ${sources.size} memories into scope '$targetScope'")
         return ApplyResult.Ok(proposal.id, "consolidated ${sources.size} memories into scope '$targetScope'")
     }

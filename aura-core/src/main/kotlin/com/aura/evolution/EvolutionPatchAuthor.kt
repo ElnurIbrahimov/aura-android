@@ -141,9 +141,23 @@ class EvolutionPatchAuthor @Inject constructor(
                 ?: return ContextResult.Fail("MemoryStore not available")
             val target = store.get(candidate.targetId)
                 ?: return ContextResult.Fail("target memory not found: ${candidate.targetId}")
-            val related = store.recent(RELATED_MEMORY_POOL)
-                .filter { it.id != target.id && it.scope == target.scope && it.category == target.category }
-                .take(MAX_RELATED_MEMORIES)
+            // Prefer the cluster the detector actually found. Falling back to
+            // recent same-scope memories is only for candidates raised before
+            // the detector recorded its cluster; those rows carry no argsJson.
+            val cluster = runCatching {
+                EvolutionPatchJson.json
+                    .decodeFromString(MemoryClusterArgs.serializer(), candidate.argsJson)
+                    .memoryIds
+            }.getOrNull().orEmpty()
+            val related = if (cluster.isNotEmpty()) {
+                cluster.filter { it != target.id }.mapNotNull { store.get(it) }
+                    .filter { it.scope == target.scope }
+                    .take(MAX_RELATED_MEMORIES)
+            } else {
+                store.recent(RELATED_MEMORY_POOL)
+                    .filter { it.id != target.id && it.scope == target.scope && it.category == target.category }
+                    .take(MAX_RELATED_MEMORIES)
+            }
             if (related.isEmpty()) {
                 return ContextResult.Fail("no related memories to consolidate with ${candidate.targetId}")
             }

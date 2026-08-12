@@ -5,6 +5,13 @@ existed, the whole retrieval stack — six-signal RRF fusion, corpus-weighted
 BM25, query rewriting, a reranker, FadeMem decay — was tuned entirely by
 intuition, and there was no way to tell whether any component helped.
 
+**Two of those it still does not measure.** The harness constructs
+`MemoryStore` with `reranker` and `queryRewriter` null, because both make model
+calls and the suite is offline. So the `deictic` query class — the one written
+to exercise rewriting — is scored with rewriting off, and its low number says
+nothing about the rewriter. What the harness covers is fusion, BM25, the
+candidate pools and decay.
+
 **Location:** `aura-core/src/test/kotlin/com/aura/memory/eval/`
 **Fixtures:** `aura-core/src/test/resources/retrieval-eval/`
 **Report:** `aura-core/build/reports/retrieval-eval/scorecard.md`, written on

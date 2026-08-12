@@ -239,9 +239,8 @@ class EvolutionEndToEndApplyTest {
         coEvery { memoryStore.get("m1") } returns m1
         coEvery { memoryStore.get("m2") } returns m2
         coEvery { memoryStore.recent(any()) } returns listOf(m2)
-        coEvery { memoryStore.store(any(), any(), any(), any(), any(), any(), any()) } returns "consolidated-1"
+        coEvery { memoryStore.consolidate(any(), any(), any(), any()) } returns "consolidated-1"
         coEvery { memoryStore.forget(any()) } just Runs
-        coEvery { memoryStore.restore(any(), any()) } just Runs
 
         val author = EvolutionPatchAuthor(
             reflectionReturning(
@@ -256,9 +255,17 @@ class EvolutionEndToEndApplyTest {
         val saga = EvolutionApplySaga(proposalStore, null, null, memoryStore)
         val applied = saga.apply(proposal)
         assertTrue(applied is EvolutionApplySaga.ApplyResult.Ok, "apply must succeed, got $applied")
-        coVerify { memoryStore.store("Elnur prefers tea over coffee", any(), "preference", any(), any(), "general", any()) }
-        coVerify { memoryStore.forget("m1") }
-        coVerify { memoryStore.forget("m2") }
+        coVerify {
+            memoryStore.consolidate(
+                match { sources -> sources.map { it.id }.toSet() == setOf("m1", "m2") },
+                eq("Elnur prefers tea over coffee"),
+                eq("preference"),
+                any(),
+            )
+        }
+        // Retired, never deleted — the sources are still there to un-retire.
+        coVerify(exactly = 0) { memoryStore.forget("m1") }
+        coVerify(exactly = 0) { memoryStore.forget("m2") }
 
         // The snapshot holds the FULL source entities.
         val storedSnapshot = db.proposalDao().getById(proposal.id)!!.rollbackSnapshotJson
@@ -272,10 +279,10 @@ class EvolutionEndToEndApplyTest {
         )
         val rolled = rollback.rollback(proposal.id)
         assertTrue(rolled is EvolutionRollbackManager.RollbackResult.Ok, "rollback must succeed, got $rolled")
-        // Exact inverse: forget the consolidated memory, restore every source.
+        // Exact inverse: forget the consolidated memory, put every source back.
         coVerify { memoryStore.forget("consolidated-1") }
-        coVerify { memoryStore.restore(match { it.id == "m1" && it.content == "Elnur likes tea" }, any()) }
-        coVerify { memoryStore.restore(match { it.id == "m2" }, any()) }
+        coVerify { memoryStore.unretire("m1") }
+        coVerify { memoryStore.unretire("m2") }
         assertEquals(ProposalStatus.ROLLED_BACK.name, db.proposalDao().getById(proposal.id)?.status)
     }
 

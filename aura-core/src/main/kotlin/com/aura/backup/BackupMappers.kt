@@ -71,6 +71,9 @@ internal fun MemoryEntity.toBackup() = MemoryBackup(
     metadata = metadata,
     sourceConversationId = sourceConversationId,
     sourceTurnTimestamp = sourceTurnTimestamp,
+    retiredAt = retiredAt,
+    supersededBy = supersededBy,
+    retiredReason = retiredReason,
 )
 
 internal fun MemoryBackup.toEntity() = MemoryEntity(
@@ -97,6 +100,9 @@ internal fun MemoryBackup.toEntity() = MemoryEntity(
     sourceTurnTimestamp = sourceTurnTimestamp,
     embeddingModel = embeddingModel,
     embeddingVersion = embeddingVersion,
+    retiredAt = retiredAt,
+    supersededBy = supersededBy,
+    retiredReason = retiredReason,
 )
 
 internal fun MemoryEditEntity.toBackup() = MemoryEditBackup(

@@ -45,6 +45,36 @@ class EvolutionHooks @Inject constructor(
         payload = mapOf("errorCode" to errorCode),
     )
 
+    /**
+     * The agent asked for a skill by a name that does not exist.
+     *
+     * Recorded separately from [onSkillFailed] because it is not a skill
+     * failing — no skill ran. It used to be logged as `skill_failed` against
+     * the literal id `"_unknown_"`, which was the only skill failure Aura ever
+     * recorded, so the one signal feeding the PATCH_SKILL detector accumulated
+     * under an id that resolves to nothing. Every candidate it could raise
+     * named a skill that could not be fetched, patched, or even displayed.
+     *
+     * Its own kind, so the evidence stays (a repeatedly-requested name that
+     * doesn't exist is worth knowing about) without pretending to be about a
+     * skill that does.
+     */
+    suspend fun onSkillLookupMissed(
+        requestedName: kotlin.String,
+        runId: kotlin.String? = null,
+        conversationId: kotlin.String? = null,
+        turnTimestamp: kotlin.Long? = null,
+    ) = recorder.record(
+        domain = EvolutionDomain.SKILL,
+        kind = "skill_lookup_missed",
+        sourceEntityId = requestedName,
+        runId = runId,
+        conversationId = conversationId,
+        turnTimestamp = turnTimestamp,
+        summary = "no skill named '$requestedName'",
+        payload = mapOf("requestedName" to requestedName),
+    )
+
     suspend fun onSkillEdited(
         skillId: kotlin.String,
         beforeCiphertext: kotlin.String? = null,

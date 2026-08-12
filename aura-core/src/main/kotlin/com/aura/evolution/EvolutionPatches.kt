@@ -60,6 +60,20 @@ data class ConsolidateMemoriesPatch(
     val category: String? = null,
 )
 
+/**
+ * The near-duplicate cluster a consolidation candidate was raised for, carried
+ * in [EvolutionCandidateEntity.argsJson].
+ *
+ * The authoring step used to rebuild its own list of "related" memories from
+ * the most recent rows sharing a scope and category, which had nothing to do
+ * with the evidence that produced the candidate. Passing the cluster forward
+ * means the model is asked about the memories that actually look alike.
+ */
+@Serializable
+data class MemoryClusterArgs(
+    val memoryIds: List<String> = emptyList(),
+)
+
 // ── Typed rollback snapshots (D7) ───────────────────────────────
 
 /**

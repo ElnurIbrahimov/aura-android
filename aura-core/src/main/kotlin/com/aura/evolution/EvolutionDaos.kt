@@ -84,6 +84,21 @@ interface EvolutionProposalDao {
     suspend fun open(): List<EvolutionProposalEntity>
 
     /**
+     * Proposals that have been applied and could still be undone.
+     *
+     * The inbox listed only [open] proposals, whose WHERE clause cannot match
+     * an APPLIED row — so the rollback button, which renders only for APPLIED,
+     * could never appear, and the rollback screen looked up its proposal in
+     * that same list and always rendered "not found". Rollback was implemented,
+     * tested, and unreachable.
+     */
+    @Query(
+        "SELECT * FROM evolution_proposals WHERE status = 'APPLIED' AND resolvedAt >= :since " +
+            "ORDER BY resolvedAt DESC LIMIT :limit",
+    )
+    suspend fun appliedSince(since: kotlin.Long, limit: Int = 20): List<EvolutionProposalEntity>
+
+    /**
      * Reactive count of proposals awaiting user action (PENDING_REVIEW
      * only — APPROVED/APPLY_FAILED are already in flight). Used by the
      * bottom-nav badge so the user can see "3 new proposals" without

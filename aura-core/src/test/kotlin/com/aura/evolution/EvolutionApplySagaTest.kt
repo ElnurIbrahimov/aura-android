@@ -123,7 +123,7 @@ class EvolutionApplySagaTest {
     }
 
     @Test
-    fun `apply consolidate memories snapshots full sources before deleting`() = runTest {
+    fun `apply consolidate memories snapshots full sources and never deletes them`() = runTest {
         val memoryStore = mockk<MemoryStore>(relaxed = true)
         val proposalStore = mockk<EvolutionProposalStore>(relaxed = true)
         val saga = EvolutionApplySaga(proposalStore, null, null, memoryStore)
@@ -131,8 +131,7 @@ class EvolutionApplySagaTest {
         val m2 = MemoryEntity(id = "m2", content = "prefers tea over coffee", source = "user", category = "preference", scope = "general")
         coEvery { memoryStore.get("m1") } returns m1
         coEvery { memoryStore.get("m2") } returns m2
-        coEvery { memoryStore.store(any(), any(), any(), any(), any(), any(), any()) } returns "consolidated-1"
-        coEvery { memoryStore.forget(any()) } just Runs
+        coEvery { memoryStore.consolidate(any(), any(), any(), any()) } returns "consolidated-1"
 
         val patch = ConsolidateMemoriesPatch(
             memoryIds = listOf("m1", "m2"),
@@ -147,14 +146,42 @@ class EvolutionApplySagaTest {
         val result = saga.apply(proposal)
 
         assertTrue(result is EvolutionApplySaga.ApplyResult.Ok)
-        val snapshot = slot<String>()
+        val snapshot = mutableListOf<String>()
         coVerify { proposalStore.recordRollbackSnapshot("p1", capture(snapshot)) }
-        val snap = json.decodeFromString<ConsolidateMemoriesSnapshot>(snapshot.captured)
+        // The last snapshot is the one rollback reads; the first is written
+        // before the state change so a crash between them is recoverable.
+        val snap = json.decodeFromString<ConsolidateMemoriesSnapshot>(snapshot.last())
         assertEquals("consolidated-1", snap.consolidatedMemoryId)
         assertEquals(listOf("m1", "m2"), snap.sources.map { it.id })
         assertEquals("likes tea", snap.sources[0].content)
-        coVerify { memoryStore.forget("m1") }
-        coVerify { memoryStore.forget("m2") }
+        // The whole point: consolidation retires, it does not destroy. A
+        // background merge that hard-deletes its inputs makes "undo" a
+        // reconstruction, and makes a wrong merge unrecoverable.
+        coVerify(exactly = 0) { memoryStore.forget(any()) }
+    }
+
+    @Test
+    fun `apply consolidate memories refuses to merge across scopes`() = runTest {
+        val memoryStore = mockk<MemoryStore>(relaxed = true)
+        val saga = EvolutionApplySaga(mockk(relaxed = true), null, null, memoryStore)
+        coEvery { memoryStore.get("m1") } returns
+            MemoryEntity(id = "m1", content = "a", source = "user", category = "fact", scope = "agent:researcher")
+        coEvery { memoryStore.get("m2") } returns
+            MemoryEntity(id = "m2", content = "b", source = "user", category = "fact", scope = "general")
+
+        val patch = ConsolidateMemoriesPatch(memoryIds = listOf("m1", "m2"), consolidatedContent = "ab")
+        val result = saga.apply(
+            proposal(EvolutionAction.CONSOLIDATE_MEMORIES, "m1", EvolutionDomain.MEMORY,
+                json.encodeToString(ConsolidateMemoriesPatch.serializer(), patch))
+        )
+
+        // Widening to "general" was the old behaviour, and "general" is visible
+        // to every agent — so merging a private memory with a shared one
+        // silently broadened who could recall it. There is no correct scope for
+        // that merge, so nothing is written.
+        assertTrue(result is EvolutionApplySaga.ApplyResult.Error)
+        assertTrue((result as EvolutionApplySaga.ApplyResult.Error).message.contains("scopes"))
+        coVerify(exactly = 0) { memoryStore.consolidate(any(), any(), any(), any()) }
     }
 
     @Test
@@ -166,8 +193,7 @@ class EvolutionApplySagaTest {
         val m2 = MemoryEntity(id = "m2", content = "b", source = "user", category = "fact", scope = "agent:researcher")
         coEvery { memoryStore.get("m1") } returns m1
         coEvery { memoryStore.get("m2") } returns m2
-        coEvery { memoryStore.store(any(), any(), any(), any(), any(), any(), any()) } returns "c1"
-        coEvery { memoryStore.forget(any()) } just Runs
+        coEvery { memoryStore.consolidate(any(), any(), any(), any()) } returns "c1"
 
         val patch = ConsolidateMemoriesPatch(memoryIds = listOf("m1", "m2"), consolidatedContent = "ab")
         val result = saga.apply(
@@ -176,7 +202,9 @@ class EvolutionApplySagaTest {
         )
 
         assertTrue(result is EvolutionApplySaga.ApplyResult.Ok)
-        coVerify { memoryStore.store("ab", any(), any(), any(), any(), "agent:researcher", any()) }
+        val sources = slot<List<MemoryEntity>>()
+        coVerify { memoryStore.consolidate(capture(sources), eq("ab"), any(), any()) }
+        assertEquals(listOf("agent:researcher"), sources.captured.map { it.scope }.distinct())
     }
 
     @Test
