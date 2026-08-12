@@ -151,6 +151,18 @@ interface CorrectionDao {
     @Query("UPDATE corrections SET undoneAt = :now WHERE id = :id AND undoneAt IS NULL")
     suspend fun markUndone(id: String, now: Long): Int
 
+    /**
+     * Memories the user has said something about, in one query.
+     *
+     * Bulk because the caller checks a pool of hundreds; asking per memory
+     * would be the same answer at a few hundred times the cost.
+     */
+    @Query(
+        "SELECT DISTINCT targetId FROM corrections " +
+            "WHERE undoneAt IS NULL AND targetKind = '" + CorrectionEntity.TARGET_MEMORY + "'",
+    )
+    suspend fun disputedMemoryIds(): List<String>
+
     @Query("SELECT COUNT(*) FROM corrections WHERE undoneAt IS NULL")
     suspend fun count(): Int
 

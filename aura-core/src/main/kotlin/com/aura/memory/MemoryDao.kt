@@ -335,6 +335,22 @@ interface MemoryFeedbackDao {
     @Query("SELECT COUNT(*) FROM memory_feedback WHERE memoryId = :memoryId AND kind = :kind")
     suspend fun count(memoryId: String, kind: String): Int
 
+    /**
+     * Memories the user has marked unhelpful more often than helpful.
+     *
+     * The first reader this table has ever had. Rows have been accumulating
+     * since the Helpful / Not helpful control shipped, read by nothing —
+     * not retrieval, not the detectors, not the outcome scorer — so pressing
+     * "Not helpful" a dozen times changed exactly nothing about what Aura
+     * recalled or proposed.
+     */
+    @Query(
+        "SELECT memoryId FROM memory_feedback GROUP BY memoryId HAVING " +
+            "SUM(CASE WHEN kind = 'downvote' THEN 1 ELSE 0 END) > " +
+            "SUM(CASE WHEN kind = 'upvote' THEN 1 ELSE 0 END)",
+    )
+    suspend fun netDownvotedMemoryIds(): List<String>
+
     @Query("DELETE FROM memory_feedback")
     suspend fun deleteAll()
 }

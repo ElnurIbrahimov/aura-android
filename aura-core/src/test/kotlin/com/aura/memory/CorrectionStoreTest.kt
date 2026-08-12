@@ -248,6 +248,52 @@ class CorrectionStoreTest {
     }
 
     @Test
+    fun `a corrected memory is no longer offered for consolidation`(): Unit = runBlocking {
+        // Recall count used to be the only memory signal any detector read, so
+        // a memory the user had objected to ten times was a *stronger*
+        // consolidation candidate than one they never saw. Merging it would
+        // rewrite the wording they objected to into text they never read, and
+        // the merged result carries no correction — the objection is lost.
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        assertEquals(1, store.findNearDuplicateClusters().size)
+
+        val disputed = store.searchByText("tea").first().id
+        corrections.irrelevantHere(disputed, "drinks", provenance = turn)
+
+        assertTrue(
+            store.findNearDuplicateClusters().isEmpty(),
+            "a memory the user has objected to must not be proposed for merging",
+        )
+    }
+
+    @Test
+    fun `a downvote is read, which it never was before`(): Unit = runBlocking {
+        // memory_feedback rows have been accumulating since the Helpful / Not
+        // helpful control shipped, read by nothing at all.
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        assertEquals(1, store.findNearDuplicateClusters().size)
+
+        store.recordFeedback(store.searchByText("tea").first().id, "downvote")
+
+        assertTrue(store.findNearDuplicateClusters().isEmpty())
+    }
+
+    @Test
+    fun `an upvote that outweighs a downvote leaves the memory eligible`(): Unit = runBlocking {
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        store.store("Elnur prefers tea", "user", "preference", 0.5f)
+        val id = store.searchByText("tea").first().id
+
+        store.recordFeedback(id, "downvote")
+        store.recordFeedback(id, "upvote")
+        store.recordFeedback(id, "upvote")
+
+        assertEquals(1, store.findNearDuplicateClusters().size, "net-positive feedback is not an objection")
+    }
+
+    @Test
     fun `correcting a memory that is already gone says so instead of failing`(): Unit = runBlocking {
         val report = corrections.neverTrue("nope", provenance = turn)
         assertEquals("", report.correctionId)

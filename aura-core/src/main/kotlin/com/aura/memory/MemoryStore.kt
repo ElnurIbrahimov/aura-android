@@ -780,7 +780,24 @@ class MemoryStore @Inject constructor(
         minSimilarity: Float = NEAR_DUPLICATE_THRESHOLD,
         maxClusters: Int = 10,
     ): List<DuplicateCluster> {
-        val pool = dao.recentWithEmbeddings(poolLimit)
+        // Anything the user has taken issue with is out. Merging a disputed
+        // memory rewrites the text they objected to into something they never
+        // saw, and the merged result carries no correction — so the objection
+        // is lost along with the wording that prompted it. Two bulk queries,
+        // not one per candidate.
+        val disputed = buildSet {
+            addAll(
+                runCatching { correctionDao?.disputedMemoryIds() }
+                    .onFailure { Log.w("MemoryStore", "correction lookup failed; clustering unfiltered", it) }
+                    .getOrNull().orEmpty(),
+            )
+            addAll(
+                runCatching { memoryFeedbackDao.netDownvotedMemoryIds() }
+                    .onFailure { Log.w("MemoryStore", "downvote lookup failed; clustering unfiltered", it) }
+                    .getOrDefault(emptyList()),
+            )
+        }
+        val pool = dao.recentWithEmbeddings(poolLimit).filter { it.id !in disputed }
         val clusters = mutableListOf<DuplicateCluster>()
         for ((_, group) in pool.groupBy { it.scope to it.category }) {
             if (group.size < 2) continue
@@ -914,6 +931,14 @@ class MemoryStore @Inject constructor(
     /** Retired rows, newest first. */
     suspend fun retired(limit: Int = 100): List<MemoryEntity> = dao.retired(limit)
 
+    /**
+     * Record a thumbs up or down on a memory.
+     *
+     * The one write path. The Memory screen used to build the row and fire the
+     * evolution hook itself, leaving this method with no callers at all, so
+     * there were two ways to record feedback and only one of them was used —
+     * exactly the arrangement in which the unused one rots.
+     */
     suspend fun recordFeedback(memoryId: String, kind: String, note: String = "") {
         val row = MemoryFeedbackEntity(
             id = java.util.UUID.randomUUID().toString(),
@@ -923,6 +948,8 @@ class MemoryStore @Inject constructor(
         )
         runCatching { memoryFeedbackDao.insert(row) }
             .onFailure { Log.w("MemoryStore", "memoryFeedbackDao.insert failed", it) }
+        runCatching { evolutionHooks?.onMemoryFeedback(memoryId, helpful = kind == "upvote", note = note) }
+            .onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryFeedback failed (non-fatal)", it) }
     }
 
     suspend fun deleteBySource(source: String) = dao.deleteBySource(source)

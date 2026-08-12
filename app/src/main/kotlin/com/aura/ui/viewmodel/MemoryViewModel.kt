@@ -396,23 +396,17 @@ class MemoryViewModel @Inject constructor(
     }
 
     /**
-     * Record user feedback on a memory. Writes a [MemoryFeedbackEntity] row
-     * and emits an evolution signal so the synthesis engine can learn which
-     * memories are useful.
+     * Record user feedback on a memory.
+     *
+     * A downvote is now read: a memory marked unhelpful more often than helpful
+     * stops being offered for consolidation, so pressing this changes what Aura
+     * proposes. Before, `memory_feedback` had no readers anywhere and the
+     * control was decoration.
      */
     fun submitFeedback(memoryId: String, helpful: Boolean, note: String = "") {
         viewModelScope.launch {
-            runCatching {
-                feedbackDao.insert(
-                    MemoryFeedbackEntity(
-                        id = UUID.randomUUID().toString(),
-                        memoryId = memoryId,
-                        kind = if (helpful) "upvote" else "downvote",
-                        note = note,
-                    )
-                )
-                evolutionHooks?.onMemoryFeedback(memoryId, helpful, note)
-            }.onFailure { Log.w("MemoryViewModel", "feedback insert failed", it) }
+            runCatching { memoryStore.recordFeedback(memoryId, if (helpful) "upvote" else "downvote", note) }
+                .onFailure { Log.w("MemoryViewModel", "feedback insert failed", it) }
         }
     }
 }
