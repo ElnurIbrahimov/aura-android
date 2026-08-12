@@ -44,6 +44,8 @@ fun PrivacySection(
     decayEnabled: Boolean,
     screenControlEnabled: Boolean,
     onSetScreenControlEnabled: (Boolean) -> Unit,
+    appAwarenessEnabled: Boolean = false,
+    onSetAppAwarenessEnabled: (Boolean) -> Unit = {},
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
@@ -90,6 +92,55 @@ fun PrivacySection(
             OutlinedButton(onClick = {
                 notificationAccessLauncher.launch(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }) { Text(if (notificationAccessEnabled) "Manage" else "Enable") }
+        }
+
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
+
+        // App awareness. Same two-step shape as screen control below, and for
+        // the same reason: usage access is a special permission buried in
+        // system settings, and jumping there before the user knows what it is
+        // for asks them to trust a screen Android words far more alarmingly
+        // than what Aura actually does with it.
+        val usageContext = LocalContext.current
+        var usageAccessGranted by remember { mutableStateOf(isUsageAccessGranted(usageContext)) }
+        val usageLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { usageAccessGranted = isUsageAccessGranted(usageContext) }
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "App awareness", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (appAwarenessEnabled) {
+                        "On - Aura can tell which app you're in, to judge whether now is a bad moment"
+                    } else {
+                        "Off - Aura doesn't know what you're doing right now"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = appAwarenessEnabled, onCheckedChange = onSetAppAwarenessEnabled)
+        }
+
+        if (appAwarenessEnabled) {
+            Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (usageAccessGranted) {
+                            "Usage access granted. The current app is never saved."
+                        } else {
+                            "Android still needs to grant Usage access"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                    )
+                }
+                OutlinedButton(onClick = {
+                    usageLauncher.launch(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }) { Text(if (usageAccessGranted) "Manage" else "Grant") }
+            }
         }
 
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
@@ -252,6 +303,28 @@ fun PrivacySection(
  * would read as "not granted" and prompt the user to re-grant something they
  * already granted.
  */
+/**
+ * Whether Android's usage-access grant is in place.
+ *
+ * `AppOpsManager` rather than a permission check: `PACKAGE_USAGE_STATS` is an
+ * appop, so `checkSelfPermission` returns DENIED even when the user has granted
+ * it on the system screen.
+ */
+private fun isUsageAccessGranted(context: android.content.Context): Boolean = runCatching {
+    val ops = context.getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+    val op = android.app.AppOpsManager.OPSTR_GET_USAGE_STATS
+    val uid = android.os.Process.myUid()
+    // unsafeCheckOpNoThrow is API 29; checkOpNoThrow is the pre-Q spelling of
+    // the same question and minSdk here is 26.
+    val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        ops.unsafeCheckOpNoThrow(op, uid, context.packageName)
+    } else {
+        @Suppress("DEPRECATION")
+        ops.checkOpNoThrow(op, uid, context.packageName)
+    }
+    mode == android.app.AppOpsManager.MODE_ALLOWED
+}.getOrDefault(false)
+
 private fun isA11yServiceEnabled(context: android.content.Context): Boolean = runCatching {
     val expected = "${context.packageName}/com.aura.a11y.AuraAccessibilityService"
     android.provider.Settings.Secure.getString(

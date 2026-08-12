@@ -223,6 +223,7 @@ data class SettingsUiState(
     val promptCachingEnabled: Boolean = true,
     /** Master switch for reading and operating other apps' screens (default false). */
     val screenControlEnabled: Boolean = false,
+    val appAwarenessEnabled: Boolean = false,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -407,6 +408,7 @@ class SettingsViewModel @Inject constructor(
             val planningEnabled = userPreferences.planningEnabled.first()
             val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
             val screenControlEnabled = userPreferences.screenControlEnabled.first()
+            val appAwarenessEnabled = userPreferences.appAwarenessEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val storedPolicies = runCatching { userPreferences.interruptionPolicies.first() }
                 .onFailure { Log.w(TAG, "interruption policies read failed: ${it.message}", it) }
@@ -497,6 +499,7 @@ class SettingsViewModel @Inject constructor(
                 planningEnabled = planningEnabled,
                 promptCachingEnabled = promptCachingEnabled,
                 screenControlEnabled = screenControlEnabled,
+                appAwarenessEnabled = appAwarenessEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -794,6 +797,19 @@ class SettingsViewModel @Inject constructor(
      * still requires the user to enable the service in system settings — but
      * disarming revokes immediately, on both gates.
      */
+    /**
+     * Let Aura see which app is in the foreground.
+     *
+     * Independent of Android's usage-access grant on purpose: this switch alone
+     * silences the signal, without making the user find the system screen again.
+     */
+    fun setAppAwarenessEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setAppAwarenessEnabled(enabled)
+            _state.update { it.copy(appAwarenessEnabled = enabled) }
+        }
+    }
+
     fun setScreenControlEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferences.setScreenControlEnabled(enabled)

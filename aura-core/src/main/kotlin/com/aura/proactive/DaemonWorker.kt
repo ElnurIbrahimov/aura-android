@@ -66,6 +66,7 @@ class DaemonWorker @AssistedInject constructor(
     private val adaptiveTimingEngine: AdaptiveTimingEngine? = null,
     private val idleTimePreparationEngine: IdleTimePreparationEngine? = null,
     private val selfServeResearcher: com.aura.curiosity.SelfServeResearcher? = null,
+    private val situationReader: com.aura.situation.SituationReader? = null,
     private val proactiveMessageLibrary: ProactiveMessageLibrary? = null,
     // Council — overnight agent society debates
     private val councilOrchestrator: com.aura.agent.council.CouncilOrchestrator? = null,
@@ -96,8 +97,18 @@ class DaemonWorker @AssistedInject constructor(
             // 0.7/0.3 branch, which discarded exactly the resolution the
             // engine exists to provide.
             val receptivity = adaptiveTimingEngine?.receptivityNow() ?: AdaptiveTimingEngine.NEUTRAL
-            val isGoodTime = receptivity >= AdaptiveTimingEngine.GOOD_TIME_THRESHOLD
+            // The learned hourly signal is a statistic about this hour across
+            // weeks; the situation is a fact about this minute. Keep the first,
+            // let the second veto — an hour that usually works is still the
+            // wrong moment if the user is in a meeting right now.
+            val situation = runCatching { situationReader?.get() }
+                .onFailure { Log.w(TAG, "situation read failed; not vetoing", it) }
+                .getOrNull()
+            val badMoment = situation != null && !situation.interruptible
+            if (badMoment) Log.i(TAG, "holding findings: ${situation?.blockedBecause}")
+            val isGoodTime = !badMoment && receptivity >= AdaptiveTimingEngine.GOOD_TIME_THRESHOLD
             for (finding in salient) {
+                if (badMoment) break
                 if (motivationAccumulator != null) {
                     val message = MotivationAccumulator.PotentialMessage(
                         content = finding.message,

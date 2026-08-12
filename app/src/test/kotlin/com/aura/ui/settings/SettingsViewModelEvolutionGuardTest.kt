@@ -99,6 +99,7 @@ class SettingsViewModelEvolutionGuardTest {
         every { userPreferences.planningEnabled } returns flowOf(false)
         every { userPreferences.promptCachingEnabled } returns flowOf(true)
         every { userPreferences.screenControlEnabled } returns flowOf(false)
+        every { userPreferences.appAwarenessEnabled } returns flowOf(false)
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")

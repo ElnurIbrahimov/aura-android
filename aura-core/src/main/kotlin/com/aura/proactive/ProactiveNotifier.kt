@@ -25,6 +25,7 @@ class ProactiveNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val ledger: InterruptionLedger,
     private val userPreferences: UserPreferences,
+    private val situationReader: com.aura.situation.SituationReader? = null,
 ) {
 
     /**
@@ -51,6 +52,26 @@ class ProactiveNotifier @Inject constructor(
         if (!ledger.withinGlobalCaps(now)) {
             Log.i(TAG, "suppressed ${type.wire}: global cap reached")
             return false
+        }
+
+        // The ledger says this category has earned the right to interrupt, from
+        // evidence about what has actually worked. It says nothing about right
+        // now — it cannot tell a Tuesday 3pm at a desk from a Tuesday 3pm in a
+        // meeting. This is the veto for the second question, and only the
+        // second: an unreadable situation permits, because falling back to the
+        // ledger's judgement is right and falling silent is not.
+        //
+        // An explicit Always is not overridden. That choice is about content,
+        // not timing, and someone who asked to always hear about deadlines did
+        // not mean "except during meetings", which is when deadlines matter.
+        if (policy != InterruptionPolicy.ALWAYS) {
+            val situation = runCatching { situationReader?.get(now) }
+                .onFailure { Log.w(TAG, "situation read failed; not vetoing", it) }
+                .getOrNull()
+            if (situation != null && !situation.interruptible) {
+                Log.i(TAG, "suppressed ${type.wire}: ${situation.blockedBecause}")
+                return false
+            }
         }
 
         return post(type, finding)

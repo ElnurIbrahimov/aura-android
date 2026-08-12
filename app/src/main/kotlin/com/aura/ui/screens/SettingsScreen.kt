@@ -227,6 +227,8 @@ fun SettingsScreen(
             decayEnabled = state.decayEnabled,
             screenControlEnabled = state.screenControlEnabled,
             onSetScreenControlEnabled = viewModel::setScreenControlEnabled,
+            appAwarenessEnabled = state.appAwarenessEnabled,
+            onSetAppAwarenessEnabled = viewModel::setAppAwarenessEnabled,
             onSetAppLock = viewModel::setAppLockEnabled,
             onSetMorningBrief = viewModel::setMorningBriefEnabled,
             onSetMorningBriefHour = viewModel::setMorningBriefHour,

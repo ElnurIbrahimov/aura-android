@@ -87,6 +87,7 @@ internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
 internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_PROMPT_CACHING_ENABLED = booleanPreferencesKey("prompt_caching_enabled")
 internal val KEY_SCREEN_CONTROL_ENABLED = booleanPreferencesKey("screen_control_enabled")
+internal val KEY_APP_AWARENESS_ENABLED = booleanPreferencesKey("app_awareness_enabled")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_VIDEO_MODEL = stringPreferencesKey("video_model")
@@ -393,6 +394,21 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
      * the user to enable the service in system settings.
      */
     val screenControlEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_SCREEN_CONTROL_ENABLED] ?: false }
+
+    /**
+     * Whether Aura may look at which app is in the foreground.
+     *
+     * Off by default and independent of Android's usage-access grant, so
+     * turning the feature off silences it even while the system permission
+     * stays granted. The two conditions are deliberately separate: revoking a
+     * special permission is buried several screens deep in system settings, and
+     * "stop doing this" should be one tap inside Aura.
+     */
+    val appAwarenessEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_APP_AWARENESS_ENABLED] ?: false }
+
+    suspend fun setAppAwarenessEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_APP_AWARENESS_ENABLED] = enabled }
+    }
 
     suspend fun setScreenControlEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_SCREEN_CONTROL_ENABLED] = enabled }

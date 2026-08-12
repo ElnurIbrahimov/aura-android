@@ -399,6 +399,7 @@ class ChatViewModel @Inject constructor(
     private val idleTimePreparationEngine: com.aura.proactive.IdleTimePreparationEngine? = null,
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao? = null,
     private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
+    private val situationReader: com.aura.situation.SituationReader? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -1047,10 +1048,16 @@ class ChatViewModel @Inject constructor(
         val store = curiosityStore ?: return
         if (snoozedQuestionIds.isNotEmpty() && _state.value.openQuestion != null) return
         viewModelScope.launch {
+            // Aura's own question is the one interruption that serves Aura
+            // rather than the user, so it is the first thing a bad moment
+            // should cost. An unreadable situation still asks — the card is
+            // in-app and dismissible, not a notification.
+            val badMoment = runCatching { situationReader?.get()?.interruptible == false }
+                .getOrDefault(false)
             val question = runCatching { store.current() }
                 .onFailure { Log.w(TAG, "open-question read failed", it) }
                 .getOrNull()
-                ?.takeIf { it.id !in snoozedQuestionIds }
+                ?.takeIf { it.id !in snoozedQuestionIds && !badMoment }
             _state.update {
                 it.copy(openQuestion = question?.let { q -> OpenQuestionPrompt(q.id, q.question) })
             }

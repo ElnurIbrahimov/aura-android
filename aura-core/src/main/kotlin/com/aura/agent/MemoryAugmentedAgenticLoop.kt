@@ -125,6 +125,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val narrativeSelf: com.aura.consciousness.NarrativeSelf? = null,
     private val intrinsicMotivation: com.aura.consciousness.IntrinsicMotivation? = null,
     private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
+    private val situationReader: com.aura.situation.SituationReader? = null,
     private val theoryOfMind: com.aura.consciousness.TheoryOfMind? = null,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val responseCache: ResponseCache? = null,
@@ -904,6 +905,12 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             narrativeSelf?.toPrompt()?.ifBlank { null },
                             intrinsicMotivation?.toPrompt()?.ifBlank { null },
                             theoryOfMind?.toPrompt()?.ifBlank { null },
+                            // What is true right now. The rest of this block is
+                            // the model's picture of the user's past; without
+                            // this it answers a message at 2am on a Sunday
+                            // exactly as it would at 11am on a Tuesday.
+                            runCatching { situationReader?.get()?.describe() }
+                                .getOrNull()?.ifBlank { null }?.let { "[Right now] $it" },
                             affinityTracker?.getDirective()?.ifBlank { null },
                         ).joinToString("\n\n").ifBlank { null }?.let { append(it) }
                     }

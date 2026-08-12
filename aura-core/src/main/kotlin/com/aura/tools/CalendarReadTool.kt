@@ -133,6 +133,66 @@ class CalendarReadTool @Inject constructor(
         }
     }
 
+    /** Whether something is happening right now, and how soon the next thing is. */
+    data class Window(val inEventNow: Boolean, val minutesToNext: Int?)
+
+    /**
+     * The calendar as it bears on *this moment*.
+     *
+     * [readEvents] selects `DTSTART >= now`, which by construction cannot see
+     * the event you are currently sitting in — fine for "what's on today",
+     * useless for "is this a terrible moment to interrupt". This asks the
+     * other question: one query spanning [lookaheadMinutes], classified against
+     * the clock.
+     *
+     * All-day events are ignored for [Window.inEventNow]. A birthday does not
+     * make someone busy, and treating it as a meeting would mute Aura for a day
+     * at a time.
+     */
+    fun window(
+        now: Long = System.currentTimeMillis(),
+        lookaheadMinutes: Int = 60,
+    ): Window = try {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            Window(inEventNow = false, minutesToNext = null)
+        } else {
+            val horizon = now + lookaheadMinutes * 60_000L
+            val projection = arrayOf(
+                CalendarContract.Events.DTSTART,
+                CalendarContract.Events.DTEND,
+                CalendarContract.Events.ALL_DAY,
+            )
+            var inEvent = false
+            var soonest: Long? = null
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                projection,
+                "${CalendarContract.Events.DTEND} >= ? AND ${CalendarContract.Events.DTSTART} <= ?",
+                arrayOf(now.toString(), horizon.toString()),
+                "${CalendarContract.Events.DTSTART} ASC LIMIT 20",
+            )?.use { c ->
+                val beginIdx = c.getColumnIndex(CalendarContract.Events.DTSTART)
+                val endIdx = c.getColumnIndex(CalendarContract.Events.DTEND)
+                val allDayIdx = c.getColumnIndex(CalendarContract.Events.ALL_DAY)
+                while (c.moveToNext()) {
+                    if (c.getInt(allDayIdx) == 1) continue
+                    val begin = c.getLong(beginIdx)
+                    val end = c.getLong(endIdx)
+                    if (begin <= now && end >= now) inEvent = true
+                    if (begin > now && (soonest == null || begin < soonest!!)) soonest = begin
+                }
+            }
+            Window(
+                inEventNow = inEvent,
+                minutesToNext = soonest?.let { ((it - now) / 60_000L).toInt() },
+            )
+        }
+    } catch (_: Exception) {
+        Window(inEventNow = false, minutesToNext = null)
+    }
+
     private fun formatEvents(events: List<Event>): String {
         if (events.isEmpty()) return "No upcoming events in the next 7 days."
         val df = java.text.SimpleDateFormat("EEE MMM d, HH:mm", java.util.Locale.US)
