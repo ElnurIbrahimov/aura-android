@@ -58,10 +58,8 @@ fun SettingsScreen(
     onNavigateDiagnostics: () -> Unit = {},
     onNavigateCrashLogs: () -> Unit = {},
     onNavigateEvolutionInbox: () -> Unit = {},
-    onNavigateBeliefs: () -> Unit = {},
+    onNavigateMind: () -> Unit = {},
     onNavigateAgentEditor: () -> Unit = {},
-    onNavigateWorldModel: () -> Unit = {},
-    onNavigateTasteProfile: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
     usageViewModel: UsageViewModel = hiltViewModel(),
@@ -293,9 +291,7 @@ fun SettingsScreen(
 
         EvolutionSettingsSection(
             onNavigateEvolutionInbox = onNavigateEvolutionInbox,
-            onNavigateBeliefs = onNavigateBeliefs,
-            onNavigateWorldModel = onNavigateWorldModel,
-            onNavigateTasteProfile = onNavigateTasteProfile,
+            onNavigateMind = onNavigateMind,
         )
 
         UsageSection(

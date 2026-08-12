@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,9 +42,6 @@ fun TasteProfileScreen(
     onBack: () -> Unit = {},
     viewModel: TasteProfileViewModel = viewModel(),
 ) {
-    val signals by viewModel.signals.collectAsStateWithLifecycle()
-    val profile by viewModel.profile.collectAsStateWithLifecycle()
-
     AuraScreenShell(
         title = "Taste profile",
         subtitle = "Learned style preferences",
@@ -57,47 +56,45 @@ fun TasteProfileScreen(
             contentPadding = PaddingValues(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
-            item {
-                Text(
-                    "Learned preferences",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            item {
-                ProfileAttributesCard(profile)
-            }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = { viewModel.clearAllSignals() }) { Text("Clear all") }
-                    OutlinedButton(onClick = { viewModel.recompute() }) { Text("Recompute") }
-                }
+            tasteSection(viewModel)
+        }
+    }
+}
+
+/**
+ * What Aura has worked out about how the user likes things done.
+ *
+ * A `LazyListScope` extension for the same reason as `worldModelSection`: it
+ * has to share `MindScreen`'s scroll container rather than nest inside it.
+ */
+internal fun LazyListScope.tasteSection(
+    viewModel: TasteProfileViewModel,
+    showEmptyState: Boolean = true,
+) {
+    item {
+        val signals by viewModel.signals.collectAsStateWithLifecycle()
+        val profile by viewModel.profile.collectAsStateWithLifecycle()
+
+        Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+            SectionHeading("Learned preferences", top = false)
+            ProfileAttributesCard(profile)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { viewModel.clearAllSignals() }) { Text("Clear all") }
+                OutlinedButton(onClick = { viewModel.recompute() }) { Text("Recompute") }
             }
             if (signals.isNotEmpty()) {
-                item {
-                    Text(
-                        "Signals (${signals.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = AuraSpacing.md),
-                    )
-                }
-                items(signals, key = { it.id }) { signal ->
+                SectionHeading("Signals (${signals.size})")
+                for (signal in signals) {
                     SignalCard(signal) { viewModel.deleteSignal(it) }
                 }
             }
-            if (signals.isEmpty() && profile == null) {
-                item {
-                    Text(
-                        "No taste signals yet. Reactions, edits, and accepted suggestions will build your taste profile.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = AuraSpacing.xl),
-                    )
-                }
+            if (showEmptyState && signals.isEmpty() && profile == null) {
+                Text(
+                    "No taste signals yet. Reactions, edits, and accepted suggestions will build your taste profile.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AuraThemeTokens.colors.textSecondary,
+                    modifier = Modifier.padding(top = AuraSpacing.xl),
+                )
             }
         }
     }

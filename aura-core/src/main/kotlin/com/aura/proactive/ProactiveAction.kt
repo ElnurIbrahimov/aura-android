@@ -82,7 +82,7 @@ object ProactiveActions {
             "knowledge_graph" -> "Open the graph"
             "reminders" -> "Open reminders"
             "dreams" -> "Open dreams"
-            "world_model" -> "Open beliefs"
+            "mind" -> "Open what Aura thinks"
             "diagnostics" -> "Open diagnostics"
             else -> "Open"
         }

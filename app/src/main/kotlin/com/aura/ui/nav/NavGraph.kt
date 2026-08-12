@@ -34,7 +34,6 @@ import com.aura.ui.screens.agentrun.AgentRunsScreen
 import com.aura.ui.screens.chat.ChatRoute
 import com.aura.ui.screens.production.ProductionPipelineScreen
 import com.aura.ui.evolution.EvolutionInboxScreen
-import com.aura.ui.evolution.BeliefsScreen
 import com.aura.ui.evolution.EvolutionRollbackScreen
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.CapabilitiesScreen
@@ -59,8 +58,7 @@ import com.aura.ui.screens.council.AgentProfileScreen
 import com.aura.ui.screens.schedule.ScheduleScreen
 import com.aura.ui.viewmodel.ScheduleViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.aura.ui.screens.TasteProfileScreen
-import com.aura.ui.screens.WorldModelScreen
+import com.aura.ui.screens.MindScreen
 import com.aura.ui.screens.TasksScreen
 
 @Composable
@@ -238,10 +236,8 @@ fun NavGraph(
                     onNavigateDiagnostics = { navController.navigate(Route.Diagnostics.path) },
                     onNavigateCrashLogs = { navController.navigate(Route.CrashLogs.path) },
                     onNavigateEvolutionInbox = { navController.navigate(Route.EvolutionInbox.path) },
-                    onNavigateBeliefs = { navController.navigate(Route.EvolutionBeliefs.path) },
                     onNavigateAgentEditor = { navController.navigate(Route.AgentEditor.path) },
-                    onNavigateWorldModel = { navController.navigate(Route.WorldModel.path) },
-                    onNavigateTasteProfile = { navController.navigate(Route.TasteProfile.path) },
+                    onNavigateMind = { navController.navigate(Route.Mind.path) },
                 )
             }
             composable(Route.Diagnostics.path) {
@@ -295,14 +291,13 @@ fun NavGraph(
             composable(Route.Dreams.path) {
                 DreamsScreen(onBack = { navController.popBackStack() })
             }
-            composable(Route.WorldModel.path) {
-                WorldModelScreen(
+            composable(Route.Mind.path) {
+                MindScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenKnowledgeGraph = { navController.navigate(Route.KnowledgeGraph.path) },
+                    onOpenConsolidation = { navController.navigate(Route.Dreams.path) },
                     onProactiveAction = { action -> dispatchProactiveAction(action, navController) },
                 )
-            }
-            composable(Route.TasteProfile.path) {
-                TasteProfileScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.Reminders.path) {
                 RemindersScreen(onBack = { navController.popBackStack() })
@@ -378,9 +373,6 @@ fun NavGraph(
                 ScheduleScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
 
-            composable(Route.EvolutionBeliefs.path) {
-                BeliefsScreen()
-            }
             composable(
                 route = Route.Council.path,
                 arguments = listOf(navArgument("convId") { type = NavType.StringType; nullable = true; defaultValue = null }),

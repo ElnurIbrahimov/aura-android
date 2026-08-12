@@ -12,9 +12,7 @@ import androidx.compose.material.icons.Icons
 @Composable
 fun EvolutionSettingsSection(
     onNavigateEvolutionInbox: () -> Unit,
-    onNavigateBeliefs: () -> Unit,
-    onNavigateWorldModel: () -> Unit = {},
-    onNavigateTasteProfile: () -> Unit = {},
+    onNavigateMind: () -> Unit = {},
 ) {
     SettingsSection(
         icon = Icons.Filled.AutoAwesome,
@@ -29,19 +27,9 @@ fun EvolutionSettingsSection(
                 onClick = onNavigateEvolutionInbox,
             )
             SettingsClickableRow(
-                title = "Active beliefs",
-                subtitle = "Memory-synthesized beliefs and evidence",
-                onClick = onNavigateBeliefs,
-            )
-            SettingsClickableRow(
-                title = "World model",
-                subtitle = "Beliefs, events, opportunities, contradictions",
-                onClick = onNavigateWorldModel,
-            )
-            SettingsClickableRow(
-                title = "Taste profile",
-                subtitle = "Learned style preferences and signals",
-                onClick = onNavigateTasteProfile,
+                title = "What Aura thinks",
+                subtitle = "Beliefs, taste, corrections and open questions",
+                onClick = onNavigateMind,
             )
             SettingsEvolutionSection()
         }

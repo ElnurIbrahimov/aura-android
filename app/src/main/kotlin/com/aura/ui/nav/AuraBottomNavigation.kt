@@ -98,8 +98,14 @@ sealed class Route(val path: String) {
     data object Dreams : Route("dreams")
     data object DreamLog : Route("dream_log")
     data object AgentProfiles : Route("agent_profiles")
-    data object WorldModel : Route("world_model")
-    data object TasteProfile : Route("taste_profile")
+    /**
+     * One place for what Aura currently believes about the user.
+     *
+     * Replaced `world_model`, `taste_profile` and `evolution/beliefs` — the
+     * last two of which both listed beliefs from the same DAO with the same
+     * actions.
+     */
+    data object Mind : Route("mind")
     data object KnowledgeGraph : Route("knowledge_graph")
     data object Profile : Route("profile")
     data object IdentityEditor : Route("identity_editor")
@@ -107,7 +113,6 @@ sealed class Route(val path: String) {
     data object CrashLogs : Route("crash_logs")
     data object Schedule : Route("schedule")
     data object EvolutionInbox : Route("evolution/inbox")
-    data object EvolutionBeliefs : Route("evolution/beliefs")
     data object EvolutionRollback : Route("evolution/rollback/{proposalId}")
     data object AgentEditor : Route("agent_editor?agentId={agentId}")
 }

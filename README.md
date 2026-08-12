@@ -34,7 +34,7 @@ This is my personal copy.
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
 - Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts; none are in the backup schema yet.
-- 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 29 secondary routes (History, Hands, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, World Model, Taste Profile, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Beliefs, Evolution Rollback, Agent Editor)
+- 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 27 secondary routes (History, Hands, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, Mind, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Rollback, Agent Editor)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, sentence-boundary streaming TTS in continuous voice mode, voice call UI)
 - Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Push-to-talk remains the default and works with every provider.
 - Screen control (accessibility-tree read + tap/type/scroll/swipe in any app, off by default; 5min/25-action sessions bound to one package, non-overridable denylist including Aura itself, semantic tripwire on irreversible labels, refusal while a password field is visible)
@@ -114,7 +114,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +--------------------------------------------+
 | :app  (Compose UI, 5 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   33 nav destinations + 38 ViewModels      |
+|   31 nav destinations + 39 ViewModels      |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+

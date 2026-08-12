@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -39,11 +41,6 @@ fun WorldModelScreen(
     onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
     viewModel: WorldModelViewModel = viewModel(),
 ) {
-    val beliefs by viewModel.beliefs.collectAsStateWithLifecycle()
-    val events by viewModel.worldEvents.collectAsStateWithLifecycle()
-    val opportunities by viewModel.opportunities.collectAsStateWithLifecycle()
-    val contradictions by viewModel.contradictions.collectAsStateWithLifecycle()
-
     AuraScreenShell(
         title = "World model",
         subtitle = "Beliefs, events, and opportunities",
@@ -58,15 +55,40 @@ fun WorldModelScreen(
             contentPadding = PaddingValues(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
         ) {
-            if (beliefs.isNotEmpty()) {
-                item {
-                    Text(
-                        "Beliefs (${beliefs.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                items(beliefs, key = { it.id }) { belief ->
+            worldModelSection(viewModel, onProactiveAction)
+        }
+    }
+}
+
+/**
+ * The world model as sections of somebody else's list.
+ *
+ * A `LazyListScope` extension rather than a composable, so `MindScreen` can put
+ * it in the same scroll container as everything else — nesting a LazyColumn
+ * inside another scrollable throws at measure time, which is why
+ * `LivingWorldSection` is shaped this way too.
+ */
+internal fun LazyListScope.worldModelSection(
+    viewModel: WorldModelViewModel,
+    onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
+    showEmptyState: Boolean = true,
+    /**
+     * False in `MindScreen`, where `beliefsSection` renders them instead —
+     * that rendering carries the supporting evidence and the superseded chain,
+     * which this view model has never loaded.
+     */
+    includeBeliefs: Boolean = true,
+) {
+    item {
+        val beliefs by viewModel.beliefs.collectAsStateWithLifecycle()
+        val events by viewModel.worldEvents.collectAsStateWithLifecycle()
+        val opportunities by viewModel.opportunities.collectAsStateWithLifecycle()
+        val contradictions by viewModel.contradictions.collectAsStateWithLifecycle()
+
+        Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+            if (includeBeliefs && beliefs.isNotEmpty()) {
+                SectionHeading("Beliefs (${beliefs.size})", top = false)
+                for (belief in beliefs) {
                     BeliefCard(
                         belief = belief,
                         onVerify = { viewModel.verifyBelief(belief.id) },
@@ -75,26 +97,12 @@ fun WorldModelScreen(
                 }
             }
             if (events.isNotEmpty()) {
-                item {
-                    Text(
-                        "World events (${events.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = AuraSpacing.md),
-                    )
-                }
-                items(events, key = { it.id }) { WorldEventCard(it) }
+                SectionHeading("World events (${events.size})")
+                for (event in events) WorldEventCard(event)
             }
             if (opportunities.isNotEmpty()) {
-                item {
-                    Text(
-                        "Opportunities (${opportunities.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = AuraSpacing.md),
-                    )
-                }
-                items(opportunities, key = { it.id }) { opportunity ->
+                SectionHeading("Opportunities (${opportunities.size})")
+                for (opportunity in opportunities) {
                     OpportunityCard(opportunity) { id, approve ->
                         // Approving now performs the suggestion instead of only
                         // recording that it was approved.
@@ -103,28 +111,31 @@ fun WorldModelScreen(
                 }
             }
             if (contradictions.isNotEmpty()) {
-                item {
-                    Text(
-                        "Contradictions (${contradictions.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = AuraSpacing.md),
-                    )
-                }
-                items(contradictions, key = { it.id }) { ContradictionCard(it) }
+                SectionHeading("Contradictions (${contradictions.size})")
+                for (contradiction in contradictions) ContradictionCard(contradiction)
             }
-            if (beliefs.isEmpty() && events.isEmpty() && opportunities.isEmpty() && contradictions.isEmpty()) {
-                item {
-                    Text(
-                        "No world-model data yet. Beliefs, events, and opportunities are created as the system learns.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AuraThemeTokens.colors.textSecondary,
-                        modifier = Modifier.padding(top = AuraSpacing.xl),
-                    )
-                }
+            if (showEmptyState &&
+                beliefs.isEmpty() && events.isEmpty() && opportunities.isEmpty() && contradictions.isEmpty()
+            ) {
+                Text(
+                    "No world-model data yet. Beliefs, events, and opportunities are created as the system learns.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AuraThemeTokens.colors.textSecondary,
+                    modifier = Modifier.padding(top = AuraSpacing.xl),
+                )
             }
         }
     }
+}
+
+@Composable
+internal fun SectionHeading(text: String, top: Boolean = true) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = if (top) Modifier.padding(top = AuraSpacing.md) else Modifier,
+    )
 }
 
 @Composable

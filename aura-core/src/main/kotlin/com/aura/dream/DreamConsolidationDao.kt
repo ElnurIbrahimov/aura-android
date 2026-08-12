@@ -25,6 +25,10 @@ interface DreamConsolidationDao {
     @Query("SELECT * FROM dream_summaries ORDER BY createdAt DESC")
     suspend fun all(): List<DreamSummaryEntity>
 
+    /** The latest few, for a summary view that should not load the archive. */
+    @Query("SELECT * FROM dream_summaries ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<DreamSummaryEntity>
+
     @Query("SELECT * FROM dream_summaries ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<DreamSummaryEntity>>
 
