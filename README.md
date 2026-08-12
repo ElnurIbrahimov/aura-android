@@ -40,6 +40,8 @@ This is my personal copy.
 - Screen control (accessibility-tree read + tap/type/scroll/swipe in any app, off by default; 5min/25-action sessions bound to one package, non-overridable denylist including Aura itself, semantic tripwire on irreversible labels, refusal while a password field is visible)
 - Proactive suggestions are **actionable and self-measuring**. Every finding type now maps to a real `ProactiveAction` (navigate / open chat / hand off to the calendar app), dispatched from one place — two of the old route strings pointed at nothing (`"graph"` when the route is `"knowledge_graph"`, and `"calendar"` which has no screen) and were latent crashes that stayed harmless only because nothing ever navigated. `OpportunityEntity.suggestedActionJson` gained its first reader since it was written. Tapping a suggestion records `tapped`/`acted` — the first positive signals this system has ever produced
 - Three proactive gates were pinned shut by one bug: `"dismissed"` was the only interaction anything recorded, so the salience filter's negative ratio hit 1.0 on the **first** dismissal, dropping every finding's best possible score under the threshold permanently; the motivation threshold sat at its ceiling; and `AdaptiveTimingEngine` scored every hour at zero against a 0.4 bar, so `isGoodTime()` could never return true. Fixed with an appetite sample floor, a neutral-centred timing scale where no evidence means 0.5 rather than 0, and local-hour bucketing (it bucketed in UTC and read local). `DaemonWorker` also published via the `replay = 0` bus at five sites, so background insights were dropped before ever reaching Room
+- Proactive **outcome measurement**: when a suggestion goes out, Aura records what it was *about* — which task, which memories, which graph nodes — and a pass on the existing 6-hourly `DecayWorker` asks days later whether that thing actually changed. Optimising for outcome rather than engagement is the point: a tap says the card looked interesting, the task being finished says it was right. Signals are chosen to be unconfounded — task `deferCount`/`lastTouchedAt` rather than salience, and memory `accessCount` rather than `decayScore`, because both of those drift on their own on the very same worker. Three of the eight finding types are recorded `unobservable` and given no checker at all rather than being scored against something adjacent
+- **Interruption is earned per category, and revocable.** Everything starts in-app and silent; a kind of suggestion earns a notification only after ≥8 closed outcomes in 30 days, a ≥50% success rate, and evidence it lands in this hour ±1 — and loses it below 35% (hysteresis so it can't flap), or immediately for 7 days if you dismiss one of its notifications. The ledger is a **derived read**, recomputed from countable rows every time, so "why did this notify me" is always a sentence. Per-category override is Always / Never / **Earned** (default), because the ledger measures what worked and that isn't the same as what you want
 - Proactive: WorkManager daily morning brief (customizable time) + 6h memory decay + 15-min calendar check worker (Calendar Instances API, 30-min lookahead, persisted dedup — no foreground service) + daemon thinking worker (configurable interval, default 60 min, network-connected + battery-not-low constraints, background model; council debates off by default)
 - Emotional state engine (4 dimensions: tension, connection, energy, focus — with inertia, decay, and heuristic signal detection)
 - Adaptive response profiles (tone adapts based on emotional state)
@@ -61,8 +63,8 @@ This is my personal copy.
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v20, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
-- 2,799 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v21, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
+- 2,818 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - 64 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -355,7 +357,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 |---|---|---|
 | MemoryDatabase | v18 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
-| ProactiveEventDatabase | v5 | Proactive events with structured payload |
+| ProactiveEventDatabase | v6 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
 | EvolutionDatabase | v4 | Candidates, proposals, evidence, outcomes (dedup index on domain/action/target) |
 | DreamConsolidationDatabase | v3 | Dream summaries, routines, contradictions, KG edge proposals |
@@ -456,7 +458,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 57 entities, 40 migrations, schema export)
+- Room 2.8.4 (11 databases, 58 entities, 41 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

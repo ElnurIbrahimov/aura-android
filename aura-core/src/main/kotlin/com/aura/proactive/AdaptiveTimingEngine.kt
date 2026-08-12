@@ -31,20 +31,43 @@ import kotlin.math.abs
 @Singleton
 class AdaptiveTimingEngine @Inject constructor(
     private val proactiveInteractionDao: ProactiveInteractionDao,
+    private val outcomeDao: ProactiveOutcomeDao? = null,
 ) {
+    /**
+     * How receptive each local hour has been.
+     *
+     * **Outcomes are the primary signal and taps are secondary, at half
+     * weight.** A tap says the card looked interesting; the thing it was about
+     * actually resolving says the card was right, and only the second is worth
+     * choosing a moment by. Interactions still contribute so that an install
+     * with no closed outcomes yet is not flying blind.
+     */
     suspend fun hourlyEngagement(): FloatArray {
+        val raw = FloatArray(24) { 0f }
+
+        val outcomes = runCatching { outcomeDao?.tallyForTiming(0L).orEmpty() }
+            .onFailure { Log.w(TAG, "outcome read failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+        for (row in outcomes) {
+            val hour = localHourOf(row.postedAt)
+            when (row.outcome) {
+                ProactiveOutcomeEntity.OUTCOME_RESOLVED -> raw[hour] += 1f
+                ProactiveOutcomeEntity.OUTCOME_IGNORED -> raw[hour] -= 0.5f
+                // unobservable and pending say nothing about the hour.
+            }
+        }
+
         val interactions = runCatching {
             proactiveInteractionDao.recent(200)
         }.onFailure { Log.w(TAG, "interaction read failed: ${it.message}", it) }.getOrDefault(emptyList())
-
-        val raw = FloatArray(24) { 0f }
         for (interaction in interactions) {
             val hour = localHourOf(interaction.timestamp)
             when (interaction.action) {
-                "tapped", "acted" -> raw[hour] += 1f
-                "dismissed", "snoozed" -> raw[hour] -= 0.5f
+                "tapped", "acted" -> raw[hour] += 0.5f
+                "dismissed", "snoozed" -> raw[hour] -= 0.25f
             }
         }
+
         return FloatArray(24) { normalize(raw[it]) }
     }
 

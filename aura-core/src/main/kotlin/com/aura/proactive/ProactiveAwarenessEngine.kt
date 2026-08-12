@@ -51,6 +51,21 @@ class ProactiveAwarenessEngine @Inject constructor(
         val title: kotlin.String,
         val message: kotlin.String,
         val urgency: Float, // 0-1
+
+        /**
+         * What this finding is *about*, so the outcome can be checked later.
+         *
+         * A finding carries rendered prose — "Task \"Fix the roof\" has been
+         * pending since 19 days ago" — and a sentence cannot be re-queried.
+         * These three fields are what let a checker ask, days afterwards,
+         * whether the thing actually changed.
+         *
+         * Defaulted, so a check with no observable subject constructs exactly
+         * as before and is recorded as unobservable rather than as a failure.
+         */
+        val subjectKind: kotlin.String = ProactiveOutcomeEntity.SUBJECT_NONE,
+        val subjectIds: List<kotlin.String> = emptyList(),
+        val baselineJson: kotlin.String = "{}",
     ) {
         /**
          * What tapping this does, derived from [type] rather than carried.
@@ -73,6 +88,15 @@ class ProactiveAwarenessEngine @Inject constructor(
                 ProactiveAction.OpenCalendarApp -> "calendar"
                 ProactiveAction.None -> null
             }
+    }
+
+    private companion object {
+        /**
+         * Ids kept per finding. Enough to check the predicate, few enough that
+         * a row stays small — the checker only needs to know whether *any* of
+         * them moved, not to enumerate the whole set.
+         */
+        const val MAX_SUBJECT_IDS = 10
     }
 
     suspend fun runAll(): List<ProactiveFinding> {
@@ -108,6 +132,13 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${stale.size} memories haven't been used in 30+ days",
             message = "These memories are fading. Review them to keep what matters and let go of what doesn't.",
             urgency = 0.2f,
+            subjectKind = ProactiveOutcomeEntity.SUBJECT_MEMORY_SET,
+            // `accessCount == 0` is a precondition of being in this list, so
+            // any of them reading above zero later is unambiguous evidence the
+            // user went and looked. `decayScore` would not be: the decay pass
+            // moves it on its own.
+            subjectIds = stale.take(MAX_SUBJECT_IDS).map { it.id },
+            baselineJson = """{"count":${stale.size}}""",
         ))
     }
 
@@ -139,6 +170,14 @@ class ProactiveAwarenessEngine @Inject constructor(
                 if (daysStuck > 14) "Consider cancelling or breaking it into smaller steps."
                 else "Want to break it down or reschedule?",
             urgency = if (daysStuck > 14) 0.7f else 0.4f,
+            subjectKind = ProactiveOutcomeEntity.SUBJECT_TASK,
+            subjectIds = listOfNotNull(oldest?.id),
+            // deferCount and lastTouchedAt, not salience: TaskDecayPass moves
+            // salience ~9% over a 72h horizon by itself, so a task near the
+            // quiet threshold would cross it unaided and be scored as a success
+            // this suggestion had nothing to do with.
+            baselineJson = """{"deferCount":${oldest?.deferCount ?: 0},""" +
+                """"lastTouchedAt":${oldest?.lastTouchedAt ?: 0},"stuckCount":${stuck.size}}""",
         ))
     }
 
@@ -160,6 +199,8 @@ class ProactiveAwarenessEngine @Inject constructor(
                 else -> "Haven't heard from you in a while. I'm here when you need me."
             },
             urgency = if (daysSince > 7) 0.5f else 0.3f,
+            subjectKind = ProactiveOutcomeEntity.SUBJECT_CONVERSATION,
+            baselineJson = """{"lastActivityAt":$lastActivity}""",
         ))
     }
 
@@ -180,6 +221,10 @@ class ProactiveAwarenessEngine @Inject constructor(
         val repo = kgRepository ?: return emptyList()
         val nodes = repo.recent(100)
         val contradictions = mutableListOf<kotlin.String>()
+        // The ids were being thrown away and only the labels kept, which left
+        // the finding unable to say which nodes it meant. Not a new check —
+        // the same check no longer discarding its own subject.
+        val conflictingIds = mutableListOf<kotlin.String>()
         for (node in nodes) {
             val neighbors = repo.getNeighbors(node.id)
             val allEdges = neighbors.incoming + neighbors.outgoing
@@ -187,6 +232,7 @@ class ProactiveAwarenessEngine @Inject constructor(
             for ((_, rels) in byTarget) {
                 if (rels.size > 1 && rels.map { it.type }.distinct().size > 1) {
                     contradictions.add(node.label)
+                    conflictingIds.add(node.id)
                 }
             }
         }
@@ -196,6 +242,9 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${contradictions.size} conflicting relationship(s) in knowledge graph",
             message = contradictions.joinToString("; "),
             urgency = 0.5f,
+            subjectKind = ProactiveOutcomeEntity.SUBJECT_KG_NODE_SET,
+            subjectIds = conflictingIds.distinct().take(MAX_SUBJECT_IDS),
+            baselineJson = """{"count":${contradictions.size}}""",
         ))
     }
 
@@ -248,6 +297,8 @@ class ProactiveAwarenessEngine @Inject constructor(
             title = "${highPriority.size} high-priority tasks pending",
             message = "You have a lot of high-priority tasks. Want to review priorities?",
             urgency = 0.5f,
+            subjectKind = ProactiveOutcomeEntity.SUBJECT_TASK_SET,
+            baselineJson = """{"highPriorityCount":${highPriority.size}}""",
         ))
     }
 }

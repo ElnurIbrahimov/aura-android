@@ -77,6 +77,7 @@ internal val KEY_DAEMON_ENABLED = booleanPreferencesKey("daemon_enabled")
 internal val KEY_DAEMON_INTERVAL_MINUTES = intPreferencesKey("daemon_interval_minutes")
 internal val KEY_DREAM_ENABLED = booleanPreferencesKey("dream_enabled")
 internal val KEY_LIVING_WORLD_ENABLED = booleanPreferencesKey("living_world_enabled")
+internal val KEY_INTERRUPTION_POLICIES = stringPreferencesKey("interruption_policies")
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
@@ -415,6 +416,41 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setLivingWorldEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_LIVING_WORLD_ENABLED] = enabled }
+    }
+
+    /**
+     * Per-category interruption policy, as `type=POLICY` pairs.
+     *
+     * Absent means EARNED, which is the default and the reason this needs no
+     * configuring: the ledger decides unless the user says otherwise. Stored as
+     * one string rather than a key per category so adding a ninth finding type
+     * needs no new preference key.
+     */
+    val interruptionPolicies: Flow<Map<String, String>> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_INTERRUPTION_POLICIES].orEmpty()
+            .split(',')
+            .mapNotNull { entry ->
+                val parts = entry.split('=')
+                if (parts.size == 2 && parts[0].isNotBlank()) parts[0] to parts[1] else null
+            }
+            .toMap()
+    }
+
+    suspend fun setInterruptionPolicy(type: String, policy: String) {
+        context.auraPrefs.edit { prefs ->
+            val current = prefs[KEY_INTERRUPTION_POLICIES].orEmpty()
+                .split(',')
+                .mapNotNull { entry ->
+                    val parts = entry.split('=')
+                    if (parts.size == 2 && parts[0].isNotBlank()) parts[0] to parts[1] else null
+                }
+                .toMap()
+                .toMutableMap()
+            // EARNED is the default, so it is stored as absence rather than as a
+            // value — the map only ever holds deliberate overrides.
+            if (policy == "EARNED") current.remove(type) else current[type] = policy
+            prefs[KEY_INTERRUPTION_POLICIES] = current.entries.joinToString(",") { "${'$'}{it.key}=${'$'}{it.value}" }
+        }
     }
 
     /**

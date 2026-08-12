@@ -24,6 +24,7 @@ class DecayWorker @AssistedInject constructor(
     private val memoryStore: MemoryStore,
     private val userPreferences: com.aura.data.UserPreferences,
     private val taskDecayPass: com.aura.tasks.TaskDecayPass? = null,
+    private val outcomePass: ProactiveOutcomePass? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runNow()
@@ -39,6 +40,12 @@ class DecayWorker @AssistedInject constructor(
      */
     suspend fun runNow(): Result {
         return try {
+            // Above the decayEnabled gate on purpose. That preference means
+            // "do not let my memories fade"; it must not also silently switch
+            // off measuring whether proactive suggestions helped.
+            runCatching { outcomePass?.run() }
+                .onFailure { android.util.Log.w("DecayWorker", "outcome pass failed: ${it.message}", it) }
+
             if (!userPreferences.decayEnabled.first()) return Result.success()
             memoryStore.runDecayPass()
             // Tasks decay on the same pass as memories, deliberately. It is the

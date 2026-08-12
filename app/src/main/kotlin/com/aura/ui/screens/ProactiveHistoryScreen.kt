@@ -84,6 +84,8 @@ data class HistoryCardModel(
     val tapHint: String?,
     val timestamp: Long,
     val onClick: (() -> Unit)?,
+    /** What became of this suggestion, in words. Blank when nothing is known yet. */
+    val outcome: String = "",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,6 +96,7 @@ fun ProactiveHistoryScreen(
     viewModel: ProactiveHistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val outcomes by viewModel.outcomes.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     AuraScreenShell(
@@ -120,8 +123,15 @@ fun ProactiveHistoryScreen(
             if (reversed.isEmpty()) {
                 item { EmptyState() }
             }
+            if (outcomes.summary.isNotEmpty()) {
+                item { OutcomeSummaryHeader(outcomes.summary) }
+            }
             items(reversed) { event ->
-                val model = event.toCardModel(context, onProactiveAction, { id, type, action, _ -> viewModel.onEventAction(id, type, action) })
+                val model = event
+                    .toCardModel(context, onProactiveAction) { id, type, action, _ ->
+                        viewModel.onEventAction(id, type, action)
+                    }
+                    .copy(outcome = outcomes.byEventId[event.id]?.reason.orEmpty())
                 HistoryCard(
                     model = model,
                     modifier = if (model.onClick != null) Modifier.clickable(onClick = model.onClick) else Modifier,
@@ -141,6 +151,38 @@ fun ProactiveHistoryScreen(
 }
 
 // ── Empty state ────────────────────────────────────────────────────────────
+
+/**
+ * How suggestions have landed over the last thirty days.
+ *
+ * This is the deliverable, not instrumentation for something later: an
+ * assistant that nudges you should be able to say how often its nudges were
+ * worth it, and be visibly wrong when they weren't.
+ */
+@Composable
+private fun OutcomeSummaryHeader(summary: List<com.aura.ui.viewmodel.ProactiveCategorySummary>) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.sm)) {
+        Text(
+            text = "How suggestions have landed",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+        for (row in summary) {
+            Text(
+                text = when {
+                    row.neverMeasurable ->
+                        "${row.label} — ${row.unobservable} raised, none measurable"
+                    else ->
+                        "${row.label} — ${row.resolved} of ${row.closed} led somewhere"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+            )
+        }
+    }
+}
 
 @Composable
 private fun EmptyState() {
@@ -357,6 +399,15 @@ private fun HistoryCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.85f),
                 )
+                // ── Outcome: did this suggestion actually help? ──────
+                if (model.outcome.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(AuraSpacing.xs))
+                    Text(
+                        text = model.outcome,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
+                    )
+                }
                 // ── Footer row: tap hint + timestamp ─────────────────
                 Spacer(modifier = Modifier.height(AuraSpacing.small))
                 Row(

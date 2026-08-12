@@ -629,3 +629,19 @@ internal fun LivingEventBackup.toEntity() = com.aura.creative.livingworld.Living
     magnitudeMilli = magnitudeMilli, summary = summary, notability = notability,
     narration = narration, narratedAt = narratedAt, createdAt = createdAt,
 )
+
+// ── Schema v21: proactive outcomes ──
+
+internal fun com.aura.proactive.ProactiveOutcomeEntity.toBackup() = ProactiveOutcomeBackup(
+    id = id, eventId = eventId, findingType = findingType, subjectKind = subjectKind,
+    subjectIds = subjectIds, baselineJson = baselineJson, surface = surface,
+    postedAt = postedAt, dueAt = dueAt, outcome = outcome, outcomeAt = outcomeAt,
+    outcomeReason = outcomeReason,
+)
+
+internal fun ProactiveOutcomeBackup.toEntity() = com.aura.proactive.ProactiveOutcomeEntity(
+    id = id, eventId = eventId, findingType = findingType, subjectKind = subjectKind,
+    subjectIds = subjectIds, baselineJson = baselineJson, surface = surface,
+    postedAt = postedAt, dueAt = dueAt, outcome = outcome, outcomeAt = outcomeAt,
+    outcomeReason = outcomeReason,
+)

@@ -57,6 +57,16 @@ data class AuraBackup(
     val creativeBranches: List<CreativeBranchBackup> = emptyList(),
     val canonFacts: List<CanonFactBackup> = emptyList(),
     /**
+     * Schema v21: whether proactive suggestions actually helped.
+     *
+     * Not optional. ENGINEERING_HISTORY §2.2 records shipping eight entities
+     * with no backup class at all, and one of the things a restore silently
+     * dropped was the user's responses to proactive suggestions. Doing that
+     * again to the table those responses are now measured in would be the same
+     * bug with a straight face.
+     */
+    val proactiveOutcomes: List<ProactiveOutcomeBackup> = emptyList(),
+    /**
      * Schema v19: living worlds and their history.
      *
      * A world is the most irreplaceable thing in a creative project — it is
@@ -128,7 +138,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 20
+        const val SCHEMA_VERSION = 21
     }
 }
 
@@ -648,6 +658,22 @@ data class CanonFactBackup(
     val status: String = "active",
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+@Serializable
+data class ProactiveOutcomeBackup(
+    val id: Long = 0,
+    val eventId: Long,
+    val findingType: String,
+    val subjectKind: String,
+    val subjectIds: String = "[]",
+    val baselineJson: String = "{}",
+    val surface: String = "card",
+    val postedAt: Long,
+    val dueAt: Long = 0L,
+    val outcome: String = "pending",
+    val outcomeAt: Long = 0L,
+    val outcomeReason: String = "",
 )
 
 // ── Schema v19: living world backup types ──

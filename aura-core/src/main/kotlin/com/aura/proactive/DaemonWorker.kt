@@ -52,6 +52,8 @@ class DaemonWorker @AssistedInject constructor(
      * afterwards, which is why it is the only path used below.
      */
     private val proactiveEvents: ProactiveEvents,
+    private val outcomeDao: ProactiveOutcomeDao? = null,
+    private val proactiveNotifier: ProactiveNotifier? = null,
     private val calendarReadTool: CalendarReadTool,
     private val memoryStore: MemoryStore,
     private val taskDao: TaskDao,
@@ -250,11 +252,54 @@ class DaemonWorker @AssistedInject constructor(
      * that scores below the motivation bar leaves no row and stays novel.
      */
     private suspend fun postFinding(finding: ProactiveAwarenessEngine.ProactiveFinding) {
-        proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
+        val now = System.currentTimeMillis()
+        val eventId = proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
             title = finding.title,
             body = finding.message,
             findingType = finding.type,
         ))
+        if (eventId <= 0L) return
+
+        // Record what this suggestion was about, so the outcome pass can ask
+        // later whether it actually helped. Three of the eight finding types
+        // have no observable outcome and are written as such rather than being
+        // given a checker that measures something adjacent and calls it
+        // success — see ProactiveOutcomePass.horizonFor.
+        val type = ProactiveFindingType.from(finding.type) ?: return
+        val horizon = ProactiveOutcomePass.horizonFor(type)
+
+        // The in-app record above always happens; this is the conditional part.
+        // A category only interrupts once the evidence says suggestions of its
+        // kind actually lead somewhere, and only in hours where they have.
+        val notified = runCatching { proactiveNotifier?.maybeNotify(finding, now) ?: false }
+            .onFailure { Log.w(TAG, "notify check failed: ${it.message}", it) }
+            .getOrDefault(false)
+        runCatching {
+            outcomeDao?.insert(
+                ProactiveOutcomeEntity(
+                    eventId = eventId,
+                    findingType = finding.type,
+                    subjectKind = finding.subjectKind,
+                    subjectIds = finding.subjectIds.joinToString(
+                        prefix = "[", postfix = "]", separator = ",",
+                    ) { "\"" + it + "\"" },
+                    baselineJson = finding.baselineJson,
+                    surface = if (notified) {
+                        ProactiveOutcomeEntity.SURFACE_NOTIFICATION
+                    } else {
+                        ProactiveOutcomeEntity.SURFACE_CARD
+                    },
+                    postedAt = now,
+                    dueAt = if (horizon > 0L) now + horizon else 0L,
+                    outcome = if (horizon > 0L) {
+                        ProactiveOutcomeEntity.OUTCOME_PENDING
+                    } else {
+                        ProactiveOutcomeEntity.OUTCOME_UNOBSERVABLE
+                    },
+                    outcomeReason = if (horizon > 0L) "" else UNOBSERVABLE_REASON,
+                ),
+            )
+        }.onFailure { Log.w(TAG, "recording outcome row failed: ${it.message}", it) }
     }
 
     private suspend fun generateLlmInsight() {
@@ -355,5 +400,10 @@ class DaemonWorker @AssistedInject constructor(
 
     companion object {
         private const val TAG = "DaemonWorker"
+
+        /** Said in the UI, so it explains rather than labels. */
+        const val UNOBSERVABLE_REASON =
+            "Aura can raise this but cannot see what you did about it, so it is never counted for or against."
+
     }
 }

@@ -60,6 +60,37 @@ object ProactiveEventModule {
         }
     }
 
+    /**
+     * Migration 5→6: adds the table that records whether a suggestion helped.
+     *
+     * DDL copied verbatim from the generated 6.json rather than hand-written —
+     * a migration producing a schema even slightly different from the one Room
+     * expects fails validation on every upgrade install while passing every
+     * fresh-install test.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `proactive_outcomes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`eventId` INTEGER NOT NULL, `findingType` TEXT NOT NULL, `subjectKind` TEXT NOT NULL, " +
+                    "`subjectIds` TEXT NOT NULL, `baselineJson` TEXT NOT NULL, `surface` TEXT NOT NULL, " +
+                    "`postedAt` INTEGER NOT NULL, `dueAt` INTEGER NOT NULL, `outcome` TEXT NOT NULL, " +
+                    "`outcomeAt` INTEGER NOT NULL, `outcomeReason` TEXT NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_proactive_outcomes_outcome_dueAt` " +
+                    "ON `proactive_outcomes` (`outcome`, `dueAt`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_proactive_outcomes_findingType_postedAt` " +
+                    "ON `proactive_outcomes` (`findingType`, `postedAt`)",
+            )
+            // No backfill. Existing event rows recorded no subject, and
+            // anything inferred from their prose would be a guess the ledger
+            // would then be counting as evidence.
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ProactiveEventDatabase =
@@ -67,7 +98,7 @@ object ProactiveEventModule {
             context,
             ProactiveEventDatabase::class.java,
             "aura-proactive.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6),
         ).build()
 
     @Provides
@@ -75,4 +106,7 @@ object ProactiveEventModule {
 
     @Provides
     fun provideProactiveInteractionDao(db: ProactiveEventDatabase): ProactiveInteractionDao = db.proactiveInteractionDao()
+
+    @Provides
+    fun provideProactiveOutcomeDao(db: ProactiveEventDatabase): ProactiveOutcomeDao = db.proactiveOutcomeDao()
 }

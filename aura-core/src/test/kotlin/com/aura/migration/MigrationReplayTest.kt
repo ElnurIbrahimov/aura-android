@@ -135,6 +135,7 @@ class MigrationReplayTest {
             listOf(
                 ProactiveEventModule.MIGRATION_1_2, ProactiveEventModule.MIGRATION_2_3,
                 ProactiveEventModule.MIGRATION_3_4, ProactiveEventModule.MIGRATION_4_5,
+                ProactiveEventModule.MIGRATION_5_6,
             ),
         ),
         DatabaseUnderTest(

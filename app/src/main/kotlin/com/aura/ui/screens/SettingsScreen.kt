@@ -34,6 +34,7 @@ import com.aura.ui.settings.sections.DataAndBackupSection
 import com.aura.ui.settings.sections.DreamConsolidationSection
 import com.aura.ui.settings.sections.EmotionDaemonSection
 import com.aura.ui.settings.sections.IntegrationsSection
+import com.aura.ui.settings.sections.InterruptionsSection
 import com.aura.ui.settings.sections.ReasoningSection
 import com.aura.ui.settings.sections.EvolutionSettingsSection
 import com.aura.ui.settings.sections.McpServersSection
@@ -199,6 +200,12 @@ fun SettingsScreen(
             councilActivityLevel = state.councilActivityLevel,
             onToggleEnabled = viewModel::setCouncilEnabled,
             onActivityLevelChange = viewModel::setCouncilActivityLevel,
+        )
+
+        InterruptionsSection(
+            verdicts = state.interruptionVerdicts,
+            policies = state.interruptionPolicies,
+            onSetPolicy = viewModel::setInterruptionPolicy,
         )
 
         TriggersSection(

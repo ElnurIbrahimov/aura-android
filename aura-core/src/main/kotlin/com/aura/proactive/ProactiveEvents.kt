@@ -37,6 +37,7 @@ class ProactiveEvents(
     private val bus: ProactiveEventBus,
     private val dao: ProactiveEventDao,
     private val interactionDao: ProactiveInteractionDao,
+    private val outcomeDao: ProactiveOutcomeDao? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
     private val userPreferences: UserPreferences,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -52,9 +53,13 @@ class ProactiveEvents(
         bus: ProactiveEventBus,
         dao: ProactiveEventDao,
         interactionDao: ProactiveInteractionDao,
+        outcomeDao: ProactiveOutcomeDao? = null,
         evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
         userPreferences: UserPreferences,
-    ) : this(bus, dao, interactionDao, evolutionHooks, userPreferences, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    ) : this(
+        bus, dao, interactionDao, outcomeDao, evolutionHooks, userPreferences,
+        CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    )
 
     private val _latest = MutableStateFlow<ProactiveEventBus.Event?>(null)
     val latest: StateFlow<ProactiveEventBus.Event?> = _latest.asStateFlow()
@@ -116,6 +121,12 @@ class ProactiveEvents(
                 // small. Errors are swallowed — cleanup is best-effort.
                 val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
                 dao.deleteOlderThan(cutoff)
+                // Outcomes are swept on the same cutoff, deliberately. The
+                // interruption ledger counts over a 30-day window, so if these
+                // two lengths diverge the history screen will show cards whose
+                // outcomes have been deleted, or count outcomes for cards that
+                // are gone. If either moves, move both.
+                outcomeDao?.deleteOlderThan(cutoff)
             }.onFailure { android.util.Log.w("ProactiveEvents", "history load/retention failed", it) }
         }
         scope.launch {

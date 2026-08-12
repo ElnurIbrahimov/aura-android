@@ -36,6 +36,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private const val TAG = "SettingsViewModel"
+
 data class SettingsCredentialSpec(
     val prefix: String,
     val label: String,
@@ -227,6 +229,9 @@ data class SettingsUiState(
     /** Count of dream summaries ever written. */
     val dreamTotalSummaries: Int = 0,
     val triggersEnabled: Boolean = true,
+    /** What has earned the right to interrupt, and why, recomputed on load. */
+    val interruptionVerdicts: List<com.aura.proactive.InterruptionVerdict> = emptyList(),
+    val interruptionPolicies: Map<String, com.aura.proactive.InterruptionPolicy> = emptyMap(),
     val triggers: List<com.aura.triggers.Trigger> = emptyList(),
     /** True while a manual "Run now" cycle is in progress. */
     val dreamRunning: Boolean = false,
@@ -278,6 +283,12 @@ class SettingsViewModel @Inject constructor(
 
     @dagger.hilt.android.qualifiers.ApplicationContext
     private val appContext: android.content.Context,
+    /**
+     * Last and defaulted deliberately: this constructor is built positionally
+     * by several tests, so inserting anywhere else silently shifts every
+     * argument after it onto the wrong parameter.
+     */
+    private val interruptionLedger: com.aura.proactive.InterruptionLedger? = null,
 ) : ViewModel() {
 
     private fun configuredProviderLabels(): List<String> =
@@ -392,6 +403,22 @@ class SettingsViewModel @Inject constructor(
             val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
             val screenControlEnabled = userPreferences.screenControlEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
+            val storedPolicies = runCatching { userPreferences.interruptionPolicies.first() }
+                .onFailure { Log.w(TAG, "interruption policies read failed: ${it.message}", it) }
+                .getOrDefault(emptyMap())
+                .mapNotNull { (wire, value) ->
+                    runCatching { com.aura.proactive.InterruptionPolicy.valueOf(value) }.getOrNull()
+                        ?.let { wire to it }
+                }
+                .toMap()
+            val verdicts = runCatching {
+                interruptionLedger?.allVerdicts(
+                    com.aura.proactive.ProactiveFindingType.entries.associateWith { type ->
+                        storedPolicies[type.wire] ?: com.aura.proactive.InterruptionPolicy.EARNED
+                    },
+                ).orEmpty()
+            }.onFailure { Log.w(TAG, "verdicts unavailable: ${it.message}", it) }
+                .getOrDefault(emptyList())
             val triggers = userPreferences.triggers.first()
             val dreamLastRunAt = userPreferences.dreamLastRunAt.first()
             val dreamLastRunStats = userPreferences.dreamLastRunStats.first()
@@ -468,6 +495,8 @@ class SettingsViewModel @Inject constructor(
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
                 triggersEnabled = triggersEnabled,
+                interruptionVerdicts = verdicts,
+                interruptionPolicies = storedPolicies,
                 triggers = triggers,
             )
         }
@@ -739,6 +768,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setScreenControlEnabled(enabled)
             _state.update { it.copy(screenControlEnabled = enabled) }
+        }
+    }
+
+    fun setInterruptionPolicy(wire: String, policy: com.aura.proactive.InterruptionPolicy) {
+        viewModelScope.launch {
+            runCatching { userPreferences.setInterruptionPolicy(wire, policy.name) }
+                .onFailure { Log.w(TAG, "setting interruption policy failed: ${it.message}", it) }
+            // Reload rather than patch the state locally: the verdict sentence
+            // is derived from the policy, so a local edit would leave the
+            // explanation contradicting the setting it explains.
+            reload()
         }
     }
 
