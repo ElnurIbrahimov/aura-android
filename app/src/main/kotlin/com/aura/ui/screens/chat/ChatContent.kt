@@ -87,6 +87,11 @@ fun ChatContent(
     onRetry: () -> Unit,
     /** Idle-time prepared question (ProAct chip). Null hides the chip. */
     preparedQuestion: String? = null,
+    /** Something Aura wants to know. Null hides the card. */
+    openQuestion: String? = null,
+    onAnswerOpenQuestion: (String) -> Unit = {},
+    onSnoozeOpenQuestion: () -> Unit = {},
+    onNeverAskOpenQuestion: () -> Unit = {},
     onSendPrepared: () -> Unit = {},
     onDismissPrepared: () -> Unit = {},
     onDismissError: () -> Unit,
@@ -248,6 +253,15 @@ fun ChatContent(
                     question = q,
                     onSend = onSendPrepared,
                     onDismiss = onDismissPrepared,
+                )
+            }
+
+            openQuestion?.let { q ->
+                com.aura.ui.components.OpenQuestionCard(
+                    question = q,
+                    onAnswer = onAnswerOpenQuestion,
+                    onNotNow = onSnoozeOpenQuestion,
+                    onNeverAsk = onNeverAskOpenQuestion,
                 )
             }
 

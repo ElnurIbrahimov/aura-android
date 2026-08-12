@@ -202,6 +202,9 @@ internal fun resolveModelSelection(
     return ModelSelectionState.Failed(active, models, message)
 }
 
+/** A question Aura is waiting to ask, reduced to what the card needs. */
+data class OpenQuestionPrompt(val id: String, val question: String)
+
 data class ChatUiState(
     val conversation: com.aura.agent.Conversation = com.aura.agent.Conversation(),
     val conversationLoading: Boolean = false,
@@ -312,6 +315,13 @@ data class ChatUiState(
     val ttsState: com.aura.voice.TextToSpeech.State = com.aura.voice.TextToSpeech.State.Idle,
     /** Wall-clock duration of the most recent response. Shown in the response footer. */
     val lastResponseDurationMs: Long = 0L,
+    /**
+     * Something Aura wants to know, shown after it has finished answering.
+     *
+     * Null whenever there is nothing to ask, which is most of the time — the
+     * scan runs nightly and there is never more than one open question.
+     */
+    val openQuestion: OpenQuestionPrompt? = null,
 ) {
     /**
      * The model this chat will actually use, resolved once for the header,
@@ -388,9 +398,13 @@ class ChatViewModel @Inject constructor(
     private val proactiveMessageStore: com.aura.proactive.ProactiveMessageStore? = null,
     private val idleTimePreparationEngine: com.aura.proactive.IdleTimePreparationEngine? = null,
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao? = null,
+    private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(ChatUiState())
+
+    /** Questions the user said "not now" to, for this session only. */
+    private val snoozedQuestionIds = mutableSetOf<String>()
 
     private val conversationController = ChatConversationController(
         _state = _state,
@@ -539,6 +553,17 @@ class ChatViewModel @Inject constructor(
         // Idle-time preparation (ProAct): if the daemon pre-researched a
         // predicted question, surface it as a suggestion chip. consumePrepared()
         // clears it once the user taps the chip (or it expires on next prepare).
+        // Ask after answering, not before. The moment Aura has finished doing
+        // what was asked of it is the only moment where a question of its own
+        // is not an interruption — so this watches the streaming edge rather
+        // than loading once, and every path out of a turn (send, retry, error)
+        // goes through it.
+        viewModelScope.launch {
+            _state
+                .map { it.streaming }
+                .distinctUntilChanged()
+                .collect { streaming -> if (!streaming) refreshOpenQuestion() }
+        }
         viewModelScope.launch {
             runCatching {
                 idleTimePreparationEngine?.prepared?.collect { prepared ->
@@ -1008,6 +1033,65 @@ class ChatViewModel @Inject constructor(
             )
         }
         send()
+    }
+
+    /**
+     * Load the question Aura is waiting to ask, if there is one.
+     *
+     * "Not now" holds for the rest of the session, in memory: a snooze that
+     * survived a restart would need a column, and a question that reappears
+     * tomorrow is the intended behaviour anyway. Only a permanent refusal is
+     * written down.
+     */
+    private fun refreshOpenQuestion() {
+        val store = curiosityStore ?: return
+        if (snoozedQuestionIds.isNotEmpty() && _state.value.openQuestion != null) return
+        viewModelScope.launch {
+            val question = runCatching { store.current() }
+                .onFailure { Log.w(TAG, "open-question read failed", it) }
+                .getOrNull()
+                ?.takeIf { it.id !in snoozedQuestionIds }
+            _state.update {
+                it.copy(openQuestion = question?.let { q -> OpenQuestionPrompt(q.id, q.question) })
+            }
+            question?.let { q -> runCatching { store.markAsked(q.id) } }
+        }
+    }
+
+    /** The user answered Aura's question. The answer becomes a memory. */
+    fun answerOpenQuestion(text: String) {
+        val question = _state.value.openQuestion ?: return
+        val store = curiosityStore ?: return
+        _state.update { it.copy(openQuestion = null) }
+        viewModelScope.launch {
+            runCatching {
+                store.answer(
+                    question.id,
+                    text,
+                    provenance = com.aura.provenance.ConversationProvenance(
+                        _state.value.conversation.id,
+                        _state.value.conversation.turns.lastOrNull()?.timestamp ?: 0L,
+                    ),
+                )
+            }.onFailure { Log.w(TAG, "answering failed", it) }
+        }
+    }
+
+    /** Not now — hidden for this session, asked again later. */
+    fun snoozeOpenQuestion() {
+        _state.value.openQuestion?.let { snoozedQuestionIds += it.id }
+        _state.update { it.copy(openQuestion = null) }
+    }
+
+    /** Never ask about this again. Permanent, and written down. */
+    fun neverAskOpenQuestion() {
+        val question = _state.value.openQuestion ?: return
+        val store = curiosityStore ?: return
+        _state.update { it.copy(openQuestion = null) }
+        viewModelScope.launch {
+            runCatching { store.dismiss(question.id) }
+                .onFailure { Log.w(TAG, "dismissing failed", it) }
+        }
     }
 
     /** Dismiss the idle-prep chip without sending. */

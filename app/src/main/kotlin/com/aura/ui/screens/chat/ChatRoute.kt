@@ -415,6 +415,10 @@ fun ChatRoute(
         },
         onRetry = viewModel::retryLast,
         preparedQuestion = state.preparedQuestion,
+        openQuestion = state.openQuestion?.question,
+        onAnswerOpenQuestion = viewModel::answerOpenQuestion,
+        onSnoozeOpenQuestion = viewModel::snoozeOpenQuestion,
+        onNeverAskOpenQuestion = viewModel::neverAskOpenQuestion,
         onSendPrepared = {
             followLiveEdge = true
             viewModel.sendPrepared()
