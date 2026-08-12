@@ -77,8 +77,9 @@ import com.aura.kg.NodeEntity
         MemoryFtsEntity::class,
         LivingWorldEntity::class,
         LivingEventEntity::class,
+        CorrectionEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -108,4 +109,5 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun memoryFtsDao(): MemoryFtsDao
     abstract fun livingWorldDao(): LivingWorldDao
     abstract fun livingEventDao(): LivingEventDao
+    abstract fun correctionDao(): CorrectionDao
 }

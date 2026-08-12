@@ -26,11 +26,17 @@ class MemoryStore @Inject constructor(
     private val queryRewriter: QueryRewriter? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
     /**
-     * Every retrieval tunable. Appended LAST on purpose: existing tests build
-     * this positionally with five arguments and rely on defaults for the rest,
-     * so a parameter inserted anywhere else would break all of them.
+     * Every retrieval tunable. Appended near the end on purpose: existing tests
+     * build this positionally and rely on defaults for the rest, so a parameter
+     * inserted anywhere earlier would break all of them. Anything new goes
+     * after this, for the same reason.
      */
     private val config: RetrievalConfig = RetrievalConfig.DEFAULT,
+    /**
+     * Scoped corrections consulted on the recall path. Null in the eval
+     * harness, which must not see state the fixtures do not describe.
+     */
+    private val correctionDao: CorrectionDao? = null,
 ) {
     private val exactInsertMutex = Mutex()
 
@@ -579,11 +585,12 @@ class MemoryStore @Inject constructor(
         // enough candidates to justify it. With <5 candidates, RRF already
         // ranks them well and the reranker just adds latency + cost.
         val rerankRan = shouldRerank(rrfResults.size, rerankModel)
-        val results = if (rerankRan) {
+        val ranked = if (rerankRan) {
             reranker!!.rerank(text, rrfResults, rerankModel!!, topK = limit)
         } else {
             rrfResults.take(limit)
         }
+        val results = demoteScopedCorrections(ranked, qVec)
 
         // Touch is fire-and-forget; we don't want a failed decay update to break recall.
         //
@@ -707,6 +714,46 @@ class MemoryStore @Inject constructor(
         dao.delete(id)
         runCatching { evolutionHooks?.onMemoryForgotten(id) }
             .onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryForgotten failed (non-fatal)", it) }
+    }
+
+    /**
+     * Push down anything the user said should not answer questions like this.
+     *
+     * A demotion rather than an exclusion, because *irrelevant here* is a claim
+     * about a question, not about the memory: the fact is still true and still
+     * belongs in recall for something else. If nothing better matched, it can
+     * still surface — last.
+     *
+     * Matching is on the *embedding* of the question that was corrected, so
+     * "what should I cook" and "dinner ideas" count as the same question, which
+     * a string comparison could never say. With no query vector — the embedder
+     * timed out, or there is no correction store — nothing is demoted, because
+     * guessing which questions are alike is worse than not demoting.
+     */
+    private suspend fun demoteScopedCorrections(
+        ranked: List<MemoryEntity>,
+        queryVector: FloatArray?,
+    ): List<MemoryEntity> {
+        val dao = correctionDao ?: return ranked
+        if (queryVector == null || ranked.size < 2) return ranked
+        val demotions = runCatching { dao.scopedDemotions() }
+            .onFailure { Log.w("MemoryStore", "scoped-correction lookup failed; nothing demoted", it) }
+            .getOrDefault(emptyList())
+        if (demotions.isEmpty()) return ranked
+        val rankedIds = ranked.map { it.id }.toSet()
+        val demoted = demotions.asSequence()
+            .filter { it.targetId in rankedIds }
+            .filter { correction ->
+                val vector = correction.queryEmbedding ?: return@filter false
+                val stored = Embedder.fromBytes(vector)
+                stored.size == queryVector.size &&
+                    cosineSimilarity(queryVector, stored) >= SCOPED_CORRECTION_THRESHOLD
+            }
+            .map { it.targetId }
+            .toSet()
+        if (demoted.isEmpty()) return ranked
+        val (keep, push) = ranked.partition { it.id !in demoted }
+        return keep + push
     }
 
     /**
@@ -1196,6 +1243,16 @@ internal fun escapeLikeWildcards(s: String): String = s
  * light mode") to be stored separately.
  */
 private const val SEMANTIC_DEDUP_THRESHOLD = 0.92f
+
+/**
+ * How alike a question has to be to a corrected one for the demotion to apply.
+ *
+ * Higher than [NEAR_DUPLICATE_THRESHOLD] because the cost of being wrong runs
+ * the other way: a near-duplicate that is not really a duplicate wastes a
+ * proposal the user can reject, while an over-broad demotion silently hides a
+ * true memory from questions the user never complained about.
+ */
+private const val SCOPED_CORRECTION_THRESHOLD = 0.90f
 
 /** [MemoryEntity.retiredReason] written when a consolidation supersedes a row. */
 const val REASON_CONSOLIDATED = "consolidated"

@@ -28,7 +28,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aura.provenance.ConversationProvenance
+import com.aura.ui.viewmodel.MemoryCorrectionViewModel
 import androidx.compose.ui.unit.dp
 import com.aura.agent.RecallSummary
 
@@ -59,8 +67,10 @@ import com.aura.ui.theme.AuraSpacing
 @Composable
 fun MemoryRecallChip(
     recall: RecallSummary,
-    recalledMemoryContents: List<RecalledMemory> = emptyList(),
-    recalledHandContents: List<RecalledHand> = emptyList(),
+    conversationId: String = "",
+    turnTimestamp: Long = 0L,
+    /** What the user asked. Scopes an "irrelevant here" correction. */
+    queryText: String = "",
     modifier: Modifier = Modifier,
 ) {
     var sheetOpen by remember { mutableStateOf(false) }
@@ -105,8 +115,8 @@ fun MemoryRecallChip(
     if (sheetOpen) {
         MemoryRecallSheet(
             recall = recall,
-            memories = recalledMemoryContents,
-            hands = recalledHandContents,
+            provenance = ConversationProvenance(conversationId, turnTimestamp),
+            queryText = queryText,
             onDismiss = { sheetOpen = false },
         )
     }
@@ -116,16 +126,17 @@ fun MemoryRecallChip(
 @Composable
 private fun MemoryRecallSheet(
     recall: RecallSummary,
-    memories: List<RecalledMemory>,
-    hands: List<RecalledHand>,
+    provenance: ConversationProvenance,
+    queryText: String,
     onDismiss: () -> Unit,
+    viewModel: MemoryCorrectionViewModel = hiltViewModel(),
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        // Single LazyColumn — nesting scrollable LazyColumns inside a Column
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(recall) { viewModel.load(recall.memoryIds, recall.handIds) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        // Single LazyColumn - nesting scrollable LazyColumns inside a Column
         // of unbounded height (the bottom sheet) throws IllegalStateException
         // at measure time. All sections are items of one scroll container.
         LazyColumn(modifier = Modifier.padding(AuraSpacing.xxl2)) {
@@ -135,9 +146,39 @@ private fun MemoryRecallSheet(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
+                if (state.items.isNotEmpty()) {
+                    Text(
+                        text = "Tap anything Aura got wrong.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textSecondary,
+                    )
+                }
                 Spacer(modifier = Modifier.height(AuraSpacing.sm))
             }
-            if (memories.isEmpty() && hands.isEmpty()) {
+            state.report?.let { report ->
+                item {
+                    Surface(
+                        color = AuraThemeTokens.colors.surface2,
+                        shape = RoundedCornerShape(AuraSpacing.sm),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.sm),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(AuraSpacing.sm),
+                        ) {
+                            Text(
+                                text = report,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (state.lastCorrectionId != null) {
+                                TextButton(onClick = { viewModel.undo() }) { Text("Undo") }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!state.loading && state.items.isEmpty()) {
                 item {
                     Text(
                         text = stringResource(R.string.aura_looked_at_its_memories_for),
@@ -146,87 +187,116 @@ private fun MemoryRecallSheet(
                     )
                 }
             }
-            if (memories.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Memories (${memories.size})",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AuraThemeTokens.colors.actionPrimary,
-                    )
-                    Spacer(modifier = Modifier.height(AuraSpacing.xxs))
-                }
-                items(memories) { mem ->
-                    RecallRow(
-                        icon = Icons.Filled.Memory,
-                        title = "[${mem.category}] ${mem.content.take(80)}",
-                        subtitle = mem.content.drop(80).take(120),
-                    )
-                }
-            }
-            if (hands.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(AuraSpacing.xs))
-                    Text(
-                        text = "Hands (${hands.size})",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AuraThemeTokens.colors.actionPrimary,
-                    )
-                    Spacer(modifier = Modifier.height(AuraSpacing.xxs))
-                }
-                items(hands) { hand ->
-                    RecallRow(
-                        icon = Icons.Filled.QuestionMark,
-                        title = hand.name,
-                        subtitle = hand.description,
-                    )
-                }
+            items(state.items, key = { it.id }) { item ->
+                CorrectableRow(
+                    item = item,
+                    onNeverTrue = { viewModel.neverTrue(item.id, provenance) },
+                    onNoLongerTrue = { viewModel.noLongerTrue(item.id, it, provenance) },
+                    onIrrelevant = { viewModel.irrelevantHere(item.id, queryText, provenance) },
+                    onBadAnswer = { viewModel.badAnswer(item.id, provenance) },
+                    canScope = queryText.isNotBlank(),
+                )
             }
             item { Spacer(modifier = Modifier.height(AuraSpacing.xxl2)) }
         }
     }
 }
 
+/**
+ * One thing Aura used, and the ways it can be wrong.
+ *
+ * The choices are four sentences rather than a rating, because the distinction
+ * between them is the entire feature: a mistake, a fact that expired, a fact
+ * that surfaced in the wrong place, and a bad answer are four different
+ * corrections with four different effects, and a thumbs-down cannot tell them
+ * apart. The wording avoids naming the mechanism - the user is saying what is
+ * true, not choosing a retraction policy.
+ */
 @Composable
-private fun RecallRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String?,
+private fun CorrectableRow(
+    item: MemoryCorrectionViewModel.RecalledItem,
+    onNeverTrue: () -> Unit,
+    onNoLongerTrue: (String) -> Unit,
+    onIrrelevant: () -> Unit,
+    onBadAnswer: () -> Unit,
+    canScope: Boolean,
 ) {
-    Row(
+    var expanded by remember { mutableStateOf(false) }
+    var replacement by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
+    val corrected = item.correctionId != null
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = !corrected) { expanded = !expanded }
             .padding(vertical = AuraSpacing.small),
-        verticalAlignment = Alignment.Top,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = AuraThemeTokens.colors.textPrimary,
-            modifier = Modifier.size(AuraSpacing.md).padding(top = AuraSpacing.tiny),
-        )
-        Spacer(modifier = Modifier.width(AuraSpacing.sm))
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(
+                imageVector = if (item.isSkill) Icons.Filled.QuestionMark else Icons.Filled.Memory,
+                contentDescription = null,
+                tint = AuraThemeTokens.colors.textPrimary,
+                modifier = Modifier.size(AuraSpacing.md).padding(top = AuraSpacing.tiny),
             )
-            if (!subtitle.isNullOrBlank()) {
+            Spacer(modifier = Modifier.width(AuraSpacing.sm))
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AuraThemeTokens.colors.textPrimary,
+                    text = item.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    // Struck through in place, so the correction reads as
+                    // something that happened to this line rather than as a
+                    // message about it.
+                    textDecoration = if (corrected) TextDecoration.LineThrough else null,
+                    color = if (corrected) {
+                        AuraThemeTokens.colors.textSecondary
+                    } else {
+                        AuraThemeTokens.colors.textPrimary
+                    },
                 )
+                if (item.detail.isNotBlank()) {
+                    Text(
+                        text = item.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textSecondary,
+                    )
+                }
+            }
+        }
+        if (expanded && !corrected) {
+            Column(modifier = Modifier.padding(start = AuraSpacing.xl, top = AuraSpacing.xxs)) {
+                if (item.isSkill) {
+                    TextButton(onClick = onBadAnswer) { Text("This gave a bad answer") }
+                } else if (editing) {
+                    OutlinedTextField(
+                        value = replacement,
+                        onValueChange = { replacement = it },
+                        label = { Text("What is true now?") },
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row {
+                        TextButton(
+                            enabled = replacement.isNotBlank(),
+                            onClick = {
+                                onNoLongerTrue(replacement)
+                                editing = false
+                            },
+                        ) { Text("Save") }
+                        TextButton(onClick = { editing = false }) { Text("Cancel") }
+                    }
+                } else {
+                    TextButton(onClick = onNeverTrue) { Text("This was never true") }
+                    TextButton(onClick = { editing = true }) { Text("This has changed") }
+                    if (canScope) {
+                        TextButton(onClick = onIrrelevant) { Text("Not relevant to what I asked") }
+                    }
+                }
             }
         }
     }
 }
-
-/** Lightweight DTO for memory content. Caller (ChatScreen) builds this list from the memory store. */
-data class RecalledMemory(val id: String, val category: String, val content: String)
-data class RecalledHand(val id: String, val name: String, val description: String)
 
 private fun RecallSummary.summary(): String {
     val m = memoryIds.size

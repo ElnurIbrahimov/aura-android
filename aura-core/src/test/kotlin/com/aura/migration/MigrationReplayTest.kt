@@ -116,6 +116,7 @@ class MigrationReplayTest {
                 MemoryModule.MIGRATION_16_17,
                 MemoryModule.MIGRATION_17_18,
                 MemoryModule.MIGRATION_18_19,
+                MemoryModule.MIGRATION_19_20,
             ),
         ),
         DatabaseUnderTest(

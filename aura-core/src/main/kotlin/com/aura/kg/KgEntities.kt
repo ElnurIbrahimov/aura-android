@@ -37,6 +37,7 @@ data class NodeEntity(
     override fun hashCode(): Int = id.hashCode()
 }
 
+@kotlinx.serialization.Serializable
 @Entity(
     tableName = "kg_edges",
     foreignKeys = [

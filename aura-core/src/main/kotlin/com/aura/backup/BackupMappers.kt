@@ -105,6 +105,39 @@ internal fun MemoryBackup.toEntity() = MemoryEntity(
     retiredReason = retiredReason,
 )
 
+internal fun com.aura.memory.CorrectionEntity.toBackup() = CorrectionBackup(
+    id = id,
+    targetKind = targetKind,
+    targetId = targetId,
+    kind = kind,
+    replacementId = replacementId,
+    note = note,
+    queryText = queryText,
+    sourceConversationId = sourceConversationId,
+    sourceTurnTimestamp = sourceTurnTimestamp,
+    propagatedJson = propagatedJson,
+    createdAt = createdAt,
+    undoneAt = undoneAt,
+)
+
+internal fun CorrectionBackup.toEntity() = com.aura.memory.CorrectionEntity(
+    id = id,
+    targetKind = targetKind,
+    targetId = targetId,
+    kind = kind,
+    replacementId = replacementId,
+    note = note,
+    queryText = queryText,
+    // Recomputable from queryText; a missing vector stops the demotion
+    // matching rather than making it match the wrong questions.
+    queryEmbedding = null,
+    sourceConversationId = sourceConversationId,
+    sourceTurnTimestamp = sourceTurnTimestamp,
+    propagatedJson = propagatedJson,
+    createdAt = createdAt,
+    undoneAt = undoneAt,
+)
+
 internal fun MemoryEditEntity.toBackup() = MemoryEditBackup(
     id, memoryId, oldContent, newContent, oldCategory, newCategory, editedAt, editedBy,
 )

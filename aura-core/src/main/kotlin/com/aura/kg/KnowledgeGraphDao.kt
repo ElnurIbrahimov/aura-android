@@ -86,6 +86,19 @@ interface KnowledgeGraphDao {
     @Query("SELECT * FROM kg_edges WHERE targetId = :targetId")
     suspend fun edgesTo(targetId: String): List<EdgeEntity>
 
+    /**
+     * The claims Aura extracted from one conversation turn.
+     *
+     * The one hop a correction follows: if the sentence a memory came from was
+     * wrong, the graph claims made from that same sentence are wrong with it.
+     * Indexed on `sourceConversationId`; the timestamp narrows it to the turn.
+     */
+    @Query("SELECT * FROM kg_edges WHERE sourceConversationId = :conversationId AND sourceTurnTimestamp = :turnTimestamp")
+    suspend fun edgesFromTurn(conversationId: String, turnTimestamp: Long): List<EdgeEntity>
+
+    @Query("DELETE FROM kg_edges WHERE id = :id")
+    suspend fun deleteEdge(id: String)
+
     @Query("DELETE FROM kg_edges WHERE sourceId = :id OR targetId = :id")
     suspend fun deleteEdgesForNode(id: String)
 

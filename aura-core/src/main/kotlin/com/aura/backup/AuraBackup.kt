@@ -77,6 +77,7 @@ data class AuraBackup(
      */
     val livingWorlds: List<LivingWorldBackup> = emptyList(),
     val livingEvents: List<LivingEventBackup> = emptyList(),
+    val corrections: List<CorrectionBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
     // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
@@ -138,7 +139,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 21
+        const val SCHEMA_VERSION = 22
     }
 }
 
@@ -703,6 +704,31 @@ data class LivingWorldBackup(
     val status: String = "running",
     val createdAt: Long,
     val updatedAt: Long,
+)
+
+/**
+ * A correction the user made. Restoring without these would resurrect every
+ * memory the user has retracted, which is the one thing a restore must never
+ * do quietly.
+ *
+ * `queryEmbedding` is dropped: it is a derived vector, it is the largest field
+ * here, and a scoped demotion whose embedding is missing simply stops matching
+ * rather than matching wrongly. [queryText] survives, so it can be recomputed.
+ */
+@Serializable
+data class CorrectionBackup(
+    val id: String,
+    val targetKind: String,
+    val targetId: String,
+    val kind: String,
+    val replacementId: String? = null,
+    val note: String = "",
+    val queryText: String = "",
+    val sourceConversationId: String = "",
+    val sourceTurnTimestamp: Long = 0L,
+    val propagatedJson: String = "[]",
+    val createdAt: Long = 0L,
+    val undoneAt: Long? = null,
 )
 
 @Serializable

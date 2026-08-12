@@ -103,6 +103,7 @@ class BackupManager @Inject constructor(
     private val proactiveOutcomeDao: com.aura.proactive.ProactiveOutcomeDao? = null,
     private val livingWorldDao: com.aura.creative.livingworld.LivingWorldDao? = null,
     private val livingEventDao: com.aura.creative.livingworld.LivingEventDao? = null,
+    private val correctionDao: com.aura.memory.CorrectionDao? = null,
     private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
     private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
     // Schema v11: dream database DAOs.
@@ -326,6 +327,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             proactiveOutcomes = proactiveOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             livingWorlds = livingWorldDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             livingEvents = livingEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            corrections = correctionDao?.allForExport()?.map { it.toBackup() } ?: emptyList(),
             preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             // Schema v11: dream database.
@@ -763,6 +765,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val proactiveOutcomeRows = backup.proactiveOutcomes.map { it.toEntity() }
         val livingWorldRows = backup.livingWorlds.map { it.toEntity() }
         val livingEventRows = backup.livingEvents.map { it.toEntity() }
+        val correctionRows = backup.corrections.map { it.toEntity() }
         val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
         val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
         // Schema v11: dream database.
@@ -815,6 +818,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // key onto living_worlds, so the reverse order drops every event.
         if (livingWorldRows.isNotEmpty()) livingWorldDao?.upsertAll(livingWorldRows)
         if (livingEventRows.isNotEmpty()) livingEventDao?.upsertAll(livingEventRows)
+        if (correctionRows.isNotEmpty()) correctionDao?.insertAll(correctionRows)
         if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
         if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
         // Schema v11: dream database.
@@ -887,6 +891,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             proactiveOutcomes = proactiveOutcomeRows.size,
             livingWorlds = livingWorldRows.size,
             livingEvents = livingEventRows.size,
+            corrections = correctionRows.size,
             preferenceSignals = preferenceSignalRows.size,
             styleProfiles = styleProfileRows.size,
             // Schema v11: dream database.
@@ -1102,6 +1107,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         canonFactDao?.deleteAll()
         proactiveOutcomeDao?.deleteAll()
         livingEventDao?.deleteAll()
+        correctionDao?.deleteAll()
         livingWorldDao?.deleteAll()
         preferenceSignalDao?.deleteAll()
         styleProfileDao?.deleteAll()
@@ -1183,6 +1189,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val proactiveOutcomes: Int = 0,
             val livingWorlds: Int = 0,
             val livingEvents: Int = 0,
+            val corrections: Int = 0,
             val preferenceSignals: Int = 0,
             val styleProfiles: Int = 0,
             // Schema v11: dream database.
@@ -1234,7 +1241,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionProposals + evolutionSettings + evolutionRevisions +
                 agents + beliefs + evidence + worldEvents + opportunities +
                 creativeArtifacts + creativeRevisions + creativeBranches +
-                canonFacts + livingWorlds + livingEvents + proactiveOutcomes + preferenceSignals + styleProfiles +
+                canonFacts + livingWorlds + livingEvents + corrections + proactiveOutcomes + preferenceSignals + styleProfiles +
                 dreamSummaries + routines + contradictions + kgEdgeProposals +
                 memoryFeedback + documentChunks + referenceIdentities +
                 agentRuns + agentGoals + agentSteps + agentEvents +

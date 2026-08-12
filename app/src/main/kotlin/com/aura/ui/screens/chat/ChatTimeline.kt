@@ -129,7 +129,14 @@ fun ChatTimeline(
                                 onPick = onSendSuggestion,
                             )
                         }
-                        turn.recall?.let { MemoryRecallChip(recall = it) }
+                        turn.recall?.let {
+                            MemoryRecallChip(
+                                recall = it,
+                                conversationId = state.conversation.id,
+                                turnTimestamp = turn.timestamp,
+                                queryText = turn.user.orEmpty(),
+                            )
+                        }
                     }
                     turn.toolTurns.forEach { toolTurn ->
                         if (toolTurn.result.isNotEmpty()) {
