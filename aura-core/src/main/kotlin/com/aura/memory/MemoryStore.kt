@@ -194,6 +194,21 @@ class MemoryStore @Inject constructor(
             val rewriteModel: String? = null,
             /** Recent conversation turns for deictic resolution. */
             val recentContext: String = "",
+            /**
+             * Which turn this recall is serving.
+             *
+             * Recall evidence used to be written with `conversationId` and
+             * `turnTimestamp` as literal nulls at both call sites, so there was
+             * no way to ask which memories produced a given answer — the rows
+             * recorded that a memory had been recalled at some moment, and
+             * nothing else. Correcting an answer means naming the memory that
+             * poisoned it, and that question cannot be answered without this.
+             *
+             * Empty for reads that are not serving a turn (tools, evals).
+             */
+            val provenance: ConversationProvenance = ConversationProvenance(),
+            /** Agent run this recall belongs to, when there is one. */
+            val runId: String? = null,
         )
 
         suspend fun query(
@@ -388,7 +403,14 @@ class MemoryStore @Inject constructor(
             // memories honestly.
             for ((index, mem) in results.withIndex()) {
                 runCatching {
-                    evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
+                    evolutionHooks?.onMemoryRecalled(
+                        mem.id,
+                        text,
+                        index + 1,
+                        options.runId,
+                        options.provenance.conversationId.takeIf { it.isNotBlank() },
+                        options.provenance.turnTimestamp.takeIf { it > 0L },
+                    )
                 }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled in vector fallback failed (non-fatal)", it) }
             }
             trace(
@@ -576,7 +598,14 @@ class MemoryStore @Inject constructor(
                     .onFailure { Log.w("MemoryStore", "touch on recall failed", it) }
             }
             runCatching {
-                evolutionHooks?.onMemoryRecalled(mem.id, text, index + 1, null, null, null)
+                evolutionHooks?.onMemoryRecalled(
+                        mem.id,
+                        text,
+                        index + 1,
+                        options.runId,
+                        options.provenance.conversationId.takeIf { it.isNotBlank() },
+                        options.provenance.turnTimestamp.takeIf { it > 0L },
+                    )
             }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled failed (non-fatal)", it) }
         }
         trace(

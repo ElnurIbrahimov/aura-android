@@ -650,6 +650,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                                 rerankModel = rerankModel,
                                 rewriteModel = rewriteModel,
                                 recentContext = recentContext,
+                                // Which turn this recall is serving. Without it
+                                // the recall evidence records that a memory was
+                                // used at some moment and nothing more, so
+                                // "which memory produced this answer" — the
+                                // question a correction has to answer — is
+                                // unanswerable.
+                                provenance = ConversationProvenance(
+                                    currentConversation.id,
+                                    currentConversation.turns.lastOrNull()?.timestamp ?: 0L,
+                                ),
+                                runId = runId,
                             ),
                         )
                         cachedRecall = Triple(lastUserMessage, agentId, hits)
