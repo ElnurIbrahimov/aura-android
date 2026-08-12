@@ -28,6 +28,14 @@ data class DiagnosticsUiState(
     val error: String? = null,
     /** Non-null while a knowledge-graph rebuild is running. */
     val kgRebuild: KgRebuildUi? = null,
+    /**
+     * Whether Aura's background life is actually happening.
+     *
+     * The question this screen existed to answer and could not: nothing
+     * anywhere said what ran, when, or what came of it, so "working" and
+     * "never executed" looked the same.
+     */
+    val health: com.aura.health.BackgroundHealth.Snapshot = com.aura.health.BackgroundHealth.Snapshot(),
 )
 
 /** Progress of the opt-in knowledge-graph rebuild. */
@@ -44,7 +52,19 @@ class DiagnosticsViewModel @Inject constructor(
     private val traceSink: TraceSink,
     @ApplicationContext private val context: Context,
     private val kgRebuilder: com.aura.kg.KnowledgeGraphRebuilder,
+    private val backgroundHealth: com.aura.health.BackgroundHealth? = null,
 ) : ViewModel() {
+
+    /** Re-read the background health snapshot. */
+    fun refreshHealth() {
+        val health = backgroundHealth ?: return
+        viewModelScope.launch {
+            val snapshot = runCatching { health.snapshot() }
+                .onFailure { android.util.Log.w("DiagnosticsViewModel", "health read failed", it) }
+                .getOrNull() ?: return@launch
+            _state.update { it.copy(health = snapshot) }
+        }
+    }
 
     private var kgRebuildJob: kotlinx.coroutines.Job? = null
 
@@ -109,6 +129,7 @@ class DiagnosticsViewModel @Inject constructor(
 
     init {
         refresh()
+        refreshHealth()
     }
 
     fun refresh() {

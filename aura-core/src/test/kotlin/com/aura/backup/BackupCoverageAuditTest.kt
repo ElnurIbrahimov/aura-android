@@ -238,10 +238,14 @@ class BackupCoverageAuditTest {
          *   restored onto another device refers to a request that is no longer
          *   running anywhere; it is documented as transient at its declaration
          *   and in AuraBackupSchema13.
+         * - `WorkerRunEntity` is health telemetry about one installation.
+         *   "The dream worker ran on Tuesday" restored onto another device is
+         *   simply false, and the log is pruned to 30 days anyway.
          */
         private val DERIVED_OR_TRANSIENT = setOf(
             "MemoryFtsEntity",
             "CreativeGenerationJobEntity",
+            "WorkerRunEntity",
         )
     }
 }

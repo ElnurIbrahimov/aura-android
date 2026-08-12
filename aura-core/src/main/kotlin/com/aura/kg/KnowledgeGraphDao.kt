@@ -161,6 +161,41 @@ interface KnowledgeGraphDao {
     @Query("SELECT COUNT(*) FROM kg_edges")
     suspend fun edgeCount(): Int
 
+    /**
+     * Nodes whose label exactly matches one of [lowercaseLabels].
+     *
+     * The indexed half of entity resolution — `kg_nodes` is indexed on `label`,
+     * so this is a handful of lookups rather than a table scan, and it is what
+     * catches the overwhelming majority of merges ("Causeway" meeting
+     * "causeway").
+     */
+    @Query("SELECT * FROM kg_nodes WHERE LOWER(label) IN (:lowercaseLabels)")
+    suspend fun nodesByLabels(lowercaseLabels: List<String>): List<NodeEntity>
+
+    /**
+     * A bounded pool of same-type nodes for fuzzy matching.
+     *
+     * Resolution's second pass is a Levenshtein scan over same-type nodes,
+     * which used to run against every node in the graph on every extraction —
+     * roughly every turn. Bounding it changes fuzzy matching from exhaustive to
+     * best-effort, which it already was: it only applies to labels of 20
+     * characters or fewer, and a graph large enough for the bound to bite is
+     * one where an unbounded per-turn scan was never affordable anyway.
+     */
+    @Query("SELECT * FROM kg_nodes WHERE type IN (:types) ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun nodesByTypes(types: List<String>, limit: Int): List<NodeEntity>
+
+    /**
+     * Edges touching any of [ids].
+     *
+     * Resolution uses existing edges only to build a set of (source, target,
+     * type) keys for dedup, and a new edge's key can only collide with one
+     * whose endpoints are among the nodes being resolved. Loading the rest was
+     * loading the whole table to ignore it.
+     */
+    @Query("SELECT * FROM kg_edges WHERE sourceId IN (:ids) OR targetId IN (:ids)")
+    suspend fun edgesTouching(ids: List<String>): List<EdgeEntity>
+
     @Query("SELECT * FROM kg_nodes")
     suspend fun allNodes(): List<NodeEntity>
 

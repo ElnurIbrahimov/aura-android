@@ -36,6 +36,7 @@ class DreamWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val consolidator: DreamConsolidator,
     private val userPreferences: UserPreferences,
+    private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runNow()
@@ -47,14 +48,37 @@ class DreamWorker @AssistedInject constructor(
      * WorkManager work.
      */
     suspend fun runNow(): Result {
+        // Recorded either way. An empty dream database used to be unreadable —
+        // "never fired" and "fired and found nothing to consolidate" look
+        // identical from outside, and both were common.
+        return recorder?.record("DreamWorker") { runCycle() to lastOutcome }
+            ?: runCycle()
+    }
+
+    private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
+        com.aura.health.WorkerRunRecorder.Result.ok("")
+
+    private suspend fun runCycle(): Result {
         return try {
             if (!userPreferences.dreamEnabled.first()) {
                 // Gated off — exit cleanly so WorkManager doesn't retry.
+                lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("dreams are switched off")
                 return Result.success()
             }
             val report = consolidator.runCycle()
             if (report.summariesWritten > 0 || report.clustersFormed > 0) {
                 userPreferences.recordDreamRun(report)
+            }
+            lastOutcome = if (report.summariesWritten > 0) {
+                com.aura.health.WorkerRunRecorder.Result.ok(
+                    "${report.summariesWritten} summaries, ${report.clustersFormed} clusters" +
+                        if (report.questionsRaised > 0) ", raised a question" else "",
+                )
+            } else {
+                com.aura.health.WorkerRunRecorder.Result.skipped(
+                    "nothing to consolidate (${report.memoriesProcessed} memories, " +
+                        "${report.clustersFormed} clusters above the minimum)",
+                )
             }
             Result.success(
                 androidx.work.Data.Builder()
@@ -68,6 +92,10 @@ class DreamWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             android.util.Log.w("DreamWorker", "dream cycle failed: ${e.message}", e)
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result(
+                com.aura.health.WorkerRunEntity.OUTCOME_FAILED,
+                e.message ?: e::class.java.simpleName,
+            )
             Result.retry()
         }
     }

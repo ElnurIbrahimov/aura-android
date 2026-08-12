@@ -174,6 +174,9 @@ fun DiagnosticsScreen(
         }
         Spacer(Modifier.height(AuraSpacing.medium))
 
+        BackgroundHealthCard(state.health)
+        Spacer(Modifier.height(AuraSpacing.medium))
+
         // Rebuild the knowledge graph from stored conversations.
         //
         // Manual and opt-in because it costs one model call per turn. The graph
@@ -446,3 +449,102 @@ private fun DiagnosticsEmptyState() {
 }
 
 private val DIAGNOSTIC_DATE_FORMAT = SimpleDateFormat("MMM d, yyyy · HH:mm:ss", Locale.getDefault())
+
+/**
+ * Whether Aura's background life is actually happening.
+ *
+ * The three states this distinguishes — nothing to do, switched off, broken —
+ * were previously one state: an app that looks identical either way. Reading
+ * `dumpsys jobscheduler` and comparing database file sizes was the only way to
+ * tell, which is not a thing anyone should have to do to find out whether a
+ * feature they were told about exists.
+ */
+@Composable
+private fun BackgroundHealthCard(health: com.aura.health.BackgroundHealth.Snapshot) {
+    Surface(
+        color = AuraThemeTokens.colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.sm),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(AuraSpacing.medium)) {
+            Text(
+                "Background work",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(AuraSpacing.xs))
+
+            if (health.runs.isEmpty()) {
+                Text(
+                    "Nothing has run yet. Most background work waits for charging " +
+                        "or for a daily schedule.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f),
+                )
+            } else {
+                for (run in health.runs) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                run.worker.removeSuffix("Worker"),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                run.detail.ifBlank { run.outcome },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f),
+                            )
+                        }
+                        Text(
+                            android.text.format.DateUtils
+                                .getRelativeTimeSpanString(run.startedAt)
+                                .toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = when (run.outcome) {
+                                com.aura.health.WorkerRunEntity.OUTCOME_FAILED -> AuraThemeTokens.colors.error
+                                else -> AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f)
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(AuraSpacing.sm))
+            Text(
+                "Switches",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            for (switch in health.switches) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.tiny)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(switch.name, style = MaterialTheme.typography.bodySmall)
+                        if (switch.note.isNotBlank() && !switch.on) {
+                            Text(
+                                switch.note,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AuraThemeTokens.colors.error,
+                            )
+                        }
+                    }
+                    Text(
+                        if (switch.on) "on" else "off",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (switch.on) {
+                            AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f)
+                        } else {
+                            AuraThemeTokens.colors.error
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(AuraSpacing.sm))
+            Text(
+                "Knowledge graph: ${health.graphNodes} nodes, ${health.graphEdges} connections",
+                style = MaterialTheme.typography.labelSmall,
+                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.62f),
+            )
+        }
+    }
+}

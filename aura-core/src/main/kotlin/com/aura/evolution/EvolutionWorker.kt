@@ -19,13 +19,20 @@ class EvolutionWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val coordinator: EvolutionCoordinator,
     private val userPreferences: com.aura.data.UserPreferences,
+    private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result =
+        recorder?.record("EvolutionWorker") { runPass() to lastOutcome } ?: runPass()
+
+    private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
+
+    private suspend fun runPass(): Result {
         // Bail early if the user has disabled evolution. The worker may still
         // be enqueued from a prior session; this gate prevents wasted API
         // calls and battery drain.
         if (!userPreferences.evolutionEnabled.first()) {
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("evolution is switched off")
             return Result.success()
         }
         return try {

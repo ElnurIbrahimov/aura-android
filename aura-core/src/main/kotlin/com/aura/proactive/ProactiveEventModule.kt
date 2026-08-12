@@ -91,6 +91,27 @@ object ProactiveEventModule {
         }
     }
 
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // What Aura's background life actually did. Until this table,
+            // success and never-having-run were indistinguishable from outside
+            // — which is why an empty dream database could not be read as
+            // either "nothing to consolidate" or "never fired".
+            //
+            // DDL copied verbatim from the generated 7.json.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `worker_runs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`worker` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER NOT NULL, " +
+                    "`outcome` TEXT NOT NULL, `detail` TEXT NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_worker_runs_worker_startedAt` " +
+                    "ON `worker_runs` (`worker`, `startedAt`)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_worker_runs_startedAt` ON `worker_runs` (`startedAt`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ProactiveEventDatabase =
@@ -98,7 +119,7 @@ object ProactiveEventModule {
             context,
             ProactiveEventDatabase::class.java,
             "aura-proactive.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7),
         ).build()
 
     @Provides
@@ -109,4 +130,7 @@ object ProactiveEventModule {
 
     @Provides
     fun provideProactiveOutcomeDao(db: ProactiveEventDatabase): ProactiveOutcomeDao = db.proactiveOutcomeDao()
+
+    @Provides
+    fun provideWorkerRunDao(db: ProactiveEventDatabase): com.aura.health.WorkerRunDao = db.workerRunDao()
 }

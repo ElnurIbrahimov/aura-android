@@ -24,12 +24,22 @@ class CalendarCheckWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val calendarMonitor: CalendarMonitor,
     private val userPreferences: com.aura.data.UserPreferences,
+    private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result =
+        recorder?.record("CalendarCheckWorker") { runPass() to lastOutcome } ?: runPass()
+
+    private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
+
+    private suspend fun runPass(): Result {
         return try {
-            if (!userPreferences.calendarMonitorEnabled.first()) return Result.success()
+            if (!userPreferences.calendarMonitorEnabled.first()) {
+                lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("calendar monitoring is switched off")
+                return Result.success()
+            }
             calendarMonitor.checkOnce()
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.ok("checked")
             Result.success()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

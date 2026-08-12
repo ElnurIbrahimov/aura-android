@@ -26,10 +26,19 @@ class TriggerWorker @AssistedInject constructor(
     private val handRunEnqueuer: com.aura.tools.HandRunEnqueuer,
     private val handRepository: com.aura.hands.HandRepository,
     private val opportunityEngine: com.aura.world.OpportunityEngine? = null,
+    private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
-        if (!userPreferences.triggersEnabled.first()) return Result.success()
+    override suspend fun doWork(): Result =
+        recorder?.record("TriggerWorker") { runPass() to lastOutcome } ?: runPass()
+
+    private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
+
+    private suspend fun runPass(): Result {
+        if (!userPreferences.triggersEnabled.first()) {
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("triggers are switched off")
+            return Result.success()
+        }
         val triggers = userPreferences.triggers.first()
         val now = java.time.ZonedDateTime.now()
         val actions = triggerEngine.checkAll(triggers, now)

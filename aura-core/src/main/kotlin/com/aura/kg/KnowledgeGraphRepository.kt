@@ -33,8 +33,30 @@ class KnowledgeGraphRepository @Inject constructor(
         // graph to prevent paraphrase duplicates. Best-effort: if the
         // resolver is unavailable, insert directly (current behavior).
         val resolution = if (entityResolver != null) {
-            val existingNodes = dao.allNodes().map { KgNode.fromEntity(it) }
-            val existingEdges = dao.allEdges().map { KgEdge.fromEntity(it) }
+            // Candidates, not the whole graph.
+            //
+            // This used to be `allNodes()` + `allEdges()` — the entire node
+            // table and the entire edge table, decoded into memory, on every
+            // extraction, which is roughly every turn behind a 2s debounce. The
+            // cost was invisible because it scales with install age rather than
+            // with the turn: free on a week-old graph, and quietly not free a
+            // year in.
+            //
+            // Resolution needs three things and none of them is "everything":
+            // exact label matches (indexed), a same-type pool for the fuzzy
+            // pass, and the edges touching those nodes for dedup keys.
+            val labels = nodes.map { it.label.lowercase() }.distinct()
+            val types = nodes.map { it.type.name.lowercase() }.distinct()
+            val existingNodes = if (labels.isEmpty()) {
+                emptyList()
+            } else {
+                (dao.nodesByLabels(labels) + dao.nodesByTypes(types, FUZZY_POOL))
+                    .distinctBy { it.id }
+                    .map { KgNode.fromEntity(it) }
+            }
+            val existingEdges = existingNodes.map { it.id }
+                .let { ids -> if (ids.isEmpty()) emptyList() else dao.edgesTouching(ids) }
+                .map { KgEdge.fromEntity(it) }
             entityResolver.resolve(nodes, edges, existingNodes, existingEdges).also { result ->
                 if (result.mergedNodeCount > 0 || result.mergedEdgeCount > 0) {
                     android.util.Log.i("KgRepository",
@@ -316,4 +338,17 @@ class KnowledgeGraphRepository @Inject constructor(
             ),
         )
     }
+
+    private companion object {
+        /**
+         * How many same-type nodes the fuzzy pass may consider.
+         *
+         * Most-recently-updated first, because an entity mentioned lately is
+         * the one a paraphrase is most likely to be about. 500 keeps the
+         * Levenshtein scan bounded at a size that was already the practical
+         * ceiling for it being worth running at all.
+         */
+        const val FUZZY_POOL = 500
+    }
+
 }

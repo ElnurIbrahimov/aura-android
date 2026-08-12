@@ -45,6 +45,22 @@ class KgEntityResolverReinforcementTest {
         }
         coEvery { dao.getNode(any()) } answers { nodes[firstArg<String>()] }
         coEvery { dao.allNodes() } answers { nodes.values.toList() }
+        // Resolution reads candidates rather than the whole graph — it used to
+        // load every node and every edge on every extraction, which is roughly
+        // every turn. This fake mirrors the three queries that replaced it.
+        coEvery { dao.nodesByLabels(any()) } answers {
+            val wanted = firstArg<List<String>>().toSet()
+            nodes.values.filter { it.label.lowercase() in wanted }
+        }
+        coEvery { dao.nodesByTypes(any(), any()) } answers {
+            val types = firstArg<List<String>>().toSet()
+            nodes.values.filter { it.type in types }.sortedByDescending { it.updatedAt }
+                .take(secondArg<Int>())
+        }
+        coEvery { dao.edgesTouching(any()) } answers {
+            val ids = firstArg<List<String>>().toSet()
+            edges.values.filter { it.sourceId in ids || it.targetId in ids }
+        }
     }
 
     @Test

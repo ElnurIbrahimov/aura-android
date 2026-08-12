@@ -67,15 +67,26 @@ class DaemonWorker @AssistedInject constructor(
     private val idleTimePreparationEngine: IdleTimePreparationEngine? = null,
     private val selfServeResearcher: com.aura.curiosity.SelfServeResearcher? = null,
     private val situationReader: com.aura.situation.SituationReader? = null,
+    private val recorder: com.aura.health.WorkerRunRecorder? = null,
     private val proactiveMessageLibrary: ProactiveMessageLibrary? = null,
     // Council — overnight agent society debates
     private val councilOrchestrator: com.aura.agent.council.CouncilOrchestrator? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
-        val daemonEnabled = userPreferences.daemonEnabled.first()
-        if (!daemonEnabled) return Result.success()
+    override suspend fun doWork(): Result =
+        recorder?.record("DaemonWorker") { runPass() to lastOutcome } ?: runPass()
 
+    private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
+        com.aura.health.WorkerRunRecorder.Result.ok("")
+
+    private suspend fun runPass(): Result {
+        val daemonEnabled = userPreferences.daemonEnabled.first()
+        if (!daemonEnabled) {
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("the daemon is switched off")
+            return Result.success()
+        }
+
+        var posted = 0
         return try {
             // 1. Awareness checks (8 heuristic checks, no LLM cost)
             val findings = runCatching { awarenessEngine?.runAll().orEmpty() }
@@ -124,10 +135,14 @@ class DaemonWorker @AssistedInject constructor(
                         .getOrNull()
                     if (score?.shouldDeliver == true) {
                         postFinding(finding)
+                        posted++
                     }
                 } else {
                     // No motivation scoring — just post if timing is good
-                    if (isGoodTime) postFinding(finding)
+                    if (isGoodTime) {
+                        postFinding(finding)
+                        posted++
+                    }
                 }
             }
 
@@ -230,9 +245,28 @@ class DaemonWorker @AssistedInject constructor(
             }.onFailure { Log.w(TAG, "council: ${it.message}", it) }
             }
 
+            lastOutcome = when {
+                findings.isEmpty() ->
+                    com.aura.health.WorkerRunRecorder.Result.skipped("nothing to notice")
+                badMoment ->
+                    com.aura.health.WorkerRunRecorder.Result.skipped(
+                        "held ${salient.size} suggestion(s): ${situation?.blockedBecause}",
+                    )
+                salient.isEmpty() ->
+                    com.aura.health.WorkerRunRecorder.Result.skipped(
+                        "${findings.size} finding(s), none salient enough",
+                    )
+                else -> com.aura.health.WorkerRunRecorder.Result.ok(
+                    "${findings.size} finding(s), ${salient.size} salient, $posted posted",
+                )
+            }
             Result.success()
         } catch (e: Exception) {
             Log.w(TAG, "daemon failed: ${e.message}")
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result(
+                com.aura.health.WorkerRunEntity.OUTCOME_FAILED,
+                e.message ?: e::class.java.simpleName,
+            )
             Result.success()
         }
     }
