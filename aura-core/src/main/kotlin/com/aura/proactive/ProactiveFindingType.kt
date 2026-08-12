@@ -31,6 +31,15 @@ enum class ProactiveFindingType(val wire: String, val action: ProactiveAction) {
     /** The one check that describes a state rather than proposing a move. */
     PATTERN_ALERT("pattern_alert", ProactiveAction.None),
     PRIORITY_SHIFT("priority_shift", ProactiveAction.Navigate("tasks")),
+
+    /**
+     * Aura has something it wants to ask and the user has not opened chat.
+     *
+     * The only category where the suggestion is for Aura's benefit rather than
+     * the user's, which is exactly why it goes through the same earned-
+     * interruption ledger as everything else and starts silent.
+     */
+    OPEN_QUESTION("open_question", ProactiveAction.OpenChat()),
     ;
 
     companion object {

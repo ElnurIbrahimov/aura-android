@@ -68,7 +68,7 @@ class QuestionScanner @Inject constructor(
             .onFailure { Log.w(TAG, "claimed-subject lookup failed; scanning anyway", it) }
             .getOrDefault(emptySet())
 
-        val subjects = gapSubjects() + contradictionSubjects() + staleSubjects(now)
+        val subjects = gapSubjects() + contradictionSubjects() + staleSubjects(now) + shallowSubjects()
         return subjects
             .filter { it.key !in claimed }
             .distinctBy { it.key }
@@ -89,6 +89,21 @@ class QuestionScanner @Inject constructor(
                     // A node Aura is confident about but knows nothing around is
                     // a better question than one it half-recognised.
                     priority = GAP_BASE * node.confidence,
+                )
+            }
+
+    private suspend fun shallowSubjects(): List<Subject> =
+        runCatching { knowledgeGraphDao.shallowNodes(limit = POOL) }
+            .onFailure { Log.w(TAG, "shallow scan failed", it) }
+            .getOrDefault(emptyList())
+            .map { node ->
+                Subject(
+                    kind = OpenQuestionEntity.KIND_SHALLOW,
+                    subjectKind = OpenQuestionEntity.SUBJECT_KG_NODE,
+                    subjectId = node.id,
+                    context = "A ${node.type} called \"${node.label}\" comes up often and connects to a lot, " +
+                        "but has never been looked at directly.",
+                    priority = SHALLOW_BASE * node.confidence,
                 )
             }
 
@@ -152,6 +167,7 @@ class QuestionScanner @Inject constructor(
          */
         const val CONTRADICTION_BASE = 1.0f
         const val GAP_BASE = 0.7f
+        const val SHALLOW_BASE = 0.6f
         const val STALE_BASE = 0.5f
 
         /** Only facts that mattered are worth re-confirming. */

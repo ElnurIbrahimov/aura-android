@@ -140,6 +140,24 @@ interface KnowledgeGraphDao {
     )
     suspend fun gapNodes(limit: Int = 20): List<NodeEntity>
 
+    /**
+     * Nodes with plenty of connections that have never actually been used.
+     *
+     * The inverse of a gap, and a sharper question than one: Aura has built a
+     * web of relationships around something and has never once reached for it,
+     * which usually means it recorded the shape of a topic without
+     * understanding it. Inherited from the `CuriosityScanner` this replaced —
+     * the one signal there that the gap scan does not already cover.
+     */
+    @Query(
+        """
+        SELECT * FROM kg_nodes n WHERE n.accessCount < :maxAccess AND
+            (SELECT COUNT(*) FROM kg_edges e WHERE e.sourceId = n.id OR e.targetId = n.id) >= :minEdges
+        ORDER BY n.createdAt DESC LIMIT :limit
+        """
+    )
+    suspend fun shallowNodes(maxAccess: Int = 2, minEdges: Int = 5, limit: Int = 20): List<NodeEntity>
+
     @Query("SELECT COUNT(*) FROM kg_edges")
     suspend fun edgeCount(): Int
 

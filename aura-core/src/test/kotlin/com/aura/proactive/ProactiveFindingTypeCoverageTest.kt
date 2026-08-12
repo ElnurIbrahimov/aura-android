@@ -17,6 +17,12 @@ import kotlin.test.assertTrue
  *
  * Source-scanning rather than reflective because the type strings are literals
  * at the construction sites; there is no runtime registry to enumerate.
+ *
+ * The engine has nine checks and eight literals: `checkOpenQuestion` writes
+ * `ProactiveFindingType.OPEN_QUESTION.wire` instead, which cannot be
+ * unregistered and so needs no gate. The scan still covers every check written
+ * the risky way, and `requireNonEmpty` fails loudly if the last literal ever
+ * disappears — a silently empty scan is the failure this file exists to stop.
  */
 class ProactiveFindingTypeCoverageTest {
 

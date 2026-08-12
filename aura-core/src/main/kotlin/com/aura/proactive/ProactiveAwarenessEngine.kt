@@ -16,7 +16,8 @@ import javax.inject.Singleton
  * Proactive awareness engine — runs periodic checks that surface
  * actionable insights to the user without being asked.
  *
- * Ported from Python Aura's `proactive/awareness.py` (8 checks).
+ * Ported from Python Aura's `proactive/awareness.py` (8 checks); the ninth is
+ * this codebase's own.
  *
  * 1. Staleness check — memories not accessed in 30 days
  * 2. Goal-blocker detection — tasks stuck in pending for >7 days
@@ -26,7 +27,9 @@ import javax.inject.Singleton
  * 6. Stress correlation — emotion engine shows high tension
  * 7. Pattern detection — conversation frequency changed significantly
  * 8. Priority shift — too many high-priority tasks pending
+ * 9. Open question — Aura has something to ask and has not been able to
  *
+
  * All checks are heuristic, local, no LLM cost.
  */
 @Singleton
@@ -37,6 +40,7 @@ class ProactiveAwarenessEngine @Inject constructor(
     private val calendarReadTool: CalendarReadTool? = null,
     private val kgRepository: KnowledgeGraphRepository? = null,
     private val emotionEngine: EmotionEngine? = null,
+    private val openQuestionDao: com.aura.curiosity.OpenQuestionDao? = null,
 ) {
     data class ProactiveFinding(
         /**
@@ -97,6 +101,15 @@ class ProactiveAwarenessEngine @Inject constructor(
          * them moved, not to enumerate the whole set.
          */
         const val MAX_SUBJECT_IDS = 10
+
+        /**
+         * How long a question waits, unseen, before it is worth a nudge.
+         *
+         * Three days: long enough that the user genuinely has not opened chat,
+         * short enough that the answer still relates to why the question came
+         * up.
+         */
+        const val UNASKED_GRACE_MS = 3L * 24 * 60 * 60 * 1000
     }
 
     suspend fun runAll(): List<ProactiveFinding> {
@@ -117,7 +130,38 @@ class ProactiveAwarenessEngine @Inject constructor(
             .onFailure { Log.w("ProactiveAwareness", "pattern check failed: ${it.message}", it) }
         runCatching { findings.addAll(checkPriorityShift()) }
             .onFailure { Log.w("ProactiveAwareness", "priority check failed: ${it.message}", it) }
+        runCatching { findings.addAll(checkOpenQuestion()) }
+            .onFailure { Log.w("ProactiveAwareness", "open question check failed: ${it.message}", it) }
         return findings.sortedByDescending { it.urgency }
+    }
+
+    /**
+     * Aura has a question and the user has not been in chat to see it.
+     *
+     * Gated on `timesAsked == 0`, not on age alone. If the card has been shown
+     * and the question is still open, the user has seen it and chosen not to
+     * answer — and a notification about something they have already declined in
+     * place is nagging. This fires only for the case a notification actually
+     * adds something: the question exists and has never been in front of them.
+     *
+     * The only check whose suggestion serves Aura rather than the user, which
+     * is why it is also the one with the lowest urgency in the list.
+     */
+    private suspend fun checkOpenQuestion(): List<ProactiveFinding> {
+        val dao = openQuestionDao ?: return emptyList()
+        val question = dao.current() ?: return emptyList()
+        if (question.timesAsked > 0) return emptyList()
+        if (System.currentTimeMillis() - question.createdAt < UNASKED_GRACE_MS) return emptyList()
+        return listOf(
+            ProactiveFinding(
+                type = ProactiveFindingType.OPEN_QUESTION.wire,
+                title = "Aura has a question",
+                message = question.question,
+                urgency = 0.3f,
+                subjectKind = ProactiveOutcomeEntity.SUBJECT_QUESTION,
+                subjectIds = listOf(question.id),
+            ),
+        )
     }
 
     private suspend fun checkStaleMemories(): List<ProactiveFinding> {

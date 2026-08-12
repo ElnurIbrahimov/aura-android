@@ -130,6 +130,26 @@ class CuriosityStoreTest {
     }
 
     @Test
+    fun `a well-connected node nobody ever looks at is its own kind of gap`(): Unit = runBlocking {
+        // The inverse signal, inherited from the CuriosityScanner this
+        // replaced: Aura has built a web around something and never once
+        // reached for it, which usually means it recorded the shape of a topic
+        // without understanding it.
+        val kg = db.knowledgeGraphDao()
+        kg.insertNode(NodeEntity(id = "hub", label = "Causeway", type = "project", accessCount = 0))
+        repeat(6) { i ->
+            kg.insertNode(NodeEntity(id = "leaf$i", label = "L$i", type = "topic"))
+            kg.insertEdge(EdgeEntity(id = "e$i", type = "rel", sourceId = "hub", targetId = "leaf$i"))
+        }
+
+        val subjects = scanner.scan(now = now)
+        assertTrue(
+            subjects.any { it.subjectId == "hub" && it.kind == OpenQuestionEntity.KIND_SHALLOW },
+            "a hub node with no accesses should be asked about: $subjects",
+        )
+    }
+
+    @Test
     fun `an unresolved contradiction outranks a gap`(): Unit = runBlocking {
         seedGapNode()
         dreamDb.contradictionDao().insert(

@@ -62,10 +62,10 @@ class DaemonWorker @AssistedInject constructor(
     private val agentPresence: com.aura.consciousness.AgentPresence? = null,
     private val proactiveMessageStore: ProactiveMessageStore? = null,
     private val motivationAccumulator: MotivationAccumulator? = null,
-    private val curiosityScanner: CuriosityScanner? = null,
     private val salienceFilter: SalienceFilter? = null,
     private val adaptiveTimingEngine: AdaptiveTimingEngine? = null,
     private val idleTimePreparationEngine: IdleTimePreparationEngine? = null,
+    private val selfServeResearcher: com.aura.curiosity.SelfServeResearcher? = null,
     private val proactiveMessageLibrary: ProactiveMessageLibrary? = null,
     // Council — overnight agent society debates
     private val councilOrchestrator: com.aura.agent.council.CouncilOrchestrator? = null,
@@ -120,36 +120,21 @@ class DaemonWorker @AssistedInject constructor(
                 }
             }
 
-            // 5. Curiosity scan — KG gaps with natural questions
-            runCatching {
-                val targets = curiosityScanner?.scan().orEmpty()
-                if (targets.isNotEmpty()) {
-                    val top = targets.first()
-                    if (motivationAccumulator != null) {
-                        val msg = MotivationAccumulator.PotentialMessage(
-                            content = top.question,
-                            source = "curiosity",
-                            relevanceToUser = 0.6f,
-                            timeSinceSimilar = 0.8f,
-                            emotionalUrgency = top.urgency,
-                            curiosityDrive = 1.0f,
-                            userReceptivity = receptivity,
-                        )
-                        val score = motivationAccumulator.evaluate(msg)
-                        if (score.shouldDeliver) {
-                            proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
-                                title = "Curiosity: ${top.entityName}",
-                                body = top.question,
-                            ))
-                        }
-                    } else {
-                        proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(
-                            title = "Curiosity: ${top.entityName}",
-                            body = top.question,
-                        ))
-                    }
-                }
-            }.onFailure { Log.w(TAG, "curiosity: ${it.message}", it) }
+            // 5. (was: curiosity scan) — replaced by com.aura.curiosity.
+            //    CuriosityStore, which runs on the nightly dream cycle. The
+            //    scanner that used to run here rebuilt its targets from
+            //    scratch every daemon pass with no record of what it had
+            //    already asked, and its four question templates each read
+            //    "'$node.label'" — which in Kotlin interpolates the whole
+            //    NodeEntity and then appends a literal ".label", so every
+            //    question it ever posted was a dumped data class.
+
+            // 5b. Self-serve research — answer one of Aura's own questions
+            //     without spending the single open-question slot on something
+            //     the user would only have to look up themselves. Capped at one
+            //     a day inside the researcher.
+            runCatching { selfServeResearcher?.research() }
+                .onFailure { Log.w(TAG, "self-serve research: ${it.message}", it) }
 
             // 6. Idle-time preparation — predict next question, pre-research
             runCatching { idleTimePreparationEngine?.prepare() }

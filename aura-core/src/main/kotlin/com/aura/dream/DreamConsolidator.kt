@@ -857,8 +857,9 @@ class DreamConsolidator @Inject constructor(
      *    cycle, joined and capped at 500 chars.
      *  - concerns: up to 3 unresolved contradictions rendered as
      *    "Conflicting: <older> vs <newer>".
-     *  - questions: passed through unchanged (a CuriosityScanner feed is
-     *    a possible later enhancement).
+     *  - questions: passed through unchanged. Phase 10b writes them, and
+     *    runs later in the cycle, so preserving whatever is stored is
+     *    correct here rather than a placeholder.
      *
      * Returns true when the narrative was updated and saved. No LLM
      * calls — everything here was already written by phases 3 and 8.

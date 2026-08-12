@@ -2,6 +2,7 @@ package com.aura.proactive
 
 import android.util.Log
 import com.aura.agent.ConversationStore
+import com.aura.curiosity.OpenQuestionEntity
 import com.aura.kg.KnowledgeGraphRepository
 import com.aura.memory.MemoryDao
 import com.aura.tasks.TaskDao
@@ -42,6 +43,7 @@ class ProactiveOutcomePass @Inject constructor(
     private val memoryDao: MemoryDao,
     private val conversationStore: ConversationStore,
     private val kgRepository: KnowledgeGraphRepository? = null,
+    private val openQuestionDao: com.aura.curiosity.OpenQuestionDao? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -87,6 +89,7 @@ class ProactiveOutcomePass @Inject constructor(
                     ProactiveOutcomeEntity.SUBJECT_KG_NODE_SET -> checkKgNodes(row)
                     ProactiveOutcomeEntity.SUBJECT_CONVERSATION -> checkConversation(row, latestConversationAt)
                     ProactiveOutcomeEntity.SUBJECT_TASK_SET -> checkTaskSet(row, highPriorityNow)
+                    ProactiveOutcomeEntity.SUBJECT_QUESTION -> checkQuestion(row)
                     else -> null
                 }
             }.onFailure { Log.w(TAG, "checking outcome ${row.id} failed: ${it.message}", it) }.getOrNull()
@@ -123,6 +126,29 @@ class ProactiveOutcomePass @Inject constructor(
     }
 
     // ---- per-subject checks ------------------------------------------------
+
+    /**
+     * Did the nudge get the question answered?
+     *
+     * The cleanest outcome in the whole pass: the question either closed or it
+     * did not, and the row records which. No proxy, no inference.
+     */
+    private suspend fun checkQuestion(row: ProactiveOutcomeEntity): Pair<String, String> {
+        val dao = openQuestionDao ?: return resolvedUnknown()
+        val id = ids(row).firstOrNull() ?: return resolvedUnknown()
+        val question = dao.byId(id)
+            ?: return ProactiveOutcomeEntity.OUTCOME_IGNORED to "That question is gone."
+        return when (question.status) {
+            OpenQuestionEntity.STATUS_ANSWERED ->
+                ProactiveOutcomeEntity.OUTCOME_RESOLVED to "You answered it."
+            OpenQuestionEntity.STATUS_RESEARCHED ->
+                ProactiveOutcomeEntity.OUTCOME_RESOLVED to "Aura found the answer itself."
+            // A refusal is a real answer about the nudge, and not a good one.
+            OpenQuestionEntity.STATUS_DISMISSED ->
+                ProactiveOutcomeEntity.OUTCOME_IGNORED to "You asked not to be asked again."
+            else -> ProactiveOutcomeEntity.OUTCOME_IGNORED to "Still unanswered."
+        }
+    }
 
     private suspend fun checkTask(row: ProactiveOutcomeEntity): Pair<String, String> {
         val id = ids(row).firstOrNull() ?: return resolvedUnknown()
@@ -228,6 +254,7 @@ class ProactiveOutcomePass @Inject constructor(
             ProactiveFindingType.STUCK_TASKS,
             ProactiveFindingType.STALE_MEMORIES,
             ProactiveFindingType.PRIORITY_SHIFT,
+            ProactiveFindingType.OPEN_QUESTION,
             -> 72L * 60 * 60 * 1000
 
             // No horizon: nothing observable will happen.

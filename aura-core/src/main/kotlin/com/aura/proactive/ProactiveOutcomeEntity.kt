@@ -99,6 +99,7 @@ data class ProactiveOutcomeEntity(
         const val SUBJECT_MEMORY_SET = "memory_set"
         const val SUBJECT_KG_NODE_SET = "kg_node_set"
         const val SUBJECT_CONVERSATION = "conversation"
+        const val SUBJECT_QUESTION = "question"
 
         /** Statuses that count toward the ledger. Pending and unobservable do not. */
         val CLOSED = setOf(OUTCOME_RESOLVED, OUTCOME_IGNORED)

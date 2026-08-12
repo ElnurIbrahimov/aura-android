@@ -38,7 +38,7 @@ import androidx.room.Query
 )
 data class OpenQuestionEntity(
     @PrimaryKey val id: String,
-    /** Why this became a question: [KIND_GAP], [KIND_CONTRADICTION], [KIND_STALE]. */
+    /** Why: [KIND_GAP], [KIND_CONTRADICTION], [KIND_STALE] or [KIND_SHALLOW]. */
     val kind: String,
     /** [SUBJECT_KG_NODE], [SUBJECT_CONTRADICTION] or [SUBJECT_MEMORY]. */
     val subjectKind: String,
@@ -68,6 +68,9 @@ data class OpenQuestionEntity(
         const val KIND_GAP = "gap"
         const val KIND_CONTRADICTION = "contradiction"
         const val KIND_STALE = "stale"
+
+        /** Well-connected and never used: recorded without being understood. */
+        const val KIND_SHALLOW = "shallow"
 
         const val SUBJECT_KG_NODE = "kg_node"
         const val SUBJECT_CONTRADICTION = "contradiction"

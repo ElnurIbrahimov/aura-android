@@ -124,5 +124,6 @@ private fun readableName(wire: String): String = when (wire) {
     "stress_correlation" -> "Tension"
     "pattern_alert" -> "Conversation patterns"
     "priority_shift" -> "Priority pile-ups"
+    "open_question" -> "Aura's questions"
     else -> wire
 }
