@@ -3,63 +3,31 @@ import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.viewmodel.TasteProfileViewModel
 import kotlinx.serialization.json.Json
 import android.util.Log
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TasteProfileScreen(
-    onBack: () -> Unit = {},
-    viewModel: TasteProfileViewModel = viewModel(),
-) {
-    AuraScreenShell(
-        title = "Taste profile",
-        subtitle = "Learned style preferences",
-        action = {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-        },
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(AuraSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
-        ) {
-            tasteSection(viewModel)
-        }
-    }
-}
+// The standalone `TasteProfileScreen` composable that used to live here was
+// removed when `MindScreen` absorbed this content (15d2cc0d). Its route went
+// with it; the composable stayed behind, reachable from nothing. Only
+// [tasteSection] is live now.
 
 /**
  * What Aura has worked out about how the user likes things done.

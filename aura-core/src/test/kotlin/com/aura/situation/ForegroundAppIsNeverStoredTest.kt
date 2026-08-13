@@ -26,10 +26,25 @@ class ForegroundAppIsNeverStoredTest {
             .toList()
             .requireNonEmpty("Kotlin sources")
 
+    /**
+     * Comments stripped before matching.
+     *
+     * The first version of this test matched raw file text, so a KDoc in
+     * `PlaceLog` that merely *cited* `ForegroundAppReader` as precedent — "keeps
+     * the switch and the grant separate for the same reason" — was reported as a
+     * second consumer of the foreground app. A privacy gate that fires on prose
+     * is one that gets weakened the first time it is wrong, which is the worst
+     * possible outcome for this particular gate. Referencing the class in an
+     * explanation is not reading it.
+     */
+    private fun code(file: File): String = file.readText()
+        .replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), "")
+        .replace(Regex("""//.*"""), "")
+
     @Test
     fun `only the situation reader consumes the foreground app`() {
         val callers = kotlinSources()
-            .filter { "foregroundAppReader" in it.readText() || "ForegroundAppReader" in it.readText() }
+            .filter { "foregroundAppReader" in code(it) || "ForegroundAppReader" in code(it) }
             .map { it.name }
             .filterNot { it == "ForegroundAppReader.kt" }
             .sorted()

@@ -735,6 +735,27 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_21_22 = object : Migration(21, 22) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // The place log — a second source of truth about the user's life
+            // that does not depend on them narrating it. See
+            // com.aura.place.PlaceVisitEntity for why the coordinates are
+            // deliberately coarse.
+            //
+            // DDL copied verbatim from the generated 22.json, per MIGRATION_20_21:
+            // a migration producing a schema even slightly different from the one
+            // Room expects fails validation on every upgrade install while passing
+            // every fresh-install test.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `place_visits` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`lat` REAL NOT NULL, `lon` REAL NOT NULL, `arrivedAt` INTEGER NOT NULL, " +
+                    "`lastSeenAt` INTEGER NOT NULL, `samples` INTEGER NOT NULL, `label` TEXT NOT NULL)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_place_visits_arrivedAt` ON `place_visits` (`arrivedAt`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_place_visits_lat_lon` ON `place_visits` (`lat`, `lon`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -742,7 +763,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is
@@ -832,6 +853,9 @@ object MemoryModule {
 
     @Provides
     fun provideMemoryFeedbackDao(db: MemoryDatabase): MemoryFeedbackDao = db.memoryFeedbackDao()
+
+    @Provides
+    fun providePlaceVisitDao(db: MemoryDatabase): com.aura.place.PlaceVisitDao = db.placeVisitDao()
 
     @Provides
     @Singleton

@@ -25,6 +25,8 @@ class DecayWorker @AssistedInject constructor(
     private val userPreferences: com.aura.data.UserPreferences,
     private val taskDecayPass: com.aura.tasks.TaskDecayPass? = null,
     private val outcomePass: ProactiveOutcomePass? = null,
+    private val workerRunRecorder: com.aura.health.WorkerRunRecorder? = null,
+    private val placeLog: com.aura.place.PlaceLog? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runNow()
@@ -45,6 +47,25 @@ class DecayWorker @AssistedInject constructor(
             // off measuring whether proactive suggestions helped.
             runCatching { outcomePass?.run() }
                 .onFailure { android.util.Log.w("DecayWorker", "outcome pass failed: ${it.message}", it) }
+
+            // Above the gate for the same reason, and it is the same reason
+            // twice: decayEnabled means "do not let my memories fade", not
+            // "keep a worker run log forever".
+            //
+            // WorkerRunRecorder.prune() shipped with a unit test and no
+            // production caller. Its KDoc named "the same sweep that prunes
+            // proactive events" — that sweep is ProactiveEvents.init, which
+            // prunes the event and outcome tables and nothing else, so the run
+            // log grew one row per worker run with no bound. This is that call.
+            // DecayWorker rather than ProactiveEvents.init because retention
+            // belongs on the 6-hourly schedule, not on every process start.
+            runCatching { workerRunRecorder?.prune() }
+                .onFailure { android.util.Log.w("DecayWorker", "worker-run prune failed: ${it.message}", it) }
+
+            // Same sweep, same reason, and the same defect avoided: a retention
+            // window with no caller is a table that grows forever.
+            runCatching { placeLog?.prune() }
+                .onFailure { android.util.Log.w("DecayWorker", "place prune failed: ${it.message}", it) }
 
             if (!userPreferences.decayEnabled.first()) return Result.success()
             memoryStore.runDecayPass()

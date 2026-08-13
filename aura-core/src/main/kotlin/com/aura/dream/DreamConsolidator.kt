@@ -472,7 +472,7 @@ class DreamConsolidator @Inject constructor(
                 ProviderMessage(role = ProviderMessage.Role.system, content = SYSTEM_PROMPT),
                 ProviderMessage(role = ProviderMessage.Role.user, content = prompt),
             ),
-            options = ChatOptions(temperature = 0.1, maxTokens = 500),
+            options = ChatOptions(temperature = 0.1, maxTokens = 500, attended = false),
             tools = emptyList(),
         ).collect { chunk ->
             chunk.error?.let { error ->
@@ -698,7 +698,7 @@ class DreamConsolidator @Inject constructor(
                     ProviderMessage(role = ProviderMessage.Role.system, content = "You extract structured profile data. Respond only with JSON."),
                     ProviderMessage(role = ProviderMessage.Role.user, content = prompt),
                 ),
-                options = ChatOptions(temperature = 0.1, maxTokens = 300),
+                options = ChatOptions(temperature = 0.1, maxTokens = 300, attended = false),
                 tools = emptyList(),
             ).collect { chunk ->
                 chunk.error?.let { throw IllegalStateException("${it.code}: ${it.message}") }

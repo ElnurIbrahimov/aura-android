@@ -197,7 +197,15 @@ object UiTraversal {
             .lowercase()
             .replace('_', ' ')
             .replace('-', ' ')
-        return if (SECRET_HINT.containsMatchIn(haystack)) "[redacted]" else label
+        if (SECRET_HINT.containsMatchIn(haystack)) return "[redacted]"
+        // The rules above catch what an app *declares* is sensitive. They cannot
+        // catch a phone number in the body of a message, an email address in a
+        // list row, or a card number on a receipt — none of which the user chose
+        // to send anywhere. A screen read returns whatever happened to be on
+        // screen, so all of it is incidental by definition. See
+        // com.aura.security.Redactor for why this belongs here rather than at
+        // the network boundary.
+        return com.aura.security.Redactor.scrub(label)
     }
 
     private val SECRET_HINT = Regex("otp|pin|cvv|cvc|card ?number|ssn|passcode|secret|token|security ?code")

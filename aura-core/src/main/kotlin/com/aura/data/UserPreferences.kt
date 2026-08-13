@@ -39,6 +39,8 @@ private val Context.auraPrefs by preferencesDataStore(name = "aura_settings")
 internal val KEY_DEFAULT_MODEL = stringPreferencesKey("default_model")
 internal val KEY_VISION_MODEL = stringPreferencesKey("vision_model")
 internal val KEY_BACKGROUND_MODEL = stringPreferencesKey("background_model")
+/** Written once, by [UserPreferences.seedBackgroundModelOnce] — see its KDoc. */
+internal val KEY_BACKGROUND_MODEL_SEEDED = booleanPreferencesKey("background_model_seeded")
 internal val KEY_DEEP_MODE_MODEL = stringPreferencesKey("deep_mode_model")
 internal val KEY_MOA_REFERENCE_MODELS = stringPreferencesKey("moa_reference_models")
 internal val KEY_MOA_AGGREGATOR_MODEL = stringPreferencesKey("moa_aggregator_model")
@@ -88,6 +90,14 @@ internal val KEY_PLANNING_ENABLED = booleanPreferencesKey("planning_enabled")
 internal val KEY_PROMPT_CACHING_ENABLED = booleanPreferencesKey("prompt_caching_enabled")
 internal val KEY_SCREEN_CONTROL_ENABLED = booleanPreferencesKey("screen_control_enabled")
 internal val KEY_APP_AWARENESS_ENABLED = booleanPreferencesKey("app_awareness_enabled")
+internal val KEY_PLACE_LOG_ENABLED = booleanPreferencesKey("place_log_enabled")
+// Automatic backup. The passphrase is NOT here — it lives in SecureDataStore,
+// because this DataStore is plaintext and the passphrase is the only thing
+// standing between a synced folder and everything Aura knows.
+internal val KEY_AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
+internal val KEY_BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
+internal val KEY_LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
+internal val KEY_LAST_BACKUP_ERROR = stringPreferencesKey("last_backup_error")
 internal val KEY_MCP_SERVERS_JSON = stringPreferencesKey("mcp_servers_json")
 internal val KEY_IMAGE_MODEL = stringPreferencesKey("image_model")
 internal val KEY_VIDEO_MODEL = stringPreferencesKey("video_model")
@@ -410,8 +420,80 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         context.auraPrefs.edit { it[KEY_APP_AWARENESS_ENABLED] = enabled }
     }
 
+    /**
+     * Whether Aura may keep a coarse record of where the user has been.
+     *
+     * **Off by default, and the only one of the background switches that is.**
+     * Dreams, decay, triggers and the calendar monitor are opt-out because they
+     * read what Aura already has; this one starts collecting something new about
+     * the user's life, and the default for that is no.
+     */
+    val placeLogEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_PLACE_LOG_ENABLED] ?: false }
+
+    suspend fun setPlaceLogEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_PLACE_LOG_ENABLED] = enabled }
+    }
+
     suspend fun setScreenControlEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_SCREEN_CONTROL_ENABLED] = enabled }
+    }
+
+    // ---- Automatic backup ----
+    //
+    // `allowBackup="false"` in the manifest is deliberate: Android's cloud backup
+    // would hand the whole memory store to Google. The consequence was that the
+    // only copy of everything Aura knows lived on one phone, behind a button
+    // somebody had to remember to press.
+
+    /**
+     * Off until a folder and a passphrase both exist — see `BackupWorker`, which
+     * treats a missing either as "not configured" rather than as a failure.
+     */
+    val autoBackupEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_AUTO_BACKUP_ENABLED] ?: false }
+
+    /**
+     * A SAF tree URI the user picked, held by a persisted permission grant.
+     *
+     * A folder rather than a fixed path so it can be one their own cloud already
+     * syncs — which is the part that makes this survive the device, and the part
+     * no code here can do.
+     */
+    val backupFolderUri: Flow<String?> = context.auraPrefs.data.map {
+        it[KEY_BACKUP_FOLDER_URI]?.takeIf(String::isNotBlank)
+    }
+
+    /** 0 when none has ever succeeded. */
+    val lastBackupAt: Flow<Long> = context.auraPrefs.data.map { it[KEY_LAST_BACKUP_AT] ?: 0L }
+
+    /**
+     * Why the last attempt failed, or blank.
+     *
+     * Kept because a backup is the one background job whose silent failure is
+     * unrecoverable: every other worker gets another go tomorrow and loses
+     * nothing, and this one loses the week it was supposed to protect.
+     */
+    val lastBackupError: Flow<String> = context.auraPrefs.data.map { it[KEY_LAST_BACKUP_ERROR] ?: "" }
+
+    suspend fun setAutoBackupEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_AUTO_BACKUP_ENABLED] = enabled }
+    }
+
+    suspend fun setBackupFolderUri(uri: String?) {
+        context.auraPrefs.edit { prefs ->
+            if (uri.isNullOrBlank()) prefs.remove(KEY_BACKUP_FOLDER_URI) else prefs[KEY_BACKUP_FOLDER_URI] = uri
+        }
+    }
+
+    /** Records the outcome of one run. Success clears the error; failure keeps the old timestamp. */
+    suspend fun recordBackupOutcome(at: Long, error: String = "") {
+        context.auraPrefs.edit { prefs ->
+            if (error.isBlank()) {
+                prefs[KEY_LAST_BACKUP_AT] = at
+                prefs.remove(KEY_LAST_BACKUP_ERROR)
+            } else {
+                prefs[KEY_LAST_BACKUP_ERROR] = error.take(MAX_BACKUP_ERROR)
+            }
+        }
     }
 
     /**
@@ -488,6 +570,52 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     suspend fun setDefaultModel(model: String?) = setOptionalModel(KEY_DEFAULT_MODEL, model)
     suspend fun setVisionModel(model: String?) = setOptionalModel(KEY_VISION_MODEL, model)
     suspend fun setBackgroundModel(model: String?) = setOptionalModel(KEY_BACKGROUND_MODEL, model)
+
+    /**
+     * Give background work a model, once, if nothing else has.
+     *
+     * `backgroundModel` has no default and was only ever written from Settings
+     * or a restored backup, so on any install that never visited
+     * Settings → AI & Models it stayed null — and five subsystems hard-return on
+     * exactly that: [com.aura.curiosity.QuestionAuthor],
+     * [com.aura.curiosity.SelfServeResearcher], [com.aura.proactive.DaemonWorker],
+     * [com.aura.proactive.IdleTimePreparationEngine] and
+     * [com.aura.proactive.MorningBriefBuilder]. Each returned quietly and looked
+     * exactly like a feature with nothing to say. `BackgroundHealth` lists this
+     * switch first for that reason; naming the problem is not fixing it.
+     *
+     * Not solved by falling back to the conversation model at the call sites:
+     * [com.aura.providers.ModelRoleRouter.explicit] exists precisely so an
+     * unattended caller does not silently spend the expensive model, and that
+     * distinction is worth keeping. A seeded value is visible and editable in
+     * Settings; a fallback is neither.
+     *
+     * One writer, called from both onboarding and the startup backfill, because
+     * two copies of "seed it if unset" is how two answers start disagreeing.
+     *
+     * The flag, not the emptiness of the field, is what makes this once: someone
+     * who deliberately clears the background model must find it still cleared.
+     *
+     * @return the model it seeded, or null if it did nothing.
+     */
+    suspend fun seedBackgroundModelOnce(): String? {
+        val prefs = context.auraPrefs.data.first()
+        if (prefs[KEY_BACKGROUND_MODEL_SEEDED] == true) return null
+
+        val already = prefs[KEY_BACKGROUND_MODEL]?.let(::normalizeModelId)?.takeIf(String::isNotBlank)
+        val chat = prefs[KEY_DEFAULT_MODEL]?.let(::normalizeModelId)?.takeIf(String::isNotBlank)
+
+        // Nothing to seed from yet. Deliberately does NOT mark itself done:
+        // onboarding can run before a model is chosen, and the startup backfill
+        // has to still be able to do the work on the next launch.
+        if (already == null && chat == null) return null
+
+        context.auraPrefs.edit { edit ->
+            edit[KEY_BACKGROUND_MODEL_SEEDED] = true
+            if (already == null && chat != null) edit[KEY_BACKGROUND_MODEL] = chat
+        }
+        return if (already == null) chat else null
+    }
     suspend fun setDeepModeModel(model: String?) = setOptionalModel(KEY_DEEP_MODE_MODEL, model)
     suspend fun setMoaReferenceModels(models: List<String>) {
         val value = models.map(::normalizeModelId)
@@ -794,5 +922,11 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     companion object {
         const val DEFAULT_DAEMON_INTERVAL_MINUTES = 60
+
+        /** One line for the Settings row, not a stack trace. */
+        const val MAX_BACKUP_ERROR = 200
+
+        /** SecureDataStore key for the backup passphrase — see [BackupWorker]. */
+        const val BACKUP_PASSPHRASE_KEY = "backup_passphrase"
     }
 }

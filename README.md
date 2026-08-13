@@ -8,7 +8,9 @@ This is my personal copy.
 
 ## Status
 
-**v0.65.0** (versionCode 80) — after the 2026-08-06/07 A-grade sweep (P0 correctness, reliability, consciousness wiring, evolution rebuild, calendar/capture rework, UI fixes, toolchain upgrade) and the 2026-08-08 review remediation (tool-history fidelity, untrusted-context framing, consciousness persistence, FTS4 recall with corpus-weighted BM25, source-scan test integrity). See [ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §2.8 and §3.
+**v0.66.0** (versionCode 81) — the first version bump in 114 commits. v0.65.0 was set on 2026-08-06 and everything since shipped under it: the 2026-08-08 review remediation (tool-history fidelity, untrusted-context framing, consciousness persistence, FTS4 recall with corpus-weighted BM25, source-scan test integrity), the 2026-08-10 capability sweep (live voice calls, screen control, retrieval eval harness, prompt caching), and the 2026-08-11/12 wave (living worlds, task salience, proactive gates and outcome measurement, the memory correction spine, curiosity, situational awareness, background health). `check-version-docs.sh` gates docs against source, which is exactly why it could not notice: the two agreed on a number that had stopped moving.
+
+Then the 2026-08-13 pass, which found the code itself in good shape and every real defect in the seam between code and process — a CI job that had stopped finishing, a `prune()` with no caller, a preference six subsystems gate on that nothing ever set, and this version string. See [ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §2.8 and §3.
 
 - 78 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
@@ -33,7 +35,7 @@ This is my personal copy.
 - 17 LLM providers (Ollama Cloud, Anthropic, OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Mixture-of-Agents, Mistral, xAI Grok, Together AI, Cerebras, NVIDIA NIM, Meta Llama, Agnes AI, ChatGPT subscription, Custom OpenAI-compatible endpoint)
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
-- Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts; none are in the backup schema yet.
+- Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts, and all five are in the backup schema as of v18 (`AuraBackupSchema18.kt`) — this line said "none are in the backup schema yet" for three days after they went in, and the line 30 rows below it said the opposite.
 - 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 27 secondary routes (History, Hands, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, Mind, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Rollback, Agent Editor)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, sentence-boundary streaming TTS in continuous voice mode, voice call UI)
 - Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Push-to-talk remains the default and works with every provider.
@@ -63,8 +65,8 @@ This is my personal copy.
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v23, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
-- 2,903 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v24, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
+- 2,970 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - 64 instrumented test methods (25 Room migration-chain methods in :aura-core, 38 UI smoke methods in :app) — compiled in CI, run via `connectedAndroidTest` on a device
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -355,7 +357,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v21 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content |
+| MemoryDatabase | v22 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v6 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
@@ -368,7 +370,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-21, all committed — migration tests cover
+schema exports span versions 1-22, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -458,7 +460,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 61 entities, 45 migrations, schema export)
+- Room 2.8.4 (11 databases, 62 entities, 46 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

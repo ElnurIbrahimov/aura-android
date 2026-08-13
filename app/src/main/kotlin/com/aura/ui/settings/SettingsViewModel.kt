@@ -224,6 +224,7 @@ data class SettingsUiState(
     /** Master switch for reading and operating other apps' screens (default false). */
     val screenControlEnabled: Boolean = false,
     val appAwarenessEnabled: Boolean = false,
+    val placeLogEnabled: Boolean = false,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -409,6 +410,7 @@ class SettingsViewModel @Inject constructor(
             val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
             val screenControlEnabled = userPreferences.screenControlEnabled.first()
             val appAwarenessEnabled = userPreferences.appAwarenessEnabled.first()
+            val placeLogEnabled = userPreferences.placeLogEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val storedPolicies = runCatching { userPreferences.interruptionPolicies.first() }
                 .onFailure { Log.w(TAG, "interruption policies read failed: ${it.message}", it) }
@@ -500,6 +502,7 @@ class SettingsViewModel @Inject constructor(
                 promptCachingEnabled = promptCachingEnabled,
                 screenControlEnabled = screenControlEnabled,
                 appAwarenessEnabled = appAwarenessEnabled,
+                placeLogEnabled = placeLogEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -807,6 +810,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setAppAwarenessEnabled(enabled)
             _state.update { it.copy(appAwarenessEnabled = enabled) }
+        }
+    }
+
+    fun setPlaceLogEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setPlaceLogEnabled(enabled)
+            _state.update { it.copy(placeLogEnabled = enabled) }
         }
     }
 

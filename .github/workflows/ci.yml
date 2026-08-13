@@ -115,6 +115,34 @@ jobs:
             ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}-
             ${{ runner.os }}-gradle-
 
+      # Robolectric does NOT resolve its `android-all-instrumented` jars through
+      # Gradle. It fetches them itself, over the network, from inside the running
+      # test task, into ~/.m2/repository — which the Gradle cache above does not
+      # cover. That is 326 MB for the two SDK levels this repo pins (sdk=36 in
+      # aura-core/src/test/resources/robolectric.properties, plus API 30 from the
+      # four @Config(sdk = [30]) tests; Robolectric names them by Android release,
+      # so those are `16-robolectric-*` and `11-robolectric-*`).
+      #
+      # Downloading that on every run is what actually caused the 2026-08-12
+      # timeouts: `> Task :aura-core:testDebugUnitTest` printed nothing for 86
+      # minutes and the job was killed at the 90-minute ceiling, while
+      # lint-release — which runs no unit tests — finished in 15 minutes in the
+      # same runs. The test suite itself takes ~4 minutes.
+      #
+      # A SEPARATE cache entry, not another path on the one above. That entry's
+      # key is a hash of the build files, so adding a path to it would leave
+      # cache-hit == 'true' on the first run, skip the save step, and never
+      # persist the jars — the same never-warms deadlock described above. This
+      # key moves only when the Robolectric version or the pinned SDK moves.
+      - name: Restore Robolectric android-all jars
+        id: robolectric-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-${{ hashFiles('gradle/libs.versions.toml', 'aura-core/src/test/resources/robolectric.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-robolectric-
+
       # One task list per step, smallest first. A single 4-task invocation gave
       # no signal about WHERE the 90 minutes went, and a timeout killed the whole
       # thing with nothing reported. Ordered so the cheapest failure surfaces
@@ -144,6 +172,16 @@ jobs:
             ~/.gradle/caches/9.7.0
             ~/.gradle/caches/jars-9
           key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'build.gradle.kts', 'app/build.gradle.kts', 'aura-core/build.gradle.kts', 'gradle/libs.versions.toml') }}-build
+
+      # always(), for the same reason as the Gradle save above: the run that
+      # times out is precisely the run that paid for the download, and a POST
+      # step would be skipped on cancellation and throw it away.
+      - name: Save Robolectric android-all jars
+        if: always() && steps.robolectric-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-${{ hashFiles('gradle/libs.versions.toml', 'aura-core/src/test/resources/robolectric.properties') }}
 
       # README.md and architecture.md state the test count in the present tense,
       # and it drifted from 2,152 to 2,225 unnoticed — check-version-docs.sh

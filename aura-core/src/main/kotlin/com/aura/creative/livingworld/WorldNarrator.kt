@@ -118,6 +118,8 @@ class WorldNarrator @Inject constructor(
             // Narration is prose, not deduction. The events already say what
             // happened; nothing here needs working out.
             thinkingBudget = 0,
+            // Runs on a timer with nobody waiting — see BackgroundBudget.
+            attended = false,
         )
         val out = StringBuilder()
         brain.stream(model, messages, emptyList(), options).collect { chunk ->

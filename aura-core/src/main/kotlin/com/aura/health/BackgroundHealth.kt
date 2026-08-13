@@ -65,6 +65,16 @@ class BackgroundHealth @Inject constructor(
         add(Switch("Triggers", bool { userPreferences.triggersEnabled.first() }))
         add(Switch("Morning brief", bool { userPreferences.morningBriefEnabled.first() }))
         add(Switch("App awareness", bool { userPreferences.appAwarenessEnabled.first() }))
+        add(
+            Switch(
+                "Place log",
+                bool { userPreferences.placeLogEnabled.first() },
+                // The only background switch that is off by default: it is the
+                // only one that collects something new rather than reading what
+                // Aura already has.
+                "Coarse, ~100m, 90-day retention. Also needs location permission",
+            ),
+        )
     }
 
     private suspend fun bool(read: suspend () -> Boolean): Boolean =

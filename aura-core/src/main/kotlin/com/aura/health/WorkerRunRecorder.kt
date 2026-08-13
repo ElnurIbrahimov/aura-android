@@ -51,6 +51,13 @@ class WorkerRunRecorder @Inject constructor(
         } catch (cancelled: CancellationException) {
             finish(id, WorkerRunEntity.OUTCOME_FAILED, "cancelled")
             throw cancelled
+        } catch (budget: com.aura.usage.BackgroundBudgetExhausted) {
+            // A skip, not a failure. Nothing is broken — the day's unattended
+            // token ceiling is spent and this worker will run normally tomorrow.
+            // Handled here rather than in each of the six workers that can hit
+            // it, because a per-worker catch is a thing a seventh worker forgets.
+            finish(id, WorkerRunEntity.OUTCOME_SKIPPED, budget.message.orEmpty())
+            null
         } catch (t: Throwable) {
             finish(id, WorkerRunEntity.OUTCOME_FAILED, t.message?.take(MAX_DETAIL) ?: t::class.java.simpleName)
             Log.w(TAG, "$worker failed", t)
@@ -64,7 +71,16 @@ class WorkerRunRecorder @Inject constructor(
     suspend fun latestPerWorker(): List<WorkerRunEntity> =
         runCatching { dao.latestPerWorker() }.getOrDefault(emptyList())
 
-    /** Trim the log. Called from the same sweep that prunes proactive events. */
+    /**
+     * Trim the log. Called from [com.aura.proactive.DecayWorker], the 6-hourly
+     * maintenance sweep, above its `decayEnabled` gate.
+     *
+     * This KDoc used to say "the same sweep that prunes proactive events",
+     * meaning `ProactiveEvents.init` — which prunes the event and outcome
+     * tables and never this one. There was no production caller at all; the
+     * only one was this class's own unit test, so the test passed while the
+     * table grew a row per worker run forever.
+     */
     suspend fun prune(now: Long = System.currentTimeMillis()): Int =
         runCatching { dao.deleteOlderThan(now - RETENTION_MS) }.getOrDefault(0)
 

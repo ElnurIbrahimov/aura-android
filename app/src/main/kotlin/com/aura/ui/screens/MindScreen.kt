@@ -87,6 +87,10 @@ fun MindScreen(
         ) {
             // Each section renders nothing when it has nothing, and the screen
             // as a whole says so once rather than four times.
+            // First, deliberately. Everything below is present tense — what Aura
+            // believes now, what it wants to ask now — and the one question none
+            // of it answered was what actually moved.
+            changesSection(mindViewModel)
             beliefsSection(beliefsViewModel)
             worldModelSection(
                 worldModelViewModel,
@@ -112,6 +116,53 @@ fun MindScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * What changed in the last week.
+ *
+ * A read across stores that were all already keeping timestamps — corrections,
+ * consolidations, beliefs, contradictions, world events — and which nothing had
+ * ever read together. No new table, no model call, no write.
+ */
+private fun LazyListScope.changesSection(viewModel: MindViewModel) {
+    item {
+        val changes by viewModel.changes.collectAsStateWithLifecycle()
+        if (changes.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                SectionHeading("Since last week", top = false)
+                changes.forEach { change ->
+                    ListItem(
+                        overlineContent = { Text(changeLabel(change.kind)) },
+                        headlineContent = { Text(change.headline) },
+                        supportingContent = if (change.detail.isNotBlank()) {
+                            { Text(change.detail, maxLines = 2) }
+                        } else {
+                            null
+                        },
+                        trailingContent = { Text(relativeAge(change.at)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun changeLabel(kind: com.aura.changelog.Change.Kind): String = when (kind) {
+    com.aura.changelog.Change.Kind.CORRECTION -> "You corrected it"
+    com.aura.changelog.Change.Kind.CONSOLIDATION -> "Worked out overnight"
+    com.aura.changelog.Change.Kind.BELIEF -> "Belief"
+    com.aura.changelog.Change.Kind.CONTRADICTION -> "Contradiction"
+    com.aura.changelog.Change.Kind.WORLD_EVENT -> "Noticed"
+}
+
+private fun relativeAge(at: Long): String {
+    val hours = (System.currentTimeMillis() - at) / (60L * 60 * 1000)
+    return when {
+        hours < 1 -> "now"
+        hours < 24 -> "${hours}h"
+        else -> "${hours / 24}d"
     }
 }
 

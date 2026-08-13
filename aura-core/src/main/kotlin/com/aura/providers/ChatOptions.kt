@@ -84,6 +84,24 @@ data class ChatOptions(
      * Set to a large value (e.g. 32000) to maximize reasoning depth.
      */
     val thinkingBudget: Int? = null,
+    /**
+     * False when nobody asked for this call and nobody is waiting for it.
+     *
+     * The daemon, dream consolidation, the morning brief, curiosity authoring
+     * and self-serve research all spend money on a timer. Nothing bounded that,
+     * and seeding `backgroundModel` on 2026-08-13 switched several of them on at
+     * once — see [com.aura.usage.BackgroundBudget], which is what reads this.
+     *
+     * Never serialised to any provider. It is a routing fact about who wanted
+     * the call, not a parameter of the call.
+     *
+     * **Defaults to true on purpose.** A call site that forgets to set it is
+     * treated as the user's own turn and is never blocked. Getting this wrong in
+     * the other direction would mean a chat message refused because a dream
+     * cycle spent the budget overnight, which is a far worse failure than an
+     * unbounded background job.
+     */
+    val attended: Boolean = true,
 ) {
     companion object {
         /** Wire default when [temperature] is unset (null). */

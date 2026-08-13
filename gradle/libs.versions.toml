@@ -69,6 +69,10 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-browser = { group = "androidx.browser", name = "browser", version = "1.8.0" }
+# Storage Access Framework tree access, for the automatic backup destination.
+# A user-picked SAF folder is the only writable location that outlives both the
+# app being uninstalled and the device itself, which is the whole point.
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version = "1.1.0" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version = "1.3.1" }
 mail-android = { group = "com.sun.mail", name = "android-mail", version = "1.6.7" }
 mail-android-activation = { group = "com.sun.mail", name = "android-activation", version = "1.6.7" }

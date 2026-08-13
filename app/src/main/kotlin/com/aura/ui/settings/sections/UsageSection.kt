@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 fun UsageSection(
     usage: UsageSnapshot,
     onReset: () -> Unit,
+    backgroundSpend: com.aura.usage.BackgroundSpend = com.aura.usage.BackgroundSpend(),
 ) {
     SettingsSection(
         icon = Icons.Filled.BarChart,
@@ -43,6 +44,22 @@ fun UsageSection(
             text = "${usage.promptTokens} input - ${usage.completionTokens} output tokens",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
+        )
+        // Today's unattended spend, against its ceiling.
+        //
+        // A different question from the cumulative total above: that one is
+        // everything Aura has ever done, this is what it did today while nobody
+        // was watching. Before the cap there was no number for it at all, which
+        // is how a daemon on an expensive model gets noticed on an invoice.
+        Text(
+            text = "Background today: ${backgroundSpend.tokens} / ${backgroundSpend.limit} tokens" +
+                if (backgroundSpend.blockedCalls > 0) " — ${backgroundSpend.blockedCalls} held back" else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (backgroundSpend.exhausted) {
+                MaterialTheme.colorScheme.error
+            } else {
+                AuraThemeTokens.colors.textPrimary.copy(alpha = 0.65f)
+            },
         )
         Text(
             text = "Tool results processed: ${"%.1f".format(usage.toolResultChars / 1000.0)} KB",

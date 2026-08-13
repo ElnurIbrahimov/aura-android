@@ -413,8 +413,8 @@ working as designed on the person who wrote it, which is the only real test of a
 
 ## 3. Still open
 
-Re-verified against HEAD on 2026-08-08, and again on 2026-08-10. This is the section to
-maintain. Items closed by
+Re-verified against HEAD on 2026-08-08, on 2026-08-10, and on 2026-08-13. This is the
+section to maintain. Items closed by
 the 2026-08-06/07 sweep — stale dependencies, the AgentRun one-way approval loop, the
 missing schema exports 7–10, the single global permission slot, and the four known-flaky
 time-dependent test classes — have been removed; see §2.0.
@@ -436,6 +436,220 @@ is a dated record of one run, which is this file's job.
 *2026-08-10:* **2,609 unit tests, 0 failures**, after the §2.10 capability sweep. Both lint
 tasks clean of errors, `assembleRelease` succeeds under real R8, all three gate scripts
 pass. Every one of the sweep's 21 commits was gated on that full set before the next began.
+
+*2026-08-13:* **2,913 unit tests / 436 suites, 0 failures** at v0.66.0 (versionCode 81).
+Both lint tasks clean of errors — 70 warnings, of which the three `TrustAllX509TrustManager`
+security findings are all inside BouncyCastle 1.72 rather than app code, corroborating the
+dependency item below. `assembleRelease` succeeds, 12.29 MB. All three gate scripts pass.
+
+### The missing guarantees (2026-08-13 →)
+
+A separate pass asked what is *absent* rather than what is broken. The answer was
+that Aura is not missing features — it has more than one user can exercise — but
+missing guarantees. Five, being landed one at a time.
+
+- **Automatic backup — done.** `allowBackup="false"` is correct (Android's cloud
+  backup would hand the whole memory store to Google) but it left every memory,
+  graph node, correction, belief and dream on one device behind a button somebody
+  had to remember to press. The only unrecoverable failure mode in the app.
+  `BackupWorker` runs weekly while charging, writes through the existing
+  `BackupManager.snapshot`/`encodeToJson`, and keeps three. The destination is a
+  SAF tree the user picks — a folder their own cloud may already sync, which is
+  the part no code here can do. Encryption is `BackupCrypto`: AES-GCM from
+  `KeyManager`, unchanged, but keyed from a **passphrase** rather than the
+  Keystore, because a Keystore key dies with the phone and that is precisely the
+  case a backup exists for. The salt and iteration count travel in the file, so a
+  future cost bump cannot orphan old backups. **A forgotten passphrase is an
+  unrecoverable backup** and the dialog says so once, plainly, at the only moment
+  it can be acted on. Not verified: the SAF write itself, which is a device
+  concern and sits in the manual plan — *a backup that has never been restored is
+  not a backup.*
+  - Found while testing it: `recorder?.record(...) ?: runNow()` re-ran the entire
+    snapshot, key derivation and write whenever `record` returned null — which is
+    exactly the failure path. Now an explicit `if`/`else`, gated by a test.
+
+- **A ceiling on unattended spend — done.** `UsageTracker` counted tokens and
+  never capped them; `ToolPolicy.costCeiling` has been allowlisted in
+  `DeadConfigFieldTest` as a field that decides nothing since it was written. So
+  nothing bounded the daemon, dream consolidation, the morning brief, curiosity
+  authoring or daily research — and seeding `backgroundModel` (above) switched
+  four of them on at once, which is what made this urgent rather than theoretical.
+  `ChatOptions.attended` marks a call nobody is waiting for; `BackgroundBudget`
+  keeps a per-local-day token count; `ProviderRegistry.chat` — the single point
+  every LLM call passes through, and therefore the only place the check cannot be
+  forgotten — refuses unattended calls past the ceiling.
+  - **Defaults to attended.** A call site that forgets the flag is treated as the
+    user's own turn and never blocked. Failing open on spend is a far better
+    outcome than a chat message refused because a dream cycle ran overnight — but
+    it fails *silently*, so `UnattendedCallersAreMarkedTest` lists the seven
+    subsystems that must carry it and names the file to fix when a new one does not.
+  - Hitting the ceiling is a **skip, not a failure**, mapped once in
+    `WorkerRunRecorder` rather than in each of the six workers that can hit it —
+    a per-worker catch is a thing the seventh worker forgets. It therefore reads
+    as "daily background budget spent" in BackgroundHealth, which is the second
+    real customer for the run log added the day before.
+  - Tokens, not currency: `ModelCatalog` carries no pricing, and a hand-maintained
+    price table across seventeen providers would drift into being confidently wrong.
+  - Stored in SharedPreferences beside `UsageTracker`, **not** the Room table the
+    plan called for. A counter that resets at midnight and means nothing tomorrow
+    does not need a schema version, a migration, a backup mapper and three doc
+    counts; the guarantee is that spend is bounded, not that it is queryable.
+  - `ToolPolicy.costCeiling` deliberately untouched — it is a per-tool
+    pre-execution estimate, a different thing, and its dead-field entry is accurate.
+
+- **Redaction at the capture sites — done.** The privacy engineering inside the
+  device is careful and always has been; all of it stopped at the network
+  boundary, where screen contents and notification text went to a third-party API
+  in plaintext. `com.aura.security.Redactor` masks phone numbers, email addresses
+  and long digit runs, generalising the `UiTraversal.redact` hook that already
+  existed for password fields and secret-hinted ids.
+  - **Not at `ProviderRegistry.chat`**, though that is the one place everything
+    passes through and the obvious home. Scrubbing on the way out would strip the
+    number from "call mum on 0555 123 4567" and break the assistant to protect a
+    number the user typed deliberately. The distinction that decides this is *how
+    Aura came to have the text*, not what the text contains: a screen read returns
+    whatever was on screen and a notification list whatever arrived, so all of it
+    is unchosen; `contacts_search` returns the contact that was asked for, and a
+    masked answer there is not an answer. `RedactorScopeTest` asserts both halves,
+    because over-reach — a redactor that has quietly spread until nothing can be
+    answered — is the likelier failure and would look like working.
+  - **Two sites the plan named turned out to be wrong**, found by reading them
+    rather than by trusting the plan: `NotificationsTool` *posts* notifications
+    and captures nothing, and `CaptureScreenTool` returns a base64 JPEG with no
+    text for a regex to touch. Both are now in the must-not-redact list with that
+    reasoning attached, so the next pass does not rediscover it. Screenshot
+    content reaching a vision model is still unredacted and there is no honest
+    way to fix that with a text rule.
+  - The phone pattern counts digits in code rather than encoding the constraint
+    in the regex. Its first draft masked `2026-08-13` as a phone number and a
+    16-digit card as one too — caught by the negative half of `RedactorTest`,
+    which is roughly half its cases and exists for exactly that.
+  - `docs/architecture/privacy-boundaries.md` updated: a new ground rule for
+    captured-versus-given text, and the export section corrected — it claimed
+    "the Personal export is not encrypted" while the automatic one now is.
+
+- **A time axis — done.** `MindScreen` answered "what does Aura think" well and
+  answered it entirely in the present tense. Nothing anywhere answered *what
+  changed this week* — what it learned, what it stopped believing, which
+  correction took effect. For a system whose whole premise is that it accumulates,
+  being unable to show the accumulation was the strangest of the five gaps: every
+  input already existed and was already indexed on time, and nobody had read
+  across the tables.
+  - `ChangeLog` is **a read, not a store**: no new tables, no model call, no
+    writes, so it needed no migration, backup mapper or schema export. It merges
+    corrections, consolidations, beliefs, contradictions and world events into one
+    ordered window, each source wrapped individually so a dead store cannot starve
+    the rest — the `SituationReader` rule.
+  - Surfaced as the *first* section of `MindScreen` rather than a new route.
+    A route would have moved the `NAV_DESTINATIONS` and `SECONDARY_ROUTES` counts
+    that `check-version-docs.sh` gates, and MindScreen exists precisely because
+    these views were scattered.
+  - Two `since(cutoff, limit)` queries added to `ContradictionDao` and
+    `WorldEventDao`; the others already had bounded ordered queries. Merging
+    N-from-each and taking N overall is exact — the true top N cannot hold more
+    than N from one source.
+  - Known gap, recorded rather than papered over: a *superseded* belief is
+    arguably the most interesting change of all and does not appear, because
+    `allActive` is the bounded query that exists and it filters to active.
+  - All five DAOs are nullable but **not** defaulted. Defaults on every parameter
+    make Kotlin synthesise a no-arg overload, which Hilt reads as a second
+    `@Inject` constructor and refuses outright — found at build time, not by
+    reading.
+
+- **A place log — done.** The knowledge graph was built essentially from chat, and
+  no work on the retrieval stack raises that ceiling: six-signal RRF over "things
+  I told it" is still a corpus of things the user told it. Place was chosen over
+  screenshots and messages because it is passive, costs **zero model calls**, and
+  the permission and plumbing already existed. `place_visits` in `MemoryDatabase`
+  (v22) rather than a twelfth database — §3's architecture note is that eleven is
+  already too many.
+  - **Coarse by construction.** Coordinates are rounded to three decimals — about
+    100 m — at the point of capture, so no precise coordinate is ever stored and
+    no later feature can decide to start using one. Four decimals would
+    distinguish rooms in a building; two could not tell home from the shop.
+    `PlaceLogTest` asserts the rounding, because it is the claim the whole table
+    rests on. Rows are *visits* (arrival, last-seen, sample count), not fixes.
+  - Last-known-location only, on WorkManager's 15-minute floor. A live
+    subscription would be more accurate and would also be a continuous listener
+    running all day — both the battery cost and a far more invasive product.
+  - **Off by default**, and the only background switch that is: everything else
+    reads what Aura already has, and this collects something new.
+    `PlaceRetentionIsWiredTest` gates the default, the 90-day prune having a
+    caller, and that prune staying *above* the `decayEnabled` gate — the third
+    time in three days that "a retention window with no caller" has come up here,
+    so it gets a gate rather than trust.
+  - Backed up (schema 24), unlike `worker_runs`: this is personal data the user
+    chose to let Aura keep, not per-installation telemetry. Row ids are
+    deliberately not carried, since a restore appends.
+  - `ForegroundAppIsNeverStoredTest` failed on a *KDoc* in `PlaceLog` that cited
+    `ForegroundAppReader` as precedent. The gate matched raw file text, so prose
+    counted as consumption. Tightened to strip comments before matching, and
+    re-verified that it still fires on a real reference — a privacy gate that
+    fires on prose is one that gets weakened the first time it is wrong.
+
+### The 2026-08-13 pass
+
+A full read of the repo at `e6bd21da`. The finding worth recording is what it did **not**
+find: after twelve passes there was no logic defect in the code it read. Every real defect
+was in the seam between code and process — declared, documented, unit-tested in isolation,
+and connected to nothing that runs. Four of the five would have surfaced in five minutes of
+using the app on a phone, which is §4's point, unchanged and still unacted-on.
+
+- **CI had stopped finishing.** `build-test` sat 70–91 minutes on three of the last five
+  pushes to `main`; two were killed at the 90-minute job ceiling, so `15d2cc0d` and
+  `5fd18a0f` landed with nothing having tested them. Not a hanging test: a cold
+  `--rerun-tasks` of `:aura-core:testDebugUnitTest` takes 4m11s. Robolectric resolves its
+  `android-all-instrumented` jars itself, over the network, from inside the running test
+  task, into `~/.m2/repository` — 326 MB for the two SDK levels pinned here — and the
+  workflow cached only `~/.gradle/caches/*`. `lint-release`, which runs no unit tests,
+  finished in ~15 minutes in the same runs; that contrast is the whole diagnosis. Closed by
+  a separate restore/save cache pair for `~/.m2/repository/org/robolectric` (separate
+  because adding a path to the existing entry would leave `cache-hit == 'true'` and skip
+  the save, which is the same never-warms deadlock the file already documents from
+  2026-08-05), plus a 40-minute `timeout` on both modules' `Test` tasks so a stall fails
+  the task with an uploadable report instead of killing the job.
+- **`onACall` fired on any WhatsApp notification.** `SituationReader` matched package
+  substrings over `NotificationCaptureStore.snapshot(20)`, which holds *posted
+  notifications*. One unread message set `onACall`, which set `interruptible` false, which
+  suppressed every proactive notification and held every daemon finding — while telling the
+  user "you're on a call". It re-closed the three gates `66bca9bd` had just opened, three
+  days after they opened. It also only functioned when notification access was granted,
+  which is off by default, so on a stock install the signal was permanently null. Closed by
+  reading `AudioManager.mode`: no permission, no package list, no listener, and Aura's own
+  live call reads as a call, which is correct. `SituationTest` pinned what `onACall = true`
+  *means* and took the value as given; nothing tested where it came from, so nothing
+  disagreed. `SituationReaderCallDetectionTest` now does — four of its five cases fail
+  against the old derivation.
+- **`WorkerRunRecorder.prune()` had no production caller.** Its KDoc named "the same sweep
+  that prunes proactive events"; that sweep is `ProactiveEvents.init`, which prunes the
+  event and outcome tables and never this one. The only caller was its own unit test, which
+  passed and proved nothing, while the table grew a row per worker run with no bound. Wired
+  into `DecayWorker` above the `decayEnabled` gate, alongside the outcome pass and for the
+  identical reason. Two cases in `DecayWorkerTest` gate it, including the one that would
+  regress silently — that retention still runs when memory decay is switched off.
+- **The whole autonomous layer was dark on a fresh install.** `backgroundModel` had no
+  default and two writers, Settings and a restored backup. Onboarding was not one of them,
+  so any install that never opened Settings → AI & Models kept it null — and
+  `QuestionAuthor`, `SelfServeResearcher`, `DaemonWorker`, `IdleTimePreparationEngine` and
+  `MorningBriefBuilder` all hard-return on exactly that, quietly, each looking identical to
+  a feature with nothing to say. §2.10 shipped `BackgroundHealth` listing this switch first
+  with that note attached: the diagnosis landed and the fix did not. Closed by
+  `UserPreferences.seedBackgroundModelOnce()` — one writer, called from onboarding for new
+  installs and from `ProactiveBootstrap` for the ones that already exist, since the first
+  reaches none of them. The once-ness is a flag rather than an emptiness check, so a
+  deliberate clear stays cleared.
+- **The version had not moved in 114 commits.** v0.65.0 / versionCode 80 was set
+  2026-08-06; realtime voice, screen control, the capability sweep, living worlds,
+  curiosity, the correction spine, situation and health all shipped under it.
+  `check-version-docs.sh` gates docs against source, which is structurally why it could not
+  catch this — both agreed on a number that had stopped moving. Now v0.66.0 / 81.
+- Plus: `TasteProfileScreen.kt` and `WorldModelScreen.kt` still exported full-screen
+  composables that nothing had called since `15d2cc0d` folded them into `MindScreen`.
+  Renamed to `TasteSection.kt` / `WorldModelSection.kt` rather than exempted —
+  `ExtendedScreenContractTest` failed on the deletion, correctly, because the file names had
+  been describing something that was no longer in them. And README claimed the five
+  consciousness components were "not in the backup schema yet" thirty lines above the line
+  saying schema v18 added them.
 
 ### Blocked on measurement, not on work
 
@@ -499,7 +713,7 @@ and inflated the document frequencies BM25 had just started depending on.
 | `ToolExecutor` pins an IO thread per tool | `runInterruptible(Dispatchers.IO) { runBlocking { … } }` occupies an IO thread for the tool's whole duration, including for purely-suspending tools that would otherwise release it. Bounded to 8 via `limitedParallelism`. **Cancellation itself is correct** — see `ToolExecutorCancellationProbeTest`. |
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |
 | Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–17 are all committed and the chain test now runs 6→17 (it stopped at 14 until 2026-08-08, leaving `MIGRATION_14_15` and `MIGRATION_15_16` with no coverage at all), but individual hops inside 6..10 still have no per-step data assertion. |
-| No consciousness state is in the backup schema | `NarrativeSelf`, `EmotionEngine`, `AffinityTracker`, `IntrinsicMotivation` and `TheoryOfMind` all persist locally, and none survive export/restore. Deliberately left out of the 2026-08-08 sweep: adding one blob would have set an inconsistent precedent for the other four. Fix is one `AuraBackupSchema18.kt` covering all five, plus a `restoreConsciousness` in the non-fatal post-restore block of `BackupManager.restore`. |
+| ~~No consciousness state is in the backup schema~~ | Closed. `AuraBackupSchema18.kt` covers all five — `NarrativeSelf`, `EmotionEngine`, `AffinityTracker`, `IntrinsicMotivation`, `TheoryOfMind` — exactly as this row proposed. It had been closed since the §2.10 sweep and was still listed here on 2026-08-13, which is the §4 failure mode reappearing in the section that exists to prevent it. `BackupCoverageAuditTest` is now the thing that would notice, rather than a re-read. |
 | BM25 document frequency costs one FTS probe per query term | Bounded by `MAX_QUERY_TERMS` (24) and each probe is an index lookup, so it is cheap — but FTS4's `matchinfo()` would return the whole corpus statistic in the same query that fetches candidates. It needs `@RawQuery` plus manual BLOB parsing, and there is no `@RawQuery` precedent in `MemoryDao`. Recorded rather than done. |
 | Bigram IDF still comes from the candidate set | `BM25.tokenize` emits words *and* adjacent bigrams; only the unigrams get a corpus document frequency, because measuring every bigram would double the probe count for a term class that is rare by construction. Bigrams fall back to candidate-set `df`, which is the pre-2026-08-08 behaviour for that subset. Since 2026-08-10 this is `RetrievalConfig.bm25Bigrams` and the eval harness can settle it: bigrams also *double* `docLength`, depressing every unigram through BM25's length normalisation, so dropping them may well win outright. Left at the shipped default until measured. |
 | `correctly_empty_rate` is 0.0 in the eval harness | The vector fallback scores every scanned row and admits anything above a 0.05 cosine floor, so a query with no real answer still returns something. `MemoryStoreQueryTest` asserts empty results as product behaviour and passes, because its fixtures never reach that branch. The harness disagrees with the unit test about what the system does, and the harness is right. Fix is a relevance floor on the fused score, not on the cosine — but it needs the golden set to avoid trading recall for it. |
@@ -518,14 +732,14 @@ and inflated the document frequencies BM25 had just started depending on.
 
 ### Coverage
 
-- 28 files declare a `: ViewModel()`; 5 of them have no name-matched test file
-  (`DreamLogAndProfileViewModels`, `DreamsScreen`, `OnboardingRoute`,
-  `ProactiveHistoryViewModel`, `ProductionPipelineViewModel`) — name-matching
-  undercounts, since a VM may be covered by a differently-named suite. The earlier
-  "30 of 33" figure did not match HEAD. Compose UI screens (~29) remain untested
-  as screens. ViewModels with business logic are tested; Compose UI screens are harder
-  to unit-test meaningfully and are exercised through manual use. The ROI of Compose UI
-  unit tests on a personal app is low.
+- 30 files declare a `: ViewModel()` (28 on 2026-08-10, 33 in a figure before that which
+  did not match HEAD either — this number drifts every time a screen lands, and re-reading
+  it is the point of this section). Name-matching undercounts, since a VM may be covered by
+  a differently-named suite. 24 `*Screen.kt` files remain untested as screens.
+  ViewModels with business logic are tested; Compose UI screens are harder to unit-test
+  meaningfully and are exercised through manual use. The ROI of Compose UI unit tests on a
+  personal app is low — but note that "exercised through manual use" is doing real work in
+  that sentence, and the device pass below has still not happened.
 - `runCatching` blocks are enforced-handled by `SilentRunCatchingAuditTest` (every block
   must have an `.onFailure`/`.getOr*`/`.fold` handler within scan range; 1 allowlisted
   exception). Silent-but-handled fallbacks (`.getOrNull()` without logging) still exist,

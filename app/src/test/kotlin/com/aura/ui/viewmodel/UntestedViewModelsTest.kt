@@ -115,7 +115,7 @@ class UntestedViewModelsTest {
         val tracker = mockk<UsageTracker>(relaxed = true)
         val snapshot = UsageSnapshot()
         every { tracker.snapshot } returns MutableStateFlow(snapshot)
-        val vm = com.aura.ui.settings.UsageViewModel(tracker)
+        val vm = com.aura.ui.settings.UsageViewModel(tracker, com.aura.usage.BackgroundBudget { System.currentTimeMillis() })
         assertEquals(snapshot, vm.usage.value)
     }
 
@@ -124,7 +124,7 @@ class UntestedViewModelsTest {
         val tracker = mockk<UsageTracker>(relaxed = true)
         every { tracker.snapshot } returns MutableStateFlow(UsageSnapshot())
         every { tracker.reset() } returns Unit
-        val vm = com.aura.ui.settings.UsageViewModel(tracker)
+        val vm = com.aura.ui.settings.UsageViewModel(tracker, com.aura.usage.BackgroundBudget { System.currentTimeMillis() })
         vm.reset()
     }
 

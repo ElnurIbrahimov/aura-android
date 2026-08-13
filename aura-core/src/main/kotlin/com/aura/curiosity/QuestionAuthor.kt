@@ -63,6 +63,7 @@ class QuestionAuthor @Inject constructor(
                     ProviderMessage(role = ProviderMessage.Role.system, content = systemPrompt()),
                     ProviderMessage(role = ProviderMessage.Role.user, content = numbered),
                 ),
+                com.aura.providers.ChatOptions(attended = false),
             ).toList().joinToString("") { it.text ?: "" }
         }.onFailure { Log.w(TAG, "authoring call failed", it) }
             .getOrNull()

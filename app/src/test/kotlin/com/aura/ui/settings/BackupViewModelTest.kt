@@ -35,6 +35,31 @@ class BackupViewModelTest {
     private val context = mockk<Context>(relaxed = true)
     private val backupManager = mockk<BackupManager>(relaxed = true)
 
+    /**
+     * The automatic-backup dependencies, stubbed to "nothing configured".
+     *
+     * These tests are about the manual export/import state machine; the
+     * scheduled half has its own suites (`BackupWorkerGateTest`,
+     * `BackupCryptoTest`). What matters here is that the init block's preference
+     * collection cannot disturb the state these tests assert on.
+     */
+    private fun viewModel(): BackupViewModel {
+        val prefs = mockk<com.aura.data.UserPreferences>(relaxed = true)
+        every { prefs.autoBackupEnabled } returns kotlinx.coroutines.flow.flowOf(false)
+        every { prefs.backupFolderUri } returns kotlinx.coroutines.flow.flowOf(null)
+        every { prefs.lastBackupAt } returns kotlinx.coroutines.flow.flowOf(0L)
+        every { prefs.lastBackupError } returns kotlinx.coroutines.flow.flowOf("")
+        val secure = mockk<com.aura.security.SecureDataStore>(relaxed = true)
+        coEvery { secure.getString(any()) } returns null
+        return BackupViewModel(
+            context,
+            backupManager,
+            prefs,
+            secure,
+            mockk<com.aura.proactive.ProactiveScheduler>(relaxed = true),
+        )
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -52,7 +77,7 @@ class BackupViewModelTest {
 
     @Test
     fun `initial state is idle with no result`() = runTest {
-        val vm = BackupViewModel(context, backupManager)
+        val vm = viewModel()
         val s = vm.state.value
         assertFalse(s.exportInFlight)
         assertFalse(s.importInFlight)
@@ -75,7 +100,7 @@ class BackupViewModelTest {
             java.io.File.createTempFile("aura-backup-test", ".json").apply { deleteOnExit() }
         }
 
-        val vm = BackupViewModel(context, backupManager)
+        val vm = viewModel()
         val file = vm.prepareExportFile()
 
         val state = vm.state.value
@@ -86,7 +111,7 @@ class BackupViewModelTest {
 
     @Test
     fun `cancelImport clears the confirm dialog`() = runTest {
-        val vm = BackupViewModel(context, backupManager)
+        val vm = viewModel()
         // cancelImport on a fresh VM is a no-op; the no-op must not
         // throw and the dialog state must stay false.
         vm.cancelImport()
@@ -96,7 +121,7 @@ class BackupViewModelTest {
 
     @Test
     fun `confirmImport with no staged bytes is a no-op`() = runTest {
-        val vm = BackupViewModel(context, backupManager)
+        val vm = viewModel()
         vm.confirmImport(replace = false)
         // Restore must not be called when there's nothing staged.
         coVerify(exactly = 0) { backupManager.restore(any()) }
@@ -104,7 +129,7 @@ class BackupViewModelTest {
 
     @Test
     fun `clearResult clears the last result`() = runTest {
-        val vm = BackupViewModel(context, backupManager)
+        val vm = viewModel()
         vm.clearResult()
         assertNull(vm.state.value.lastResult)
     }

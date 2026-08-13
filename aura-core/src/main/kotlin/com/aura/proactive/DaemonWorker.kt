@@ -416,7 +416,7 @@ class DaemonWorker @AssistedInject constructor(
                 ProviderMessage(role = ProviderMessage.Role.system, content = systemPrompt),
                 ProviderMessage(role = ProviderMessage.Role.user, content = userMessage),
             )
-            val chunks = providerRegistry.chat(backgroundModel, messages).toList()
+            val chunks = providerRegistry.chat(backgroundModel, messages, com.aura.providers.ChatOptions(attended = false)).toList()
             val insight = chunks.joinToString("") { it.text ?: "" }.trim()
             if (insight.isNotBlank() && insight != "SKIP") {
                 proactiveEvents.record(ProactiveEventBus.Event.DaemonInsight(

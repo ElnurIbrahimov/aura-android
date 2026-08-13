@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -104,6 +106,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.documentfile)
     implementation(libs.mail.android)
     implementation(libs.mail.android.activation)
 
@@ -122,4 +125,20 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.room.testing)
+}
+
+// A hang has to become a failure. On 2026-08-12 this task printed nothing for 86
+// minutes and CI killed the whole job at its 90-minute ceiling, so nothing was
+// reported and nothing was uploaded — the run read as cancelled rather than
+// broken. Robolectric fetching ~326 MB of android-all jars from inside the test
+// task was the cause (see .github/workflows/ci.yml), and that is now cached; but
+// an unbounded task is what turned a slow download into an undiagnosable outage,
+// and caching only removes today's reason to stall.
+//
+// 40 minutes, not 25: the first run after a Robolectric version or SDK bump
+// legitimately pays for that download in here. The suite itself takes ~4. 40 sits
+// well inside the 90-minute job budget, so the task fails, the `if: failure()`
+// step still uploads the test results, and the failure can be read.
+tasks.withType<Test>().configureEach {
+    timeout.set(Duration.ofMinutes(40))
 }

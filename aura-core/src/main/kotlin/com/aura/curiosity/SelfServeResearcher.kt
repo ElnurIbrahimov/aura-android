@@ -70,6 +70,7 @@ class SelfServeResearcher @Inject constructor(
                         content = "Question: ${question.question}\n\nSearch results:\n$sources",
                     ),
                 ),
+                com.aura.providers.ChatOptions(attended = false),
             ).toList().joinToString("") { it.text ?: "" }.trim()
         }.onFailure { Log.w(TAG, "condensing failed", it) }
             .getOrNull()

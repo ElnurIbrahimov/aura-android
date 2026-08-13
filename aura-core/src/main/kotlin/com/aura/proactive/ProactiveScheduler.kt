@@ -133,4 +133,80 @@ class ProactiveScheduler @Inject constructor(
     fun cancelDream() {
         WorkManager.getInstance(context).cancelUniqueWork(com.aura.dream.DreamWorker.UNIQUE_NAME)
     }
+
+    /**
+     * Weekly, while charging.
+     *
+     * Charging rather than idle-and-unmetered: the file goes to a folder the user
+     * picked, which may well be one their cloud syncs, and making the backup wait
+     * for Wi-Fi means the week a backup was most needed is the week it did not
+     * happen. A snapshot plus a 210k-iteration key derivation is not free, which
+     * is what the charging constraint is actually for.
+     *
+     * Weekly rather than daily because the cost of a stale backup is a week of
+     * lost conversation, and the cost of a daily one is a full database read every
+     * night for a single user whose state changes slowly.
+     */
+    fun scheduleBackup() {
+        val request = PeriodicWorkRequestBuilder<com.aura.backup.BackupWorker>(7, TimeUnit.DAYS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiresCharging(true)
+                    .setRequiresBatteryNotLow(true)
+                    .build(),
+            )
+            .setInitialDelay(1, TimeUnit.HOURS)
+            .addTag("automatic-backup")
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                com.aura.backup.BackupWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request,
+            )
+    }
+
+    fun cancelBackup() {
+        WorkManager.getInstance(context).cancelUniqueWork(com.aura.backup.BackupWorker.UNIQUE_NAME)
+    }
+
+    /**
+     * Coarse place sampling, at WorkManager's fifteen-minute floor.
+     *
+     * No constraints beyond the default. Requiring charging would mean the log
+     * only ever knows where the phone sleeps, which is the one place a person
+     * does not need telling about — and the whole cost is one last-known-location
+     * read, which is cheaper than the wakeup itself.
+     */
+    fun schedulePlaceLog() {
+        val request = PeriodicWorkRequestBuilder<com.aura.place.PlaceLogWorker>(15, TimeUnit.MINUTES)
+            .addTag("place-log")
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                com.aura.place.PlaceLogWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request,
+            )
+    }
+
+    fun cancelPlaceLog() {
+        WorkManager.getInstance(context).cancelUniqueWork(com.aura.place.PlaceLogWorker.UNIQUE_NAME)
+    }
+
+    /**
+     * Run one backup now, through the same worker the schedule uses.
+     *
+     * This is how a person finds out their folder and passphrase actually work
+     * without waiting a week to not find out. Deliberately the same code path
+     * rather than a direct call: a "test" button that exercises different code
+     * from the real thing tests the button.
+     */
+    fun requestBackupNow() {
+        WorkManager.getInstance(context).enqueue(
+            androidx.work.OneTimeWorkRequestBuilder<com.aura.backup.BackupWorker>()
+                .addTag("automatic-backup")
+                .build(),
+        )
+    }
 }

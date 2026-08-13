@@ -79,6 +79,7 @@ data class AuraBackup(
     val livingEvents: List<LivingEventBackup> = emptyList(),
     val corrections: List<CorrectionBackup> = emptyList(),
     val openQuestions: List<OpenQuestionBackup> = emptyList(),
+    val placeVisits: List<PlaceVisitBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
     // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
@@ -140,7 +141,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 23
+        const val SCHEMA_VERSION = 24
     }
 }
 
@@ -715,6 +716,24 @@ data class LivingWorldBackup(
  * Aura cheerfully re-ask everything the user has already told it to drop, which
  * is the single worst thing this feature could do.
  */
+/**
+ * Somewhere the user was.
+ *
+ * In the backup because it is personal data the user chose to let Aura keep, and
+ * a restore that silently dropped it would lose the only record of it — this is
+ * not telemetry like `worker_runs`, which is deliberately excluded. Coordinates
+ * are already coarse in the table; nothing here re-precises them.
+ */
+@Serializable
+data class PlaceVisitBackup(
+    val lat: Double,
+    val lon: Double,
+    val arrivedAt: Long,
+    val lastSeenAt: Long,
+    val samples: Int = 1,
+    val label: String = "",
+)
+
 @Serializable
 data class OpenQuestionBackup(
     val id: String,

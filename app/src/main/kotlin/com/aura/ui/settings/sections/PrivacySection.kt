@@ -46,6 +46,8 @@ fun PrivacySection(
     onSetScreenControlEnabled: (Boolean) -> Unit,
     appAwarenessEnabled: Boolean = false,
     onSetAppAwarenessEnabled: (Boolean) -> Unit = {},
+    placeLogEnabled: Boolean = false,
+    onSetPlaceLogEnabled: (Boolean) -> Unit = {},
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
@@ -121,6 +123,27 @@ fun PrivacySection(
                 )
             }
             Switch(checked = appAwarenessEnabled, onCheckedChange = onSetAppAwarenessEnabled)
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Place log", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    // States the coarseness and the retention, because those are
+                    // the two facts that decide whether this is acceptable, and
+                    // "location" on its own implies something far more precise
+                    // than what is actually stored.
+                    text = if (placeLogEnabled) {
+                        "On - roughly where you've been, rounded to ~100m, kept 90 days"
+                    } else {
+                        "Off - Aura knows nothing about where you go. Almost everything " +
+                            "it knows is something you typed at it"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = placeLogEnabled, onCheckedChange = onSetPlaceLogEnabled)
         }
 
         if (appAwarenessEnabled) {

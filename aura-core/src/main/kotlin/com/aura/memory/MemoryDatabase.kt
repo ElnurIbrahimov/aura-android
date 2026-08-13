@@ -51,6 +51,7 @@ import com.aura.kg.NodeEntity
 @Database(
     entities = [
         MemoryEntity::class,
+        com.aura.place.PlaceVisitEntity::class,
         NodeEntity::class,
         EdgeEntity::class,
         MemoryEditEntity::class,
@@ -80,11 +81,12 @@ import com.aura.kg.NodeEntity
         CorrectionEntity::class,
         com.aura.curiosity.OpenQuestionEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
+    abstract fun placeVisitDao(): com.aura.place.PlaceVisitDao
     abstract fun knowledgeGraphDao(): KnowledgeGraphDao
     abstract fun memoryEditDao(): MemoryEditDao
     abstract fun documentDao(): DocumentDao

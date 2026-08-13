@@ -1,3 +1,4 @@
+import java.time.Duration
 import java.util.Properties
 
 plugins {
@@ -32,8 +33,8 @@ android {
         applicationId = "com.aura"
         minSdk = 26
         targetSdk = 35
-        versionCode = 80
-        versionName = "0.65.0"
+        versionCode = 81
+        versionName = "0.66.0"
         testInstrumentationRunner = "com.aura.testing.HiltTestRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -167,4 +168,10 @@ dependencies {
     androidTestImplementation(libs.hilt.android.testing)
     androidTestImplementation(libs.okhttp.mockwebserver)
     kspAndroidTest(libs.hilt.compiler)
+}
+
+// See the matching block in aura-core/build.gradle.kts for why. Both modules run
+// Robolectric, so both can stall the same way.
+tasks.withType<Test>().configureEach {
+    timeout.set(Duration.ofMinutes(40))
 }

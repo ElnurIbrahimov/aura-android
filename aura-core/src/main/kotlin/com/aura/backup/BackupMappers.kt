@@ -105,6 +105,27 @@ internal fun MemoryBackup.toEntity() = MemoryEntity(
     retiredReason = retiredReason,
 )
 
+internal fun com.aura.place.PlaceVisitEntity.toBackup() = PlaceVisitBackup(
+    // `id` is autoGenerate and deliberately not carried: a restore appends rows
+    // and letting the old ids through would collide with whatever the receiving
+    // device has already logged.
+    lat = lat,
+    lon = lon,
+    arrivedAt = arrivedAt,
+    lastSeenAt = lastSeenAt,
+    samples = samples,
+    label = label,
+)
+
+internal fun PlaceVisitBackup.toEntity() = com.aura.place.PlaceVisitEntity(
+    lat = lat,
+    lon = lon,
+    arrivedAt = arrivedAt,
+    lastSeenAt = lastSeenAt,
+    samples = samples,
+    label = label,
+)
+
 internal fun com.aura.curiosity.OpenQuestionEntity.toBackup() = OpenQuestionBackup(
     id = id,
     kind = kind,

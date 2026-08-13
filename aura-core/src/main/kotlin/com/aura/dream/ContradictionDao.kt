@@ -31,6 +31,10 @@ interface ContradictionDao {
     @Query("SELECT * FROM contradictions ORDER BY createdAt DESC")
     suspend fun allForBackup(): List<ContradictionEntity>
 
+    /** Bounded window, for `ChangeLog`. The unbounded queries above serve backup and observation. */
+    @Query("SELECT * FROM contradictions WHERE createdAt >= :since ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun since(since: Long, limit: Int): List<ContradictionEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(contradictions: List<ContradictionEntity>): List<Long>
 

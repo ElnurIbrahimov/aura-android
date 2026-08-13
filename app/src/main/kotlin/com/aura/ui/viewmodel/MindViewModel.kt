@@ -3,6 +3,8 @@ package com.aura.ui.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aura.changelog.Change
+import com.aura.changelog.ChangeLog
 import com.aura.curiosity.OpenQuestionDao
 import com.aura.curiosity.OpenQuestionEntity
 import com.aura.dream.DreamConsolidationDao
@@ -31,6 +33,7 @@ class MindViewModel @Inject constructor(
     private val correctionStore: CorrectionStore,
     private val openQuestionDao: OpenQuestionDao,
     private val dreamDao: DreamConsolidationDao,
+    private val changeLog: ChangeLog,
 ) : ViewModel() {
 
     private val _corrections = MutableStateFlow<List<CorrectionEntity>>(emptyList())
@@ -41,6 +44,17 @@ class MindViewModel @Inject constructor(
 
     private val _summaries = MutableStateFlow<List<DreamSummaryEntity>>(emptyList())
     val summaries: StateFlow<List<DreamSummaryEntity>> = _summaries.asStateFlow()
+
+    /**
+     * What changed in the last week.
+     *
+     * Everything else on this screen is present tense — what Aura believes now,
+     * what it wants to ask now. This is the only part that answers *what moved*,
+     * which for a system whose whole premise is accumulation is the question it
+     * could least afford not to answer.
+     */
+    private val _changes = MutableStateFlow<List<Change>>(emptyList())
+    val changes: StateFlow<List<Change>> = _changes.asStateFlow()
 
     init { refresh() }
 
@@ -55,6 +69,9 @@ class MindViewModel @Inject constructor(
             _summaries.value = runCatching { dreamDao.recent(SUMMARIES) }
                 .onFailure { Log.w(TAG, "summaries read failed", it) }
                 .getOrDefault(emptyList())
+            _changes.value = runCatching {
+                changeLog.since(System.currentTimeMillis() - ChangeLog.WEEK_MS, CHANGES)
+            }.onFailure { Log.w(TAG, "change log read failed", it) }.getOrDefault(emptyList())
         }
     }
 
@@ -72,5 +89,6 @@ class MindViewModel @Inject constructor(
         const val CORRECTIONS = 20
         const val QUESTIONS = 5
         const val SUMMARIES = 5
+        const val CHANGES = 25
     }
 }

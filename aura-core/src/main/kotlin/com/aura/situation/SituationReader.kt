@@ -2,6 +2,7 @@ package com.aura.situation
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.media.AudioManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.PowerManager
@@ -77,14 +78,31 @@ class SituationReader @Inject constructor(
             },
             tension = orNull { emotionEngine?.snapshot()?.tension },
             activeNotifications = orNull { notificationCaptureStore?.snapshot(MAX_NOTIFICATIONS)?.size },
+            // The audio mode, not a list of app names.
+            //
+            // This used to scan the notification snapshot for packages whose
+            // name contained "whatsapp", "telegram", "zoom" and so on. Those
+            // are *posted notifications*, not calls: one unread WhatsApp
+            // message set onACall, which made `interruptible` false, which
+            // suppressed every proactive notification and held every daemon
+            // finding — telling the user "you're on a call" when they were not.
+            // It also only worked at all when notification capture was granted,
+            // which is off by default, so on a stock setup this was permanently
+            // null in one direction and permanently wrong in the other.
+            //
+            // MODE_IN_CALL is the cellular case, MODE_IN_COMMUNICATION the VOIP
+            // one. Every dialer and every calling app sets one of them, including
+            // the ones no list would think to name, and reading it needs no
+            // permission and no listener.
+            //
+            // Aura's own live voice call sets MODE_IN_COMMUNICATION too
+            // (`AndroidAudioIo.applyCallAudioMode`), so Aura reads itself as
+            // on a call and stops interrupting a conversation it is having.
+            // That is deliberate, not a side effect.
             onACall = orNull {
-                notificationCaptureStore?.snapshot(MAX_NOTIFICATIONS)?.any { row ->
-                    // Package-name matching only. The notification's *contents*
-                    // are deliberately not read into the situation: whether a
-                    // call is up is the entire signal, and who it is with is
-                    // none of this class's business.
-                    CALL_PACKAGES.any { it in row.packageName }
-                }
+                val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val mode = audio.mode
+                mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
             },
             foregroundApp = orNull { foregroundAppReader?.current(now) },
         )
@@ -111,8 +129,5 @@ class SituationReader @Inject constructor(
         const val DEFAULT_TTL_MS = 60_000L
 
         const val MAX_NOTIFICATIONS = 20
-
-        /** Substrings, so OEM dialers and the common VOIP apps all match. */
-        val CALL_PACKAGES = listOf("dialer", "telecom", "incallui", "whatsapp", "telegram", "zoom", "meet")
     }
 }

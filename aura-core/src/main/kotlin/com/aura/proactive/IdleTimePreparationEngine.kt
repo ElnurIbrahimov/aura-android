@@ -91,7 +91,7 @@ class IdleTimePreparationEngine @Inject constructor(
                 ProviderMessage(role = ProviderMessage.Role.system, content = systemPrompt),
                 ProviderMessage(role = ProviderMessage.Role.user, content = "What will I likely need next?"),
             )
-            val chunks = providerRegistry.chat(backgroundModel, messages).toList()
+            val chunks = providerRegistry.chat(backgroundModel, messages, com.aura.providers.ChatOptions(attended = false)).toList()
             val response = chunks.joinToString("") { it.text ?: "" }.trim()
 
             val question = response.substringAfter("QUESTION:")

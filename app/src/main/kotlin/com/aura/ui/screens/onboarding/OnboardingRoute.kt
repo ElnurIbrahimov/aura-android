@@ -177,6 +177,14 @@ class OnboardingViewModel @Inject constructor(
 
     private fun complete(onComplete: () -> Unit) {
         viewModelScope.launch {
+            // Background work needs a model of its own and onboarding is the
+            // only place a model is chosen. Without this, a fresh install
+            // finished onboarding with `backgroundModel` null and five
+            // subsystems silently doing nothing — see
+            // UserPreferences.seedBackgroundModelOnce. Runs on Skip as well as
+            // Finish: skipping means no model was picked, in which case the seed
+            // is a no-op and stays available for the startup backfill.
+            userPreferences.seedBackgroundModelOnce()
             firstRunGate.markComplete()
             onComplete()
         }

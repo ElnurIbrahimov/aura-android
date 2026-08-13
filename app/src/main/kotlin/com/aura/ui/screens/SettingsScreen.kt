@@ -226,6 +226,8 @@ fun SettingsScreen(
             screenControlEnabled = state.screenControlEnabled,
             onSetScreenControlEnabled = viewModel::setScreenControlEnabled,
             appAwarenessEnabled = state.appAwarenessEnabled,
+            placeLogEnabled = state.placeLogEnabled,
+            onSetPlaceLogEnabled = viewModel::setPlaceLogEnabled,
             onSetAppAwarenessEnabled = viewModel::setAppAwarenessEnabled,
             onSetAppLock = viewModel::setAppLockEnabled,
             onSetMorningBrief = viewModel::setMorningBriefEnabled,
@@ -272,6 +274,10 @@ fun SettingsScreen(
             onClearResult = backupViewModel::clearResult,
             onNavigateDiagnostics = onNavigateDiagnostics,
             onNavigateCrashLogs = onNavigateCrashLogs,
+            onPickBackupFolder = backupViewModel::setBackupFolder,
+            onSetBackupPassphrase = backupViewModel::setBackupPassphrase,
+            onSetAutoBackupEnabled = backupViewModel::setAutoBackupEnabled,
+            onRunBackupNow = backupViewModel::runBackupNow,
         )
 
         AppearanceSection(
@@ -297,6 +303,7 @@ fun SettingsScreen(
         UsageSection(
             usage = usage,
             onReset = usageViewModel::reset,
+            backgroundSpend = usageViewModel.backgroundSpend.collectAsStateWithLifecycle().value,
         )
 
         // Footer

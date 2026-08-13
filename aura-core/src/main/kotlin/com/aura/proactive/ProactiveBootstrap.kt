@@ -111,6 +111,21 @@ class ProactiveBootstrap @Inject constructor(
                     }
             }
         }
+        // Give background work a model on an install that already exists.
+        //
+        // The seed in OnboardingViewModel.complete() only ever reaches a new
+        // install. Every install created before that existed finished onboarding
+        // with `backgroundModel` null, which is five subsystems returning early
+        // and looking like features with nothing to say. This is the half that
+        // reaches them, and it is why the flag lives in the preference rather
+        // than being inferred from the field being empty — see
+        // UserPreferences.seedBackgroundModelOnce.
+        scope.launch {
+            runCatching { userPreferences.seedBackgroundModelOnce() }
+                .onFailure { Log.w(TAG, "background model seed failed: ${it.message}", it) }
+                .getOrNull()
+                ?.let { Log.i(TAG, "seeded the background model from the chat model: $it") }
+        }
         // Load persisted emotion state so it survives cold starts.
         emotionEngine?.let { engine ->
             scope.launch { runCatching { engine.load() }.onFailure { Log.w("Bootstrap", "emotion load failed: ${it.message}", it) } }
@@ -197,6 +212,21 @@ class ProactiveBootstrap @Inject constructor(
         scope.launch {
             userPreferences.dreamEnabled.distinctUntilChanged().collect { dreamOn ->
                 reconcileDream(dreamOn)
+            }
+        }
+
+        // Automatic backup reconciliation — its own flow, same reason as dream.
+        scope.launch {
+            userPreferences.autoBackupEnabled.distinctUntilChanged().collect { backupOn ->
+                reconcileBackup(backupOn)
+            }
+        }
+
+        // Place log reconciliation — its own flow, same reason as dream. Off by
+        // default, so on most installs this cancels work that was never enqueued.
+        scope.launch {
+            userPreferences.placeLogEnabled.distinctUntilChanged().collect { placeOn ->
+                reconcilePlaceLog(placeOn)
             }
         }
 
@@ -325,6 +355,22 @@ class ProactiveBootstrap @Inject constructor(
             }
         } catch (e: Throwable) {
             android.util.Log.w("ProactiveBootstrap", "living world reconcile failed: ${e.message}")
+        }
+    }
+
+    private fun reconcilePlaceLog(placeOn: Boolean) {
+        try {
+            if (placeOn) scheduler.schedulePlaceLog() else scheduler.cancelPlaceLog()
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "place log reconcile failed: ${e.message}")
+        }
+    }
+
+    private fun reconcileBackup(backupOn: Boolean) {
+        try {
+            if (backupOn) scheduler.scheduleBackup() else scheduler.cancelBackup()
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "backup reconcile failed: ${e.message}")
         }
     }
 

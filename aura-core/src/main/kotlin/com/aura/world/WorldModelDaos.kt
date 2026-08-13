@@ -84,6 +84,10 @@ interface WorldEventDao {
     @Query("SELECT * FROM world_events ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<WorldEventEntity>>
 
+    /** Bounded window, for `ChangeLog`. */
+    @Query("SELECT * FROM world_events WHERE timestamp >= :since ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun since(since: Long, limit: Int): List<WorldEventEntity>
+
     @Query("UPDATE world_events SET consumed = 1 WHERE id = :id")
     suspend fun markConsumed(id: kotlin.String)
 

@@ -48,8 +48,16 @@ class NotificationListTool @Inject constructor(
             } else {
                 ToolResult.Ok(
                     rows.mapIndexed { index, row ->
-                        val title = row.title.cleanNotificationText().ifBlank { "(no title)" }
-                        val text = row.text.cleanNotificationText()
+                        // Nobody chose to send any of this. A notification list
+                        // returns whatever happened to arrive — a verification
+                        // code, a bank alert with an account number, a message
+                        // containing someone's phone number — and all of it goes
+                        // to a third-party API the moment it enters the turn.
+                        // See com.aura.security.Redactor.
+                        val title = com.aura.security.Redactor
+                            .scrub(row.title.cleanNotificationText())
+                            .ifBlank { "(no title)" }
+                        val text = com.aura.security.Redactor.scrub(row.text.cleanNotificationText())
                         "${index + 1}. ${row.packageName}: $title${if (text.isNotEmpty()) " — $text" else ""}"
                     }.joinToString("\n"),
                 )

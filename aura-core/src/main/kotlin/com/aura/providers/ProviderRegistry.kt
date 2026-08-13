@@ -17,6 +17,11 @@ class ProviderRegistry @Inject constructor(
     private val providers: Map<String, @JvmSuppressWildcards Provider>,
     private val providerKeys: ProviderKeys,
     private val usageTracker: UsageTracker = UsageTracker(),
+    // Appended with a default so the existing positional constructions in the
+    // provider test suites keep compiling. An in-memory budget with a real clock
+    // is the right no-op for a test that is not about spending.
+    private val backgroundBudget: com.aura.usage.BackgroundBudget =
+        com.aura.usage.BackgroundBudget { System.currentTimeMillis() },
 ) {
     private val byPrefix: Map<String, Provider> = providers.mapKeys { (key, _) -> "$key:" }
 
@@ -53,6 +58,15 @@ class ProviderRegistry @Inject constructor(
         // (does NOT block) until the load finishes, which takes
         // 5-100ms on a warm start and ~200ms on a cold start.
         providerKeys.awaitLoaded()
+        // The one place every LLM call in the app passes through, which is the
+        // only place a spend ceiling cannot be forgotten by a new caller. The
+        // check is on unattended work only — see ChatOptions.attended for why
+        // refusing an attended turn would be the worse failure.
+        if (!options.attended && !backgroundBudget.hasHeadroom()) {
+            backgroundBudget.recordBlocked()
+            val spend = backgroundBudget.snapshot()
+            throw com.aura.usage.BackgroundBudgetExhausted(spend.tokens, spend.limit)
+        }
         val (provider, model) = parse(modelId)
         val upstream = provider.chat(model, messages, options, tools)
         // MoA dispatches its reference and aggregator calls back through this
@@ -80,6 +94,16 @@ class ProviderRegistry @Inject constructor(
                         outputChars = outputChars,
                         reportedUsage = exactUsage,
                     )
+                    if (!options.attended) {
+                        // Charged after the fact, against the same estimate
+                        // UsageTracker uses, so the two numbers agree. The cap is
+                        // therefore soft by one call: a single request cannot be
+                        // known to be expensive until it has been made.
+                        val spent: Long = exactUsage
+                            ?.let { (it.promptTokens + it.completionTokens).toLong() }
+                            ?: ((messages.sumOf { it.content.length } + outputChars).toLong() / CHARS_PER_TOKEN)
+                        backgroundBudget.record(spent)
+                    }
                     logUsage(modelId, exactUsage)
                 }
             }
@@ -126,6 +150,9 @@ class ProviderRegistry @Inject constructor(
 
     private companion object {
         const val TAG = "ProviderRegistry"
+
+        /** Same 4-chars-per-token estimate `UsageTracker` uses, so the two agree. */
+        const val CHARS_PER_TOKEN = 4
     }
 }
 

@@ -170,7 +170,7 @@ class MorningBriefBuilder @Inject constructor(
             separately. Just a short opener.
         """.trimIndent()
         val userMessage = "Good morning."
-        val options = ChatOptions(temperature = 0.7, maxTokens = 120)
+        val options = ChatOptions(temperature = 0.7, maxTokens = 120, attended = false)
         val conversation = Conversation(systemPrompt = systemPrompt).addUser(userMessage)
         val text = StringBuilder()
         try {
