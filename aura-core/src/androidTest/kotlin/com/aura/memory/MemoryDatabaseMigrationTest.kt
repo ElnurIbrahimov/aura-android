@@ -371,10 +371,18 @@ class MemoryDatabaseMigrationTest {
     fun migrate17To18_addsLivingWorldTablesWithCascadeAndUniqueness() {
         val name = "test-aura-memory-17-to-18.db"
         val db = helper.createDatabase(name, 17)
+        // All twelve columns, because at v17 `creative_projects` declares every
+        // one of them NOT NULL with no default. This INSERT listed ten and could
+        // therefore never have run: `metadataJson` and `lastSessionEnded` were
+        // missing and SQLite refused the row outright. It went unnoticed because
+        // instrumented tests need a device and this one had never been on one —
+        // written, committed, counted in the "64 instrumented test methods"
+        // figure, and structurally incapable of passing. Found 2026-08-14, the
+        // first time these were executed at all.
         db.execSQL(
             "INSERT INTO creative_projects (id, name, description, genre, tone, templateId, worldJson, " +
-                "createdAt, updatedAt, turnCount) " +
-                "VALUES ('p1', 'Ashfall', '', '', '', 'novel', '{}', 1000, 1000, 0)",
+                "metadataJson, lastSessionEnded, createdAt, updatedAt, turnCount) " +
+                "VALUES ('p1', 'Ashfall', '', '', '', 'novel', '{}', '{}', 0, 1000, 1000, 0)",
         )
         db.close()
 

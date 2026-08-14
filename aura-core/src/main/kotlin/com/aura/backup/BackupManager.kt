@@ -106,6 +106,7 @@ class BackupManager @Inject constructor(
     private val correctionDao: com.aura.memory.CorrectionDao? = null,
     private val openQuestionDao: com.aura.curiosity.OpenQuestionDao? = null,
     private val placeVisitDao: com.aura.place.PlaceVisitDao? = null,
+    private val creativeAnalysisDao: com.aura.creative.CreativeAnalysisDao? = null,
     private val preferenceSignalDao: com.aura.taste.PreferenceSignalDao? = null,
     private val styleProfileDao: com.aura.taste.StyleProfileDao? = null,
     // Schema v11: dream database DAOs.
@@ -332,6 +333,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             corrections = correctionDao?.allForExport()?.map { it.toBackup() } ?: emptyList(),
             openQuestions = openQuestionDao?.allForExport()?.map { it.toBackup() } ?: emptyList(),
             placeVisits = placeVisitDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            creativeAnalysis = creativeAnalysisDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             // Schema v11: dream database.
@@ -772,6 +774,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val correctionRows = backup.corrections.map { it.toEntity() }
         val openQuestionRows = backup.openQuestions.map { it.toEntity() }
         val placeVisitRows = backup.placeVisits.map { it.toEntity() }
+        val creativeAnalysisRows = backup.creativeAnalysis.map { it.toEntity() }
         val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
         val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
         // Schema v11: dream database.
@@ -827,6 +830,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (correctionRows.isNotEmpty()) correctionDao?.insertAll(correctionRows)
         if (openQuestionRows.isNotEmpty()) openQuestionDao?.insertAll(openQuestionRows)
         if (placeVisitRows.isNotEmpty()) placeVisitDao?.insertAll(placeVisitRows)
+        // After revisions: the FK is ON DELETE CASCADE, so an analysis row
+        // inserted before its revision exists is rejected outright.
+        if (creativeAnalysisRows.isNotEmpty()) creativeAnalysisDao?.insertAll(creativeAnalysisRows)
         if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
         if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
         // Schema v11: dream database.
@@ -902,6 +908,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             corrections = correctionRows.size,
             openQuestions = openQuestionRows.size,
             placeVisits = placeVisitRows.size,
+            creativeAnalysis = creativeAnalysisRows.size,
             preferenceSignals = preferenceSignalRows.size,
             styleProfiles = styleProfileRows.size,
             // Schema v11: dream database.
@@ -1120,6 +1127,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         correctionDao?.deleteAll()
         openQuestionDao?.deleteAll()
         placeVisitDao?.deleteAll()
+        creativeAnalysisDao?.deleteAll()
         livingWorldDao?.deleteAll()
         preferenceSignalDao?.deleteAll()
         styleProfileDao?.deleteAll()
@@ -1204,6 +1212,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val corrections: Int = 0,
             val openQuestions: Int = 0,
             val placeVisits: Int = 0,
+            val creativeAnalysis: Int = 0,
             val preferenceSignals: Int = 0,
             val styleProfiles: Int = 0,
             // Schema v11: dream database.
@@ -1255,7 +1264,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 evolutionProposals + evolutionSettings + evolutionRevisions +
                 agents + beliefs + evidence + worldEvents + opportunities +
                 creativeArtifacts + creativeRevisions + creativeBranches +
-                canonFacts + livingWorlds + livingEvents + corrections + openQuestions + placeVisits + proactiveOutcomes + preferenceSignals + styleProfiles +
+                canonFacts + livingWorlds + livingEvents + corrections + openQuestions + placeVisits + creativeAnalysis + proactiveOutcomes + preferenceSignals + styleProfiles +
                 dreamSummaries + routines + contradictions + kgEdgeProposals +
                 memoryFeedback + documentChunks + referenceIdentities +
                 agentRuns + agentGoals + agentSteps + agentEvents +

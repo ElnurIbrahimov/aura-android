@@ -61,6 +61,9 @@ class CreativeStudioViewModelTest {
         com.aura.creative.livingworld.WorldTickBus(),
         mockk(relaxed = true),
         mockk(relaxed = true),
+        // creativeAnalysisStore — tension results are keyed to a revision, and
+        // these tests drive the state machine rather than the storing.
+        mockk(relaxed = true),
     )
 
     @Before

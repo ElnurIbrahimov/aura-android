@@ -50,6 +50,15 @@ data class CreativeStudioUiState(
     val calibrating: Boolean = false,
     val tensionReport: String = "",
     val analyzingTension: Boolean = false,
+    /**
+     * What the last analysis did *relative to the draft before it*.
+     *
+     * Null when there is nothing to compare against — no artifact selected, no
+     * parent revision, or the parent was never analysed. Deliberately null
+     * rather than a zeroed diff: "nothing changed" and "no basis for
+     * comparison" are different answers and a row of zeroes reads as the first.
+     */
+    val tensionDiff: com.aura.creative.TensionDiff? = null,
     val wordCount: Int = 0,
     /** Null when no long-form run exists for the selected project. */
     val longform: LongformRunUi? = null,
@@ -214,6 +223,11 @@ class CreativeStudioViewModel @Inject constructor(
     private val worldTickBus: com.aura.creative.livingworld.WorldTickBus,
     private val worldNarrator: com.aura.creative.livingworld.WorldNarrator,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
+    // Appended, not inserted: CreativeStudioViewModelTest and
+    // LongformPlanningTest construct this positionally with every argument,
+    // so a parameter added mid-list is a compile break for reasons unrelated
+    // to what those tests check. Same rule ProactiveBootstrap records.
+    private val creativeAnalysisStore: com.aura.creative.CreativeAnalysisStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -700,20 +714,58 @@ class CreativeStudioViewModel @Inject constructor(
         }
     }
 
-    // P0 fix: Tension analysis
-    fun analyzeTension(manuscript: String) {
+    /**
+     * Score a manuscript, and keep the result when there is something to keep it
+     * against.
+     *
+     * [artifactId] is optional because the pane also accepts pasted text that
+     * belongs to no draft in this app. That case still analyses and still
+     * renders — it simply cannot be compared to anything later, so storing it
+     * would be storing a number with no second number to give it meaning.
+     *
+     * When an artifact *is* given, the report is keyed to its current revision
+     * and diffed against the revision that one came from. That is the whole
+     * point of the feature: not another opinion about the new draft, but what
+     * the rewrite actually moved.
+     */
+    fun analyzeTension(manuscript: String, artifactId: String? = null) {
         generationJob?.cancel()
         generationJob = viewModelScope.launch {
-            _state.update { it.copy(analyzingTension = true, tensionReport = "", error = null) }
+            _state.update {
+                it.copy(analyzingTension = true, tensionReport = "", tensionDiff = null, error = null)
+            }
             runCatching {
-                val report = StringBuilder()
-                tensionAnalyzer.analyze(manuscript).collect { chunk -> report.append(chunk) }
-                _state.update { it.copy(tensionReport = report.toString(), analyzingTension = false) }
+                val report = tensionAnalyzer.analyze(manuscript)
+                val diff = artifactId?.let { id -> storeAndDiff(id, report) }
+                _state.update {
+                    it.copy(
+                        tensionReport = tensionAnalyzer.render(report),
+                        tensionDiff = diff,
+                        analyzingTension = false,
+                    )
+                }
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message ?: "Tension analysis failed.", analyzingTension = false) }
             }
         }
     }
+
+    /**
+     * Persist against the artifact's current revision, then compare.
+     *
+     * Failure here must not lose the analysis the user just paid for, so it is
+     * caught and the report still renders — an unstored report is worth strictly
+     * more than an error where the report would have been.
+     */
+    private suspend fun storeAndDiff(
+        artifactId: String,
+        report: com.aura.creative.TensionReport,
+    ): com.aura.creative.TensionDiff? = runCatching {
+        val revisionId = artifactStore.get(artifactId)?.currentRevisionId ?: return null
+        creativeAnalysisStore.saveTension(revisionId, artifactId, report)
+        creativeAnalysisStore.diffAgainstParent(revisionId)
+    }.onFailure { android.util.Log.w("CreativeVM", "storing tension failed: ${it.message}", it) }
+        .getOrNull()
 
     fun toggleThinking() {
         _state.update { it.copy(thinkingEnabled = !it.thinkingEnabled) }

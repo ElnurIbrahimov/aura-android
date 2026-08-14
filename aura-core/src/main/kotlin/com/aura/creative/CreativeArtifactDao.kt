@@ -68,10 +68,18 @@ interface CreativeArtifactDao {
 
 @Dao
 interface CreativeRevisionDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // @Upsert, not @Insert(REPLACE). SQLite implements REPLACE as DELETE then
+    // INSERT, which fires ON DELETE CASCADE on every child before the row comes
+    // back — so re-saving a revision would silently destroy the analysis
+    // attached to it. These two were harmless until `creative_analysis` made
+    // `creative_revisions` a CASCADE parent for the first time; the change made
+    // them dangerous without either of them being touched, which is precisely
+    // why `CascadeParentReplaceAuditTest` scans for the shape rather than
+    // trusting review. It caught this the first time the suite ran.
+    @Upsert
     suspend fun upsert(revision: CreativeRevisionEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAll(revisions: List<CreativeRevisionEntity>)
 
     @Query("DELETE FROM creative_revisions")

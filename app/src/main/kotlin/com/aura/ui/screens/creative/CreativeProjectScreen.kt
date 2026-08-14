@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -408,6 +410,49 @@ private fun ToolsRoom(
             ) {
                 Column(Modifier.padding(AuraSpacing.md)) {
                     Text("Tension Report", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+
+                    // The comparison goes above the report, not below it. What
+                    // moved since the last draft is the finding; the scores are
+                    // the working. Absent when there is no earlier analysis to
+                    // compare against, rather than shown as a row of zeroes.
+                    state.tensionDiff?.let { diff ->
+                        Spacer(Modifier.height(AuraSpacing.xs))
+                        Text(
+                            text = "Since your last draft: mean %.1f → %.1f".format(diff.meanBefore, diff.meanAfter),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (diff.improved) {
+                                AuraThemeTokens.colors.actionPrimary
+                            } else {
+                                AuraThemeTokens.colors.textPrimary
+                            },
+                        )
+                        diff.moved().take(5).forEach { d ->
+                            Text(
+                                text = when {
+                                    d.isNew -> "${d.label} — new, ${d.after}/10"
+                                    d.isGone -> "${d.label} — cut"
+                                    else -> "${d.label} — ${d.before} → ${d.after}"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.75f),
+                            )
+                        }
+                        val ignored = diff.stillFlat()
+                        if (ignored.isNotEmpty()) {
+                            Text(
+                                // The notes that went unacted-on, which is the
+                                // thing a writer most wants pointed out and the
+                                // thing a fresh analysis of the new draft alone
+                                // can never tell them.
+                                text = "Still flat: " + ignored.joinToString { it.label },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.55f),
+                            )
+                        }
+                        Spacer(Modifier.height(AuraSpacing.xs))
+                    }
+
                     Text(state.tensionReport, style = MaterialTheme.typography.bodySmall)
                 }
             }

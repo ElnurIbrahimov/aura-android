@@ -80,6 +80,7 @@ data class AuraBackup(
     val corrections: List<CorrectionBackup> = emptyList(),
     val openQuestions: List<OpenQuestionBackup> = emptyList(),
     val placeVisits: List<PlaceVisitBackup> = emptyList(),
+    val creativeAnalysis: List<CreativeAnalysisBackup> = emptyList(),
     val preferenceSignals: List<PreferenceSignalBackup> = emptyList(),
     val styleProfiles: List<StyleProfileBackup> = emptyList(),
     // Schema v11: dream database — dream summaries, routines, contradictions, KG edge proposals.
@@ -141,7 +142,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 24
+        const val SCHEMA_VERSION = 25
     }
 }
 
@@ -724,6 +725,28 @@ data class LivingWorldBackup(
  * not telemetry like `worker_runs`, which is deliberately excluded. Coordinates
  * are already coarse in the table; nothing here re-precises them.
  */
+/**
+ * What an analysis pass concluded about one revision.
+ *
+ * Backed up rather than treated as derived, despite being computed from text
+ * that is itself in the backup. Regenerating it costs a model call per revision,
+ * and — the part that actually matters — a score produced later by a different
+ * model is not comparable with the ones beside it. The whole value of this table
+ * is the trend across a chain of drafts, and a trend rescored halfway through is
+ * not a trend.
+ */
+@Serializable
+data class CreativeAnalysisBackup(
+    val id: String,
+    val revisionId: String,
+    val artifactId: String,
+    val kind: String,
+    val payloadJson: String,
+    val headline: Float = 0f,
+    val note: String = "",
+    val createdAt: Long = 0L,
+)
+
 @Serializable
 data class PlaceVisitBackup(
     val lat: Double,

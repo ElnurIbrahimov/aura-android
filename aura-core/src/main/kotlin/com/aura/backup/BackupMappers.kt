@@ -105,6 +105,28 @@ internal fun MemoryBackup.toEntity() = MemoryEntity(
     retiredReason = retiredReason,
 )
 
+internal fun com.aura.creative.CreativeAnalysisEntity.toBackup() = CreativeAnalysisBackup(
+    id = id,
+    revisionId = revisionId,
+    artifactId = artifactId,
+    kind = kind,
+    payloadJson = payloadJson,
+    headline = headline,
+    note = note,
+    createdAt = createdAt,
+)
+
+internal fun CreativeAnalysisBackup.toEntity() = com.aura.creative.CreativeAnalysisEntity(
+    id = id,
+    revisionId = revisionId,
+    artifactId = artifactId,
+    kind = kind,
+    payloadJson = payloadJson,
+    headline = headline,
+    note = note,
+    createdAt = createdAt,
+)
+
 internal fun com.aura.place.PlaceVisitEntity.toBackup() = PlaceVisitBackup(
     // `id` is autoGenerate and deliberately not carried: a restore appends rows
     // and letting the old ids through would collide with whatever the receiving

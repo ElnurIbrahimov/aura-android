@@ -60,6 +60,7 @@ import com.aura.kg.NodeEntity
         DocumentChunkEntity::class,
         CreativeArtifactEntity::class,
         CreativeRevisionEntity::class,
+        com.aura.creative.CreativeAnalysisEntity::class,
         CreativeBranchEntity::class,
         CreativeGenerationJobEntity::class,
         CanonFactEntity::class,
@@ -81,12 +82,13 @@ import com.aura.kg.NodeEntity
         CorrectionEntity::class,
         com.aura.curiosity.OpenQuestionEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun placeVisitDao(): com.aura.place.PlaceVisitDao
+    abstract fun creativeAnalysisDao(): com.aura.creative.CreativeAnalysisDao
     abstract fun knowledgeGraphDao(): KnowledgeGraphDao
     abstract fun memoryEditDao(): MemoryEditDao
     abstract fun documentDao(): DocumentDao
