@@ -26,13 +26,13 @@ import com.aura.ui.theme.AuraThemeTokens
  *
  * ## Alignment
  *
- * These sit at the message's own left edge and nowhere else. `ChatTimeline`
- * applies 16dp of content padding and `MessageBubble` adds 16dp of its own, so
- * the text starts 32dp from the screen. This used to add `AuraSpacing.xl` (32dp)
- * *inside* the timeline's padding and land at 48 — a 16dp step that made the
- * chips read as belonging to nothing, since neither the message above nor the
- * input below shared that edge. Matching `MessageBubble`'s 16dp is what makes
- * the group look attached to the turn it follows.
+ * These carry no horizontal padding of their own: they render *inside*
+ * [MessageBubble]'s padded column, so they inherit the message's left edge by
+ * construction rather than by matching a number that could drift from it.
+ *
+ * They lived outside the bubble once, with their own 32dp indent applied inside
+ * ChatTimeline's own 16dp padding, and so sat at 48 while the message sat at
+ * 32. Inheriting the edge is what stops that from ever happening again.
  *
  * ## One row, always
  *
@@ -61,12 +61,7 @@ fun FollowUpSuggestionChips(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(
-                start = AuraSpacing.md,
-                end = AuraSpacing.md,
-                top = AuraSpacing.xs,
-                bottom = AuraSpacing.xxs,
-            ),
+            .padding(top = AuraSpacing.xs),
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         for (s in suggestions) {

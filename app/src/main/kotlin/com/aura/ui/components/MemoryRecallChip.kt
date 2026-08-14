@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aura.provenance.ConversationProvenance
 import com.aura.ui.viewmodel.MemoryCorrectionViewModel
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aura.agent.RecallSummary
 
 import com.aura.ui.theme.AuraThemeTokens
@@ -71,7 +72,7 @@ import com.aura.ui.theme.AuraSpacing
  * memoryEnabled was false).
  */
 @Composable
-fun MemoryRecallChip(
+fun MemoryRecallCaption(
     recall: RecallSummary,
     conversationId: String = "",
     turnTimestamp: Long = 0L,
@@ -81,48 +82,38 @@ fun MemoryRecallChip(
 ) {
     var sheetOpen by remember { mutableStateOf(false) }
     val colors = AuraThemeTokens.colors
-    val summary = recall.summary()
 
-    // A caption, not a chip.
+    // Part of the footer caption, not a row of its own.
     //
-    // This used to be a filled Surface with a semibold label, sitting directly
-    // under a row of filled suggestion chips — so "here is something you can
-    // do" and "here is where the answer came from" were rendered at identical
-    // weight, in two ragged rows of grey pills. They are not the same kind of
-    // thing and should not look like it. The suggestions are offers and keep
-    // their outline; this is provenance and reads as a footnote.
+    // This was a filled Surface with a semibold label, on its own line, under a
+    // row of filled suggestion chips, under a separate line holding the
+    // timestamp — three stacked strips of chrome beneath every answer, two of
+    // which were the same kind of thing. Provenance and the timestamp are both
+    // metadata and now share one line; the suggestions are actions and sit
+    // above it, attached to the message they follow.
     //
     // The dot carries the only signal worth raising: it takes the accent colour
     // when the consult pass actually applied something, and stays inert
-    // otherwise. That way the line earns a glance on the turns where something
-    // happened, and costs nothing on the rest.
+    // otherwise, so the line earns a glance on the turns where something
+    // happened and costs nothing on the rest.
     val applied = recall.consultedIds?.isNotEmpty() == true
-    val dotColor = if (applied) colors.actionPrimary else colors.textTertiary
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { sheetOpen = true }
-            // 16dp, matching MessageBubble — see FollowUpSuggestionChips for
-            // why. This sat at 32dp inside the timeline's own 16dp padding and
-            // landed at 48, a third distinct left edge in a stack of three
-            // things that should all share one.
-            .padding(
-                start = AuraSpacing.md,
-                end = AuraSpacing.md,
-                top = AuraSpacing.xxs,
-                bottom = AuraSpacing.xs,
-            ),
+        modifier = modifier.clickable { sheetOpen = true },
     ) {
         Box(
             modifier = Modifier
-                .size(AuraSpacing.xs)
-                .background(color = dotColor, shape = CircleShape),
+                .size(AuraSpacing.small)
+                .background(
+                    color = if (applied) colors.actionPrimary else colors.textTertiary,
+                    shape = CircleShape,
+                ),
         )
-        Spacer(modifier = Modifier.width(AuraSpacing.xs))
+        Spacer(modifier = Modifier.width(AuraSpacing.xxs))
         Text(
-            text = summary,
-            style = MaterialTheme.typography.labelSmall,
+            text = recall.summary(),
+            fontFamily = com.aura.ui.theme.InterDisplay,
+            fontSize = 10.sp,
             color = colors.textTertiary,
         )
     }

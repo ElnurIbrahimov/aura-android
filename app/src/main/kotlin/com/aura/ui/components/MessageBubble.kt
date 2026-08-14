@@ -289,6 +289,21 @@ fun MessageBubble(
     thinking: String? = null,
     /** True when the previous message came from the same sender. Tightens spacing. */
     groupedWithPrevious: Boolean = false,
+    /**
+     * Follow-ups and provenance, rendered inside the turn rather than beside it.
+     *
+     * These arrived here from ChatTimeline, which used to stack them as two
+     * further siblings after the bubble. Three strips of chrome under every
+     * answer — timestamp, then actions, then provenance — with the timestamp
+     * splitting the message from the actions that belong to it, and each strip
+     * carrying its own indent. Owning them means the turn has one left edge and
+     * one metadata line, by construction rather than by three numbers agreeing.
+     */
+    suggestions: List<String> = emptyList(),
+    recall: com.aura.agent.RecallSummary? = null,
+    recallConversationId: String = "",
+    recallQueryText: String = "",
+    onPickSuggestion: (String) -> Unit = {},
     onShowSources: () -> Unit = {},
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
@@ -321,6 +336,11 @@ fun MessageBubble(
             copied = copied,
             generatedImages = generatedImages,
             thinking = thinking,
+            suggestions = suggestions,
+            recall = recall,
+            recallConversationId = recallConversationId,
+            recallQueryText = recallQueryText,
+            onPickSuggestion = onPickSuggestion,
             onCopiedChange = { copied = it },
             onCopy = {
                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -426,6 +446,11 @@ private fun AssistantMessage(
     copied: Boolean,
     generatedImages: List<String> = emptyList(),
     thinking: String? = null,
+    suggestions: List<String> = emptyList(),
+    recall: com.aura.agent.RecallSummary? = null,
+    recallConversationId: String = "",
+    recallQueryText: String = "",
+    onPickSuggestion: (String) -> Unit = {},
     onCopiedChange: (Boolean) -> Unit,
     onCopy: () -> Unit,
     onShowSources: () -> Unit,
@@ -546,8 +571,14 @@ private fun AssistantMessage(
                 Spacer(Modifier.height(AuraSpacing.xs))
                 CitationChipRow(citations = citations, onShowSources = onShowSources)
             }
-            // Footer: timestamp + actions. Actions appear on long-press
-            // to reduce visual noise (like Claude mobile).
+            // Follow-ups sit directly under the answer they follow, before any
+            // metadata. The timestamp used to come first and split the two.
+            if (!isStreaming && suggestions.isNotEmpty()) {
+                FollowUpSuggestionChips(suggestions = suggestions, onPick = onPickSuggestion)
+            }
+            // Footer: one metadata line — when, and where the answer came from —
+            // plus the actions, which appear on tap/long-press to keep the line
+            // quiet until it is asked for.
             if (!isStreaming) {
                 Spacer(Modifier.height(AuraSpacing.xs))
                 var showActions by remember { mutableStateOf(false) }
@@ -565,6 +596,22 @@ private fun AssistantMessage(
                             fontFamily = InterDisplay,
                             fontSize = 10.sp,
                             color = AuraThemeTokens.colors.textTertiary,
+                        )
+                    }
+                    if (recall != null) {
+                        if (timestamp > 0) {
+                            Text(
+                                text = "·",
+                                fontFamily = InterDisplay,
+                                fontSize = 10.sp,
+                                color = AuraThemeTokens.colors.textTertiary,
+                            )
+                        }
+                        MemoryRecallCaption(
+                            recall = recall,
+                            conversationId = recallConversationId,
+                            turnTimestamp = timestamp,
+                            queryText = recallQueryText,
                         )
                     }
                     Spacer(Modifier.weight(1f))

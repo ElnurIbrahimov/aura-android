@@ -22,9 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aura.agent.Reaction
 import com.aura.ui.components.AuraSkeleton
-import com.aura.ui.components.FollowUpSuggestionChips
 import com.aura.ui.components.FollowUpSuggestions
-import com.aura.ui.components.MemoryRecallChip
 import com.aura.ui.components.MessageBubble
 import com.aura.ui.components.ThinkingShimmer
 import com.aura.ui.components.ToolCallBadge
@@ -116,27 +114,27 @@ fun ChatTimeline(
                             reaction = turn.reaction,
                             generatedImages = turn.generatedImages,
                             thinking = turn.thinking,
+                            // Passed in rather than stacked after the bubble.
+                            // As siblings these were two more strips of chrome
+                            // with their own indents, and the bubble's own
+                            // timestamp sat between the answer and the actions
+                            // that belong to it.
+                            suggestions = if (isLast && !isStreaming) {
+                                FollowUpSuggestions.suggest(
+                                    assistantText = assistant,
+                                    isCodey = assistant.contains("```") || assistant.contains("`"),
+                                )
+                            } else {
+                                emptyList()
+                            },
+                            recall = turn.recall,
+                            recallConversationId = state.conversation.id,
+                            recallQueryText = turn.user.orEmpty(),
+                            onPickSuggestion = onSendSuggestion,
                             onShowSources = onShowSourcesForLastTurn,
                             onReact = { reaction -> onReact(turn.timestamp, reaction) },
                             onShare = { onShareMessage(assistant) },
                         )
-                        if (isLast && !isStreaming) {
-                            FollowUpSuggestionChips(
-                                suggestions = FollowUpSuggestions.suggest(
-                                    assistantText = assistant,
-                                    isCodey = assistant.contains("```") || assistant.contains("`"),
-                                ),
-                                onPick = onSendSuggestion,
-                            )
-                        }
-                        turn.recall?.let {
-                            MemoryRecallChip(
-                                recall = it,
-                                conversationId = state.conversation.id,
-                                turnTimestamp = turn.timestamp,
-                                queryText = turn.user.orEmpty(),
-                            )
-                        }
                     }
                     turn.toolTurns.forEach { toolTurn ->
                         if (toolTurn.result.isNotEmpty()) {
