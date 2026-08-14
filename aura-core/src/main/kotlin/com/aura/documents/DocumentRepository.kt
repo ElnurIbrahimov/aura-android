@@ -9,6 +9,11 @@ import javax.inject.Singleton
 class DocumentRepository @Inject constructor(
     private val documentDao: DocumentDao,
     private val memoryStore: MemoryStore,
+    // Appended and defaulted so the existing two-argument construction in tests
+    // keeps working, and so an install with no model configured still imports
+    // documents exactly as it did before.
+    private val studier: DocumentStudier? = null,
+    private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
 ) {
     fun observeAll(): Flow<List<DocumentEntity>> = documentDao.observeAll()
 
@@ -57,12 +62,56 @@ class DocumentRepository @Inject constructor(
                 chunkCount = chunks.size,
             )
             documentDao.insert(document)
-            return DocumentImportResult(document, chunks.size)
+            val outlined = writeOutline(safeName, chunks, source, stemTag)
+            return DocumentImportResult(document, chunks.size, outlined)
         } catch (failure: Throwable) {
             memoryStore.deleteBySource(source)
             throw failure
         }
     }
+
+    /**
+     * Read the document once and store what it is, as one memory.
+     *
+     * The chunks are already stored and already retrievable, which answers
+     * questions *about a passage*. It cannot answer questions about the whole —
+     * "what are all the constraints", "does part four contradict part nine" —
+     * because retrieval returns the passages nearest the question and neither
+     * of those two parts is about the other. The outline is the map, small
+     * enough to be carried whole where the source is not.
+     *
+     * Stored under the same `source` as the chunks so [delete] removes it with
+     * them, and at a higher importance so the map outranks any single passage
+     * when a question is about the document rather than about a detail in it.
+     *
+     * Never fails the import. A document that imported without an outline is
+     * exactly the document that imported before this existed, which is a
+     * working outcome; failing the import to protect an index would not be.
+     *
+     * @return true when an outline was written.
+     */
+    private suspend fun writeOutline(
+        name: String,
+        chunks: List<String>,
+        source: String,
+        stemTag: String,
+    ): Boolean = runCatching {
+        val study = studier ?: return false
+        // explicit(), via CheapModelResolver — an indexing pass must not fall
+        // through to the flagship chat model.
+        val model = cheapModelResolver?.resolve() ?: return false
+        val outline = study.study(name, chunks, model) ?: return false
+        memoryStore.storeIfAbsent(
+            content = study.render(name, outline),
+            source = source,
+            category = "document",
+            importance = OUTLINE_IMPORTANCE,
+            tags = listOf("document", "outline", stemTag),
+        )
+        true
+    }.onFailure {
+        android.util.Log.w("DocumentRepository", "outlining '$name' failed: ${it.message}", it)
+    }.getOrDefault(false)
 
     suspend fun delete(id: String) {
         memoryStore.deleteBySource(sourceFor(id))
@@ -74,5 +123,13 @@ class DocumentRepository @Inject constructor(
     companion object {
         const val MAX_TEXT_CHARS = 2_000_000
         fun sourceFor(id: String): String = "document:$id"
+
+        /**
+         * Above the 0.65 a chunk gets.
+         *
+         * A question about the document as a whole should surface the map, not
+         * whichever passage happens to share the most words with the question.
+         */
+        const val OUTLINE_IMPORTANCE = 0.85f
     }
 }

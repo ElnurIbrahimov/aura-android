@@ -30,4 +30,12 @@ data class DocumentEntity(
 data class DocumentImportResult(
     val document: DocumentEntity,
     val chunkCount: Int,
+    /**
+     * Whether a structural outline was written alongside the chunks.
+     *
+     * False is a normal outcome rather than an error: no model configured, an
+     * unparseable study pass, or the daily background budget already spent. The
+     * document is imported and searchable either way.
+     */
+    val outlined: Boolean = false,
 )
