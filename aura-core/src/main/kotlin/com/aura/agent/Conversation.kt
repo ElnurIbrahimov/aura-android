@@ -354,4 +354,29 @@ data class RecallSummary(
     val handIds: List<String> = emptyList(),
     /** True when the recall found 0 results — distinguishes "we looked" from "we didn't look". */
     val noResults: Boolean = false,
+    /**
+     * Which of [memoryIds] the consult pass judged to bear on the question.
+     *
+     * Three states, and telling them apart is the point:
+     *  - `null` — no consult ran. Either nothing recalled carried a standing
+     *    instruction, or the pass was unavailable. The common case, and the
+     *    behaviour that existed before this field.
+     *  - empty — the pass ran and found none of them applied. A real finding,
+     *    not a missing one.
+     *  - non-empty — these applied, and were restated to the model.
+     *
+     * [memoryIds] is what Aura *had*; this is what it *consulted*. The chip has
+     * always read "Used 3 memories", which was never something it could know —
+     * recall put them in the prompt and nothing observed whether the model read
+     * them. For the subset carrying a standing instruction, this is the first
+     * time the app can tell the difference.
+     *
+     * Mostly memory ids, but not exclusively: active beliefs are offered as
+     * constraints too and appear here as `belief:<id>`. The count is therefore
+     * the honest number of things that applied, and a consumer matching these
+     * against memory rows must tolerate ids that will not resolve to one.
+     *
+     * Defaulted, so turns serialised before the field existed still decode.
+     */
+    val consultedIds: List<String>? = null,
 )

@@ -56,6 +56,12 @@ import com.aura.ui.theme.AuraSpacing
  * Format: "Used 3 memories · 1 hand" or "No memories used for this
  * answer" when recall was performed but found nothing.
  *
+ * When the consult pass ran, the chip reads "Recalled 3 · 1 applied"
+ * instead. "Used" was always more than the chip could support — recall
+ * put the memories in the prompt and nothing observed whether the model
+ * read them — so where a verdict exists it is stated, and where none
+ * exists the older, vaguer wording stands rather than inventing one.
+ *
  * Tapping the chip opens a bottom sheet listing the recalled
  * memory/hand IDs. The chat UI wires the sheet to the actual
  * content via [recalledMemoryContents] and [recalledHandContents]
@@ -190,6 +196,9 @@ private fun MemoryRecallSheet(
             items(state.items, key = { it.id }) { item ->
                 CorrectableRow(
                     item = item,
+                    // Null means no consult ran, which must not read as "this
+                    // one didn't apply" — absence of a verdict is not a verdict.
+                    consulted = recall.consultedIds?.contains(item.id) == true,
                     onNeverTrue = { viewModel.neverTrue(item.id, provenance) },
                     onNoLongerTrue = { viewModel.noLongerTrue(item.id, it, provenance) },
                     onIrrelevant = { viewModel.irrelevantHere(item.id, queryText, provenance) },
@@ -220,6 +229,8 @@ private fun CorrectableRow(
     onIrrelevant: () -> Unit,
     onBadAnswer: () -> Unit,
     canScope: Boolean,
+    /** The consult pass judged this one to bear on the question. */
+    consulted: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var replacement by remember { mutableStateOf("") }
@@ -241,20 +252,35 @@ private fun CorrectableRow(
             )
             Spacer(modifier = Modifier.width(AuraSpacing.sm))
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = item.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    // Struck through in place, so the correction reads as
-                    // something that happened to this line rather than as a
-                    // message about it.
-                    textDecoration = if (corrected) TextDecoration.LineThrough else null,
-                    color = if (corrected) {
-                        AuraThemeTokens.colors.textSecondary
-                    } else {
-                        AuraThemeTokens.colors.textPrimary
-                    },
-                )
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        text = item.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        // Struck through in place, so the correction reads as
+                        // something that happened to this line rather than as a
+                        // message about it.
+                        textDecoration = if (corrected) TextDecoration.LineThrough else null,
+                        color = if (corrected) {
+                            AuraThemeTokens.colors.textSecondary
+                        } else {
+                            AuraThemeTokens.colors.textPrimary
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    // Marks the ones the consult pass actually acted on. A word
+                    // rather than a badge: this is the seam being shown, not a
+                    // status worth a coloured dot, and every recalled row here
+                    // is already something Aura had.
+                    if (consulted) {
+                        Text(
+                            text = "applied",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AuraThemeTokens.colors.actionPrimary,
+                            modifier = Modifier.padding(start = AuraSpacing.xs, top = AuraSpacing.tiny),
+                        )
+                    }
+                }
                 if (item.detail.isNotBlank()) {
                     Text(
                         text = item.detail,
@@ -301,10 +327,22 @@ private fun CorrectableRow(
 private fun RecallSummary.summary(): String {
     val m = memoryIds.size
     val h = handIds.size
+    val hands = if (h == 0) "" else " · $h hand${if (h == 1) "" else "s"}"
+
+    // When the consult pass ran, the honest verb is available and "Used" is
+    // retired for this turn. "Used" was always a claim the chip could not
+    // support: recall put the memories in the prompt and nothing observed
+    // whether the model read them. Where a standing instruction was recalled,
+    // something now has.
+    consultedIds?.let { consulted ->
+        val applied = if (consulted.isEmpty()) "none applied" else "${consulted.size} applied"
+        return "Recalled $m · $applied$hands"
+    }
+
     return when {
         m == 0 && h == 0 -> "No memories used for this answer"
         h == 0 -> "Used $m memor${if (m == 1) "y" else "ies"}"
         m == 0 -> "Triggered $h hand${if (h == 1) "" else "s"}"
-        else -> "Used $m memor${if (m == 1) "y" else "ies"} · $h hand${if (h == 1) "" else "s"}"
+        else -> "Used $m memor${if (m == 1) "y" else "ies"}$hands"
     }
 }

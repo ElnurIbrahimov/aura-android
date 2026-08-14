@@ -581,6 +581,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // empty means "attempted, nothing applied" — the difference matters
         // because only the first should retry.
         var cachedConsultReminder: kotlin.String? = null
+        // Which constraints the pass selected, for [RecallSummary.consultedIds].
+        // Stays null when no consult ran, which is a different fact from "ran
+        // and selected nothing" and has to reach the UI as such.
+        var cachedConsultedIds: List<kotlin.String>? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -906,11 +910,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         ?: return@runCatching ""
                     val consultation = consultGate.consult(lastUserMessage, constraints, consultModel)
                         ?: return@runCatching ""
+                    cachedConsultedIds = consultation.applicable.map { it.sourceId }
                     consultGate.render(consultation)
                 }.onFailure { android.util.Log.w("AgenticLoop", "consult pass failed: ${it.message}", it) }
                     .getOrDefault("")
             }
             val consultReminder = cachedConsultReminder ?: ""
+            // Fold the verdict into the recall the UI will render. Done here
+            // rather than where lastRecall is first assigned, because the
+            // consult needs the belief rows and the cached cheap model, neither
+            // of which exists that early.
+            cachedConsultedIds?.let { consulted -> lastRecall = lastRecall?.copy(consultedIds = consulted) }
 
             val messages = buildList {
                 // The system prompt goes out as TWO messages, not one.

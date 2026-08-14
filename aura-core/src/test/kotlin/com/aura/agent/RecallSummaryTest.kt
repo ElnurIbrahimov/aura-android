@@ -107,4 +107,57 @@ class RecallSummaryTest {
         assertEquals(1234L, last.timestamp)
         assertNotNull(last.recall)
     }
+
+    // ---- the consult verdict ---------------------------------------------
+
+    @Test
+    fun `no consult verdict is distinct from an empty one`() {
+        // The whole reason this field is nullable. "Nothing recalled carried a
+        // standing instruction, so no pass ran" and "a pass ran and none of them
+        // applied" are different facts, and a UI that renders them the same way
+        // reports a finding Aura never made.
+        assertNull(RecallSummary(memoryIds = listOf("m1")).consultedIds)
+        assertEquals(
+            emptyList(),
+            RecallSummary(memoryIds = listOf("m1"), consultedIds = emptyList()).consultedIds,
+        )
+    }
+
+    @Test
+    fun `the verdict may name a belief, not only a memory`() {
+        // Active beliefs are offered as constraints alongside memories, so the
+        // applied count is honest even when nothing in memoryIds applied.
+        // Consumers matching these against memory rows must tolerate that.
+        val r = RecallSummary(memoryIds = listOf("m1"), consultedIds = listOf("belief:b7"))
+        assertEquals(1, r.consultedIds?.size)
+        assertFalse(r.consultedIds!!.single() in r.memoryIds)
+    }
+
+    @Test
+    fun `a turn stored before the field existed still decodes`() {
+        // Conversations live as JSON in a Room column, so every turn ever
+        // written predates this field. A non-defaulted addition here would fail
+        // to decode the entire conversation, not just the missing value — the
+        // user would lose their history to a UI nicety.
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val legacy = """{"memoryIds":["m1","m2"],"handIds":[],"noResults":false}"""
+
+        val decoded = json.decodeFromString(RecallSummary.serializer(), legacy)
+
+        assertEquals(listOf("m1", "m2"), decoded.memoryIds)
+        assertNull(decoded.consultedIds)
+    }
+
+    @Test
+    fun `the verdict survives a round trip`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val original = RecallSummary(memoryIds = listOf("m1", "m2"), consultedIds = listOf("m2"))
+
+        val restored = json.decodeFromString(
+            RecallSummary.serializer(),
+            json.encodeToString(RecallSummary.serializer(), original),
+        )
+
+        assertEquals(original, restored)
+    }
 }
