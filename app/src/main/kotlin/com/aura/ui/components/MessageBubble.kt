@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -729,10 +731,27 @@ private fun formatDuration(ms: Long): String = when {
     else -> String.format(java.util.Locale.US, "%.1fm", ms / 60_000.0)
 }
 
+/**
+ * The model's reasoning, as the steps it wrote rather than as one wall.
+ *
+ * Expanding used to produce a single undifferentiated block, which for a long
+ * deliberation is technically complete and practically unreadable \u2014 the same
+ * failure as a background process that reports nothing, except here the
+ * information is present and simply not navigable.
+ *
+ * The steps come from [ThinkingSteps], which splits on the model's own
+ * paragraph breaks and labels each step with its own opening clause. Nothing is
+ * summarised: see that class for why a generated title is the one artifact here
+ * least worth trusting.
+ *
+ * Collapsed it states the count, so the disclosure is worth opening or visibly
+ * is not.
+ */
 @Composable
 private fun PersistedThinkingBlock(text: String) {
     var expanded by remember { mutableStateOf(false) }
     val colors = AuraThemeTokens.colors
+    val steps = remember(text) { ThinkingSteps.segment(text) }
     Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = AuraSpacing.xxs),
     ) {
@@ -752,7 +771,11 @@ private fun PersistedThinkingBlock(text: String) {
                 modifier = Modifier.size(AuraSpacing.large),
             )
             Text(
-                text = if (expanded) "Thinking" else "Thinking\u2026",
+                text = when {
+                    expanded -> "Thinking"
+                    steps.size > 1 -> "Thought in ${steps.size} steps"
+                    else -> "Thinking\u2026"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textTertiary,
                 fontWeight = FontWeight.Medium,
@@ -773,14 +796,81 @@ private fun PersistedThinkingBlock(text: String) {
                 border = androidx.compose.foundation.BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
             ) {
                 SelectionContainer {
-                    Text(
-                        text = text,
-                        modifier = Modifier.padding(AuraSpacing.sm),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textTertiary,
-                        lineHeight = 18.sp,
-                    )
+                    Column(modifier = Modifier.padding(AuraSpacing.sm)) {
+                        // Falls back to the raw text when the stream had no
+                        // paragraph structure to find. A model that thinks in
+                        // one breath should still be readable.
+                        if (steps.isEmpty()) {
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textTertiary,
+                                lineHeight = 18.sp,
+                            )
+                        } else {
+                            steps.forEachIndexed { index, step ->
+                                ThinkingStepRow(
+                                    step = step,
+                                    isLast = index == steps.lastIndex,
+                                )
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+/** One step, with the rail that ties it to the next. */
+@Composable
+private fun ThinkingStepRow(step: ThinkingSteps.Step, isLast: Boolean) {
+    val colors = AuraThemeTokens.colors
+    Row(
+        // Min-intrinsic so the connector can fill exactly this row's height \u2014
+        // the steps are different lengths and a fixed rail would either float
+        // short or overshoot into the next one.
+        modifier = Modifier.height(IntrinsicSize.Min),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .width(AuraSpacing.md)
+                .fillMaxHeight(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = AuraSpacing.tiny)
+                    .size(AuraSpacing.xs)
+                    .background(colors.textTertiary, CircleShape),
+            )
+            if (!isLast) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = AuraSpacing.tiny)
+                        .width(AuraSpacing.hairline)
+                        .weight(1f)
+                        .background(colors.borderSubtle),
+                )
+            }
+        }
+        Spacer(Modifier.width(AuraSpacing.xs))
+        Column(modifier = Modifier.padding(bottom = AuraSpacing.sm)) {
+            Text(
+                text = step.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 18.sp,
+            )
+            if (step.body.isNotBlank()) {
+                Text(
+                    text = step.body,
+                    modifier = Modifier.padding(top = AuraSpacing.tiny),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textTertiary,
+                    lineHeight = 18.sp,
+                )
             }
         }
     }
