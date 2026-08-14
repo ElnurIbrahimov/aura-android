@@ -3,6 +3,8 @@
     <string name="app_name">Aura</string>
     <string name="widget_ask_aura_description">Quick-access widget: tap to open Aura, or tap the Ask button to start a new question.</string>
     <string name="widget_ask_aura_label">Aura</string>
+    <string name="widget_working_on_description">A single quiet line saying what Aura is working on, or what it last did. Never notifies.</string>
+    <string name="widget_working_on_label">Aura · working on</string>
     <string name="add">Add</string>
     <string name="add_a_reminder">Add a reminder</string>
     <string name="add_condition">Add condition</string>

@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Text here is widget_text_on_dark, not widget_text_primary.
+
+  This layout paints on widget_bg (#0A0A0B) while widget_text_primary is
+  #1A1A1A — the colour for the *light* surface widget_ask_aura uses. The
+  contrast ratio was about 1.1:1, so the title and every reminder message were
+  invisible on a black background.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Upcoming reminders"
-        android:textColor="@color/widget_text_primary"
+        android:textColor="@color/widget_text_on_dark"
         android:textSize="14sp"
         android:textStyle="bold"
         android:paddingBottom="8dp" />
@@ -29,7 +37,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="@color/widget_text_primary"
+            android:textColor="@color/widget_text_on_dark"
             android:textSize="13sp"
             android:singleLine="true"
             android:ellipsize="end" />
@@ -54,7 +62,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="@color/widget_text_primary"
+            android:textColor="@color/widget_text_on_dark"
             android:textSize="13sp"
             android:singleLine="true"
             android:ellipsize="end" />
@@ -79,7 +87,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="@color/widget_text_primary"
+            android:textColor="@color/widget_text_on_dark"
             android:textSize="13sp"
             android:singleLine="true"
             android:ellipsize="end" />

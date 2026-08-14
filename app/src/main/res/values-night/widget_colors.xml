@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Night overrides for the periphery line only.
+
+  The other two widgets carry fixed palettes — one light, one dark — and
+  changing that is a visual decision for their own surfaces, not something to
+  fold into this file. Values here mirror AuraTokens.Dark (surface1 #121214,
+  textPrimary #EDEDED, textSecondary #A1A1AA) so the widget matches the app it
+  belongs to rather than approximating it.
+-->
+<resources>
+    <color name="widget_quiet_bg">#121214</color>
+    <color name="widget_quiet_text">#EDEDED</color>
+    <color name="widget_quiet_dim">#A1A1AA</color>
+</resources>

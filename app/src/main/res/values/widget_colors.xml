@@ -1,10 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- The light set, used by widget_ask_aura via @drawable/widget_background. -->
     <color name="widget_background">#F5F5F5</color>
     <color name="widget_button_background">#0D47A1</color>
     <color name="widget_text_primary">#1A1A1A</color>
+
+    <!--
+      The dark set, used by widget_reminders.
+
+      widget_text_on_dark exists because widget_reminders was painting
+      widget_text_primary (#1A1A1A) on widget_bg (#0A0A0B) — a contrast ratio of
+      roughly 1.1:1, near-black on near-black. Every reminder message and the
+      widget's own title were invisible. The name says which background it
+      belongs on, since one colour called "primary" serving two opposite
+      surfaces is what caused it.
+    -->
     <color name="widget_bg">#0A0A0B</color>
     <color name="widget_row_bg">#15151A</color>
+    <color name="widget_text_on_dark">#EDEDED</color>
     <color name="widget_text_secondary">#888888</color>
     <color name="widget_accent">#2DD4BF</color>
+
+    <!--
+      The periphery line (widget_working_on). Unlike the two widgets above it
+      follows the system theme — it sits on the wallpaper all day rather than
+      being opened deliberately, so a fixed palette would be wrong half the
+      time. Overridden in values-night.
+    -->
+    <color name="widget_quiet_bg">#FFFFFF</color>
+    <color name="widget_quiet_text">#1A1A1A</color>
+    <color name="widget_quiet_dim">#6B6B6B</color>
 </resources>

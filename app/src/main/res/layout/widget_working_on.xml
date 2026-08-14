@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One line, and where it came from.
+
+  4x1 rather than the 4x2 the other two widgets use: this is a glance, not a
+  panel, and giving it more room would invite filling the room. The whole design
+  constraint is that reading it costs no attention.
+
+  No icon, no divider, no accent, no count. The second line is provenance —
+  which job, how long ago — at a size that stays out of the way but makes the
+  first line checkable rather than atmospheric.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/working_on_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_quiet_background">
+
+    <TextView
+        android:id="@+id/working_on_line"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/widget_quiet_text"
+        android:textSize="15sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:text="Nothing has run yet." />
+
+    <TextView
+        android:id="@+id/working_on_source"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/widget_quiet_dim"
+        android:textSize="11sp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:text="waiting for the first pass" />
+
+</LinearLayout>

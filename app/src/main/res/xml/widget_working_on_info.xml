@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  4x1. A glance, not a panel.
+
+  updatePeriodMillis is the system minimum of 30 minutes and is the *floor*,
+  not the mechanism — a line claiming to say what Aura is doing now cannot wait
+  half an hour to say it. WorkingOnWidget also listens for
+  ProactiveBootstrap.ACTION_REFRESH_WIDGET, which is what actually keeps it
+  current between ticks.
+
+  No configure activity: there is nothing to configure. A widget that shows one
+  line and offers a settings screen is admitting it does more than one thing.
+
+  widgetCategory stays home_screen. Lock-screen widgets arrived in Android 16
+  QPR2 and this device is on 36.0, so declaring keyguard here would advertise a
+  placement the OS will not offer.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:initialLayout="@layout/widget_working_on"
+    android:previewLayout="@layout/widget_working_on"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_working_on_description"
+    tools:targetApi="31" />
