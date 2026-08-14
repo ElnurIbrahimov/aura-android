@@ -133,20 +133,38 @@ class MoaProviderTest {
         started.receive()
         val second = launch { moa.chat("default", emptyList(), ChatOptions(), emptyList()).collect {} }
         started.receive()
-        // Give the cancellation chain time to propagate: cancelling the
-        // channelFlow's Job needs to resume the async{} children, throw
-        // CancellationException through await(), close the channel, and
-        // cancel the collecting launch. A fixed runCurrent()+advanceTimeBy
-        // window was flaky on cold CI runners (the chain has 5+ suspension
-        // points and the first chat's reference coroutines run on
-        // Dispatchers.Default real threads). advanceUntilIdle() is
-        // deterministic: the hangFlow suspends at awaitCancellation, so
-        // there is no unbounded work that would prevent idle.
-        runCurrent()
-        advanceUntilIdle()
-        runCurrent()
+        // Wait for the condition, not for the scheduler.
+        //
+        // Cancelling the channelFlow's Job has to resume the async{} children,
+        // throw CancellationException through await(), close the channel and
+        // cancel the collecting launch. Part of that chain runs on
+        // Dispatchers.Default — real threads — and advanceUntilIdle() drains
+        // only the *virtual* queue. It cannot see or advance real threads, so a
+        // single drain can observe the chain mid-unwind and read isCancelled as
+        // false.
+        //
+        // That is why the previous attempt here did not hold. Its comment
+        // claimed advanceUntilIdle() was deterministic, which is true of the
+        // test scheduler and not of the work this test is actually waiting on;
+        // it narrowed the race rather than removing it, and still failed on a
+        // cold CI runner (run 31842771419).
+        //
+        // So pump the virtual queue and yield real time until the asserted
+        // condition actually holds. Bounded, so a real regression — a
+        // cancellation that never propagates — still fails, in about a second
+        // rather than on runTest's 10s timeout.
+        var waited = 0L
+        while (!first.isCancelled && waited < CANCEL_WAIT_MS) {
+            advanceUntilIdle()
+            runCurrent()
+            Thread.sleep(POLL_MS)
+            waited += POLL_MS
+        }
 
-        assertTrue(first.isCancelled)
+        assertTrue(
+            first.isCancelled,
+            "the previous MoA run was not cancelled within ${CANCEL_WAIT_MS}ms",
+        )
         second.cancel()
     }
 
@@ -234,5 +252,18 @@ class MoaProviderTest {
     private fun configuredProvider(providerPrefix: String): Provider = mockk(relaxed = true) {
         every { prefix } returns providerPrefix
         every { isConfigured() } returns true
+    }
+
+    private companion object {
+        /**
+         * Real milliseconds, not virtual: part of the cancellation chain runs on
+         * `Dispatchers.Default`, which the test scheduler cannot advance.
+         *
+         * Comfortably long enough for a loaded CI runner and short enough that a
+         * cancellation which never arrives fails in about a second instead of
+         * hanging to runTest's 10s timeout.
+         */
+        const val CANCEL_WAIT_MS = 2_000L
+        const val POLL_MS = 10L
     }
 }
