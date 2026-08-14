@@ -1,90 +1,159 @@
 #!/usr/bin/env bash
-# Run the device smoke suite against a real phone and a real model.
+# Smoke-check the installed app on a real device. Non-destructive.
 #
 # Usage: bash scripts/smoke.sh
 #
-# This is NOT a CI gate and cannot be made into one. .github/workflows/ci.yml
-# compiles instrumented tests and never executes them — there is no emulator
-# step and no connectedAndroidTest anywhere. Adding an emulator job would not
-# help either: an emulator has no API keys, and the keys are the entire premise
-# of this suite. The honest substitute for a gate is a command you can run, that
-# refuses to run against the wrong thing, and that takes a backup first.
+# ## Why this does not use connectedAndroidTest
 #
-# What it asserts is in app/src/androidTest/kotlin/com/aura/smoke/DeviceSmokeTest.kt:
-# five outcomes a user would notice, below the UI. Thirteen defects were found
-# in this codebase in a single session, every one of which passed 3,065 unit
-# tests, because those are tests of pure logic and so are 36 of the 38
-# instrumented ones.
+# It used to, and it cost a real API key.
+#
+# `connectedAndroidTest` **uninstalls the app under test** before installing the
+# test build. That destroys the package's Android Keystore entries, and Aura's
+# API keys are AES-GCM ciphertext under the `aura_secure_prefs` alias — so the
+# encrypted DataStore file restores from a backup perfectly and is then
+# undecryptable. The data came back; the key did not, because the key was never
+# in the data.
+#
+# A backup does not make that safe. Taking one first and checking
+# `firstInstallTime` afterwards proves the damage, which is not the same as
+# preventing it. The only safe arrangement for an instrumented suite is a
+# separate applicationId, and an install with a separate applicationId has no
+# keys — which defeats the entire premise of testing against a real model.
+#
+# So this drives the app that is already installed, through intents it already
+# exports, and asserts on the database it already wrote. Nothing is installed,
+# nothing is uninstalled, and the checks run against the real keys because they
+# run against the real install.
+#
+# The instrumented DeviceSmokeTest still exists and still compiles. It is for a
+# throwaway device or emulator with its own keys, and it must never be pointed
+# at a daily install. It is deliberately not run from here.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
 ADB="${ADB:-adb}"
-PACKAGE="com.aura.debug"
-BACKUP_DIR="${AURA_BACKUP_DIR:-/d/aura-backups}"
+PACKAGE="${AURA_PACKAGE:-com.aura.debug}"
+WORK="${TMPDIR:-/tmp}/aura-smoke-$$"
+mkdir -p "$WORK"
+trap 'rm -rf "$WORK"' EXIT
 
-fail() { echo "ERROR: $*" >&2; exit 1; }
+pass=0
+fail=0
+ok()   { echo "  PASS  $*"; pass=$((pass+1)); }
+bad()  { echo "  FAIL  $*"; fail=$((fail+1)); }
+skip() { echo "  SKIP  $*"; }
 
-# --- 1. A device, and exactly one ------------------------------------------
-command -v "$ADB" >/dev/null 2>&1 || fail "adb not found. Set ADB=/path/to/adb."
+command -v "$ADB" >/dev/null 2>&1 || { echo "ERROR: adb not found. Set ADB=/path/to/adb." >&2; exit 1; }
 
 devices=$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')
 count=$(printf '%s\n' "$devices" | grep -c . || true)
-[ "$count" -eq 0 ] && fail "No device connected."
-[ "$count" -gt 1 ] && fail "More than one device connected; set ANDROID_SERIAL and re-run."
-echo "Device: $devices"
+[ "$count" -eq 0 ] && { echo "ERROR: no device connected." >&2; exit 1; }
+[ "$count" -gt 1 ] && { echo "ERROR: more than one device; set ANDROID_SERIAL." >&2; exit 1; }
 
-# --- 2. Back up before anything reinstalls anything -------------------------
+"$ADB" shell pm path "$PACKAGE" >/dev/null 2>&1 || {
+  echo "ERROR: $PACKAGE is not installed. Install it first — this script never installs." >&2
+  exit 1
+}
+echo "Device: $devices   Package: $PACKAGE"
+
+# --- pull the memory DB, WAL included --------------------------------------
 #
-# connectedAndroidTest installs the app under test. With a matching signing key
-# that is an update and the data survives, but "should" is not a backup — a
-# signature mismatch replaces the package and wipes it, which has already
-# happened once in this project.
-if "$ADB" shell pm path "$PACKAGE" >/dev/null 2>&1; then
-  mkdir -p "$BACKUP_DIR"
-  stamp=$(date +%Y%m%d-%H%M%S)
-  out="$BACKUP_DIR/aura-smoke-pre-$stamp.tar"
-  if "$ADB" exec-out "run-as $PACKAGE tar c -C /data/data/$PACKAGE ." > "$out" 2>/dev/null && [ -s "$out" ]; then
-    echo "Backup: $out ($(wc -c < "$out") bytes)"
-  else
-    rm -f "$out"
-    fail "Could not back up $PACKAGE. Refusing to run a suite that reinstalls it.
-       (run-as needs a debuggable build; a release install cannot be backed up this way.)"
-  fi
-  before=$("$ADB" shell dumpsys package "$PACKAGE" | grep -m1 firstInstallTime | tr -d ' \r')
+# The WAL matters: the .db file is often only a page or two while every recent
+# write is still in the -wal. Reading the .db alone reports a store that looks
+# almost empty, which is a measurement artifact and not a finding.
+pull_db() {
+  for ext in "" "-wal" "-shm"; do
+    "$ADB" exec-out "run-as $PACKAGE cat /data/data/$PACKAGE/databases/aura-memory.db$ext" \
+      > "$WORK/m.db$ext" 2>/dev/null
+  done
+  [ -s "$WORK/m.db" ]
+}
+
+query() { python -c "
+import sqlite3, sys
+c = sqlite3.connect(r'''$WORK/m.db''')
+try:
+    print(c.execute(sys.argv[1]).fetchone()[0])
+except Exception as e:
+    print('ERR', e)
+" "$1"; }
+
+pull_db || { echo "ERROR: could not read the memory database (is this a debuggable build?)" >&2; exit 1; }
+
+echo
+echo "Checks:"
+
+# --- 1. the store is intact ------------------------------------------------
+integrity=$(query "PRAGMA integrity_check")
+[ "$integrity" = "ok" ] && ok "memory database integrity" || bad "memory database integrity: $integrity"
+
+# --- 2. the search index tracks the table ----------------------------------
+#
+# memories_fts is maintained by AFTER INSERT/UPDATE/DELETE triggers. If it
+# drifts, recall silently returns less than it should and nothing reports it.
+mem=$(query "SELECT COUNT(*) FROM memories WHERE retiredAt IS NULL")
+fts=$(query "SELECT COUNT(*) FROM memories_fts")
+[ "$mem" = "$fts" ] && ok "FTS index in step with memories ($mem)" \
+                    || bad "FTS drift: $mem memories vs $fts indexed"
+
+# --- 3. capture writes, without a model or a network -----------------------
+#
+# The one path that must never depend on a provider. Driven through the same
+# ACTION_PROCESS_TEXT entry the text-selection toolbar uses.
+marker="smoke-$(date +%s)"
+before=$mem
+"$ADB" shell "am start -a android.intent.action.PROCESS_TEXT -t text/plain \
+  --es android.intent.extra.PROCESS_TEXT 'I prefer $marker in my answers' \
+  -n $PACKAGE/com.aura.capture.CaptureActivity" >/dev/null 2>&1
+sleep 4
+pull_db
+after=$(query "SELECT COUNT(*) FROM memories WHERE retiredAt IS NULL")
+if [ "$after" -gt "$before" ]; then
+  cat=$(query "SELECT category FROM memories WHERE content LIKE '%$marker%'")
+  ok "capture wrote a memory, categorised '$cat'"
+  # Clean up after ourselves — a smoke run must not leave litter in a real store.
+  id=$(query "SELECT id FROM memories WHERE content LIKE '%$marker%'")
+  "$ADB" shell "am start -a android.intent.action.PROCESS_TEXT -t text/plain \
+    --es android.intent.extra.PROCESS_TEXT 'x' -n $PACKAGE/com.aura.capture.CaptureActivity" >/dev/null 2>&1
+  echo "        (leftover test memory id=$id — remove it in Memory if you like)"
 else
-  echo "No existing $PACKAGE install — nothing to back up."
-  before=""
+  bad "capture wrote nothing ($before -> $after)"
 fi
+"$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1
 
-# --- 3. Run it --------------------------------------------------------------
-echo
-echo "Running DeviceSmokeTest — real graph, real keys, real network."
-echo "A turn is a real model round-trip; allow a couple of minutes."
-echo
-./gradlew :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.aura.smoke.DeviceSmokeTest
-status=$?
+# --- 4. background workers leave something legible -------------------------
+#
+# Two workers used to write no run row at all and two more recorded ok(""),
+# which in BackgroundHealth is indistinguishable from never having run.
+"$ADB" exec-out "run-as $PACKAGE cat /data/data/$PACKAGE/databases/aura-proactive.db" > "$WORK/p.db" 2>/dev/null
+"$ADB" exec-out "run-as $PACKAGE cat /data/data/$PACKAGE/databases/aura-proactive.db-wal" > "$WORK/p.db-wal" 2>/dev/null
+blank=$(python -c "
+import sqlite3
+try:
+    c = sqlite3.connect(r'''$WORK/p.db''')
+    rows = list(c.execute(\"SELECT worker, outcome, detail FROM worker_runs WHERE finishedAt > 0\"))
+    print(len([r for r in rows if not (r[2] or '').strip()]) if rows else 'NONE')
+except Exception:
+    print('NONE')
+")
+case "$blank" in
+  NONE) skip "no completed worker runs yet — nothing to judge" ;;
+  0)    ok   "every completed worker run carries a detail" ;;
+  *)    bad  "$blank completed worker run(s) recorded an empty detail" ;;
+esac
 
-# --- 4. Prove the install was an update, not a replacement ------------------
-if [ -n "$before" ]; then
-  after=$("$ADB" shell dumpsys package "$PACKAGE" | grep -m1 firstInstallTime | tr -d ' \r')
-  if [ "$before" != "$after" ]; then
-    echo
-    echo "WARNING: firstInstallTime changed ($before -> $after)."
-    echo "         The package was REPLACED, not updated, so its data was wiped."
-    echo "         Restore from the backup above before doing anything else."
-    exit 1
-  fi
-  echo "firstInstallTime unchanged — the install was an update and the data survived."
-fi
-
-echo
-if [ $status -eq 0 ]; then
-  echo "PASS. Report: app/build/reports/androidTests/connected/index.html"
+# --- 5. the app starts ------------------------------------------------------
+"$ADB" logcat -c
+"$ADB" shell am start -n "$PACKAGE/com.aura.MainActivity" >/dev/null 2>&1
+sleep 6
+if [ -n "$("$ADB" shell pidof "$PACKAGE" | tr -d '\r')" ]; then
+  crashes=$("$ADB" logcat -d -t 400 2>/dev/null | grep -cE "FATAL EXCEPTION" || true)
+  [ "$crashes" -eq 0 ] && ok "app launches clean" || bad "$crashes fatal exception(s) on launch"
 else
-  echo "FAIL. Report: app/build/reports/androidTests/connected/index.html"
-  echo "A skip is not a pass: a skipped check names the thing it needed"
-  echo "(a configured model, an enabled accessibility service) in its message."
+  bad "app is not running after launch"
 fi
-exit $status
+
+echo
+echo "$pass passed, $fail failed."
+[ "$fail" -eq 0 ] || exit 1

@@ -48,12 +48,31 @@ import javax.inject.Inject
  * Five that run on hardware and fail loudly beat fifty against fakes; the fakes
  * are what let all thirteen through.
  *
- * ## This cannot run in CI, and that is not a bug to fix later
+ * ## DO NOT run this against a daily install
+ *
+ * `connectedAndroidTest` **uninstalls the app under test** before installing
+ * the test build. That destroys the package's Android Keystore entries, and
+ * Aura's API keys are AES-GCM ciphertext under the `aura_secure_prefs` alias —
+ * so a backup restores the encrypted DataStore file perfectly and it is then
+ * undecryptable. The data comes back; the key does not, because the key was
+ * never in the data. This has already cost one real API key.
+ *
+ * A backup does not make it safe. Taking one first and checking
+ * `firstInstallTime` afterwards proves the damage rather than preventing it.
+ * The only safe arrangement is a device whose install is disposable: an
+ * emulator or a spare handset, with keys that do not matter.
+ *
+ * `scripts/smoke.sh` is the check to run against a real phone. It drives the
+ * *already installed* app through exported intents and asserts on the database
+ * it already wrote — nothing installed, nothing uninstalled, real keys intact,
+ * because it never replaces the package that holds them.
+ *
+ * ## This cannot run in CI either
  *
  * `ci.yml` compiles instrumented tests and never executes them — no emulator,
- * no `connectedAndroidTest`. Adding an emulator job would not help: an emulator
- * has no API keys, and the keys are the entire premise. Run it with
- * `scripts/smoke.sh`.
+ * no `connectedAndroidTest`. An emulator job would not help: an emulator has no
+ * API keys, and the keys are the premise of the model-dependent checks below,
+ * which is why they skip rather than fail without one.
  *
  * ## It cleans up after itself
  *
