@@ -73,8 +73,29 @@ class DaemonWorker @AssistedInject constructor(
     private val councilOrchestrator: com.aura.agent.council.CouncilOrchestrator? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result =
-        recorder?.record("DaemonWorker") { runPass() to lastOutcome } ?: runPass()
+    // if/else, not `recorder?.record(...) ?: runPass()`.
+    //
+    // record() returns null on two paths, and on both it has already written
+    // the row and swallowed the exception: when the block throws, and when it
+    // catches BackgroundBudgetExhausted. The elvis form therefore ran the
+    // entire pass a second time on exactly the failure path — for this worker
+    // that is the awareness sweep, the council, the research call and every
+    // finding it posts, all repeated.
+    //
+    // It also defeated the spend cap it was meant to cooperate with: budget
+    // exhausted, record() swallows and returns null, the elvis re-runs, the
+    // budget throws again — and that second throw is outside record(), so it
+    // escaped as an uncaught failure instead of the skip the cap was designed
+    // to produce. BackupWorker documents the same trap.
+    //
+    // success() on the null path rather than retry(): the failed run is already
+    // recorded and visible in Diagnostics, the next scheduled run is an hour
+    // away, and a budget ceiling that only resets at midnight must not have
+    // retry attempts burned against it.
+    override suspend fun doWork(): Result {
+        if (recorder == null) return runPass()
+        return recorder.record("DaemonWorker") { runPass() to lastOutcome } ?: Result.success()
+    }
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
         com.aura.health.WorkerRunRecorder.Result.ok("")

@@ -26,7 +26,11 @@ class TriggerWorkerTest {
         val engine: TriggerEngine,
     )
 
-    private fun fixture(triggers: List<Trigger> = emptyList(), hand: Hand? = null): Fixture {
+    private fun fixture(
+        triggers: List<Trigger> = emptyList(),
+        hand: Hand? = null,
+        recorder: com.aura.health.WorkerRunRecorder? = null,
+    ): Fixture {
         val context = mockk<Context>(relaxed = true)
         val params = mockk<WorkerParameters>(relaxed = true)
         val engine = mockk<TriggerEngine>(relaxed = true)
@@ -49,8 +53,84 @@ class TriggerWorkerTest {
             userPreferences = userPreferences,
             handRunEnqueuer = handRunEnqueuer,
             handRepository = handRepository,
+            recorder = recorder,
         )
         return Fixture(worker, handRunEnqueuer, handRepository, notificationsTool, engine)
+    }
+
+    /**
+     * A recorder that reproduces the one behaviour of the real one that matters
+     * here: [com.aura.health.WorkerRunRecorder.record] **swallows** a throwing
+     * block and returns null, having already written the failed row. It does not
+     * rethrow. That is what made `recorder?.record(...) ?: runPass()` re-run the
+     * whole pass on the failure path.
+     *
+     * A mock rather than a real recorder over Room, because the contract being
+     * tested is the null return, not the persistence.
+     */
+    private fun swallowingRecorder(
+        onOutcome: (com.aura.health.WorkerRunRecorder.Result) -> Unit = {},
+    ): com.aura.health.WorkerRunRecorder {
+        val recorder = mockk<com.aura.health.WorkerRunRecorder>()
+        coEvery {
+            recorder.record<androidx.work.ListenableWorker.Result>(any(), any())
+        } coAnswers {
+            val block = arg<suspend () -> Pair<androidx.work.ListenableWorker.Result, com.aura.health.WorkerRunRecorder.Result>>(1)
+            runCatching { block() }
+                .onSuccess { onOutcome(it.second) }
+                .getOrNull()
+                ?.first
+        }
+        return recorder
+    }
+
+    @Test
+    fun `a throwing pass runs once, not twice`() = runBlocking {
+        // runPass() here has no try/catch of its own, so anything the engine
+        // throws reaches record(), which swallows it and returns null. Under the
+        // elvis form the pass then ran again — re-posting every notification it
+        // had already sent before the throw.
+        var checks = 0
+        val f = fixture(recorder = swallowingRecorder())
+        coEvery { f.engine.checkAll(any(), any()) } coAnswers {
+            checks++
+            throw IllegalStateException("engine blew up")
+        }
+
+        f.worker.doWork()
+
+        assertEquals(1, checks, "the trigger pass ran twice — the elvis form is back")
+    }
+
+    @Test
+    fun `a completed pass records what it checked, not an empty string`() = runBlocking {
+        // lastOutcome was initialised to ok("") and the success path never
+        // touched it, so a worker running every 15 minutes filled the run log
+        // with blank rows that BackgroundHealth then rendered as nothing at all.
+        var recorded: com.aura.health.WorkerRunRecorder.Result? = null
+        val trigger = Trigger(
+            id = "t1",
+            label = "Morning",
+            condition = TriggerCondition.Schedule("daily@09:00"),
+            action = TriggerAction.Notify("Hi", "Body"),
+        )
+        val f = fixture(triggers = listOf(trigger), recorder = swallowingRecorder { recorded = it })
+
+        f.worker.doWork()
+
+        assertEquals("checked 1, fired 1", recorded?.detail)
+    }
+
+    @Test
+    fun `having no triggers is reported as such, not as a quiet success`() = runBlocking {
+        var recorded: com.aura.health.WorkerRunRecorder.Result? = null
+        val f = fixture(recorder = swallowingRecorder { recorded = it })
+
+        f.worker.doWork()
+
+        // "you have none configured" and "all four were checked and none
+        // matched" are different facts, and only one of them is worth acting on.
+        assertEquals("no triggers configured", recorded?.detail)
     }
 
     @Test

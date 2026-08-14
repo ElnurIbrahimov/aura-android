@@ -29,8 +29,15 @@ class TriggerWorker @AssistedInject constructor(
     private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result =
-        recorder?.record("TriggerWorker") { runPass() to lastOutcome } ?: runPass()
+    // if/else, not the elvis form — see DaemonWorker.doWork and BackupWorker's
+    // KDoc. runPass() here has no try/catch of its own, so anything thrown by
+    // the engine or by posting a notification reached record(), which swallowed
+    // it and returned null, and the elvis then re-ran the pass — posting every
+    // notification it had already sent a second time.
+    override suspend fun doWork(): Result {
+        if (recorder == null) return runPass()
+        return recorder.record("TriggerWorker") { runPass() to lastOutcome } ?: Result.success()
+    }
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
 
@@ -54,6 +61,18 @@ class TriggerWorker @AssistedInject constructor(
         // without waiting for the daily dream cycle.
         runCatching { opportunityEngine?.runCycle() }
             .onFailure { Log.w("TriggerWorker", "opportunityEngine: ${it.message}", it) }
+        // The success path used to leave lastOutcome at ok(""), so a worker
+        // running every 15 minutes filled the run log with blank rows. The
+        // count of configured triggers is carried even when none fired, because
+        // "checked 4, none matched" and "you have no triggers" look identical
+        // otherwise and only one of them is worth acting on.
+        lastOutcome = com.aura.health.WorkerRunRecorder.Result.ok(
+            when {
+                triggers.isEmpty() -> "no triggers configured"
+                actions.isEmpty() -> "checked ${triggers.size}, none fired"
+                else -> "checked ${triggers.size}, fired ${actions.size}"
+            },
+        )
         return Result.success()
     }
 

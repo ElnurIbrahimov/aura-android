@@ -105,10 +105,14 @@ class DecayWorkerTest {
             workerRunRecorder = recorder,
         ).doWork()
 
-        val kept = dao.recent(50)
+        // DecayWorker now records its own run, and record() inserts that row
+        // before running the block — so the sweep sees a fresh row of its own
+        // and correctly keeps it. Excluded here so the assertion stays about
+        // retention rather than about this worker's bookkeeping.
+        val kept = dao.recent(50).map { it.worker }.filterNot { it == DecayWorker.WORKER_NAME }
         assertEquals(
             listOf("TriggerWorker"),
-            kept.map { it.worker },
+            kept,
             "the 6-hourly sweep did not bound the worker run log — it grows a row per run forever",
         )
     }
@@ -138,6 +142,61 @@ class DecayWorkerTest {
             workerRunRecorder = recorder,
         ).doWork()
 
-        assertEquals(0, dao.recent(50).size)
+        assertEquals(
+            0,
+            dao.recent(50).count { it.worker != DecayWorker.WORKER_NAME },
+            "retention stopped applying when the user switched decay off",
+        )
     }
+
+    // ---- the worker's own run record --------------------------------------
+
+    /**
+     * This worker held a [WorkerRunRecorder] and used it only to call `prune()`,
+     * so the job that sweeps the run log was the one job missing from it. Six
+     * hours of real work leaving no evidence is indistinguishable, in
+     * BackgroundHealth, from never having been scheduled.
+     */
+    @Test
+    fun `a completed pass records what it did`() = runBlocking {
+        val recorder = realRecorder()
+        val dao = db!!.workerRunDao()
+        val memoryStore = mockk<MemoryStore>(relaxed = true)
+        coEvery { memoryStore.runDecayPass() } returns 7
+        val prefs = mockk<UserPreferences>(relaxed = true)
+        every { prefs.decayEnabled } returns flowOf(true)
+
+        DecayWorker(
+            mockk<Context>(relaxed = true),
+            mockk<WorkerParameters>(relaxed = true),
+            memoryStore,
+            prefs,
+            workerRunRecorder = recorder,
+        ).doWork()
+
+        val row = dao.recent(50).single { it.worker == DecayWorker.WORKER_NAME }
+        assertEquals(WorkerRunEntity.OUTCOME_OK, row.outcome)
+        assertEquals("7 memories faded", row.detail)
+    }
+
+    @Test
+    fun `a switched-off pass records that, rather than nothing`() = runBlocking {
+        val recorder = realRecorder()
+        val dao = db!!.workerRunDao()
+        val prefs = mockk<UserPreferences>(relaxed = true)
+        every { prefs.decayEnabled } returns flowOf(false)
+
+        DecayWorker(
+            mockk<Context>(relaxed = true),
+            mockk<WorkerParameters>(relaxed = true),
+            mockk<MemoryStore>(relaxed = true),
+            prefs,
+            workerRunRecorder = recorder,
+        ).doWork()
+
+        val row = dao.recent(50).single { it.worker == DecayWorker.WORKER_NAME }
+        assertEquals(WorkerRunEntity.OUTCOME_SKIPPED, row.outcome)
+        assertEquals("memory decay is switched off", row.detail)
+    }
+
 }

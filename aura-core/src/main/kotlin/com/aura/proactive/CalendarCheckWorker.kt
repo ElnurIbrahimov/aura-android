@@ -27,8 +27,13 @@ class CalendarCheckWorker @AssistedInject constructor(
     private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result =
-        recorder?.record("CalendarCheckWorker") { runPass() to lastOutcome } ?: runPass()
+    // if/else, not the elvis form — see DaemonWorker.doWork and BackupWorker's
+    // KDoc. record() returns null on the failure path having already written
+    // the row, so `?: runPass()` ran the check twice.
+    override suspend fun doWork(): Result {
+        if (recorder == null) return runPass()
+        return recorder.record("CalendarCheckWorker") { runPass() to lastOutcome } ?: Result.success()
+    }
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
 

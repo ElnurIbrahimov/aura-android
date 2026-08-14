@@ -22,8 +22,14 @@ class EvolutionWorker @AssistedInject constructor(
     private val recorder: com.aura.health.WorkerRunRecorder? = null,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result =
-        recorder?.record("EvolutionWorker") { runPass() to lastOutcome } ?: runPass()
+    // if/else, not the elvis form — see DaemonWorker.doWork and BackupWorker's
+    // KDoc. record() returns null both when the block throws and when it
+    // catches BackgroundBudgetExhausted, having already written the row, so
+    // `?: runPass()` re-ran the whole evolution pipeline on the failure path.
+    override suspend fun doWork(): Result {
+        if (recorder == null) return runPass()
+        return recorder.record("EvolutionWorker") { runPass() to lastOutcome } ?: Result.success()
+    }
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result = com.aura.health.WorkerRunRecorder.Result.ok("")
 
@@ -36,7 +42,19 @@ class EvolutionWorker @AssistedInject constructor(
             return Result.success()
         }
         return try {
-            coordinator.runAll()
+            // The success path used to leave lastOutcome at its ok("")
+            // initialiser, so every completed run recorded an empty detail and
+            // BackgroundHealth showed a worker that had plainly run and had
+            // nothing to say about it. "Ran and found nothing" is a result and
+            // has to be legible as one.
+            val pass = coordinator.runAll()
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.ok(
+                when {
+                    pass.candidateCount == 0 -> "nothing to propose"
+                    pass.promotedCount == 0 -> "${pass.candidateCount} candidate(s), none promoted"
+                    else -> "${pass.candidateCount} candidate(s), ${pass.promotedCount} awaiting review"
+                },
+            )
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()

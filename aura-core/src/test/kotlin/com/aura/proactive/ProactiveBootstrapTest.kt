@@ -65,7 +65,7 @@ class ProactiveBootstrapTest {
         secureDataStore = mockk(relaxed = true)
         agentStore = mockk(relaxed = true)
         conversationStore = mockk(relaxed = true)
-        coEvery { memoryStore.runDecayPass() } returns Unit
+        coEvery { memoryStore.runDecayPass() } returns 0
 
         // Default: morning brief on, calendar monitor on, evolution off.
         // Tests override the flow per-case.

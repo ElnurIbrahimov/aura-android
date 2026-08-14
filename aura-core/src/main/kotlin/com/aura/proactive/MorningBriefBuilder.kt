@@ -52,6 +52,18 @@ class MorningBriefBuilder @Inject constructor(
     private val userPreferences: UserPreferences,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
 ) {
+    /**
+     * What the last [runNow] did, for [com.aura.health.WorkerRunRecorder].
+     *
+     * Exposed here rather than derived from the returned [Result] because both
+     * exits return success: a morning with nothing worth saying is not a
+     * failure, and it is also not the same event as a brief being posted. The
+     * run log has to tell them apart or a silent brief looks like a broken one.
+     */
+    var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
+        com.aura.health.WorkerRunRecorder.Result.ok("")
+        private set
+
     suspend fun runNow(): androidx.work.ListenableWorker.Result {
         val now = System.currentTimeMillis()
         val since24h = now - 24L * 60L * 60L * 1000L
@@ -106,6 +118,8 @@ class MorningBriefBuilder @Inject constructor(
             .joinToString(separator = "\n\n")
 
         if (notificationBody.isBlank()) {
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result
+                .skipped("nothing worth reporting this morning")
             return androidx.work.ListenableWorker.Result.success()
         }
 
@@ -128,6 +142,9 @@ class MorningBriefBuilder @Inject constructor(
         runCatching {
             evolutionHooks?.onProactiveDelivered("mb_${now}", "morning_brief")
         }.onFailure { android.util.Log.w("MorningBriefBuilder", "evolution hook failed", it) }
+        lastOutcome = com.aura.health.WorkerRunRecorder.Result.ok(
+            "posted a brief of ${notificationBody.length} characters",
+        )
         return androidx.work.ListenableWorker.Result.success()
     }
 

@@ -1193,8 +1193,12 @@ class MemoryStore @Inject constructor(
      * Run decay pass: recompute the decay score for every memory.
      * Uses batch updates (50 per batch) to avoid N+1 individual
      * UPDATE statements.
+     *
+     * @return how many memories actually moved. Returned rather than discarded
+     * so DecayWorker can record what it did — a run log entry reading "" is
+     * indistinguishable from a worker that never ran.
      */
-    suspend fun runDecayPass() {
+    suspend fun runDecayPass(): Int {
         val now = System.currentTimeMillis()
         val all = dao.recent(10_000)  // hard cap; raise if needed
         val toUpdate = mutableListOf<MemoryEntity>()
@@ -1208,6 +1212,7 @@ class MemoryStore @Inject constructor(
         toUpdate.chunked(50).forEach { batch ->
             dao.updateAll(batch)
         }
+        return toUpdate.size
     }
 
     /**
