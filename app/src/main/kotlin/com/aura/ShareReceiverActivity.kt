@@ -16,12 +16,31 @@ class ShareReceiverActivity : ComponentActivity() {
             finish()
             return
         }
-        val main = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            payload.text?.let { putExtra(EXTRA_SHARED_TEXT, it) }
-            payload.imageUri?.let { putExtra(EXTRA_SHARED_IMAGE_URI, it) }
+        // Text goes to capture, not to a draft.
+        //
+        // It used to land in the chat composer's draft via IncomingShareStore,
+        // which meant backing out lost it — consume() had already cleared the
+        // slot and nothing persisted the text. Sharing something into a memory
+        // app and having it silently discarded is the worst possible outcome
+        // for the one capture path that existed.
+        //
+        // CaptureActivity writes it immediately and still offers "Ask about
+        // this", so asking stays available without being the price of keeping.
+        val text = payload.text
+        val next = if (text != null) {
+            Intent(this, com.aura.capture.CaptureActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(com.aura.capture.CaptureActivity.EXTRA_TEXT, text)
+            }
+        } else {
+            // Images still go to chat: they need decoding at display resolution
+            // and routing through the vision tool, which is a conversation.
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                payload.imageUri?.let { putExtra(EXTRA_SHARED_IMAGE_URI, it) }
+            }
         }
-        startActivity(main)
+        startActivity(next)
         finish()
     }
 
@@ -51,7 +70,10 @@ class ShareReceiverActivity : ComponentActivity() {
     }
 
     companion object {
-        const val EXTRA_SHARED_TEXT = "com.aura.SHARED_TEXT"
+        // EXTRA_SHARED_TEXT is gone: shared text now goes straight to
+        // CaptureActivity rather than being forwarded to MainActivity as a
+        // draft. Leaving the constant would have left an extra nobody sends
+        // and a branch in MainActivity nobody reaches.
         const val EXTRA_SHARED_IMAGE_URI = "com.aura.SHARED_IMAGE_URI"
     }
 }

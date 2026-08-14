@@ -84,6 +84,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="aura" android:host="oauth" />
             </intent-filter>
+            <!-- Long-press the launcher icon. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <activity
@@ -110,6 +114,56 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true"
             android:noHistory="true" />
+
+        <!--
+          Capture. exported="true" is REQUIRED and not optional decoration: the
+          system launches this from the text-selection toolbar of other apps,
+          and an ACTION_PROCESS_TEXT activity declared exported="false" throws a
+          SecurityException the moment the user taps it.
+
+          android:label is what the toolbar shows, so it is one word rather than
+          a sentence — it sits beside Copy, Share and Select all.
+
+          No noHistory, unlike QuickAskActivity: this one holds an Undo, and a
+          confirmation you cannot return to is not an undo.
+        -->
+        <activity
+            android:name=".capture.CaptureActivity"
+            android:exported="true"
+            android:label="@string/capture_label"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!--
+              The launcher shortcut's target. An action rather than an explicit
+              component, because res/xml gets no ${applicationId} substitution
+              and the debug build is com.aura.debug.
+            -->
+            <intent-filter>
+                <action android:name="com.aura.action.CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Quick-settings tile. BIND_QUICK_SETTINGS_TILE is declared on the
+          service so only SystemUI can bind it — the app never holds it.
+        -->
+        <service
+            android:name=".capture.CaptureTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/capture_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".widget.WidgetConfigActivity"

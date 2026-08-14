@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Long-press the launcher icon.
+
+  One shortcut, not a menu. The point of this surface is a single unambiguous
+  action reachable without opening the app; a list of four would just be a
+  slower home screen.
+
+  The intent is an action rather than an explicit targetPackage/targetClass
+  pair, because the debug build carries an applicationIdSuffix of ".debug" and
+  resource XML gets no manifest-placeholder substitution — a hardcoded
+  "com.aura" here silently points at the wrong package on every debug install.
+  The action is declared only by CaptureActivity, so it resolves within the app.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/capture_label"
+        android:shortcutLongLabel="@string/capture_long_label">
+        <intent android:action="com.aura.action.CAPTURE" />
+    </shortcut>
+</shortcuts>

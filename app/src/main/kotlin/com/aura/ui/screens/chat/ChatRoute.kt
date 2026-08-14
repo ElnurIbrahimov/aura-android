@@ -773,15 +773,16 @@ private fun ConsumeIncomingShare(context: android.content.Context, viewModel: Ch
         EntryPointAccessors.fromApplication<HiltEntryPoint>(context.applicationContext as android.app.Application)
             .incomingShareStore()
     }
-    // Collect the pending share as state so repeated shares — including
-    // identical text shared twice while Chat is already visible — are
+    // Collect the pending share as state so repeated shares — including the
+    // identical image shared twice while Chat is already visible — are
     // delivered. The previous LaunchedEffect(Unit) ran exactly once and
     // silently ignored any subsequent share intents.
+    //
+    // Images only: shared text goes to CaptureActivity and is written
+    // immediately, rather than becoming a draft here and vanishing on back-out.
     val pendingShare by store.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingShare?.seq) {
         val payload = pendingShare ?: return@LaunchedEffect
-        // Text share → set as draft
-        payload.text?.let(viewModel::setDraft)
         // Image share → decode Bitmap and route through onImageCaptured
         // so the vision tool analyzes it instead of dumping base64
         // text into the chat input.

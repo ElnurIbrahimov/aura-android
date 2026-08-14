@@ -125,7 +125,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         biometricHolder.activity = this
         screenCaptureHolder.attach(this, screenCaptureLauncher)
-        handleSharedText(intent)
+        handleSharedImage(intent)
         handleDeepLink(intent)
         setContent {
             AuraRoot()
@@ -141,15 +141,16 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleSharedText(intent)
+        handleSharedImage(intent)
         handleDeepLink(intent)
     }
 
-    private fun handleSharedText(intent: Intent?) {
-        val sharedText = intent?.getStringExtra(ShareReceiverActivity.EXTRA_SHARED_TEXT)
-        if (!sharedText.isNullOrBlank()) {
-            incomingShareStore.set(sharedText)
-        }
+    /**
+     * Images only. Shared *text* now goes to [com.aura.capture.CaptureActivity]
+     * and is written before anything is drawn — it used to arrive here, become
+     * a composer draft, and vanish if the user backed out.
+     */
+    private fun handleSharedImage(intent: Intent?) {
         val sharedImageUri = intent?.let { IntentCompat.getParcelableExtra(it, ShareReceiverActivity.EXTRA_SHARED_IMAGE_URI, Uri::class.java) }
         if (sharedImageUri != null) {
             incomingShareStore.setImageUri(sharedImageUri)
