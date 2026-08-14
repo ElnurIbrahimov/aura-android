@@ -17,11 +17,29 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import com.aura.data.UserPreferences
+import com.aura.providers.InMemoryModelCatalogCache
+import com.aura.providers.ModelCatalogCache
+import com.aura.providers.ModelCatalogRepository
+import com.aura.providers.Provider
+import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderKeys
+import com.aura.providers.ProviderMessage
+import com.aura.providers.ProviderModule
 import com.aura.testing.FakeProviderController
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
+import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoMap
+import dagger.multibindings.StringKey
 import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
@@ -31,9 +49,70 @@ import org.junit.Test
 import org.junit.After
 import org.junit.runner.RunWith
 
+/**
+ * The fake provider is installed **here only**.
+ *
+ * It used to be a `@TestInstallIn` module, which is APK-global: every
+ * instrumented test in `:app` got a provider that answered any chat with the
+ * literal string "ok" and bound only `ollama`. That is correct for this test —
+ * it asserts the key→verify→pick flow and must not touch a network — and it
+ * made a real-model smoke suite impossible to write, because there was no way
+ * to opt out. `@UninstallModules` plus a nested module scopes it to this class.
+ */
 @HiltAndroidTest
+@UninstallModules(ProviderModule::class)
 @RunWith(AndroidJUnit4::class)
 class ModelSelectionFlowTest {
+
+    /**
+     * A complete stand-in for [ProviderModule], not a partial one — uninstalling
+     * the real module takes the HTTP client and the catalog with it.
+     */
+    @Module
+    @InstallIn(SingletonComponent::class)
+    object FakeProviders {
+
+        @Provides
+        @Singleton
+        fun httpClient(): OkHttpClient = OkHttpClient()
+
+        @Provides
+        @Singleton
+        fun catalogCache(): ModelCatalogCache = InMemoryModelCatalogCache()
+
+        @Provides
+        @Singleton
+        fun catalogRepository(
+            registry: com.aura.providers.ProviderRegistry,
+            cache: ModelCatalogCache,
+        ): ModelCatalogRepository = ModelCatalogRepository(registry, cache)
+
+        @Provides
+        @IntoMap
+        @StringKey("ollama")
+        fun fakeProvider(keys: ProviderKeys): Provider = object : Provider {
+            override val prefix = "ollama"
+            override val displayName = "Ollama Cloud"
+            override fun isConfigured(): Boolean = !keys.keyFor(prefix).isNullOrBlank()
+
+            override fun chat(
+                model: String,
+                messages: List<ProviderMessage>,
+                options: com.aura.providers.ChatOptions,
+                tools: List<com.aura.providers.ToolDefinition>,
+            ): Flow<ProviderChunk> = flowOf(ProviderChunk(text = "ok"))
+
+            override suspend fun listModels(): List<String> {
+                FakeProviderController.failure?.let { throw it }
+                if (keys.keyFor(prefix) != FakeProviderController.validKey) {
+                    throw IllegalStateException("invalid test key")
+                }
+                return FakeProviderController.models
+            }
+
+            override suspend fun cancel() = Unit
+        }
+    }
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
