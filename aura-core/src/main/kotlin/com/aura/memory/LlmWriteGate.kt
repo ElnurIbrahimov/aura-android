@@ -1,133 +1,142 @@
 package com.aura.memory
 
+import android.util.Log
 import com.aura.providers.ChatOptions
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
-import kotlinx.coroutines.flow.first
+import com.aura.providers.ResponseSchema
+import com.aura.providers.StructuredJson
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import android.util.Log
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
- * LLM-augmented write gate. Wraps the heuristic [WriteGate] with a
- * cloud LLM call that makes the final "is this worth remembering?"
- * decision and produces a better category + importance score.
+ * The "is this worth remembering?" decision, with a model in the loop.
  *
  * Flow:
- * 1. Heuristic gate runs first (fast, no network). If it says
- *    "don't store" (empty, too short, system msg), we skip the LLM
- *    call entirely — saves a cloud round-trip on garbage.
- * 2. If the heuristic says "store", we ask the LLM: "Is this worth
- *    remembering? Reply with a JSON object."
- * 3. If the LLM says NO, we skip. If YES, we store with the LLM's
- *    category + importance.
+ *  1. [WriteGate] runs first. If it hard-rejects — empty, too short, a system
+ *     message, or a bare pleasantry — that stands and no model is called. Those
+ *     are the cases where a round-trip would be spent to be told what is
+ *     already obvious.
+ *  2. Otherwise a model decides, and its answer wins in both directions.
+ *  3. If the model cannot be reached or does not answer usefully, the
+ *     heuristic's decision is the fallback.
  *
- * The LLM call is best-effort: if it fails (network error, bad JSON,
- * timeout), we fall back to the heuristic decision so the memory
- * is still stored with the heuristic classification. This means
- * the LLM gate only *improves* the decision — it never blocks
- * storage on failure.
+ * Step 1 used to short-circuit on *any* heuristic rejection. That was harmless
+ * while the heuristic accepted everything, and became wrong the moment it
+ * started rejecting properly: "the ARC deadline moved to April" carries no
+ * first-person marker and no keyword the heuristic knows, so it would have been
+ * dropped without ever being offered to a model. A weak-evidence rejection is
+ * exactly what the model is here to overturn.
  *
- * @param heuristic The fast pre-filter gate (keyword-based)
- * @param registry Provider registry for the LLM call
- * @param modelId The model to use for the gate (should be a fast/cheap model)
+ * The fallback in step 3 is only safe because the heuristic is now
+ * conservative. When this class first shipped, an unreachable model meant
+ * "store it" — so the failure mode of the whole memory system was to keep
+ * everything, which is how an install ended up holding four greetings.
  */
 class LlmWriteGate(
     private val heuristic: WriteGate,
     private val registry: ProviderRegistry,
     private val modelId: String,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     suspend fun evaluate(content: String, source: String): WriteGate.Decision {
-        // 1) Heuristic pre-filter — fast, no network
         val heuristicDecision = heuristic.evaluate(content, source)
-        if (!heuristicDecision.shouldStore) return heuristicDecision
+        if (heuristicDecision.reason in WriteGate.HARD_REJECT) return heuristicDecision
 
-        // 2) LLM gate — best-effort, falls back to heuristic on failure
-        val llmDecision = runCatching {
-            llmEvaluate(content)
-        }.onFailure { Log.w("LlmWriteGate", "runCatching failed: ${it.message}", it) }.getOrNull()
+        val llmDecision = runCatching { llmEvaluate(content) }
+            .onFailure { Log.w(TAG, "write gate call failed: ${it.message}", it) }
+            .getOrNull()
 
-        // 3) Merge: LLM decision wins if it parsed, heuristic is the fallback
         return llmDecision ?: heuristicDecision
     }
 
     private suspend fun llmEvaluate(content: String): WriteGate.Decision? {
-        val systemPrompt = """
-            You are a memory gate for a personal AI assistant. Decide if the user's
-            message is worth remembering long-term. Personal facts, preferences,
-            and important information should be stored. Casual chatter, questions,
-            and transient requests should not.
+        val parsed = StructuredJson.requestJson(
+            registry = registry,
+            modelId = modelId,
+            messages = listOf(
+                ProviderMessage(role = ProviderMessage.Role.system, content = SYSTEM_PROMPT),
+                ProviderMessage(role = ProviderMessage.Role.user, content = content.take(MAX_CONTENT_CHARS)),
+            ),
+            options = ChatOptions(temperature = 0.0, maxTokens = 120),
+            schema = GATE_SCHEMA,
+            timeoutMs = GATE_TIMEOUT_MS,
+            tag = TAG,
+        ) { cleaned ->
+            runCatching { json.decodeFromString(GateVerdict.serializer(), cleaned) }
+                .onFailure { Log.w(TAG, "unparseable gate verdict: ${it.message}", it) }
+                .getOrNull()
+        } ?: return null
 
-            Reply with a JSON object:
-            {"store": true/false, "category": "fact|preference|person|episode|idea|task", "importance": 0.0-1.0}
+        if (!parsed.store) return WriteGate.Decision(shouldStore = false, reason = "llm_rejected")
 
-            Be conservative — only store things the user would want recalled in
-            future conversations. A question like "what's the weather?" is NOT
-            worth storing. "I prefer dark mode" IS worth storing.
+        return WriteGate.Decision(
+            shouldStore = true,
+            category = parsed.category.takeIf { it in CATEGORIES } ?: "fact",
+            importance = parsed.importance.coerceIn(0f, 1f),
+            reason = "llm_classified",
+        )
+    }
+
+    companion object {
+        private const val TAG = "LlmWriteGate"
+
+        /** Sits after the user's turn, so it is not in front of a token. */
+        private const val GATE_TIMEOUT_MS = 8_000L
+
+        /** A gate decision does not need the whole of a long message. */
+        private const val MAX_CONTENT_CHARS = 1_200
+
+        private val CATEGORIES = setOf("fact", "preference", "person", "episode", "idea", "task")
+
+        private val SYSTEM_PROMPT = """
+            You are the memory gate for a personal AI assistant. Decide whether the user's message
+            contains something worth recalling in a future conversation, weeks from now.
+
+            Store: facts about the user, their preferences, people in their life, commitments and
+            deadlines, decisions they have made, and anything they explicitly ask to be remembered.
+
+            Do not store: greetings, thanks, acknowledgements, questions, requests for the assistant
+            to do something, small talk, or anything whose value ends with this conversation.
+
+            Be conservative. A message the user would have to be reminded of to recognise is not
+            worth storing, and a store that fills with chatter buries the things that matter.
         """.trimIndent()
 
-        val messages = listOf(
-            ProviderMessage(role = ProviderMessage.Role.system, content = systemPrompt),
-            ProviderMessage(role = ProviderMessage.Role.user, content = content),
+        private val GATE_SCHEMA = ResponseSchema(
+            name = "memory_write_gate",
+            schema = buildJsonObject {
+                put("type", "object")
+                put("properties", buildJsonObject {
+                    put("store", buildJsonObject { put("type", "boolean") })
+                    put("category", buildJsonObject {
+                        put("type", "string")
+                        put("enum", buildJsonArray { CATEGORIES.forEach { add(JsonPrimitive(it)) } })
+                    })
+                    put("importance", buildJsonObject { put("type", "number") })
+                })
+                put("required", buildJsonArray { add(JsonPrimitive("store")) })
+            },
         )
-
-        val text = StringBuilder()
-        try {
-            registry.chat(modelId, messages, ChatOptions(temperature = 0.1, maxTokens = 100), emptyList())
-                .collect { chunk ->
-                    chunk.text?.let { text.append(it) }
-                }
-        } catch (_: Exception) {
-            return null
-        }
-
-        val raw = text.toString().trim()
-        if (raw.isEmpty()) return null
-
-        // Try to extract JSON from the response (models sometimes wrap in markdown)
-        val jsonStr = extractJson(raw) ?: return null
-
-        return try {
-            val parsed = json.parseToJsonElement(jsonStr).jsonObject
-            val shouldStore = parsed["store"]?.jsonPrimitive?.contentOrNull?.lowercase() == "true"
-            if (!shouldStore) {
-                WriteGate.Decision(shouldStore = false, reason = "llm_rejected")
-            } else {
-                val category = parsed["category"]?.jsonPrimitive?.contentOrNull ?: "fact"
-                val importance = parsed["importance"]?.jsonPrimitive?.doubleOrNull?.toFloat() ?: 0.5f
-                WriteGate.Decision(
-                    shouldStore = true,
-                    category = category,
-                    importance = importance.coerceIn(0f, 1f),
-                    reason = "llm_classified",
-                )
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /**
-     * Extract a JSON object from a response that may be wrapped in
-     * markdown code fences or have extra text around it.
-     */
-    private fun extractJson(text: String): String? {
-        // Try direct parse first
-        if (text.startsWith("{")) return text
-        // Try to find JSON in code fences: ```json ... ```
-        val fenceMatch = Regex("```(?:json)?\\s*(\\{.*?})\\s*```", RegexOption.DOT_MATCHES_ALL)
-            .find(text)
-        if (fenceMatch != null) return fenceMatch.groupValues[1]
-        // Try to find a bare JSON object
-        val bareMatch = Regex("\\{(.*?)}", RegexOption.DOT_MATCHES_ALL).find(text)
-        if (bareMatch != null) return bareMatch.value
-        return null
     }
 }
+
+/**
+ * Typed rather than hand-parsed.
+ *
+ * The previous reader pulled `store` out as a *string* and compared it to
+ * "true", and recovered the JSON with a non-greedy `\{(.*?)}` — the exact
+ * regex `StructuredJson`'s KDoc cites as the broken one it was written to
+ * replace, since it truncates on any nested brace.
+ */
+@Serializable
+private data class GateVerdict(
+    val store: Boolean = false,
+    val category: String = "fact",
+    val importance: Float = 0.5f,
+)

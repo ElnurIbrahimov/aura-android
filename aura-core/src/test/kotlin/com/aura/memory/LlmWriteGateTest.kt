@@ -102,4 +102,72 @@ class LlmWriteGateTest {
         assertTrue(decision.shouldStore)
         assertEquals(1.0f, decision.importance, 0.01f)
     }
+
+    // ---- who gets the final say -----------------------------------------
+
+    /**
+     * The bug this class shipped with.
+     *
+     * An unreachable model used to mean "store it", because the fallback was a
+     * heuristic that accepted everything. So the failure mode of the entire
+     * memory system was to keep every message — which is how a real install
+     * ended up holding "Hey you", "Hello", "Hey how are you" and "Heyara" as
+     * its four facts.
+     */
+    @Test
+    fun `an unreachable model no longer means store it`() = runTest {
+        val registry = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { registry.chat(any(), any(), any(), any()) } throws RuntimeException("no network")
+        val gate = LlmWriteGate(WriteGate(), registry, "test:model")
+
+        assertFalse(gate.evaluate("Hey how are you", "user").shouldStore)
+        assertFalse(gate.evaluate("can you look that up for me", "user").shouldStore)
+        // And the other direction still works without a model at all.
+        assertTrue(gate.evaluate("I prefer terse answers", "user").shouldStore)
+    }
+
+    /**
+     * A weak heuristic rejection must still reach the model.
+     *
+     * This used to short-circuit on *any* rejection, which was harmless while
+     * the heuristic accepted everything and becomes wrong the moment it starts
+     * rejecting properly.
+     */
+    @Test
+    fun `the model can overturn a weak rejection`() = runTest {
+        val text = "The GPU budget was cut to 40k"
+        assertFalse(WriteGate().evaluate(text, "user").shouldStore, "premise: the heuristic cannot justify this")
+
+        val registry = makeRegistry("""{"store": true, "category": "fact", "importance": 0.8}""")
+        val decision = LlmWriteGate(WriteGate(), registry, "test:model").evaluate(text, "user")
+
+        assertTrue(decision.shouldStore, "the model was never asked")
+        assertEquals("llm_classified", decision.reason)
+    }
+
+    @Test
+    fun `obvious noise never costs a model call`() = runTest {
+        val registry = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { registry.chat(any(), any(), any(), any()) } returns flowOf(
+            ProviderChunk(text = """{"store": true, "category": "fact", "importance": 0.9}"""),
+        )
+        val gate = LlmWriteGate(WriteGate(), registry, "test:model")
+
+        assertFalse(gate.evaluate("hey", "user").shouldStore)
+        assertFalse(gate.evaluate("thanks!", "user").shouldStore)
+
+        io.mockk.coVerify(exactly = 0) { registry.chat(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `a category the app does not have falls back rather than being stored raw`() = runTest {
+        // An unknown category would reach MemoryDao and quietly become a value
+        // nothing filters on, including the consult gate.
+        val registry = makeRegistry("""{"store": true, "category": "vibes", "importance": 0.5}""")
+        val decision = LlmWriteGate(WriteGate(), registry, "test:model")
+            .evaluate("I prefer terse answers", "user")
+
+        assertTrue(decision.shouldStore)
+        assertEquals("fact", decision.category)
+    }
 }

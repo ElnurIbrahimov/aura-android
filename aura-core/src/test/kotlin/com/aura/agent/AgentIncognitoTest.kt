@@ -76,17 +76,22 @@ class AgentIncognitoTest {
         loop.run(
             conversation = Conversation(
                 id = "c1", title = "t", createdAt = 0L, updatedAt = 0L,
-                turns = listOf(Turn(user = "hi there", assistant = null)),
+                // Something actually worth remembering. This said "hi there"
+                // and passed, because the write gate stored anything of four
+                // characters or more — the defect that put four greetings in a
+                // real user's memory store. A test for the incognito flag
+                // should not be resting on that.
+                turns = listOf(Turn(user = "I prefer terse answers with no preamble", assistant = null)),
             ),
             model = "ollama:deepseek-v4-pro:cloud",
         ).toList()
 
         coVerify { brain.stream(any(), any(), any(), any()) }
-        // The LLM gate falls back to heuristic (providerRegistry is a
-        // relaxed mock returning empty flow), which says shouldStore=true
-        // for content >= 4 chars. The auto-store routes through
-        // maybeStore() (dedup path) with the gate's category/importance,
-        // never through raw store().
+        // providerRegistry is a relaxed mock returning an empty flow, so the
+        // LLM gate cannot answer and the heuristic decides — which for a stated
+        // preference is "store". The auto-store routes through maybeStore()
+        // (the dedup path) with the gate's category/importance, never through
+        // raw store().
         coVerify {
             memoryStore.maybeStore(
                 content = any<String>(),
@@ -106,7 +111,10 @@ class AgentIncognitoTest {
         // KG extraction receives one labeled, provenance-linked turn.
         coVerify {
             kgExtractor.extract(
-                match { it.contains("USER:\nhi there") && it.contains("ASSISTANT:\nhello back") },
+                match {
+                    it.contains("USER:\nI prefer terse answers with no preamble") &&
+                        it.contains("ASSISTANT:\nhello back")
+                },
                 match { it.conversationId == "c1" },
             )
         }
