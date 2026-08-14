@@ -72,8 +72,6 @@ fun AiAndModelsSection(
     onSetVideoModel: (String) -> Unit,
     onSetVoiceModel: (String) -> Unit,
     onSetVisionModel: (String) -> Unit,
-    onSetBackgroundModel: (String) -> Unit,
-    onSetDeepModeModel: (String) -> Unit,
     onSetMoaReferenceModels: (List<String>) -> Unit,
     onSetMoaAggregatorModel: (String) -> Unit,
     onSetPlanningEnabled: (Boolean) -> Unit,
@@ -199,11 +197,23 @@ fun AiAndModelsSection(
         )
         Spacer(modifier = Modifier.height(AuraSpacing.small))
 
+        // Chat default, plus the models that are NOT `ModelRole.configurable`.
+        //
+        // "Background tasks" and "Deep Mode" used to sit here as well, and were
+        // the same two preference keys the Model Roles section below already
+        // owned under the names Background and Deep Research — `background_model`
+        // and `deep_mode_model`. Two controls, two labels, one key each: setting
+        // either silently moved the other, and neither said so. Model Roles keeps
+        // them, because it is the one that can tell an explicit choice from an
+        // inherited fallback.
+        //
+        // Chat default stays here and is excluded from Model Roles instead. It is
+        // the setting people come to Settings for, and Model Roles describes
+        // itself as overrides *of* the default — the default is not one of its
+        // own overrides.
         RoleModelRow("Chat default", state.defaultModel) { activeModelRole = "chat" }
         RoleModelRow("Embedding", state.embeddingModel) { activeModelRole = "embedding" }
         RoleModelRow("Vision", state.visionModel) { activeModelRole = "vision" }
-        RoleModelRow("Background tasks", state.backgroundModel) { activeModelRole = "background" }
-        RoleModelRow("Deep Mode", state.deepModeModel) { activeModelRole = "deep" }
 
         // Capability models. These lists come from the same catalogs as the
         // chat models, filtered by what each model can actually do — so a
@@ -322,8 +332,6 @@ fun AiAndModelsSection(
                 "chat" -> state.defaultModel
                 "embedding" -> state.embeddingModel
                 "vision" -> state.visionModel
-                "background" -> state.backgroundModel
-                "deep" -> state.deepModeModel
                 "image" -> state.imageModel
                 "video" -> state.videoModel
                 "voice" -> state.voiceModel
@@ -341,8 +349,6 @@ fun AiAndModelsSection(
                         "chat" -> onSetDefaultModel(model)
                         "embedding" -> onSetEmbeddingModel(model)
                         "vision" -> onSetVisionModel(model)
-                        "background" -> onSetBackgroundModel(model)
-                        "deep" -> onSetDeepModeModel(model)
                         "image" -> onSetImageModel(model)
                         "video" -> onSetVideoModel(model)
                         "voice" -> onSetVoiceModel(model)

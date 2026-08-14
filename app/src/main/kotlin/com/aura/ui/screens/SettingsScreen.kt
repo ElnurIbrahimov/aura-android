@@ -134,8 +134,6 @@ fun SettingsScreen(
             onSetVideoModel = viewModel::setVideoModel,
             onSetVoiceModel = viewModel::setVoiceModel,
             onSetVisionModel = viewModel::setVisionModel,
-            onSetBackgroundModel = viewModel::setBackgroundModel,
-            onSetDeepModeModel = viewModel::setDeepModeModel,
             onSetMoaReferenceModels = viewModel::setMoaReferenceModels,
             onSetMoaAggregatorModel = viewModel::setMoaAggregatorModel,
             onSetPlanningEnabled = viewModel::setPlanningEnabled,

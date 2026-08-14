@@ -62,7 +62,16 @@ fun ModelRolesSection(
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
-        for (role in ModelRole.configurable) {
+        // Every configurable role except CONVERSATION, which is "Chat default"
+        // in the AI & Models section above. This section describes itself as
+        // overriding the default for specific tasks, and the default is not one
+        // of its own overrides. Listing it here made `default_model` a setting
+        // with two controls under two names, where changing either silently
+        // moved the other — as did `background_model` and `deep_mode_model`,
+        // whose duplicate rows have been removed from AI & Models instead,
+        // because this section is the one that can tell an explicit choice from
+        // an inherited fallback.
+        for (role in ModelRole.configurable.filterNot { it == ModelRole.CONVERSATION }) {
             val selected = roleModels[role].orEmpty()
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = AuraSpacing.xxs),
