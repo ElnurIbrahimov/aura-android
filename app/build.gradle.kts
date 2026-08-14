@@ -170,8 +170,16 @@ dependencies {
     kspAndroidTest(libs.hilt.compiler)
 }
 
-// See the matching block in aura-core/build.gradle.kts for why. Both modules run
-// Robolectric, so both can stall the same way.
+// See the matching block in aura-core/build.gradle.kts for the reasoning. Both
+// modules run Robolectric and real-socket tests, so both can stall the same way.
+val ciBuild = providers.environmentVariable("CI").isPresent
+
 tasks.withType<Test>().configureEach {
     timeout.set(Duration.ofMinutes(40))
+    if (ciBuild) {
+        testLogging {
+            events("started", "failed")
+            showStandardStreams = false
+        }
+    }
 }

@@ -21,7 +21,9 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -35,6 +37,23 @@ import kotlin.test.assertTrue
  * or typed exceptions are acceptable.
  */
 class GeminiProviderTest {
+
+    /**
+     * No test here may hang the worker forever.
+     *
+     * These drive MockWebServer with real coroutines from `runBlocking`, which
+     * has no timeout of its own — unlike `runTest`, which carries one. On a
+     * two-core CI runner a starved coroutine or a response that never arrives
+     * blocks the test worker thread with nothing above it to intervene, and the
+     * whole task goes silent. That is what killed `build-test` on 2026-08-13:
+     * 261 classes ran, then forty minutes of nothing.
+     *
+     * A JUnit rule rather than converting to `runTest`, deliberately: `runTest`
+     * substitutes virtual time, and these tests depend on real elapsed time
+     * against a real socket. The rule interrupts and names the test instead.
+     */
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
 
     private lateinit var server: MockWebServer
     private lateinit var provider: GeminiProvider

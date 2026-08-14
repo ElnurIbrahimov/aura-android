@@ -602,12 +602,40 @@ using the app on a phone, which is §4's point, unchanged and still unacted-on.
   `android-all-instrumented` jars itself, over the network, from inside the running test
   task, into `~/.m2/repository` — 326 MB for the two SDK levels pinned here — and the
   workflow cached only `~/.gradle/caches/*`. `lint-release`, which runs no unit tests,
-  finished in ~15 minutes in the same runs; that contrast is the whole diagnosis. Closed by
-  a separate restore/save cache pair for `~/.m2/repository/org/robolectric` (separate
-  because adding a path to the existing entry would leave `cache-hit == 'true'` and skip
-  the save, which is the same never-warms deadlock the file already documents from
-  2026-08-05), plus a 40-minute `timeout` on both modules' `Test` tasks so a stall fails
-  the task with an uploadable report instead of killing the job.
+  finished in ~15 minutes in the same runs. Addressed with a separate restore/save cache
+  pair for `~/.m2/repository/org/robolectric` (separate because adding a path to the
+  existing entry would leave `cache-hit == 'true'` and skip the save, which is the same
+  never-warms deadlock the file already documents from 2026-08-05), plus a 40-minute
+  `timeout` on both modules' `Test` tasks so a stall fails the task with an uploadable
+  report instead of killing the job.
+
+  **The download diagnosis was wrong. The timeout is what proved it.** On the first
+  pushed run (2026-08-13, `31737120032`) the task failed at its 40-minute mark instead of
+  taking the job down at 90, and the `if: failure()` upload produced 391 KB of partial
+  results: **261 test classes had run** before the stall, so nothing was waiting on a
+  download. The reasoning that should have been applied at the time is that the runs which
+  *passed* paid the same cold download and finished the whole job in 15 minutes — the
+  pattern is bimodal, about 10 minutes or forever, which is a deadlock and not a slow
+  transfer. The cache still removes a real cost and stays; it was never the cause.
+
+  What the evidence supports now: the last class *recorded* is
+  `com.aura.providers.ProviderKeysTest`, which is itself fully bounded — 21 `runTest`
+  blocks, 21 explicit timeouts — so it completed, and the hanging class is whichever ran
+  next and never got written. Three classes in that same package —
+  `AnthropicProviderTest` (15), `GeminiProviderTest` (14) and `ProviderConcurrentStreamTest`
+  (2) — drive MockWebServer from `runBlocking`, which unlike `runTest` carries **no
+  timeout at all**, over unbounded `join()`/`await()`. On a two-core runner a starved
+  coroutine blocks the worker thread with nothing above it. All three now carry a JUnit
+  `Timeout.seconds(60)` rule — a rule rather than a conversion to `runTest`, because
+  `runTest` substitutes virtual time and these depend on a real socket.
+  `ConversationStoreRaceTest` was the first suspect and was **ruled out** by reading it:
+  its gates are `CompletableDeferred` inside `runTest`, and its KDoc records fixing this
+  exact deadlock already.
+
+  That is a hypothesis with three supports, not a conclusion, so the run also had to be
+  made able to answer for itself: `testLogging { events("started") }`, CI only, in both
+  modules. Partial results can only ever name the last class to *finish*; the hanging one
+  is by definition the one that never got written, so the log has to record what started.
 - **`onACall` fired on any WhatsApp notification.** `SituationReader` matched package
   substrings over `NotificationCaptureStore.snapshot(20)`, which holds *posted
   notifications*. One unread message set `onACall`, which set `interruptible` false, which

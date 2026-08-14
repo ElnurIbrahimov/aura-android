@@ -127,18 +127,38 @@ dependencies {
     androidTestImplementation(libs.androidx.room.testing)
 }
 
-// A hang has to become a failure. On 2026-08-12 this task printed nothing for 86
-// minutes and CI killed the whole job at its 90-minute ceiling, so nothing was
-// reported and nothing was uploaded — the run read as cancelled rather than
-// broken. Robolectric fetching ~326 MB of android-all jars from inside the test
-// task was the cause (see .github/workflows/ci.yml), and that is now cached; but
-// an unbounded task is what turned a slow download into an undiagnosable outage,
-// and caching only removes today's reason to stall.
+// A hang has to become a failure, and then say where.
 //
-// 40 minutes, not 25: the first run after a Robolectric version or SDK bump
-// legitimately pays for that download in here. The suite itself takes ~4. 40 sits
-// well inside the 90-minute job budget, so the task fails, the `if: failure()`
-// step still uploads the test results, and the failure can be read.
+// On 2026-08-12 this task printed nothing for 86 minutes and CI killed the whole
+// job at its 90-minute ceiling: nothing reported, nothing uploaded, the run
+// reading as cancelled rather than broken. The timeout below fixed that half —
+// on 2026-08-13 it failed the task at 40 minutes and the `if: failure()` step
+// uploaded partial results showing 261 classes had run before the stall.
+//
+// That evidence also disproved the original diagnosis. The Robolectric
+// android-all download was blamed and is now cached anyway (see
+// .github/workflows/ci.yml), but it was never the cause: the runs that PASSED
+// paid the same cold download and finished the whole job in 15 minutes. The real
+// pattern is bimodal — about 10 minutes, or forever — which is a deadlock, not a
+// slow transfer.
+//
+// 40 minutes, not 25, so a genuinely cold run is not cut short. The suite takes
+// ~4 locally.
+//
+// `testLogging` names each test as it starts, CI only. The partial results could
+// only name the last class to *finish*; the hanging one is by definition the one
+// that never got written, so the log has to record what started. Three thousand
+// STARTED lines is what a stalled run needs and what a local run does not.
+// `providers.environmentVariable` rather than `System.getenv` so the
+// configuration cache tracks it.
+val ciBuild = providers.environmentVariable("CI").isPresent
+
 tasks.withType<Test>().configureEach {
     timeout.set(Duration.ofMinutes(40))
+    if (ciBuild) {
+        testLogging {
+            events("started", "failed")
+            showStandardStreams = false
+        }
+    }
 }
