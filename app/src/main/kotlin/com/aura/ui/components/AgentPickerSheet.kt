@@ -116,10 +116,12 @@ fun AgentPickerContent(
         LazyColumn(contentPadding = PaddingValues(bottom = AuraSpacing.xs)) {
             item(key = "no-agent") {
                 AgentRow(
-                    emoji = null,
+                    // Aura itself, not an agent. -1 lands on the coral end of
+                    // the palette, deliberately away from `general`'s blue.
+                    agentName = "aura",
+                    accentIndex = -1,
                     name = "No agent",
                     description = "Aura's own voice, with every tool available",
-                    accent = AuraThemeTokens.colors.actionPrimary,
                     selected = currentAgent == null,
                     onClick = {
                         onPick(null)
@@ -129,10 +131,10 @@ fun AgentPickerContent(
             }
             items(agents, key = { it.id }) { agent ->
                 AgentRow(
-                    emoji = agent.icon.takeIf { it.isNotBlank() },
+                    agentName = agent.name,
+                    accentIndex = agent.color,
                     name = agentDisplayName(agent.name),
                     description = agent.description,
-                    accent = agentAccent(agent.color),
                     selected = agent.id == currentAgent?.id,
                     onClick = {
                         onPick(agent)
@@ -145,35 +147,18 @@ fun AgentPickerContent(
     }
 }
 
-/**
- * A colour per agent, so the avatars are not seven identical circles.
- *
- * [AgentEntity.color] is seeded as the specialist's *index*, not an ARGB value
- * — reading it as a colour would paint every avatar near-black. Treating it as
- * what it is, an index into a palette, is why this takes an Int and wraps.
- */
-private val AGENT_ACCENTS = listOf(
-    Color(0xFF6EA8FE), // general
-    Color(0xFF7BD88F), // coder
-    Color(0xFFFFC663), // researcher
-    Color(0xFFB58BFF), // writer
-    Color(0xFFFF8FA3), // creative
-    Color(0xFF5BD6C8), // executive
-    Color(0xFFFF9F6E), // phone
-)
-
-private fun agentAccent(index: Int): Color =
-    AGENT_ACCENTS[((index % AGENT_ACCENTS.size) + AGENT_ACCENTS.size) % AGENT_ACCENTS.size]
-
 @Composable
 private fun AgentRow(
-    emoji: String?,
+    agentName: String,
+    accentIndex: Int,
     name: String,
     description: String,
-    accent: Color,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    // Derived here rather than passed in, so the row's highlight and the mark
+    // it contains cannot drift apart.
+    val accent = agentAccent(accentIndex)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -193,24 +178,7 @@ private fun AgentRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(AuraSpacing.sm))
-                .background(accent.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (emoji != null) {
-                Text(text = emoji, fontSize = 20.sp)
-            } else {
-                Icon(
-                    imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
+        AgentMark(agentName = agentName, accentIndex = accentIndex, selected = selected)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = name,

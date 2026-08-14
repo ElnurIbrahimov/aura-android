@@ -23,6 +23,12 @@ import com.aura.ui.util.agentDisplayName
 /**
  * A single chip showing the currently active [AgentEntity]. Tapping it
  * opens the agent picker.
+ *
+ * Carries the agent's own [AgentMark]. It previously showed
+ * `Icons.Filled.Person` tinted with the theme's action colour — the same icon,
+ * in the same colour, for all seven agents — so the one place an agent is
+ * visible *while you are talking to it* was the one place that did not say
+ * which agent it was.
  */
 @Composable
 fun AgentChip(
@@ -46,11 +52,13 @@ fun AgentChip(
                 )
             },
             leadingIcon = {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(AuraSpacing.md),
-                    tint = AuraThemeTokens.colors.actionPrimary,
+                // 22dp, not the chip's usual 18: the mark is a filled squircle
+                // rather than a bare glyph, so it needs a little more room to
+                // read as the same object shown in the picker.
+                AgentMark(
+                    agentName = agent.name,
+                    accentIndex = agent.color,
+                    size = 22.dp,
                 )
             },
             colors = FilterChipDefaults.filterChipColors(
@@ -61,7 +69,9 @@ fun AgentChip(
                 enabled = true,
                 selected = true,
                 borderColor = AuraThemeTokens.colors.borderSubtle,
-                selectedBorderColor = AuraThemeTokens.colors.actionPrimary.copy(alpha = 0.4f),
+                // The chip's own edge steps back so the mark carries the colour.
+                // Two accents competing at this size reads as noise.
+                selectedBorderColor = AuraThemeTokens.colors.borderSubtle,
             ),
         )
     }
