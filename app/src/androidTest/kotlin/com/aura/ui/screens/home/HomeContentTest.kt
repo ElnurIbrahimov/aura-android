@@ -7,7 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.aura.ui.theme.AuraTheme
 import com.aura.ui.viewmodel.HomeLoadState
@@ -49,10 +49,22 @@ class HomeContentTest {
             }
         }
 
+        // "Create task" was asserted here and exists nowhere in the app. These
+        // are instrumented tests, so they only run on a device and this one
+        // never had — written, committed, counted in the "64 instrumented test
+        // methods" figure, and incapable of passing. Asserting the strings the
+        // screen actually renders is the honest repair; changing shipped copy to
+        // match a test that has never run would be the wrong way round.
+        //
+        // "Ask Aura" is the exception and was a real defect: HomePrimaryAction
+        // declared a `label` parameter, HomeContent passed it deliberately
+        // ("Continue" with history, "Ask Aura" without), and the body never
+        // rendered it. That is fixed in the component, not here.
         composeRule.onNodeWithTag("home-empty").assertIsDisplayed()
         composeRule.onNodeWithText("Ask Aura").assertIsDisplayed()
-        composeRule.onNodeWithText("Add memory").assertIsDisplayed()
-        composeRule.onNodeWithText("Create task").assertIsDisplayed()
+        composeRule.onNodeWithTag("home-ask-input").assertIsDisplayed()
+        composeRule.onNodeWithText("Plan my day").assertIsDisplayed()
+        composeRule.onNodeWithText("What's next?").assertIsDisplayed()
         assertEquals(0, composeRule.onAllNodesWithText("0").fetchSemanticsNodes().size)
     }
 
@@ -72,12 +84,27 @@ class HomeContentTest {
             }
         }
 
+        // "2 open" and "38 available" were asserted here and exist nowhere in
+        // the app: the destinations row says "All 38 tools", and no surface
+        // renders an "N open" count at all. Same provenance as the empty-state
+        // assertions above — never run, never able to pass.
+        //
+        // What the screen does promise, and what is asserted instead: the
+        // highest-priority pending task is surfaced by name, under the priority
+        // heading, with the subtitle that says what kind of thing it is.
         composeRule.onNodeWithText("Current priority").assertIsDisplayed()
         composeRule.onNodeWithText("Ship the build").assertIsDisplayed()
-        composeRule.onNodeWithText("Tasks").assertIsDisplayed()
-        composeRule.onNodeWithText("2 open").assertIsDisplayed()
-        composeRule.onNodeWithTag("home-destinations").performScrollToIndex(4)
-        composeRule.onNodeWithText("38 available").assertIsDisplayed()
+        composeRule.onNodeWithText("Your next open task").assertIsDisplayed()
+
+        // The tools count still has to reach the user, just in the words the UI
+        // uses. Scrolled to, because the destinations row is below the fold —
+        // which the original already knew, since it scrolled before the last
+        // assertion and not before the others.
+        // performScrollToIndex here needed [ScrollToIndex] semantics, which only
+        // a lazy list publishes — `home-destinations` is a Column, so the call
+        // could never have worked. Scrolling the outer LazyColumn to the target
+        // node is what actually reaches it.
+        composeRule.onNodeWithText("All 38 tools").performScrollTo().assertIsDisplayed()
     }
 
     @Test

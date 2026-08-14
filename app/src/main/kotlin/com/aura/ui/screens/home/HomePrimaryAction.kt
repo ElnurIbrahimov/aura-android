@@ -72,6 +72,20 @@ fun HomePrimaryAction(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
     ) {
+        // `label` was a parameter this composable declared, defaulted, and never
+        // rendered. HomeContent has always passed it deliberately — "Continue"
+        // when there are recent memories to pick up, "Ask Aura" on a fresh start
+        // — and the screen said "What do you need?" either way, so the one word
+        // distinguishing a return visit from a first one never reached the user.
+        //
+        // Above the field rather than as its placeholder: "Continue" sitting
+        // inside an empty input reads as instruction rather than invitation, and
+        // the placeholder is already doing its own job.
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.textSecondary,
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

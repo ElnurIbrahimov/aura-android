@@ -317,6 +317,29 @@ class SettingsViewModel @Inject constructor(
 
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
+    // Declared above `init`, not 570 lines below it, because Kotlin runs
+    // property initialisers and init blocks in declaration order. The init block
+    // launches coroutines that assign both of these, and when they were declared
+    // afterwards the fields were still null at that point:
+    //
+    //   W SettingsViewModel: daemon thought count failed
+    //   java.lang.NullPointerException: Attempt to invoke interface method
+    //   'void MutableStateFlow.setValue(Object)' on a null object reference
+    //
+    // A latent race rather than a constant failure: `viewModelScope.launch`
+    // normally posts to the main looper and runs after construction finishes, so
+    // on a device it usually worked. Under Espresso's immediate dispatch it does
+    // not — which is how it surfaced, on the first instrumented run these tests
+    // ever had. `runCatching` had been swallowing it the whole time, so the
+    // Emotion & Daemon section simply showed zero and nothing said why.
+    /** Emotion snapshot for the Emotion & Daemon settings section. */
+    private val _emotionSnapshot = MutableStateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?>(null)
+    val emotionSnapshot: kotlinx.coroutines.flow.StateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?> = _emotionSnapshot.asStateFlow()
+
+    /** Count of daemon-produced proactive events for the Emotion & Daemon settings section. */
+    private val _daemonThoughtsCount = MutableStateFlow(0)
+    val daemonThoughtsCount: kotlinx.coroutines.flow.StateFlow<Int> = _daemonThoughtsCount.asStateFlow()
+
     init {
         reload()
         viewModelScope.launch {
@@ -892,13 +915,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Emotion snapshot for the Emotion & Daemon settings section. */
-    private val _emotionSnapshot = MutableStateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?>(null)
-    val emotionSnapshot: kotlinx.coroutines.flow.StateFlow<com.aura.emotion.EmotionEngine.EmotionSnapshot?> = _emotionSnapshot.asStateFlow()
-
-    /** Count of daemon-produced proactive events for the Emotion & Daemon settings section. */
-    private val _daemonThoughtsCount = MutableStateFlow(0)
-    val daemonThoughtsCount: kotlinx.coroutines.flow.StateFlow<Int> = _daemonThoughtsCount.asStateFlow()
 
     fun setThemeMode(mode: String) {
         viewModelScope.launch {

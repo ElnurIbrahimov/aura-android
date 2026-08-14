@@ -144,9 +144,18 @@ fun AuraBottomNavigation(
         border = BorderStroke(AuraSpacing.hairline, colors.borderSubtle),
         modifier = modifier
             .fillMaxWidth()
+            // Tagged before the padding modifiers, not after. Modifiers wrap
+            // inward, so a testTag at the end of the chain attaches to the
+            // *padded content* — the tagged node measured 56dp, the row's
+            // height, rather than the bar's. The name says "bottom-navigation",
+            // so it should identify the bar including its inset and padding,
+            // which is also what BottomNavigationTest was written to assert:
+            // the design height on the bar, and that the navigation inset lives
+            // below the interactive row. Both failed against a layout that was
+            // correct.
+            .testTag("bottom-navigation")
             .windowInsetsPadding(navigationBarInsets)
-            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs)
-            .testTag("bottom-navigation"),
+            .padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xxs),
     ) {
         Column {
             Row(
