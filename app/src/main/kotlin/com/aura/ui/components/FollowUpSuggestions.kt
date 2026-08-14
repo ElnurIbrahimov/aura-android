@@ -48,13 +48,21 @@ object FollowUpSuggestions {
 
         // Detect a list response and offer a different angle.
         if (lower.startsWith("here are ") || lower.startsWith("1. ") || lower.startsWith("- ")) {
-            out.add("Pick the best option")
+            out.add("Pick one")
         }
 
         // Detect a question back to the user.
+        //
+        // Labels are kept to one or two words on purpose. These render as chips
+        // in a row a few hundred dp wide, and a long one — "No, something else"
+        // was the offender — wraps inside its own chip, so it stands at double
+        // the height of its neighbours and the row looks broken. The layout now
+        // wraps whole chips rather than text, but short labels are the actual
+        // fix: a chip is a button, and a button that needs two lines is a
+        // sentence.
         if (lower.endsWith("?") || lower.contains("do you want") || lower.contains("would you like")) {
             out.add("Yes")
-            out.add("No, something else")
+            out.add("Something else")
         }
 
         return out.distinct().take(3)

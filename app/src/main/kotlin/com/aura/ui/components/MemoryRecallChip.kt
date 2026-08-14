@@ -80,43 +80,47 @@ fun MemoryRecallChip(
     modifier: Modifier = Modifier,
 ) {
     var sheetOpen by remember { mutableStateOf(false) }
+    val colors = AuraThemeTokens.colors
     val summary = recall.summary()
-    val isEmpty = recall.memoryIds.isEmpty() && recall.handIds.isEmpty()
-    val container = if (isEmpty) {
-        AuraThemeTokens.colors.surface1.copy(alpha = 0.5f)
-    } else {
-        AuraThemeTokens.colors.surface2.copy(alpha = 0.6f)
-    }
-    val content = if (isEmpty) {
-        AuraThemeTokens.colors.textPrimary
-    } else {
-        AuraThemeTokens.colors.textSecondary
-    }
-    Surface(
-        color = container,
-        shape = RoundedCornerShape(AuraSpacing.sm),
+
+    // A caption, not a chip.
+    //
+    // This used to be a filled Surface with a semibold label, sitting directly
+    // under a row of filled suggestion chips — so "here is something you can
+    // do" and "here is where the answer came from" were rendered at identical
+    // weight, in two ragged rows of grey pills. They are not the same kind of
+    // thing and should not look like it. The suggestions are offers and keep
+    // their outline; this is provenance and reads as a footnote.
+    //
+    // The dot carries the only signal worth raising: it takes the accent colour
+    // when the consult pass actually applied something, and stays inert
+    // otherwise. That way the line earns a glance on the turns where something
+    // happened, and costs nothing on the rest.
+    val applied = recall.consultedIds?.isNotEmpty() == true
+    val dotColor = if (applied) colors.actionPrimary else colors.textTertiary
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth(0.85f)
-            .padding(start = AuraSpacing.xl, end = AuraSpacing.md, top = AuraSpacing.xxs, bottom = AuraSpacing.xxs)
-            .clickable { sheetOpen = true },
+            .clickable { sheetOpen = true }
+            .padding(
+                start = AuraSpacing.xl,
+                end = AuraSpacing.md,
+                top = AuraSpacing.xxs,
+                bottom = AuraSpacing.xs,
+            ),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = AuraSpacing.sm, vertical = AuraSpacing.xs),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(AuraSpacing.xs)
-                    .background(color = content.copy(alpha = 0.5f), shape = CircleShape),
-            )
-            Spacer(modifier = Modifier.width(AuraSpacing.xs))
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.labelSmall,
-                color = content,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        Box(
+            modifier = Modifier
+                .size(AuraSpacing.xs)
+                .background(color = dotColor, shape = CircleShape),
+        )
+        Spacer(modifier = Modifier.width(AuraSpacing.xs))
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary,
+        )
     }
     if (sheetOpen) {
         MemoryRecallSheet(

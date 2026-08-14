@@ -40,18 +40,54 @@ class FollowUpSuggestionsTest {
     }
 
     @Test
-    fun `list response gets Pick the best option`() {
+    fun `list response offers to pick one`() {
         val response = "1. Apple\n2. Banana\n3. Cherry"
         val out = FollowUpSuggestions.suggest(response, isCodey = false)
-        assertTrue("Pick the best option" in out, "got $out")
+        assertTrue("Pick one" in out, "got $out")
     }
 
     @Test
-    fun `question ending offers Yes and No, something else`() {
+    fun `question ending offers Yes and Something else`() {
         val response = "Do you want me to continue?"
         val out = FollowUpSuggestions.suggest(response, isCodey = false)
         assertTrue("Yes" in out, "got $out")
-        assertTrue("No, something else" in out, "got $out")
+        assertTrue("Something else" in out, "got $out")
+    }
+
+    /**
+     * A chip is a button, and a button that needs two lines is a sentence.
+     *
+     * "No, something else" wrapped inside its own chip at the width these
+     * render at, so it stood at double the height of its neighbours and the
+     * whole row looked broken. FlowRow now wraps whole chips rather than text,
+     * but that is the backstop — short labels are the fix, and nothing enforced
+     * them.
+     */
+    @Test
+    fun `every suggestion is short enough to fit one line`() {
+        val responses = listOf(
+            "Do you want me to continue?",
+            "1. Apple\n2. Banana\n3. Cherry",
+            "Here are the options you asked about, would you like more?",
+            "x".repeat(900),
+            "```kotlin\nfun main() {}\n```",
+        )
+
+        val all = responses.flatMap { FollowUpSuggestions.suggest(it, isCodey = it.contains("```")) }
+
+        assertTrue(all.isNotEmpty(), "no suggestions fired, so this asserts nothing")
+        all.forEach {
+            assertTrue(it.length <= MAX_CHIP_LABEL, "\"$it\" is ${it.length} chars and will wrap in a chip")
+        }
+    }
+
+    private companion object {
+        /**
+         * Fits on one line beside two siblings at the width chips render at
+         * (85% of screen, minus the bubble indent). "Explain the code" is the
+         * longest that currently ships, at 16.
+         */
+        const val MAX_CHIP_LABEL = 18
     }
 
     @Test
