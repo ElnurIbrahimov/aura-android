@@ -1,14 +1,14 @@
 package com.aura.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -24,25 +24,31 @@ import com.aura.ui.theme.AuraThemeTokens
 /**
  * Follow-up suggestions below an assistant turn.
  *
- * Three things were wrong with the first version, and they compounded:
+ * ## Alignment
  *
- *  - A plain [androidx.compose.foundation.layout.Row] cannot wrap. With three
- *    chips in 85% of the width, the last one got squeezed until its *text*
- *    wrapped, so a single chip stood at twice the height of its neighbours and
- *    the row read as broken rather than as a set.
- *  - The chips were filled surfaces at the same weight as the recall chip
- *    directly beneath them, so two different kinds of thing — an action you can
- *    take and a note about where the answer came from — looked identical and
- *    stacked into one grey jumble.
- *  - Nothing bounded the height, so uniformity was accidental.
+ * These sit at the message's own left edge and nowhere else. `ChatTimeline`
+ * applies 16dp of content padding and `MessageBubble` adds 16dp of its own, so
+ * the text starts 32dp from the screen. This used to add `AuraSpacing.xl` (32dp)
+ * *inside* the timeline's padding and land at 48 — a 16dp step that made the
+ * chips read as belonging to nothing, since neither the message above nor the
+ * input below shared that edge. Matching `MessageBubble`'s 16dp is what makes
+ * the group look attached to the turn it follows.
  *
- * Now: [FlowRow] wraps whole chips onto a second line instead of squeezing
- * text, every chip is one line at a fixed minimum height, and they are outlined
- * rather than filled so they read as offers rather than as content. The
- * suggestion labels themselves were shortened in [FollowUpSuggestions] — the
- * layout should not have to rescue a two-line button.
+ * ## One row, always
+ *
+ * Wrapping was the previous attempt at the too-narrow problem and it trades one
+ * ugly outcome for another: three chips become two on one line and a single
+ * orphan on the next. A horizontally scrolled row cannot produce an orphan, and
+ * it is what every chat client that ships suggestion chips does, for this
+ * reason. Combined with the short labels enforced in [FollowUpSuggestions], the
+ * common case is that all three fit and nothing scrolls at all.
+ *
+ * ## Filled, not outlined
+ *
+ * A hairline outline on a near-black background reads as a disabled control.
+ * Everything else in this app that can be tapped — the model selector, the
+ * input field, the nav bar — is a filled rounded surface, so these are too.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FollowUpSuggestionChips(
     suggestions: List<String>,
@@ -51,37 +57,37 @@ fun FollowUpSuggestionChips(
 ) {
     if (suggestions.isEmpty()) return
     val colors = AuraThemeTokens.colors
-    FlowRow(
+    Row(
         modifier = modifier
-            .fillMaxWidth(0.85f)
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(
-                start = AuraSpacing.xl,
+                start = AuraSpacing.md,
                 end = AuraSpacing.md,
                 top = AuraSpacing.xs,
                 bottom = AuraSpacing.xxs,
             ),
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
-        verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
     ) {
         for (s in suggestions) {
             Surface(
-                color = androidx.compose.ui.graphics.Color.Transparent,
+                color = colors.surface1,
                 shape = RoundedCornerShape(CHIP_HEIGHT / 2),
-                border = BorderStroke(AuraSpacing.hairline, colors.borderDefault),
                 modifier = Modifier.clickable { onPick(s) },
             ) {
                 Box(
                     modifier = Modifier
                         .heightIn(min = CHIP_HEIGHT)
-                        .padding(horizontal = AuraSpacing.sm),
+                        .padding(horizontal = AuraSpacing.md),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = s,
                         style = MaterialTheme.typography.labelLarge,
-                        color = colors.textSecondary,
-                        // One line, always. The height is what makes a row of
-                        // these read as a set; a chip that grows breaks it.
+                        color = colors.textPrimary,
+                        // One line, always. A chip that grows to two breaks the
+                        // row's shared height, which is what makes a set of them
+                        // read as a set.
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -92,4 +98,4 @@ fun FollowUpSuggestionChips(
 }
 
 /** Tall enough to tap comfortably, short enough not to compete with the answer. */
-private val CHIP_HEIGHT = 34.dp
+private val CHIP_HEIGHT = 36.dp

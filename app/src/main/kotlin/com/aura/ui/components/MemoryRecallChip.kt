@@ -101,10 +101,14 @@ fun MemoryRecallChip(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .fillMaxWidth(0.85f)
+            .fillMaxWidth()
             .clickable { sheetOpen = true }
+            // 16dp, matching MessageBubble — see FollowUpSuggestionChips for
+            // why. This sat at 32dp inside the timeline's own 16dp padding and
+            // landed at 48, a third distinct left edge in a stack of three
+            // things that should all share one.
             .padding(
-                start = AuraSpacing.xl,
+                start = AuraSpacing.md,
                 end = AuraSpacing.md,
                 top = AuraSpacing.xxs,
                 bottom = AuraSpacing.xs,
