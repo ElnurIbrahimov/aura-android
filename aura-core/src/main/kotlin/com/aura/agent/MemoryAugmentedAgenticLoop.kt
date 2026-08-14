@@ -41,6 +41,22 @@ private const val TOOL_RESULT_TRUNCATION_MARKER =
     "\n\n[...truncated, ask the assistant to retrieve the full result if needed]"
 
 /**
+ * Memory categories that can carry a standing instruction, and so are worth
+ * offering to [ConsultGate].
+ *
+ * `MemoryEntity.category` also takes "fact", "person", "project", "episode" and
+ * "idea". None of those is something the user asked Aura to *do* or *avoid* —
+ * they are context, and context is already in the prompt under the retrieved
+ * section. Reminding the model of a fact it was not going to violate spends a
+ * call to say nothing.
+ *
+ * "task" is here as the nearest thing the schema has to a commitment; the
+ * categories are assigned by keyword heuristics in `WriteGate`, so this is a
+ * coarse filter and is meant to be.
+ */
+private val CONSULTABLE_CATEGORIES = setOf("preference", "task")
+
+/**
  * Tools whose execution counts as genuine information-seeking for the
  * CURIOSITY drive. Checked against [Conversation.ToolTurn.name] after a
  * completed turn. Deliberately excludes `recall` — reading existing
@@ -134,6 +150,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val driveSignals: com.aura.consciousness.DriveSignals? = null,
     private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
     private val modelRoleRouter: com.aura.providers.ModelRoleRouter? = null,
+    // Appended, not inserted. Two test suites construct this loop positionally,
+    // and a parameter added mid-list silently re-binds every argument after it
+    // into the wrong slot — the failure ProactiveBootstrap's KDoc records.
+    private val consultGate: ConsultGate? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -554,6 +574,13 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // (rerankModel + rewriteModel resolution). The available models
         // don't change mid-conversation.
         var cachedCheapModel: kotlin.String? = null
+        // The consult reminder, resolved once per run like the taste context.
+        // Steps 2..N are tool round-trips on the same user message and read the
+        // same cachedRecall, so re-consulting would bill an identical call per
+        // step to reach an identical answer. Null means "not yet attempted";
+        // empty means "attempted, nothing applied" — the difference matters
+        // because only the first should retry.
+        var cachedConsultReminder: kotlin.String? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -695,17 +722,22 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // raw memories). Beliefs are confidence-weighted and
             // supersede-able, making them more reliable than raw recall
             // for stable facts about the user.
-            val beliefContext = if (memoryEnabled && beliefDao != null) {
-                runCatching {
-                    val beliefs = beliefDao.allActive(10)
-                    if (beliefs.isEmpty()) "" else {
-                        val lines = beliefs.map { b ->
-                            "- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)"
-                        }.joinToString("\n")
-                        "\n\n## Known beliefs:\n$lines"
-                    }
-                }.onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}", it) }.getOrDefault("")
-            } else ""
+            // The rows are hoisted out of the string so the consult pass below can
+            // offer them as constraints. Formatting them twice from one read is
+            // cheaper than reading them twice, and a belief is the strongest
+            // constraint Aura holds — resolved, confidence-weighted and
+            // supersede-able, rather than a raw recall hit.
+            val activeBeliefs = if (memoryEnabled && beliefDao != null) {
+                runCatching { beliefDao.allActive(10) }
+                    .onFailure { android.util.Log.w("AgenticLoop", "belief context load failed: ${it.message}", it) }
+                    .getOrDefault(emptyList())
+            } else emptyList()
+            val beliefContext = if (activeBeliefs.isEmpty()) "" else {
+                val lines = activeBeliefs.map { b ->
+                    "- ${b.subject} ${b.predicate}: ${b.valueJson} (confidence: ${"%.0f".format(b.confidence * 100)}%)"
+                }.joinToString("\n")
+                "\n\n## Known beliefs:\n$lines"
+            }
 
             // Update emotion state from the user's message and include
             // the mood context + adaptive profile in the system prompt.
@@ -836,6 +868,50 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             if (cachedResolvedIdentity == null) cachedResolvedIdentity = brain.resolvedIdentity()
             if (cachedUserProfilePrompt == null) cachedUserProfilePrompt = userProfileStore.getSystemPrompt()
 
+            // The consult pass. One cheap structured call asking which of the
+            // standing instructions Aura just retrieved actually bear on this
+            // message, so the answer can be reminded of them next to the
+            // question rather than merely having them somewhere in context. See
+            // [ConsultGate] for the evidence and for why it selects from a list
+            // instead of writing prose.
+            //
+            // Conditional on there being something to consult: a turn whose
+            // recall returned no preferences, no tasks and no beliefs pays
+            // nothing, which is most turns. Wrapped so that any failure here —
+            // a dead provider, a timeout, a garbage parse — costs the reminder
+            // and not the answer.
+            if (cachedConsultReminder == null) {
+                cachedConsultReminder = runCatching {
+                    val constraints = buildList {
+                        recallHits.filter { it.category in CONSULTABLE_CATEGORIES }
+                            .forEach { add(ConsultGate.Constraint(it.id, it.content)) }
+                        activeBeliefs.forEach {
+                            add(
+                                ConsultGate.Constraint(
+                                    sourceId = "belief:${it.id}",
+                                    text = "${it.subject} ${it.predicate}: ${it.valueJson}",
+                                ),
+                            )
+                        }
+                    }
+                    if (consultGate == null || constraints.isEmpty()) return@runCatching ""
+                    // explicit(), not resolve(). resolve() falls through to the
+                    // conversation model, which for a short auxiliary call means
+                    // billing the flagship to answer a multiple-choice question.
+                    // CheapModelResolver makes the same choice for the same
+                    // reason; the cheap model this run already resolved for
+                    // reranking is the better fallback.
+                    val consultModel = modelRoleRouter?.explicit(com.aura.providers.ModelRole.VERIFIER)
+                        ?: cachedCheapModel
+                        ?: return@runCatching ""
+                    val consultation = consultGate.consult(lastUserMessage, constraints, consultModel)
+                        ?: return@runCatching ""
+                    consultGate.render(consultation)
+                }.onFailure { android.util.Log.w("AgenticLoop", "consult pass failed: ${it.message}", it) }
+                    .getOrDefault("")
+            }
+            val consultReminder = cachedConsultReminder ?: ""
+
             val messages = buildList {
                 // The system prompt goes out as TWO messages, not one.
                 //
@@ -914,6 +990,17 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             affinityTracker?.getDirective()?.ifBlank { null },
                         ).joinToString("\n\n").ifBlank { null }?.let { append(it) }
                     }
+                    // Last in the volatile block, and therefore the last thing
+                    // before the conversation itself. That position is the whole
+                    // intervention: the finding this implements is that a
+                    // constraint present *anywhere* in context is read about 7%
+                    // of the time, and one restated next to the question about
+                    // 91% of the time. Moving this earlier would keep the cost
+                    // and lose the effect.
+                    //
+                    // Empty on every turn where nothing applied, so it adds no
+                    // bytes to the common case.
+                    append(consultReminder)
                     // Each of those blocks carries its own leading "\n\n", which
                     // was the separator when they were concatenated onto one
                     // string. Providers that re-join system messages insert their

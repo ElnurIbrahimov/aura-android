@@ -53,12 +53,29 @@ class SystemPromptStabilityTest {
         return registry
     }
 
-    private fun memory(id: String, content: String) = MemoryEntity(
+    private fun memory(id: String, content: String, category: String = "fact") = MemoryEntity(
         id = id,
         content = content,
         source = "assistant",
-        category = "fact",
+        category = category,
     )
+
+    /**
+     * A real [ConsultGate] over a scripted provider, so these tests exercise the
+     * actual selection and rendering rather than a stub's idea of them.
+     */
+    private fun consultGateSelecting(vararg oneBasedIndices: Int): ConsultGate {
+        val consultRegistry = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { consultRegistry.chat(any(), any(), any()) } returns flowOf(
+            com.aura.providers.ProviderChunk(text = """{"applicable":${oneBasedIndices.toList()}}"""),
+        )
+        return ConsultGate(consultRegistry)
+    }
+
+    private fun cheapResolver(model: String? = "test:cheap"): com.aura.providers.CheapModelResolver =
+        mockk<com.aura.providers.CheapModelResolver>(relaxed = true).also {
+            coEvery { it.resolve(any(), any()) } returns model
+        }
 
     /**
      * Drive one turn over [steps] model steps and return the system messages
@@ -73,6 +90,8 @@ class SystemPromptStabilityTest {
         identity: String = "You are Aura.",
         profilePrompt: String = "## About the user\nName: Elnur",
         recall: List<MemoryEntity> = listOf(memory("m1", "likes strong coffee")),
+        consultGate: ConsultGate? = null,
+        cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
     ): List<List<String>> {
         val perStep = mutableListOf<List<String>>()
 
@@ -130,6 +149,8 @@ class SystemPromptStabilityTest {
             handRepository,
             mockProviderRegistry(),
             passthroughCompactor(),
+            cheapModelResolver = cheapModelResolver,
+            consultGate = consultGate,
         )
 
         runBlocking {
@@ -235,6 +256,115 @@ class SystemPromptStabilityTest {
             "MARKER_IDENTITY" in messages.first().first(),
             "identity did not reach the stable message: ${messages.first().first()}",
         )
+    }
+
+    // ---- the consult reminder --------------------------------------------
+
+    @Test
+    fun `the consult reminder lands in the volatile message, never the stable one`() {
+        val messages = systemMessagesPerStep(
+            steps = 2,
+            recall = listOf(memory("m1", "MARKER_PREFERENCE", category = "preference")),
+            consultGate = consultGateSelecting(1),
+            cheapModelResolver = cheapResolver(),
+        ).first()
+
+        assertTrue(
+            "Before you answer" !in messages.first(),
+            "the consult reminder reached the stable message — every install's prompt cache is lost",
+        )
+        assertTrue(
+            messages.drop(1).any { "Before you answer" in it && "MARKER_PREFERENCE" in it },
+            "the consult reminder did not reach the volatile message: ${messages.drop(1)}",
+        )
+    }
+
+    @Test
+    fun `the reminder sits last, closest to the conversation`() {
+        // The entire measured effect is proximity: a constraint present anywhere
+        // in context is followed about 7% of the time, one restated next to the
+        // question about 91%. If something else appends after this, the reminder
+        // keeps its cost and loses its reason.
+        val volatileMsg = systemMessagesPerStep(
+            steps = 2,
+            recall = listOf(memory("m1", "MARKER_PREFERENCE", category = "preference")),
+            consultGate = consultGateSelecting(1),
+            cheapModelResolver = cheapResolver(),
+        ).first().drop(1).single { "Before you answer" in it }
+
+        assertTrue(
+            volatileMsg.indexOf("# Before you answer") > volatileMsg.indexOf("Retrieved context"),
+            "the reminder must come after the retrieved block it is reminding about",
+        )
+        assertTrue(
+            volatileMsg.trimEnd().endsWith("MARKER_PREFERENCE"),
+            "something was appended after the reminder: ...${volatileMsg.takeLast(120)}",
+        )
+    }
+
+    @Test
+    fun `a turn with nothing consultable does not consult`() {
+        // The cost argument rests on this. Default recall here is a plain fact,
+        // which is context rather than a standing instruction, so the pass must
+        // not fire and the prompt must not grow.
+        val consultRegistry = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { consultRegistry.chat(any(), any(), any()) } returns flowOf(
+            com.aura.providers.ProviderChunk(text = """{"applicable":[1]}"""),
+        )
+
+        val messages = systemMessagesPerStep(
+            steps = 2,
+            recall = listOf(memory("m1", "the office wifi password is on the fridge")),
+            consultGate = ConsultGate(consultRegistry),
+            cheapModelResolver = cheapResolver(),
+        ).first()
+
+        assertTrue(messages.none { "Before you answer" in it }, "consulted on a turn with no standing instructions")
+        io.mockk.coVerify(exactly = 0) { consultRegistry.chat(any(), any(), any()) }
+    }
+
+    @Test
+    fun `the reminder is resolved once per run, not once per step`() {
+        // Steps 2..N are tool round-trips on the same user message and read the
+        // same cached recall, so a per-step consult would bill an identical call
+        // each time to reach an identical answer.
+        val consultRegistry = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { consultRegistry.chat(any(), any(), any()) } returns flowOf(
+            com.aura.providers.ProviderChunk(text = """{"applicable":[1]}"""),
+        )
+
+        val perStep = systemMessagesPerStep(
+            steps = 3,
+            recall = listOf(memory("m1", "MARKER_PREFERENCE", category = "preference")),
+            consultGate = ConsultGate(consultRegistry),
+            cheapModelResolver = cheapResolver(),
+        )
+
+        assertTrue(perStep.size >= 2, "need at least two steps, got ${perStep.size}")
+        io.mockk.coVerify(exactly = 1) { consultRegistry.chat(any(), any(), any()) }
+        val reminders = perStep.map { step -> step.first { "Before you answer" in it }.substringAfter("# Before you answer") }
+        assertEquals(1, reminders.distinct().size, "the reminder changed between steps of one turn")
+    }
+
+    @Test
+    fun `a consult that fails leaves the turn otherwise untouched`() {
+        val exploding = mockk<ProviderRegistry>(relaxed = true)
+        coEvery { exploding.chat(any(), any(), any()) } throws RuntimeException("provider down")
+
+        val withFailure = systemMessagesPerStep(
+            steps = 2,
+            recall = listOf(memory("m1", "MARKER_PREFERENCE", category = "preference")),
+            consultGate = ConsultGate(exploding),
+            cheapModelResolver = cheapResolver(),
+        ).first()
+        val withoutGate = systemMessagesPerStep(
+            steps = 2,
+            recall = listOf(memory("m1", "MARKER_PREFERENCE", category = "preference")),
+        ).first()
+
+        // Byte-identical, not merely "still works": a best-effort addition that
+        // perturbs the prompt when it fails is not best-effort.
+        assertEquals(withoutGate, withFailure, "a failed consult changed the prompt")
     }
 
     @Test

@@ -60,8 +60,10 @@ class ModelRoleRouterTest {
 
         // EMBEDDING is a capability rather than a chat model, configured elsewhere.
         assertTrue(ModelRole.EMBEDDING !in configurable)
-        // VERIFIER has no consumer — there is no verification pass to route.
-        assertTrue(ModelRole.VERIFIER !in configurable)
+        // VERIFIER was excluded here on exactly this rule, with a KDoc saying it
+        // could come back when something read it. ConsultGate reads it, so the
+        // row is a working control again and belongs in Settings.
+        assertTrue(ModelRole.VERIFIER in configurable)
 
         assertTrue(ModelRole.CONVERSATION in configurable)
         assertTrue(ModelRole.CREATIVE_DRAFT in configurable)
@@ -72,13 +74,17 @@ class ModelRoleRouterTest {
     }
 
     /**
-     * Dropping the Settings row must not drop the data. The enum constant, its
-     * preference key and its `AuraBackup` field all survive, so a value a user
-     * already saved still round-trips and the backup schema needs no version
-     * bump to remove a field.
+     * The key outlived the row, which is why restoring the row was free.
+     *
+     * While VERIFIER had no consumer the constant, its preference key and its
+     * `AuraBackup` field were all deliberately kept, so values saved before the
+     * row was dropped kept round-tripping through the gap. Giving the role a
+     * consumer therefore needed no migration and no backup schema bump — and
+     * the key must keep this exact spelling for that to stay true of anyone
+     * restoring an old backup.
      */
     @Test
-    fun verifier_preference_plumbing_survives_the_removed_row() {
+    fun verifier_preference_key_is_stable_across_the_row_being_dropped_and_restored() {
         assertTrue(ModelRole.VERIFIER in ModelRole.entries)
         assertTrue(ModelRole.VERIFIER.key == "verifier_model")
     }

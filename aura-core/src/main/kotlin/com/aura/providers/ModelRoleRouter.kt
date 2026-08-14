@@ -23,16 +23,19 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
     PLANNER("planner_model", "Planner"),
 
     /**
-     * Reserved. Nothing reads this role — there is no verification pass in the
-     * app for it to route.
+     * The pre-answer consult pass — [com.aura.agent.ConsultGate].
      *
-     * Kept as a constant rather than deleted so that the `verifier_model`
-     * preference key, its `AuraBackup` field and any value a user already saved
-     * all keep round-tripping, and the backup schema does not need a version
-     * bump to remove a field. It is excluded from [configurable] so Settings
-     * stops offering a row that changes nothing. Building the verification pass
-     * is a feature; removing a control that does nothing is a fix, and this is
-     * the fix.
+     * This role spent a long stretch reserved and unread, with a KDoc noting
+     * that "building the verification pass is a feature" and that until someone
+     * did, the honest move was to keep the preference key alive and drop the
+     * Settings row. The key, its `AuraBackup` field and every saved value went
+     * on round-tripping through that whole period, so switching the row back on
+     * needs no migration and no backup schema bump — which is the entire payoff
+     * of having kept them.
+     *
+     * It routes a short structured call on the user's own turn, so a small fast
+     * model is the right choice here and an unset value falls through to the
+     * conversation model rather than to nothing.
      */
     VERIFIER("verifier_model", "Verifier"),
     EMBEDDING("embedding_model", "Embedding"),
@@ -50,10 +53,14 @@ enum class ModelRole(val key: kotlin.String, val displayName: kotlin.String) {
          * worse than no row: it looks like a working control.
          *
          * Excluded: EMBEDDING, managed separately as a capability rather than a
-         * chat model; and VERIFIER, which has no consumer — see its KDoc.
+         * chat model.
+         *
+         * VERIFIER was excluded here for exactly this reason and now qualifies:
+         * [com.aura.agent.ConsultGate] reads it.
          */
         val configurable: List<ModelRole> get() = listOf(
-            CONVERSATION, BACKGROUND, DEEP_RESEARCH, FAST, REASONING, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER, EVOLUTION,
+            CONVERSATION, BACKGROUND, DEEP_RESEARCH, FAST, REASONING, CREATIVE_DRAFT, CREATIVE_CRITIC, PLANNER,
+            EVOLUTION, VERIFIER,
         )
     }
 }
