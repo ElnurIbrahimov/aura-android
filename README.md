@@ -359,7 +359,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 |---|---|---|
 | MemoryDatabase | v23 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
-| ProactiveEventDatabase | v6 | Proactive events with structured payload |
+| ProactiveEventDatabase | v7 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
 | EvolutionDatabase | v4 | Candidates, proposals, evidence, outcomes (dedup index on domain/action/target) |
 | DreamConsolidationDatabase | v3 | Dream summaries, routines, contradictions, KG edge proposals |

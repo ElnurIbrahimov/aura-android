@@ -63,6 +63,17 @@ class ScreenControlContractTest {
         // and element selectors collapse to text-and-bounds only — which is
         // already the Compose case and should not be the universal one.
         assertTrue("flagReportViewIds" in xml, "view ids would be null everywhere")
+        // This one shipped missing. takeScreenshot() was implemented, called,
+        // and documented in both README and architecture.md, and without the
+        // capability every invocation returned NO_ACCESSIBILITY_ACCESS —
+        // indistinguishable, to the caller, from a FLAG_SECURE window it was
+        // meant to skip. So the quiet capture path never ran once and the
+        // MediaProjection fallback, with its consent dialog and recording
+        // indicator, was silently doing all the work.
+        assertTrue(
+            "canTakeScreenshot=\"true\"" in xml,
+            "takeScreenshot() fails with NO_ACCESSIBILITY_ACCESS without this, silently",
+        )
     }
 
     @Test

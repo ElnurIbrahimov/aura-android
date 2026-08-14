@@ -193,8 +193,18 @@ class AuraAccessibilityService : AccessibilityService() {
                             }
 
                             override fun onFailure(errorCode: Int) {
-                                // FLAG_SECURE windows fail here by design, so
-                                // this is an expected outcome, not an error.
+                                // A FLAG_SECURE window failing here is expected.
+                                // Everything else is not, and treating the whole
+                                // callback as "expected" is what let a total
+                                // outage hide: the service was missing
+                                // canTakeScreenshot, so every call landed here
+                                // with NO_ACCESSIBILITY_ACCESS, resumed null, and
+                                // looked exactly like a banking app being
+                                // screenshotted. Naming the code is the
+                                // difference between a fallback and a failure.
+                                if (errorCode != AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) {
+                                    Log.w(TAG, "accessibility screenshot failed: ${screenshotErrorName(errorCode)}")
+                                }
                                 if (cont.isActive) cont.resume(null) {}
                             }
                         },
@@ -324,5 +334,22 @@ class AuraAccessibilityService : AccessibilityService() {
 
         /** Screenshots are a single platform call; this only bounds a hang. */
         const val SCREENSHOT_TIMEOUT_MS = 5_000L
+
+        /**
+         * Names a [TakeScreenshotCallback.onFailure] code.
+         *
+         * The int alone is not worth logging — nobody reads a stack trace and
+         * recalls that 2 means the service never asked for the capability, which
+         * is precisely the failure that went unnoticed here for the life of the
+         * feature.
+         */
+        fun screenshotErrorName(code: Int): String = when (code) {
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR -> "INTERNAL_ERROR"
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS ->
+                "NO_ACCESSIBILITY_ACCESS (canTakeScreenshot missing from the service config)"
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> "INTERVAL_TIME_SHORT"
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY -> "INVALID_DISPLAY"
+            else -> "code $code"
+        }
     }
 }

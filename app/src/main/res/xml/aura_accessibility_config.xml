@@ -16,6 +16,15 @@
     manifest allowlist cannot be updated without a release.
 
   UiTraversalTest asserts the absent flags stay absent.
+
+  canTakeScreenshot was also absent, and that one was a bug rather than a
+  decision. AuraAccessibilityService.takeScreenshot() has always called the
+  platform API; without the capability the system answered every call with
+  onFailure, which resumed null, which CaptureScreenTool read as "nothing
+  here" and fell back to MediaProjection. So the quiet screenshot path that
+  README and architecture.md both describe had never once run, on any
+  device, and the loud path — consent dialog, recording indicator — was the
+  only one that ever worked.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
@@ -23,6 +32,7 @@
     android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
     android:description="@string/a11y_service_description"
     android:notificationTimeout="100"
     android:summary="@string/a11y_service_summary" />
