@@ -101,11 +101,11 @@ class LongformRunner @Inject constructor(
             // in the World tab while a run is in flight, and a snapshot taken
             // once at the top would quietly draft against a plan that no longer
             // exists.
-            val project = projectStore.get(job.projectId)
+            var project = projectStore.get(job.projectId)
                 ?: return LongformOutcome.FAILED.also {
                     runStore.fail(jobId, "no_project", "The project was deleted while drafting.")
                 }
-            val beats = project.world.outline
+            var beats = project.world.outline
 
             if (beats.isEmpty()) {
                 runStore.fail(jobId, "no_outline", "Plan an outline before drafting.")
@@ -116,8 +116,24 @@ class LongformRunner @Inject constructor(
             // next one, so the context this slice assembles is as complete as
             // the manuscript allows. Bounded inside the ledger.
             if (scenesThisSlice == 0) {
-                runCatching { sceneLedger.backFill(project, beatBranch(jobId), model) }
+                val healed = runCatching { sceneLedger.backFill(project, beatBranch(jobId), model) }
                     .onFailure { Log.w(TAG, "back-fill failed: ${it.message}", it) }
+                    .getOrDefault(0)
+                // Re-read, or the heal is invisible to the very scene it was run
+                // for. backFill writes synopses through projectStore, while
+                // storySoFar reads them off the list draftScene is handed — and
+                // every beat backFill can touch sits below nextIndex, exactly the
+                // range storySoFar scans.
+                //
+                // A project that has vanished keeps the stale snapshot rather than
+                // failing here: the next iteration's own re-read reports that
+                // properly, with the right error.
+                if (healed > 0) {
+                    projectStore.get(job.projectId)?.let {
+                        project = it
+                        beats = it.world.outline
+                    }
+                }
             }
 
             // Cancellation is checked from Room, not just from the worker's own

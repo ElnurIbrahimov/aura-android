@@ -173,6 +173,12 @@ class SceneLedger @Inject constructor(
                 sceneText = text,
                 sceneModel = sceneModel,
             )
+            // A beat whose extraction deterministically fails blocks every later
+            // beat from ever being back-filled, on this and all future slices —
+            // the loop always restarts at index 0, so a stuck beat is retried
+            // ahead of every one after it. Defensible: `break` is what bounds
+            // total attempts by MAX_BACKFILL_PER_SLICE without a separate
+            // per-beat counter, at the cost of starving beats behind a bad one.
             if (ok) filled++ else break
         }
         return filled

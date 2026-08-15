@@ -400,6 +400,52 @@ class LongformRunnerTest {
         assertTrue(system.content.contains("the lamp had not been lit"))
     }
 
+    /**
+     * The interaction between back-fill and the very slice it heals for.
+     *
+     * `SceneLedger.backFill` persists a healed synopsis through
+     * `projectStore.updateWorld`, but `SceneLedger.storySoFar` reads
+     * `beats[i].synopsis` straight off the list `draftScene` is handed — no DB
+     * access. Every beat `backFill` can touch sits below `nextIndex` by
+     * construction (it only heals drafted beats; `nextIndex` is the first
+     * undrafted one), which is exactly the range `storySoFar` scans. So a slice
+     * that heals something must re-read the project before drafting, or the
+     * heal is invisible to the one scene it was run to help — the resumed-old-
+     * project case back-fill exists for.
+     */
+    @Test
+    fun `a synopsis healed this slice reaches the scene it was healed for`() = runTest {
+        val healedSynopsis = "Mira reached the lighthouse and the keeper refused her."
+        val blankBeats = listOf(
+            StoryBeat(
+                id = "b1", title = "Arrival", status = "drafted",
+                artifactId = "art1", revisionId = "rev1", synopsis = "",
+            ),
+            StoryBeat(id = "b2", title = "The lantern room", summary = "Mira climbs"),
+        )
+        val healedBeats = listOf(blankBeats[0].copy(synopsis = healedSynopsis), blankBeats[1])
+        setUpRun(blankBeats)
+        // The first read (top of the loop) sees the pre-heal snapshot; the
+        // second — the re-read the fix adds — sees what backFill would just
+        // have written. Calls beyond the two keep returning the healed
+        // snapshot (MockK repeats the last returnsMany value), which is
+        // harmless: only beat one's synopsis differs between the two, so it
+        // does not change which beat is next.
+        coEvery { projectStore.get("p1") } returnsMany listOf(project(blankBeats), project(healedBeats))
+        coEvery { sceneLedger.backFill(any(), any(), any()) } returns 1
+        val storySoFarBeats = slot<List<StoryBeat>>()
+        every { sceneLedger.storySoFar(capture(storySoFarBeats), any()) } returns healedSynopsis
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+
+        runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        assertEquals(
+            healedSynopsis,
+            storySoFarBeats.captured.first().synopsis,
+            "the beat backFill just healed must reach the scene it was healed for, not a stale blank",
+        )
+    }
+
     /** A committed scene is handed to the ledger, and the ledger's failure is not the scene's. */
     @Test
     fun `it records each committed scene and survives the ledger failing`() = runTest {
