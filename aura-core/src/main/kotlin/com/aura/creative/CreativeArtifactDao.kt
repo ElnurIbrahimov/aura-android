@@ -105,6 +105,37 @@ interface CreativeRevisionDao {
 
     @Query("DELETE FROM creative_revisions WHERE artifactId = :artifactId")
     suspend fun deleteForArtifact(artifactId: kotlin.String)
+
+    /**
+     * Current-revision text of this project's scenes containing [term].
+     *
+     * Joins on `currentRevisionId` rather than scanning every revision, so a
+     * scene that has been revised five times contributes its current text once
+     * and not six variants of itself.
+     *
+     * `LIKE '%term%'` cannot use an index and scans the scene rows. That is the
+     * right trade at this scale — a long novel on one branch is forty rows —
+     * and §3's Gate B records that the embedding business case for anything
+     * cleverer is still unproven.
+     */
+    @Query(
+        """
+        SELECT r.* FROM creative_revisions r
+        INNER JOIN creative_artifacts a ON a.currentRevisionId = r.id
+        WHERE a.projectId = :projectId
+          AND a.kind = 'scene'
+          AND r.id != :excludeRevisionId
+          AND r.contentText LIKE '%' || :term || '%'
+        ORDER BY r.createdAt DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchScenes(
+        projectId: kotlin.String,
+        term: kotlin.String,
+        excludeRevisionId: kotlin.String,
+        limit: kotlin.Int,
+    ): List<CreativeRevisionEntity>
 }
 
 @Dao

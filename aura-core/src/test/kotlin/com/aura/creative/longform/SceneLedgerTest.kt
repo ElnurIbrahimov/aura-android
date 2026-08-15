@@ -450,4 +450,69 @@ class SceneLedgerTest {
     fun `the first scene of a book has no story so far`() {
         assertEquals("", ledger().storySoFar(draftedBeats(3), beatIndex = 0))
     }
+
+    private fun revision(id: String, text: String) = com.aura.creative.CreativeRevisionEntity(
+        id = id,
+        artifactId = "art-$id",
+        branchId = "main",
+        contentText = text,
+    )
+
+    @Test
+    fun `it searches the manuscript for the beat's distinctive words`() = runTest {
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "Arrival", status = "drafted", artifactId = "a1", revisionId = "r1"),
+            StoryBeat(id = "b2", title = "The lantern room", summary = "Mira climbs to the lantern"),
+        )
+        coEvery { revisionDao.searchScenes("p1", any(), any(), any()) } returns emptyList()
+        coEvery { revisionDao.searchScenes("p1", "lantern", any(), any()) } returns
+            listOf(revision("r1", "a".repeat(500) + "the lantern had not been lit" + "b".repeat(500)))
+
+        val passages = ledger().retrieve("p1", beats, beatIndex = 1)
+
+        assertEquals(1, passages.size)
+        assertTrue(passages[0].contains("the lantern had not been lit"))
+        assertTrue(passages[0].length <= SceneContextBuilder.RETRIEVED_ITEM_CAP)
+    }
+
+    /** Stopwords LIKE-match nearly every scene, which is noise rather than retrieval. */
+    @Test
+    fun `it never searches on a stopword`() = runTest {
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = "r1"),
+            StoryBeat(id = "b2", title = "The and of it", summary = "with a to for"),
+        )
+        coEvery { revisionDao.searchScenes(any(), any(), any(), any()) } returns emptyList()
+
+        ledger().retrieve("p1", beats, beatIndex = 1)
+
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "the", any(), any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "and", any(), any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "with", any(), any()) }
+    }
+
+    /**
+     * The previous scene is already supplied verbatim and in full as
+     * `previousSceneTail`. Letting it match here spends the retrieval budget
+     * printing it a second time.
+     */
+    @Test
+    fun `it excludes the immediately preceding scene`() = runTest {
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "Arrival", status = "drafted", artifactId = "a1", revisionId = "r1"),
+            StoryBeat(id = "b2", title = "Lantern", status = "drafted", artifactId = "a2", revisionId = "r2"),
+            StoryBeat(id = "b3", title = "The lantern again", summary = "Mira returns"),
+        )
+        coEvery { revisionDao.searchScenes(any(), any(), any(), any()) } returns emptyList()
+
+        ledger().retrieve("p1", beats, beatIndex = 2)
+
+        coVerify { revisionDao.searchScenes("p1", any(), "r2", any()) }
+    }
+
+    @Test
+    fun `the first scene retrieves nothing and asks the database nothing`() = runTest {
+        ledger().retrieve("p1", draftedBeats(3), beatIndex = 0)
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), any(), any(), any()) }
+    }
 }

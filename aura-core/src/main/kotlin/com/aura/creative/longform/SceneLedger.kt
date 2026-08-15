@@ -1,6 +1,7 @@
 package com.aura.creative.longform
 
 import android.util.Log
+import com.aura.core.util.StopWords
 import com.aura.creative.CanonFactDao
 import com.aura.creative.CanonFactEntity
 import com.aura.creative.ContinuityIssueDao
@@ -155,6 +156,63 @@ class SceneLedger @Inject constructor(
     }
 
     /**
+     * What the manuscript itself already says about this beat.
+     *
+     * **No model call, no embeddings.** Terms come from the beat's own text —
+     * title, summary, setting, pov — filtered through the shared [StopWords]
+     * list retrieval already uses, because a query word like "the" LIKE-matches
+     * every scene ever written and floods the result with noise.
+     *
+     * The immediately preceding scene is excluded: it is already supplied
+     * verbatim and in full as `previousSceneTail`, and letting it match here
+     * would spend the retrieval budget printing it a second time.
+     */
+    suspend fun retrieve(projectId: String, beats: List<StoryBeat>, beatIndex: Int): List<String> {
+        if (beatIndex <= 0) return emptyList()
+        val beat = beats.getOrNull(beatIndex) ?: return emptyList()
+        val exclude = beats.getOrNull(beatIndex - 1)?.revisionId.orEmpty()
+
+        val terms = "${beat.title} ${beat.summary} ${beat.setting} ${beat.pov}"
+            .lowercase()
+            .split(Regex("[^a-z0-9']+"))
+            .filter { it.length >= MIN_TERM_LENGTH && it !in StopWords.ENGLISH }
+            .distinct()
+            .take(MAX_TERMS)
+        if (terms.isEmpty()) return emptyList()
+
+        val seen = LinkedHashMap<String, String>()
+        for (term in terms) {
+            if (seen.size >= MAX_PASSAGES) break
+            val hits = runCatching { revisionDao.searchScenes(projectId, term, exclude, MAX_PASSAGES) }
+                .onFailure { Log.w(TAG, "manuscript search failed for '$term': ${it.message}", it) }
+                .getOrDefault(emptyList())
+            for (hit in hits) {
+                if (seen.size >= MAX_PASSAGES) break
+                if (seen.containsKey(hit.id)) continue
+                seen[hit.id] = window(hit.contentText, term)
+            }
+        }
+        return seen.values.toList()
+    }
+
+    /**
+     * The text around the match, not the scene.
+     *
+     * A scene is thousands of characters and the budget for all of retrieval is
+     * [SceneContextBuilder.RETRIEVED_CAP]; returning whole scenes would spend it
+     * on one hit and, worse, would grow with the manuscript — the property
+     * `SceneContextBuilder` exists to preserve.
+     */
+    private fun window(content: String, term: String): String {
+        val at = content.indexOf(term, ignoreCase = true)
+        if (at < 0) return content.take(SceneContextBuilder.RETRIEVED_ITEM_CAP)
+        val half = SceneContextBuilder.RETRIEVED_ITEM_CAP / 2
+        val start = (at - half).coerceAtLeast(0)
+        val end = (at + half).coerceAtMost(content.length)
+        return content.substring(start, end).trim()
+    }
+
+    /**
      * The model the ledger runs on.
      *
      * **Not [ModelRoleRouter.resolve]**, which is the obvious call and the wrong
@@ -271,6 +329,15 @@ class SceneLedger @Inject constructor(
          * `SceneContextBuilder.SUMMARY_CAP` is budgeted as thirty of these.
          */
         const val SYNOPSIS_CAP = 400
+
+        /** Below this, a word is noise even when it is not a stopword. */
+        private const val MIN_TERM_LENGTH = 4
+
+        /** Each term is one table scan; a beat does not need more than this. */
+        private const val MAX_TERMS = 5
+
+        /** Four fit `SceneContextBuilder.RETRIEVED_CAP` at the per-item cap. */
+        private const val MAX_PASSAGES = 4
 
         /** Matches `CanonFactEntity.subjectType`'s documented values. */
         val SUBJECT_TYPES = setOf(
