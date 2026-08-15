@@ -101,12 +101,17 @@ class SceneLedger @Inject constructor(
         if (beatIndex !in beats.indices) return false
 
         val facts = extraction.facts
-            .filter { it.subjectType in SUBJECT_TYPES && it.subjectId.isNotBlank() && it.predicate.isNotBlank() }
+            .filter { it.subjectType in SUBJECT_TYPES && it.subjectId.isNotBlank() && it.predicate.isNotBlank() && it.value.isNotBlank() }
             .map { it.toEntity(project.id, branchId, revisionId) }
 
         if (facts.isNotEmpty()) {
-            runCatching { canonFactDao.upsertAll(facts) }
+            val written = runCatching { canonFactDao.upsertAll(facts) }
                 .onFailure { Log.w(TAG, "could not write canon facts: ${it.message}", it) }
+                .isSuccess
+            // The synopsis is back-fill's only sentinel: a beat with one is never
+            // revisited. Writing it after the facts failed would strand them, so the
+            // beat stays blank and the next slice tries again.
+            if (!written) return false
         }
 
         val updated = beats.toMutableList().also {
@@ -151,7 +156,12 @@ class SceneLedger @Inject constructor(
 
     private fun ExtractedFact.toEntity(projectId: String, branchId: String, revisionId: String) =
         CanonFactEntity(
-            id = UUID.randomUUID().toString(),
+            // Deterministic, not random: a re-extraction of the same revision must
+            // REPLACE its own rows rather than duplicate them. Built from the same
+            // normalised values stored below, so the id and the row always agree.
+            id = UUID.nameUUIDFromBytes(
+                "$revisionId|$subjectType|${subjectId.trim()}|${predicate.trim().lowercase()}".toByteArray()
+            ).toString(),
             projectId = projectId,
             branchId = branchId,
             subjectType = subjectType,

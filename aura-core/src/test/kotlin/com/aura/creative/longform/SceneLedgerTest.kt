@@ -174,4 +174,59 @@ class SceneLedgerTest {
         coVerify(exactly = 1) { cheapModelResolver.resolve("openai:gpt-4o", "openai:gpt-4o") }
         coVerify(exactly = 0) { modelRoleRouter.resolve(any()) }
     }
+
+    @Test
+    fun `a fact with a blank value is dropped rather than stored`() = runTest {
+        stubModel(
+            """{"synopsis":"A thing happened.","facts":[
+                 {"subjectType":"character","subjectId":"Mira","predicate":"location","value":""}]}"""
+        )
+        coEvery { projectStore.get("p1") } returns project()
+
+        ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 0) { canonFactDao.upsertAll(any()) }
+    }
+
+    /**
+     * `canonFactDao.upsertAll` is `@Insert(onConflict = REPLACE)` keyed only on
+     * `id`. A random id would turn every re-extraction of the same revision into
+     * a duplicate row rather than a replace, which back-fill (Task 8) and any
+     * later re-run both rely on not happening.
+     */
+    @Test
+    fun `recording the same scene twice produces identical fact ids`() = runTest {
+        stubModel(goodReply)
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+
+        ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
+        val first = factSlot.captured.single()
+
+        ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
+        val second = factSlot.captured.single()
+
+        assertEquals(first.id, second.id)
+        assertEquals("\"the lighthouse\"", first.valueJson)
+        assertEquals(0.9f, first.confidence, 0.01f)
+    }
+
+    /**
+     * The synopsis is back-fill's only sentinel for "this beat still needs
+     * extraction". Writing it after a facts-write failure would strand those
+     * facts unrecorded and unrecoverable, since back-fill would never revisit a
+     * beat that already has one.
+     */
+    @Test
+    fun `a facts write failure returns false and does not write the synopsis`() = runTest {
+        stubModel(goodReply)
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.upsertAll(any()) } throws RuntimeException("db down")
+
+        val stored = ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
+
+        assertEquals(false, stored)
+        coVerify(exactly = 0) { projectStore.updateWorld(any(), any()) }
+    }
 }
