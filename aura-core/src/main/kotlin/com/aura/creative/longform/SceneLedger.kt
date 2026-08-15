@@ -204,7 +204,7 @@ class SceneLedger @Inject constructor(
                         projectId = projectId,
                         branchId = branchId,
                         artifactId = artifactId,
-                        category = fact.predicate,
+                        category = PREDICATE_CATEGORY[fact.predicate] ?: "identity",
                         severity = "warning",
                         message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
                             "and this scene says ${fact.valueJson}.",
@@ -247,6 +247,26 @@ class SceneLedger @Inject constructor(
          * flags, not by argument.
          */
         val SINGLE_VALUED = setOf("location", "age", "alive", "allegiance", "occupation", "rank")
+
+        /**
+         * `ContinuityIssueEntity.category` documents a taxonomy of continuity-error
+         * *kinds* — identity, location, timeline, knowledge, relationship, rule,
+         * visual, voice. [SINGLE_VALUED] holds predicates, which are finer-grained
+         * and mostly outside that set, so writing one straight into the column
+         * would put values there that its own KDoc says cannot appear.
+         *
+         * Nothing is lost by mapping: the issue's message names the predicate and
+         * both values, and `evidenceFactIdsJson` points at the two facts that
+         * carry it exactly.
+         */
+        private val PREDICATE_CATEGORY = mapOf(
+            "location" to "location",
+            "age" to "identity",
+            "alive" to "identity",
+            "occupation" to "identity",
+            "rank" to "identity",
+            "allegiance" to "relationship",
+        )
 
         /** A scene is 1,200 words; this is generous and bounds a runaway one. */
         private const val MAX_SCENE_CHARS = 12_000

@@ -320,4 +320,24 @@ class SceneLedgerTest {
         assertTrue(issueSlot.captured.evidenceFactIdsJson.contains(newFactId))
         assertEquals("art2", issueSlot.captured.artifactId)
     }
+
+    /**
+     * `category` is a documented taxonomy of issue *kinds*, coarser than a
+     * predicate. Writing `fact.predicate` straight through would have put
+     * "allegiance" in a column whose KDoc never mentions it — this is the
+     * assertion that would have caught that.
+     */
+    @Test
+    fun `a changed allegiance maps to the relationship category, not the raw predicate`() = runTest {
+        stubModel(replyWith("allegiance", "the Rebellion"))
+        val issueSlot = slot<com.aura.creative.ContinuityIssueEntity>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("allegiance", "the Crown"))
+        coEvery { continuityIssueDao.upsert(capture(issueSlot)) } returns Unit
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        assertEquals("relationship", issueSlot.captured.category)
+    }
 }
