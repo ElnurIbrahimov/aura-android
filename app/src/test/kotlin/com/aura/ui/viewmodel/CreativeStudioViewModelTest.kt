@@ -64,6 +64,10 @@ class CreativeStudioViewModelTest {
         // creativeAnalysisStore — tension results are keyed to a revision, and
         // these tests drive the state machine rather than the storing.
         mockk(relaxed = true),
+        // canonFactDao, continuityIssueDao — these tests drive the generation
+        // state machine, not the canon card.
+        mockk(relaxed = true),
+        mockk(relaxed = true),
     )
 
     @Before

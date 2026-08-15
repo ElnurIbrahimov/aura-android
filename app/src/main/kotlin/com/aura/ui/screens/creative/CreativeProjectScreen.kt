@@ -709,6 +709,33 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
         }
     }
 
+    if (state.canonFactCount > 0 || state.openConflicts.isNotEmpty()) {
+        item(key = "manuscript-canon") {
+            ManuscriptCard(title = "Canon") {
+                Text(
+                    "${state.canonFactCount} facts recorded from the scenes so far.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                )
+                state.openConflicts.forEach { issue ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = AuraSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            issue.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { viewModel.dismissConflict(issue.id) }) {
+                            Text("Intentional")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // The scene being written, and only that. The manuscript so far belongs in
     // the artifact list; putting it here would redraw a book on every token.
     if (run?.liveText?.isNotBlank() == true) {

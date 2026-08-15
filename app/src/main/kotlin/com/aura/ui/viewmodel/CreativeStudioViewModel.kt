@@ -66,6 +66,10 @@ data class CreativeStudioUiState(
     val planningOutline: Boolean = false,
     /** Null until the project has a living world. */
     val livingWorld: LivingWorldUi? = null,
+    /** Facts `SceneLedger` has recorded for the open project's active branch. */
+    val canonFactCount: Int = 0,
+    /** Contradictions the ledger flagged and nobody has judged yet. */
+    val openConflicts: List<com.aura.creative.ContinuityIssueEntity> = emptyList(),
 )
 
 /**
@@ -228,11 +232,22 @@ class CreativeStudioViewModel @Inject constructor(
     // so a parameter added mid-list is a compile break for reasons unrelated
     // to what those tests check. Same rule ProactiveBootstrap records.
     private val creativeAnalysisStore: com.aura.creative.CreativeAnalysisStore,
+    private val canonFactDao: com.aura.creative.CanonFactDao,
+    private val continuityIssueDao: com.aura.creative.ContinuityIssueDao,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
     private var generationJob: Job? = null
     private var longformJob: Job? = null
+    // Declared here, above `init`, not further down beside `livingWorldJob` —
+    // see commit 719ae507 (SettingsViewModel: two StateFlows declared 570
+    // lines below `init` were still null when a coroutine launched in `init`
+    // assigned to them, because Kotlin runs property initialisers and init
+    // blocks in declaration order). observeCanon is only ever called from
+    // loadProject, after the constructor has finished, so this particular
+    // field is not actually at risk — but declaring it beside its siblings
+    // above `init` is the same house rule, applied before it needs to be.
+    private var canonJob: Job? = null
 
     init {
         // Repair before the first list renders. `creative_artifacts` was written
@@ -328,6 +343,7 @@ class CreativeStudioViewModel @Inject constructor(
                 observedProjectId = id
                 observeLongform(id)
                 observeLivingWorld(id)
+                observeCanon(id)
             }
         }
     }
@@ -509,6 +525,45 @@ class CreativeStudioViewModel @Inject constructor(
                         )
                     }
                 }
+        }
+    }
+
+    /**
+     * Canon and its open disagreements for [projectId].
+     *
+     * `observeOpen` is already a Flow, so a conflict flagged by a background
+     * drafting run appears without the screen polling or being reopened.
+     */
+    private fun observeCanon(projectId: String) {
+        canonJob?.cancel()
+        canonJob = viewModelScope.launch {
+            val branchId = runCatching { branchStore.createMainBranch(projectId).id }
+                .onFailure { android.util.Log.w("CreativeVM", "branch resolve failed: ${it.message}", it) }
+                .getOrNull() ?: return@launch
+            val facts = runCatching { canonFactDao.activeForBranch(projectId, branchId) }
+                .onFailure { android.util.Log.w("CreativeVM", "canon read failed: ${it.message}", it) }
+                .getOrDefault(emptyList())
+            _state.update { it.copy(canonFactCount = facts.size) }
+            continuityIssueDao.observeOpen(projectId, branchId).collect { issues ->
+                _state.update { it.copy(openConflicts = issues) }
+            }
+        }
+    }
+
+    /**
+     * Mark a flagged contradiction as deliberate.
+     *
+     * `intentional_exception` rather than `dismissed`: the schema distinguishes
+     * them, and "the author meant this" is a different fact from "the author is
+     * not interested", which matters the next time the same pair is compared.
+     */
+    fun dismissConflict(issueId: String) {
+        viewModelScope.launch {
+            runCatching {
+                continuityIssueDao.resolve(issueId, "intentional_exception", System.currentTimeMillis(), "user")
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Could not dismiss the flag.") }
+            }
         }
     }
 

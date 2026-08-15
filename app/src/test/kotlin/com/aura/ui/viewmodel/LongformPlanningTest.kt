@@ -67,6 +67,9 @@ class LongformPlanningTest {
         mockk(relaxed = true), com.aura.creative.livingworld.WorldSeeder(),
         com.aura.creative.livingworld.WorldTickBus(), mockk(relaxed = true), mockk(relaxed = true),
         mockk(relaxed = true), // creativeAnalysisStore
+        // canonFactDao, continuityIssueDao — these tests drive the generation
+        // state machine, not the canon card.
+        mockk(relaxed = true), mockk(relaxed = true),
     )
 
     @Before
