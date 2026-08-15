@@ -95,7 +95,11 @@ class SceneLedgerTest {
         stubModel(goodReply)
         val worldSlot = slot<WorldBible>()
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns null
+        // Returns the project, not null. `updateWorld` returns null *without
+        // throwing* when the project row is gone, so stubbing null here made
+        // `assertTrue(stored)` assert the bug rather than the behaviour named in
+        // the test title — see the case below, which pins the null path itself.
+        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns project()
 
         val stored = ledger().record(
             project = project(),
@@ -111,6 +115,24 @@ class SceneLedgerTest {
         val written = worldSlot.captured.outline
         assertTrue(written[0].synopsis.contains("The keeper refused her entry."))
         assertEquals("", written[1].synopsis, "only the drafted beat gets a synopsis")
+    }
+
+    /**
+     * `updateWorld` returns `CreativeProject?` and returns null *without throwing*
+     * when the project row is gone. `runCatching { … }.isSuccess` was therefore
+     * true for a write that persisted nothing, and `record` reported a synopsis
+     * stored that no reader will ever find — which back-fill counts as filled and
+     * never revisits.
+     */
+    @Test
+    fun `a world write that silently persists nothing reports failure`() = runTest {
+        stubModel(goodReply)
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { projectStore.updateWorld("p1", any()) } returns null
+
+        val stored = ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
+
+        assertEquals(false, stored)
     }
 
     @Test
@@ -136,7 +158,7 @@ class SceneLedgerTest {
         stubModel("""{"synopsis":"${"y".repeat(2_000)}","facts":[]}""")
         val worldSlot = slot<WorldBible>()
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns null
+        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns project()
 
         ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
 
@@ -238,6 +260,26 @@ class SceneLedgerTest {
         val stored = ledger().record(project(), "main", 0, "art1", "rev1", "x".repeat(600), "openai:gpt-4o")
 
         assertEquals(false, stored)
+        coVerify(exactly = 0) { projectStore.updateWorld(any(), any()) }
+    }
+
+    /**
+     * `revisionId` is the identity every fact id is derived from. Blank makes the
+     * deterministic id degenerate to "|type|subject|predicate": every legacy scene
+     * stating the same triple collapses onto one row under REPLACE, and
+     * `reconcile`'s `it.id != fact.id` filter then skips the old row as "itself",
+     * so no contradiction can ever be detected. Canon that looks present and is
+     * wrong is worse than canon that is absent.
+     */
+    @Test
+    fun `it refuses to record canon without a revision id`() = runTest {
+        stubModel(goodReply)
+        coEvery { projectStore.get("p1") } returns project()
+
+        val stored = ledger().record(project(), "main", 0, "art1", "", "x".repeat(600), "openai:gpt-4o")
+
+        assertEquals(false, stored)
+        coVerify(exactly = 0) { canonFactDao.upsertAll(any()) }
         coVerify(exactly = 0) { projectStore.updateWorld(any(), any()) }
     }
 
@@ -508,6 +550,13 @@ class SceneLedgerTest {
      * The previous scene is already supplied verbatim and in full as
      * `previousSceneTail`. Letting it match here spends the retrieval budget
      * printing it a second time.
+     *
+     * Excluded by **artifact** id, not revision id. `previousSceneTail` follows
+     * the artifact, so keying this on the revision made the two disagree whenever
+     * a revision pointer moved; and a beat drafted before this branch existed has
+     * a blank `revisionId`, against which `r.id != ''` matches every row — the
+     * previous scene was retrieved in full, for exactly the population that
+     * cannot afford it.
      */
     @Test
     fun `it excludes the immediately preceding scene`() = runTest {
@@ -520,7 +569,28 @@ class SceneLedgerTest {
 
         ledger().retrieve("p1", beats, beatIndex = 2)
 
-        coVerify { revisionDao.searchScenes("p1", any(), "r2", any()) }
+        coVerify { revisionDao.searchScenes("p1", any(), "a2", any()) }
+    }
+
+    /**
+     * A legacy beat has no `revisionId`, and the old exclusion keyed on it passed
+     * `""` to a `r.id != :exclude` comparison that every row satisfies. The
+     * artifact id is populated for every drafted beat ever written, so the
+     * exclusion still holds for the scenes that most need it.
+     */
+    @Test
+    fun `it still excludes the previous scene when that beat has no revision id`() = runTest {
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "Arrival", status = "drafted", artifactId = "a1"),
+            StoryBeat(id = "b2", title = "Lantern", status = "drafted", artifactId = "a2"),
+            StoryBeat(id = "b3", title = "The lantern again", summary = "Mira returns"),
+        )
+        coEvery { revisionDao.searchScenes(any(), any(), any(), any()) } returns emptyList()
+
+        ledger().retrieve("p1", beats, beatIndex = 2)
+
+        coVerify { revisionDao.searchScenes("p1", any(), "a2", any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes("p1", any(), "", any()) }
     }
 
     @Test
@@ -537,7 +607,7 @@ class SceneLedgerTest {
             StoryBeat(id = "b2", title = "Two", status = "drafted", artifactId = "a2", revisionId = "r2", synopsis = "already there"),
         )
         coEvery { projectStore.get("p1") } returns project(beats)
-        coEvery { projectStore.updateWorld(any(), any()) } returns null
+        coEvery { projectStore.updateWorld(any(), any()) } returns project(beats)
         coEvery { artifactStore.currentContent("a1") } returns "x".repeat(600)
 
         val filled = ledger().backFill(project(beats), "main", "openai:gpt-4o")
@@ -557,7 +627,7 @@ class SceneLedgerTest {
             StoryBeat(id = "b$it", title = "B$it", status = "drafted", artifactId = "a$it", revisionId = "r$it")
         }
         coEvery { projectStore.get("p1") } returns project(beats)
-        coEvery { projectStore.updateWorld(any(), any()) } returns null
+        coEvery { projectStore.updateWorld(any(), any()) } returns project(beats)
         coEvery { artifactStore.currentContent(any()) } returns "x".repeat(600)
 
         val filled = ledger().backFill(project(beats), "main", "openai:gpt-4o")
@@ -585,5 +655,87 @@ class SceneLedgerTest {
 
         assertEquals(0, ledger().backFill(project(beats), "main", "openai:gpt-4o"))
         coVerify(exactly = 0) { artifactStore.currentContent(any()) }
+    }
+
+    private fun artifact(id: String, revisionId: String?) = com.aura.creative.CreativeArtifactEntity(
+        id = id,
+        projectId = "p1",
+        branchId = "main",
+        kind = "scene",
+        title = "Scene",
+        currentRevisionId = revisionId,
+    )
+
+    /**
+     * Every scene drafted before this class existed has a blank `revisionId` —
+     * which is the entire population back-fill was written to serve. Passing it
+     * through would have degenerated every fact id to "|type|subject|predicate"
+     * and stored empty provenance. The artifact the beat already points at knows
+     * the revision, so back-fill recovers it there.
+     */
+    @Test
+    fun `back-fill recovers a blank revision id from the artifact`() = runTest {
+        stubModel(goodReply)
+        val factSlot = slot<List<CanonFactEntity>>()
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = ""),
+        )
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { projectStore.updateWorld(any(), any()) } returns project(beats)
+        coEvery { artifactStore.currentContent("a1") } returns "x".repeat(600)
+        coEvery { artifactStore.get("a1") } returns artifact("a1", "recovered")
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+
+        assertEquals(1, ledger().backFill(project(beats), "main", "openai:gpt-4o"))
+
+        assertEquals("recovered", factSlot.captured.single().sourceRevisionId)
+    }
+
+    /**
+     * `record` writes the recovered id back onto the beat, so a legacy beat is
+     * repaired the first time it is back-filled and never has to be resolved
+     * again — the synopsis alone would have left the blank in place forever.
+     */
+    @Test
+    fun `the recovered revision id is written back onto the beat`() = runTest {
+        stubModel(goodReply)
+        val worldSlot = slot<WorldBible>()
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = ""),
+        )
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns project(beats)
+        coEvery { artifactStore.currentContent("a1") } returns "x".repeat(600)
+        coEvery { artifactStore.get("a1") } returns artifact("a1", "recovered")
+
+        ledger().backFill(project(beats), "main", "openai:gpt-4o")
+
+        assertEquals("recovered", worldSlot.captured.outline[0].revisionId)
+    }
+
+    /**
+     * A beat whose revision cannot be resolved cannot produce sound canon, so it
+     * is skipped. Skipping is not a failed attempt: it must not spend the cap
+     * that exists to bound a broken *extraction*, or one orphaned beat at the
+     * front of the outline would starve every healable beat behind it on every
+     * slice forever.
+     */
+    @Test
+    fun `an unresolvable revision is skipped without consuming the cap`() = runTest {
+        stubModel(goodReply)
+        val beats = listOf(
+            StoryBeat(id = "b0", title = "Orphan", status = "drafted", artifactId = "a0", revisionId = ""),
+        ) + (1..3).map {
+            StoryBeat(id = "b$it", title = "B$it", status = "drafted", artifactId = "a$it", revisionId = "r$it")
+        }
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { projectStore.updateWorld(any(), any()) } returns project(beats)
+        coEvery { artifactStore.currentContent(any()) } returns "x".repeat(600)
+        coEvery { artifactStore.get("a0") } returns null
+
+        val filled = ledger().backFill(project(beats), "main", "openai:gpt-4o")
+
+        assertEquals(SceneLedger.MAX_BACKFILL_PER_SLICE, filled, "the orphan must not eat a healable beat's turn")
+        coVerify(exactly = 0) { canonFactDao.upsertAll(match { facts -> facts.any { it.sourceRevisionId.isNullOrBlank() } }) }
     }
 }

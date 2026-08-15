@@ -84,6 +84,15 @@ class SceneLedger @Inject constructor(
         sceneText: String,
         sceneModel: String,
     ): Boolean {
+        // revisionId is the identity every fact id is derived from. Blank makes
+        // the deterministic id degenerate to "|type|subject|predicate", which
+        // collapses every scene's facts onto one row AND makes reconcile skip
+        // the old row as "itself" — silently disabling contradiction detection.
+        // Refusing here is better than writing canon that looks present and is wrong.
+        if (revisionId.isBlank()) {
+            Log.w(TAG, "no revision id for beat $beatIndex; refusing to record canon without provenance")
+            return false
+        }
         val model = resolveModel(sceneModel) ?: run {
             Log.w(TAG, "no model available for the ledger; scene $beatIndex left unrecorded")
             return false
@@ -117,12 +126,21 @@ class SceneLedger @Inject constructor(
             if (!written) return false
         }
 
+        // `revisionId` too, not only the synopsis. A beat drafted before this
+        // class existed carries none, and back-fill resolves one from the
+        // artifact to get here; writing it back is what makes that repair
+        // permanent, so the recovery happens once per legacy beat rather than
+        // on every pass forever.
         val updated = beats.toMutableList().also {
-            it[beatIndex] = it[beatIndex].copy(synopsis = synopsis)
+            it[beatIndex] = it[beatIndex].copy(synopsis = synopsis, revisionId = revisionId)
         }
+        // `.isSuccess` was the bug this replaces: `updateWorld` returns null
+        // without throwing when the project row is gone, so `record` reported
+        // success having persisted nothing — and back-fill, whose only sentinel
+        // is the synopsis it believes was written, counted it as filled.
         return runCatching { projectStore.updateWorld(project.id, current.world.copy(outline = updated)) }
             .onFailure { Log.w(TAG, "could not store the synopsis: ${it.message}", it) }
-            .isSuccess
+            .getOrNull() != null
     }
 
     /**
@@ -158,6 +176,20 @@ class SceneLedger @Inject constructor(
                 .getOrNull()
             if (text.isNullOrBlank()) continue
 
+            // Scenes drafted before SceneLedger existed have no revisionId — that
+            // is the whole population this exists for. Recover it from the artifact
+            // the beat already points at; record() writes it back, so each legacy
+            // beat is repaired once and never revisited.
+            val rev = beat.revisionId.ifBlank {
+                runCatching { artifactStore.get(beat.artifactId)?.currentRevisionId.orEmpty() }
+                    .onFailure { Log.w(TAG, "could not resolve revision for beat ${index + 1}: ${it.message}", it) }
+                    .getOrDefault("")
+            }
+            // A beat whose revision cannot be resolved cannot produce sound canon.
+            // `continue` rather than `break`: skipping is not a failed attempt, so
+            // it must not consume the cap that bounds a broken extraction.
+            if (rev.isBlank()) continue
+
             // Re-read inside the loop: record() writes worldJson, so the snapshot
             // this loop started with is stale after the first success.
             val current = runCatching { projectStore.get(project.id) }
@@ -169,7 +201,7 @@ class SceneLedger @Inject constructor(
                 branchId = branchId,
                 beatIndex = index,
                 artifactId = beat.artifactId,
-                revisionId = beat.revisionId,
+                revisionId = rev,
                 sceneText = text,
                 sceneModel = sceneModel,
             )
@@ -225,11 +257,17 @@ class SceneLedger @Inject constructor(
      * The immediately preceding scene is excluded: it is already supplied
      * verbatim and in full as `previousSceneTail`, and letting it match here
      * would spend the retrieval budget printing it a second time.
+     *
+     * Excluded by **artifact** id, the same key `previousSceneTail` follows, so
+     * the two cannot disagree when a revision pointer moves. Keying it on the
+     * beat's `revisionId` also excluded nothing at all for a beat drafted before
+     * this class existed, since those carry none and `r.id != ''` matches
+     * everything.
      */
     suspend fun retrieve(projectId: String, beats: List<StoryBeat>, beatIndex: Int): List<String> {
         if (beatIndex <= 0) return emptyList()
         val beat = beats.getOrNull(beatIndex) ?: return emptyList()
-        val exclude = beats.getOrNull(beatIndex - 1)?.revisionId.orEmpty()
+        val exclude = beats.getOrNull(beatIndex - 1)?.artifactId.orEmpty()
 
         val terms = "${beat.title} ${beat.summary} ${beat.setting} ${beat.pov}"
             .lowercase()

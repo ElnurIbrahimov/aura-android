@@ -117,6 +117,14 @@ interface CreativeRevisionDao {
      * right trade at this scale — a long novel on one branch is forty rows —
      * and §3's Gate B records that the embedding business case for anything
      * cleverer is still unproven.
+     *
+     * [excludeArtifactId] is an **artifact** id, not a revision id. The caller
+     * excludes the immediately preceding scene because it is already supplied
+     * verbatim and in full elsewhere, and that supply follows the artifact — so
+     * keying the exclusion on a revision made the two disagree whenever a
+     * revision pointer moved. A beat drafted before the ledger existed also
+     * carries no revision id at all, and `r.id != ''` excludes nothing, which
+     * silently retrieved the previous scene a second time.
      */
     @Query(
         """
@@ -124,7 +132,7 @@ interface CreativeRevisionDao {
         INNER JOIN creative_artifacts a ON a.currentRevisionId = r.id
         WHERE a.projectId = :projectId
           AND a.kind = 'scene'
-          AND r.id != :excludeRevisionId
+          AND a.id != :excludeArtifactId
           AND r.contentText LIKE '%' || :term || '%'
         ORDER BY r.createdAt DESC
         LIMIT :limit
@@ -133,7 +141,7 @@ interface CreativeRevisionDao {
     suspend fun searchScenes(
         projectId: kotlin.String,
         term: kotlin.String,
-        excludeRevisionId: kotlin.String,
+        excludeArtifactId: kotlin.String,
         limit: kotlin.Int,
     ): List<CreativeRevisionEntity>
 }

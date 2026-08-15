@@ -67,7 +67,7 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v25, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
-- 3,107 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 3,113 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - 69 instrumented test methods (26 Room migration-chain methods in :aura-core, 43 in :app — 38 Compose rendering, 5 device smoke) — **compiled** in CI, never executed there; run via `connectedAndroidTest` on a device
 - 5 device smoke checks (`scripts/smoke.sh`) asserting outcomes against a real model and a real database: a stated preference becomes a categorised memory, a pleasantry becomes none, an imported document is retrievable and outlined, a fired worker leaves a non-empty run detail, the screenshot path answers rather than going silent. These are the only tests in the repo that exercise the real provider graph.
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)

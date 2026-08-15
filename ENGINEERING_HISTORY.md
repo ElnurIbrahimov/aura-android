@@ -709,15 +709,40 @@ rather than a scope filter and the tool had never once returned a canon fact.
 
 New class `SceneLedger` (`com.aura.creative.longform`) is the first writer
 `canon_facts` and `continuity_issues` have had: both tables shipped with full
-DAOs, indices, foreign keys and backup mappers, and their only production
-consumers were `BackupManager`'s snapshot, restore and purge. No Room
+DAOs, indices and backup mappers — `canon_facts` with a cascading foreign key
+to `creative_projects`, `continuity_issues` with none — and their only
+production consumers were `BackupManager`'s snapshot, restore and purge. No Room
 migration: `StoryBeat` decodes with `ignoreUnknownKeys = true` and a default on
 every field, and the two canon tables already existed. A per-slice back-fill
 (capped at 3) heals beats whose extraction failed and is the migration path
 for every scene drafted before this existed.
 
-Full gate re-verified at this pass: **456 suites, 3,107 unit tests, 0
-failures, 0 errors** (357 suites / 2,573 tests in `:aura-core`, 99 suites / 534
+A whole-branch review then found that back-fill — the one path that exists for
+legacy scenes — passed `beat.revisionId`, which is `""` for every scene drafted
+before this branch. `CanonFactEntity.id` is
+`UUID.nameUUIDFromBytes("$revisionId|$subjectType|$subjectId|$predicate")`, so a
+blank one degenerated to `"|type|subject|predicate"`: every legacy scene stating
+the same triple collapsed onto one row under `upsertAll`'s REPLACE, and
+`reconcile`'s `it.id != fact.id` filter — there to stop a fact contradicting
+itself — then skipped the old row as itself. Contradiction detection, the
+headline of this work, was off for every pre-existing project, silently. `record`
+now refuses a blank `revisionId` outright, `backFill` resolves one from the
+artifact the beat already points at (skipping, not `break`ing, when it cannot, so
+an orphan does not starve the beats behind it), and `record` writes the recovered
+id back so each legacy beat is repaired once. Two neighbours fell out of the same
+read: `retrieve` excluded the previous scene by `revisionId`, which is blank for
+those same beats and made `r.id != ''` match every row — so `previousSceneTail`'s
+scene was retrieved and reprinted in full, the one thing `retrieve` documents it
+does not do; it now excludes by artifact id, the key `previousSceneTail` itself
+follows. And `record` ended on `runCatching { updateWorld(…) }.isSuccess`, while
+`updateWorld` returns null *without throwing* when the project row is gone — so
+`record` reported a synopsis stored that nothing had persisted. Now
+`.getOrNull() != null`. That last one survived twelve per-task reviews because
+its test stubbed `updateWorld` to return null and asserted success: the test
+asserted the bug. It is repaired, and a separate case pins the null path.
+
+Full gate re-verified at this pass: **456 suites, 3,113 unit tests, 0
+failures, 0 errors** (357 suites / 2,579 tests in `:aura-core`, 99 suites / 534
 tests in `:app`; baseline before this branch was 3,065). Both lint tasks clean
 of errors — 78 warnings (63 `:app`, 15 `:aura-core`), 9 hints. `assembleRelease`
 succeeds, 11.80 MB. All three gate scripts pass. Device verification
@@ -832,7 +857,7 @@ and inflated the document frequencies BM25 had just started depending on.
   migration chains, global search fans out across all of them, and backup must coordinate
   11 schemas — which is why `BackupManager.kt` is the largest file in the project.
   Consolidating to one or two databases is a large but bounded change.
-- **Scope versus depth.** 76 tools, 17 providers, ~29 screens, plus evolution, dream,
+- **Scope versus depth.** 78 tools, 17 providers, ~29 screens, plus evolution, dream,
   taste, world model, creative council, production pipelines, agent DAG runs, and an MCP
   client — for a single-user personal app. Several of these subsystems are 200–500 lines:
   the surface area is large relative to the depth behind each. This was the 07-17
