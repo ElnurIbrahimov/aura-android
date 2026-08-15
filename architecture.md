@@ -94,6 +94,13 @@ aura-android-clean/
 - Named `living_*` throughout because `com.aura.world` and the tables `world_events`/`beliefs` already model the *user's* real life — an in-fiction belief landing there would be surfaced to the user as a genuine suggestion
 - `LivingWorldWiringTest` asserts the scheduler is reachable from `ProactiveBootstrap`, that nothing in the package touches `ProactiveEventBus` (a background emit is dropped silently — see `DaemonWorker`), and that the engine stays free of Android and network dependencies
 
+### Manuscript Ledger (`com.aura.creative.longform`)
+- `SceneLedger` gives `LongformRunner` the two context sections `SceneContextBuilder` always documented and no caller ever supplied: `storySoFar` (prior beat synopses, oldest dropped once over budget, chronological order preserved) and `retrieved` (lexical `LIKE` search over drafted scene revisions, excluding the immediately preceding scene, which `previousSceneTail` already supplies in full). Both are wired into every scene call now, not just exercised by caps in a test
+- `record` runs one cheap-tier call after each scene commits, outside the commit's `NonCancellable` block, and writes a two-sentence synopsis onto the beat plus canon triples to `canon_facts`; a changed single-valued predicate (`location`, `age`, `alive`, `allegiance`, `occupation`, `rank`) also writes a `continuity_issues` row and supersedes the prior fact. Both tables existed with full DAOs, indices and backup mappers and now have their first writer
+- `canon_query` reads `CanonFactDao` for the project's active branch instead of the user's personal memory store
+- A per-slice back-fill (capped at 3) heals beats whose extraction failed and is the migration path for scenes drafted before this class existed — no Room migration, no schema export change
+- One card in the Manuscript tab (`CreativeProjectScreen`) shows the fact count and open conflicts, dismissible as `intentional_exception` via `ContinuityIssueDao.resolve`
+
 ### Evolution System
 - Pipeline: detectors → **EvolutionPatchAuthor** (one LLM call returns `{decision, reason, patch}`) → **EvolutionPatchValidator** (schema + safety checks; invalid → REJECTED) → ProposalStore → InboxViewModel → approve → ApplySaga → **EvolutionOutcomeScorer** (deterministic, evidence-based, ≥7d post-apply)
 - 4 EvolutionAction types: PATCH_SKILL, RETIRE_SKILL, PROMOTE_TO_HAND, CONSOLIDATE_MEMORIES — each with typed, complete rollback snapshots
@@ -161,7 +168,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,065 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,107 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,

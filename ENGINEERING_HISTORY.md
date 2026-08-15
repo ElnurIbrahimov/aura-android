@@ -679,6 +679,51 @@ using the app on a phone, which is §4's point, unchanged and still unacted-on.
   consciousness components were "not in the backup schema yet" thirty lines above the line
   saying schema v18 added them.
 
+### The manuscript ledger (2026-08-15)
+
+`SceneContextBuilder`'s KDoc documented an eight-section context budget;
+`LongformRunner`, its only production caller, supplied six. `storySoFar` and
+`retrieved` (`SceneContextBuilder.kt:51-52`) were defaulted parameters nothing
+passed — the two sections carrying any memory of the manuscript already
+written, so scene twelve of a novel had never read scenes one through ten.
+`section()` returns `""` for an empty body, so the two headings never even
+appeared in the assembled prompt. The only place either was ever non-empty was
+`SceneContextBuilderTest`, filling them with `"y".repeat(50_000)` to prove the
+caps truncate — which proved the caps, not that content arrives. Found by
+reading the caller against the KDoc, the check none of the twelve prior passes
+ran — see §4. The regression gate is now `LongformRunnerTest`'s "drafting scene
+two sends the story so far" and "drafting scene two sends what the manuscript
+retrieved", both asserted to fail when the wiring that supplies them is
+removed.
+
+Two more fields fixed in passing, the same shape — declared and never written:
+`StoryBeat.revisionId` (`WorldBible.kt:96`) now carries the committed
+revision's id rather than a copy of `artifactId` — the provenance field the
+whole canon store rests on (`CanonFactEntity.sourceRevisionId`) could not be
+filled honestly without this; and `canon_query` (`CanonQueryTool.kt`) now
+reads `CanonFactDao.activeForBranch`
+for the project's active branch instead of running
+`memoryStore.query("$question project:$projectId")` against the user's
+*personal* memory store, where `project:` was literal text inside a BM25 query
+rather than a scope filter and the tool had never once returned a canon fact.
+
+New class `SceneLedger` (`com.aura.creative.longform`) is the first writer
+`canon_facts` and `continuity_issues` have had: both tables shipped with full
+DAOs, indices, foreign keys and backup mappers, and their only production
+consumers were `BackupManager`'s snapshot, restore and purge. No Room
+migration: `StoryBeat` decodes with `ignoreUnknownKeys = true` and a default on
+every field, and the two canon tables already existed. A per-slice back-fill
+(capped at 3) heals beats whose extraction failed and is the migration path
+for every scene drafted before this existed.
+
+Full gate re-verified at this pass: **456 suites, 3,107 unit tests, 0
+failures, 0 errors** (357 suites / 2,573 tests in `:aura-core`, 99 suites / 534
+tests in `:app`; baseline before this branch was 3,065). Both lint tasks clean
+of errors — 78 warnings (63 `:app`, 15 `:aura-core`), 9 hints. `assembleRelease`
+succeeds, 11.80 MB. All three gate scripts pass. Device verification
+(`scripts/smoke.sh` plus the manual six-scene draft check) was **not**
+performed as part of this pass — see the task-11 report.
+
 ### Blocked on measurement, not on work
 
 Four items are deliberately unfinished. Each is blocked on evidence that does not exist yet,
@@ -793,7 +838,11 @@ and inflated the document frequencies BM25 had just started depending on.
   the surface area is large relative to the depth behind each. This was the 07-17
   assessment's central diagnosis ("too much honest substrate, not enough honest surface").
   The sweep deepened several seams (gates, evolution, capture) but did not shrink the
-  surface.
+  surface. The manuscript ledger (2026-08-15, §3 above) is the same move applied to
+  creative: `canon_facts` and `continuity_issues` existed, fully wired to DAOs and
+  backup, since the schema was designed, and had never held a row. They have a writer
+  now, with no new tool, route, or screen added — depth given to existing surface
+  rather than surface piled on top.
 
 ---
 
