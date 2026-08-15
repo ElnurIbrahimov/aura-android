@@ -475,19 +475,32 @@ class SceneLedgerTest {
         assertTrue(passages[0].length <= SceneContextBuilder.RETRIEVED_ITEM_CAP)
     }
 
-    /** Stopwords LIKE-match nearly every scene, which is noise rather than retrieval. */
+    /**
+     * Stopwords LIKE-match nearly every scene, which is noise rather than retrieval.
+     *
+     * Every asserted word is four characters — long enough to survive the length
+     * filter on its own — so each assertion can only pass because of stopword-list
+     * membership, not because the word was also too short to reach the database.
+     * A three-letter stopword like "the" would pass this test even with the
+     * stopword filter deleted, since the length filter removes it either way;
+     * that is exactly why none of the four assertions below use one.
+     */
     @Test
-    fun `it never searches on a stopword`() = runTest {
+    fun `it never searches on a stopword long enough to survive the length filter`() = runTest {
         val beats = listOf(
             StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = "r1"),
-            StoryBeat(id = "b2", title = "The and of it", summary = "with a to for"),
+            StoryBeat(id = "b2", title = "Were have into with", summary = "lighthouse"),
         )
         coEvery { revisionDao.searchScenes(any(), any(), any(), any()) } returns emptyList()
 
         ledger().retrieve("p1", beats, beatIndex = 1)
 
-        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "the", any(), any()) }
-        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "and", any(), any()) }
+        // A real term is present so the term list isn't empty and retrieve() actually
+        // reaches the DAO — otherwise every coVerify below would pass vacuously.
+        coVerify(exactly = 1) { revisionDao.searchScenes("p1", "lighthouse", any(), any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "were", any(), any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "have", any(), any()) }
+        coVerify(exactly = 0) { revisionDao.searchScenes(any(), "into", any(), any()) }
         coVerify(exactly = 0) { revisionDao.searchScenes(any(), "with", any(), any()) }
     }
 
