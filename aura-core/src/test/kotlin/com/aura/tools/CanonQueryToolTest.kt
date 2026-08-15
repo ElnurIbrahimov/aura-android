@@ -16,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -49,7 +50,7 @@ class CanonQueryToolTest {
     @Test
     fun `it answers from canon and never touches personal memory`() = runTest {
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { branchStore.createMainBranch("p1") } returns mainBranch()
+        coEvery { branchStore.forProject("p1") } returns listOf(mainBranch())
         coEvery { canonFactDao.activeForBranch("p1", "main") } returns listOf(
             CanonFactEntity(
                 id = "f1", projectId = "p1", branchId = "main",
@@ -65,14 +66,18 @@ class CanonQueryToolTest {
 
         assertTrue(result is ToolResult.Ok)
         assertTrue((result as ToolResult.Ok).output.contains("Mira"))
-        assertTrue(result.output.contains("the lighthouse"))
+        // Asserts the quotes were actually stripped, not just that the
+        // substring "the lighthouse" is present somewhere — that would pass
+        // whether or not .trim('"') ran, since valueJson is a JSON string.
+        assertTrue(result.output.contains("location: the lighthouse"))
+        assertFalse(result.output.contains("\"the lighthouse\""))
         coVerify(exactly = 0) { memoryStore.query(any(), any()) }
     }
 
     @Test
     fun `an empty canon says so rather than inventing an answer`() = runTest {
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { branchStore.createMainBranch("p1") } returns mainBranch()
+        coEvery { branchStore.forProject("p1") } returns listOf(mainBranch())
         coEvery { canonFactDao.activeForBranch("p1", "main") } returns emptyList()
 
         val result = tool().execute(
@@ -81,5 +86,24 @@ class CanonQueryToolTest {
         )
 
         assertTrue((result as ToolResult.Ok).output.contains("No canon"))
+    }
+
+    @Test
+    fun `a project with no branches yet returns the empty-canon message and creates nothing`() = runTest {
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { branchStore.forProject(any()) } returns emptyList()
+
+        val result = tool().execute(
+            call("projectId" to "p1", "question" to "where is Mira"),
+            ctx(),
+        )
+
+        assertTrue((result as ToolResult.Ok).output.contains("No canon"))
+        coVerify(exactly = 0) { canonFactDao.activeForBranch(any(), any()) }
+        // The direct regression gate for the READ_ONLY finding: canon_query
+        // must never fall back to the get-or-create branch call, in this case
+        // or any other, since ToolExecutor's incognito gate trusts
+        // ToolRisk.READ_ONLY to mean no local-state mutation.
+        coVerify(exactly = 0) { branchStore.createMainBranch(any()) }
     }
 }

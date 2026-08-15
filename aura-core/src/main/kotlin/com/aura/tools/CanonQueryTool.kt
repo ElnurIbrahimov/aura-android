@@ -60,27 +60,44 @@ class CanonQueryTool @Inject constructor(
             projectStore.get(projectId)
                 ?: return@Tool ToolResult.Error("Project not found", "not_found")
 
-            val branchId = branchStore.createMainBranch(projectId).id
-            val facts = canonFactDao.activeForBranch(projectId, branchId)
+            // A pure read, deliberately not createMainBranch — that is a
+            // get-or-create, and this tool is declared READ_ONLY. ToolExecutor
+            // lets READ_ONLY through the incognito gate on the strength of that
+            // declaration, so a hidden insert here would write local state in
+            // exactly the session that promised not to.
+            //
+            // No main branch means no facts can exist for one, so a missing
+            // branch and an empty canon are the same answer.
+            val branchId = branchStore.forProject(projectId).firstOrNull { it.name == "main" }?.id
+            val facts = if (branchId == null) emptyList() else canonFactDao.activeForBranch(projectId, branchId)
             // Terms rather than a ranked search: canon is tens of rows, not
             // thousands, and a subject-name match is what the question is
             // almost always about. Ranking this would be machinery over noise.
             val terms = question.lowercase()
                 .split(Regex("[^a-z0-9']+"))
                 .filter { it.length >= 3 && it !in StopWords.ENGLISH }
-            val matched = facts.filter { fact ->
+            val termMatches = facts.filter { fact ->
                 terms.isEmpty() || terms.any {
                     fact.subjectId.lowercase().contains(it) ||
-                        fact.predicate.contains(it) ||
+                        fact.predicate.lowercase().contains(it) ||
                         fact.valueJson.lowercase().contains(it)
                 }
-            }.ifEmpty { facts }
+            }
+            // Distinct from "terms.isEmpty()": this is specifically "we had
+            // terms, and none of them matched a fact" — the caller cannot tell
+            // that apart from a real match list without a marker, since both
+            // render as the same fact dump under the same header.
+            val noTermMatched = facts.isNotEmpty() && termMatches.isEmpty()
+            val matched = termMatches.ifEmpty { facts }
 
             val output = buildString {
                 appendLine("Canon for: $question")
                 if (matched.isEmpty()) {
                     appendLine("No canon recorded for this project yet. Canon is written as scenes are drafted.")
                 } else {
+                    if (noTermMatched) {
+                        appendLine("(No term matched; showing all recorded canon.)")
+                    }
                     matched.take(MAX_FACTS).forEach {
                         appendLine("- ${it.subjectId} (${it.subjectType}) ${it.predicate}: ${it.valueJson.trim('"')}")
                     }
