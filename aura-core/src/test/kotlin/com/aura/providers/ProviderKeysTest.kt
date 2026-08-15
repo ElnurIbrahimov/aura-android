@@ -10,7 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -32,6 +34,31 @@ import kotlin.time.Duration.Companion.seconds
  * env var.
  */
 class ProviderKeysTest {
+
+    /**
+     * The timeout this class was wrongly assumed not to need.
+     *
+     * `ENGINEERING_HISTORY` §3 ruled this class out of the CI hang on
+     * 2026-08-13 as "fully bounded — 21 `runTest` blocks, 21 explicit
+     * timeouts". Two of its tests are `runBlocking`, not `runTest`, and
+     * `runBlocking` carries no timeout at all — the exact shape that pass
+     * identified in `AnthropicProviderTest`, `GeminiProviderTest` and
+     * `ProviderConcurrentStreamTest`, and fixed in those three. The hang was
+     * inside the class the count exonerated.
+     *
+     * Proven on 2026-08-15 by the `testLogging { events("started") }` that same
+     * pass added: `loaded becomes true even when init load encounters errors`
+     * STARTED at 18:57:55, nothing else ever started, and the task hit its
+     * 40-minute ceiling at 19:36:51. It passes locally every time — the
+     * starvation needs the two-core runner.
+     *
+     * A rule rather than a conversion to `runTest`, for the reason the sibling
+     * classes give: `runTest` substitutes virtual time, and these two await a
+     * real `Dispatchers.IO` load. The rule interrupts and names the test.
+     * Class-level, so it also covers whatever `runBlocking` test is added next.
+     */
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
 
     /**
      * Builds a [ProviderKeys] wired to a clean in-memory DataStore and

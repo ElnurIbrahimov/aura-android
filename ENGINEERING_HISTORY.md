@@ -636,6 +636,24 @@ using the app on a phone, which is §4's point, unchanged and still unacted-on.
   made able to answer for itself: `testLogging { events("started") }`, CI only, in both
   modules. Partial results can only ever name the last class to *finish*; the hanging one
   is by definition the one that never got written, so the log has to record what started.
+
+  **Answered 2026-08-15, and the hypothesis above was wrong in its one load-bearing
+  step.** The `started` logging worked exactly as intended and named the hang outright:
+  on run `31902357923`, `ProviderKeysTest > loaded becomes true even when init load
+  encounters errors` STARTED at 18:57:55, nothing else ever started, and the task hit its
+  40-minute ceiling at 19:36:51. The hang was *inside* the class this entry exonerated.
+  "21 `runTest` blocks, 21 explicit timeouts" was a miscount: two of that class's tests
+  are `runBlocking` — `decryption failure during init sets StorageError terminal state`
+  and the one that hung — each awaiting a real `Dispatchers.IO` load with no timeout over
+  it. That is precisely the shape this entry had just identified and fixed in three
+  sibling classes; the count is what stopped it being checked here. `ProviderKeysTest`
+  now carries the same class-level `Timeout.seconds(60)` rule, which also covers the
+  second unbounded test and any added later.
+
+  Worth keeping as the lesson: the diagnosis was right about the mechanism and wrong
+  about the location, and it was wrong because a class was cleared by counting rather
+  than by reading. The instrumentation added *because* the reasoning was uncertain is
+  what closed it — two days later, on the first run that hung after it shipped.
 - **`onACall` fired on any WhatsApp notification.** `SituationReader` matched package
   substrings over `NotificationCaptureStore.snapshot(20)`, which holds *posted
   notifications*. One unread message set `onACall`, which set `interruptible` false, which
