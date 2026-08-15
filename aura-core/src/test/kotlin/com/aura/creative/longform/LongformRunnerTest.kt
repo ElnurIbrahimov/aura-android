@@ -15,6 +15,7 @@ import com.aura.providers.ModelRole
 import com.aura.providers.ModelRoleRouter
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
@@ -43,6 +44,7 @@ class LongformRunnerTest {
     private val brain = mockk<Brain>()
     private val progressBus = LongformProgressBus()
     private val modelRoleRouter = mockk<ModelRoleRouter>(relaxed = true)
+    private val sceneLedger = mockk<SceneLedger>(relaxed = true)
 
     private fun runner() = LongformRunner(
         runStore = runStore,
@@ -52,6 +54,7 @@ class LongformRunnerTest {
         brain = brain,
         progressBus = progressBus,
         modelRoleRouter = modelRoleRouter,
+        sceneLedger = sceneLedger,
     )
 
     private fun beats(count: Int, draftedUpTo: Int = 0) = (1..count).map { i ->
@@ -321,5 +324,68 @@ class LongformRunnerTest {
         val written = worldSlot.captured.outline.first()
         assertEquals("art1", written.artifactId)
         assertEquals("rev1", written.revisionId, "the beat must name the revision holding its text")
+    }
+
+    /**
+     * The regression gate for the defect this whole change exists to fix.
+     *
+     * `storySoFar` and `retrieved` were defaulted parameters that no production
+     * caller ever passed, so scene twelve saw the outline titles and the last 2,000
+     * characters of scene eleven and had not read scenes one through ten. The only
+     * places either was non-empty were two lines of SceneContextBuilderTest filling
+     * them with "y".repeat(50_000) to prove the caps truncate.
+     */
+    @Test
+    fun `drafting scene two sends the story so far`() = runTest {
+        val messagesSlot = slot<List<com.aura.providers.ProviderMessage>>()
+        setUpRun(
+            listOf(
+                StoryBeat(
+                    id = "b1", title = "Arrival", status = "drafted",
+                    artifactId = "art1", revisionId = "rev1",
+                    synopsis = "Mira reached the lighthouse and the keeper refused her.",
+                ),
+                StoryBeat(id = "b2", title = "The lantern room", summary = "Mira climbs"),
+            ),
+        )
+        // sceneLedger is a mock here, not the real SceneLedger — LongformRunnerTest
+        // proves the wiring (the result reaches the prompt), SceneLedgerTest proves
+        // storySoFar's own accumulation logic. Stubbed with the same text beat one's
+        // synopsis carries, so the assertion below is checking the wiring, not MockK's
+        // default relaxed-mock return value.
+        every { sceneLedger.storySoFar(any(), any()) } returns
+            "Mira reached the lighthouse and the keeper refused her."
+        coEvery { brain.stream(any(), capture(messagesSlot), any(), any()) } returns
+            flowOf(BrainChunk.Text("x".repeat(600)))
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+
+        runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        val system = messagesSlot.captured.first { it.role == com.aura.providers.ProviderMessage.Role.system }
+        assertTrue(system.content.contains("== STORY SO FAR =="), system.content)
+        assertTrue(system.content.contains("the keeper refused her"))
+    }
+
+    /** A committed scene is handed to the ledger, and the ledger's failure is not the scene's. */
+    @Test
+    fun `it records each committed scene and survives the ledger failing`() = runTest {
+        val worldSlot = slot<WorldBible>()
+        setUpRun(beats(1))
+        // Feed the commit back into get(), the same idiom `it drafts every planned
+        // beat and completes` uses. Without it, get() keeps returning beat one as
+        // "planned" on the loop's next pass, which is indistinguishable from the
+        // no-progress case and trips the FAILED guard rather than the outcome this
+        // test is about — leaving no beat left undrafted, so the run completes.
+        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } answers {
+            coEvery { projectStore.get("p1") } returns project(worldSlot.captured.outline)
+            null
+        }
+        coEvery { sceneLedger.record(any(), any(), any(), any(), any(), any(), any()) } throws
+            IllegalStateException("extraction blew up")
+
+        val outcome = runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        assertEquals(LongformOutcome.COMPLETED, outcome)
+        coVerify(exactly = 1) { sceneLedger.record(any(), any(), 0, any(), any(), any(), any()) }
     }
 }

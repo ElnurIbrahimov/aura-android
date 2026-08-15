@@ -54,6 +54,10 @@ class LongformRunner @Inject constructor(
     private val brain: Brain,
     private val progressBus: LongformProgressBus,
     private val modelRoleRouter: ModelRoleRouter? = null,
+    // Appended, not inserted. LongformRunnerTest constructs this by name, but
+    // the ProactiveBootstrap KDoc's rule holds regardless: a parameter added
+    // mid-list silently re-binds every positional argument after it.
+    private val sceneLedger: SceneLedger,
 ) {
 
     /**
@@ -198,6 +202,10 @@ class LongformRunner @Inject constructor(
             beats = beats,
             beatIndex = index,
             previousSceneTail = previousTail,
+            storySoFar = sceneLedger.storySoFar(beats, index),
+            retrieved = runCatching { sceneLedger.retrieve(project.id, beats, index) }
+                .onFailure { Log.w(TAG, "manuscript retrieval failed: ${it.message}", it) }
+                .getOrDefault(emptyList()),
         )
 
         progressBus.beginScene(jobId, index, beats.size, beat.title)
@@ -245,7 +253,7 @@ class LongformRunner @Inject constructor(
         // Same reasoning as BackupManager.restore's insert phase: once the
         // expensive irreversible part has happened, finishing the cheap durable
         // part is not optional.
-        val artifactId = withContext(NonCancellable) {
+        val committed: Pair<String, String>? = withContext(NonCancellable) {
             runCatching {
                 val artifact = artifactStore.create(
                     projectId = project.id,
@@ -270,11 +278,29 @@ class LongformRunner @Inject constructor(
                     )
                 }
                 projectStore.updateWorld(project.id, project.world.copy(outline = updated))
-                id
+                id to artifact.currentRevisionId.orEmpty()
             }.onFailure { Log.w(TAG, "could not persist scene ${index + 1}: ${it.message}", it) }.getOrNull()
         }
         progressBus.clear()
-        return artifactId != null
+        val (artifactId, revisionId) = committed ?: return false
+
+        // After the commit, and outside its NonCancellable block. A scene that
+        // has been generated, streamed and paid for must never be put at risk by
+        // a bookkeeping call — the same reasoning the commit block above
+        // records. The cost is that a failure here leaves a blank synopsis,
+        // which backFill clears on a later slice.
+        runCatching {
+            sceneLedger.record(
+                project = project,
+                branchId = beatBranch(jobId),
+                beatIndex = index,
+                artifactId = artifactId,
+                revisionId = revisionId,
+                sceneText = body,
+                sceneModel = model,
+            )
+        }.onFailure { Log.w(TAG, "could not record scene ${index + 1}: ${it.message}", it) }
+        return true
     }
 
     /**
