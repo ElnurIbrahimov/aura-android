@@ -731,13 +731,15 @@ artifact the beat already points at (skipping, not `break`ing, when it cannot, s
 an orphan does not starve the beats behind it), and `record` writes the recovered
 id back so each legacy beat is repaired once. Two neighbours fell out of the same
 read: `retrieve` excluded the previous scene by `revisionId`, which is blank for
-those same beats and made `r.id != ''` match every row — so `previousSceneTail`'s
-scene was retrieved and reprinted in full, the one thing `retrieve` documents it
-does not do; it now excludes by artifact id, the key `previousSceneTail` itself
-follows. And `record` ended on `runCatching { updateWorld(…) }.isSuccess`, while
+those same beats and made `r.id != ''` match every row — so a 700-character
+window of `previousSceneTail`'s scene came back through retrieval too, spending
+part of the 2,800-character budget on text the prompt already carried, which is
+the one thing `retrieve` documents it does not do; it now excludes by artifact
+id, the key `previousSceneTail` itself follows. And `record` ended on
+`runCatching { updateWorld(…) }.isSuccess`, while
 `updateWorld` returns null *without throwing* when the project row is gone — so
 `record` reported a synopsis stored that nothing had persisted. Now
-`.getOrNull() != null`. That last one survived twelve per-task reviews because
+`.getOrNull() != null`. That last one survived eleven per-task reviews because
 its test stubbed `updateWorld` to return null and asserted success: the test
 asserted the bug. It is repaired, and a separate case pins the null path.
 

@@ -554,9 +554,9 @@ class SceneLedgerTest {
      * Excluded by **artifact** id, not revision id. `previousSceneTail` follows
      * the artifact, so keying this on the revision made the two disagree whenever
      * a revision pointer moved; and a beat drafted before this branch existed has
-     * a blank `revisionId`, against which `r.id != ''` matches every row — the
-     * previous scene was retrieved in full, for exactly the population that
-     * cannot afford it.
+     * a blank `revisionId`, against which `r.id != ''` matches every row — so a
+     * window of the previous scene came back through retrieval as well, for
+     * exactly the population that can least afford the budget.
      */
     @Test
     fun `it excludes the immediately preceding scene`() = runTest {
