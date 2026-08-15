@@ -293,4 +293,33 @@ class LongformRunnerTest {
 
         assertEquals(null, progressBus.live.value)
     }
+
+    /**
+     * `StoryBeat.revisionId` is documented as "the revision of that artifact holding
+     * this beat's text" and was written by nothing: the commit copied `artifactId`
+     * only, while `CreativeArtifactStore.create` already returns an entity carrying
+     * `currentRevisionId`. `CanonFactEntity.sourceRevisionId` is the provenance
+     * field the canon store rests on and cannot be filled honestly without it.
+     */
+    @Test
+    fun `a committed beat records the revision its text lives in`() = runTest {
+        val worldSlot = slot<WorldBible>()
+        setUpRun(beats(1))
+        coEvery { artifactStore.create(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            CreativeArtifactEntity(
+                id = "art1",
+                projectId = "p1",
+                branchId = "main",
+                kind = "scene",
+                title = "1. Beat 1",
+                currentRevisionId = "rev1",
+            )
+        coEvery { projectStore.updateWorld("p1", capture(worldSlot)) } returns null
+
+        runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        val written = worldSlot.captured.outline.first()
+        assertEquals("art1", written.artifactId)
+        assertEquals("rev1", written.revisionId, "the beat must name the revision holding its text")
+    }
 }

@@ -94,6 +94,19 @@ data class StoryBeat(
     val artifactId: String = "",
     /** The revision of that artifact holding this beat's text. */
     val revisionId: String = "",
+    /**
+     * Two sentences on what this scene changed, written once by [SceneLedger]
+     * when the scene was fresh and never re-summarised afterwards.
+     *
+     * Lives here rather than in a table because it is a fact about this beat and
+     * travels with it — through `worldJson`, through backup, through a branch
+     * fork — with no migration, no mapper and no doc count to keep in step.
+     *
+     * Blank means "not extracted yet", which is a state the back-fill in
+     * [com.aura.creative.longform.LongformRunner] exists to clear. It is not the
+     * same as "this scene changed nothing".
+     */
+    val synopsis: String = "",
 )
 
 @Serializable

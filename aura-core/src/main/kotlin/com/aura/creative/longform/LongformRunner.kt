@@ -247,7 +247,7 @@ class LongformRunner @Inject constructor(
         // part is not optional.
         val artifactId = withContext(NonCancellable) {
             runCatching {
-                val id = artifactStore.create(
+                val artifact = artifactStore.create(
                     projectId = project.id,
                     branchId = beatBranch(jobId),
                     kind = KIND_SCENE,
@@ -256,9 +256,18 @@ class LongformRunner @Inject constructor(
                     authorKind = "generation",
                     modelId = model,
                     prompt = beat.summary.ifBlank { beat.title },
-                ).id
+                )
+                val id = artifact.id
+                // `revisionId` too, not just `artifactId`. It has been declared
+                // since this class was written and set by nothing, while `create`
+                // has always returned the entity carrying it. Canon provenance
+                // (`CanonFactEntity.sourceRevisionId`) cannot be filled without it.
                 val updated = beats.toMutableList().also {
-                    it[index] = beat.copy(status = STATUS_DRAFTED, artifactId = id)
+                    it[index] = beat.copy(
+                        status = STATUS_DRAFTED,
+                        artifactId = id,
+                        revisionId = artifact.currentRevisionId.orEmpty(),
+                    )
                 }
                 projectStore.updateWorld(project.id, project.world.copy(outline = updated))
                 id
