@@ -540,11 +540,16 @@ class CreativeStudioViewModel @Inject constructor(
     private fun observeCanon(projectId: String) {
         canonJob?.cancel()
         canonJob = viewModelScope.launch {
+            // Clear first. Branch resolution below is real DB I/O and can fail, and
+            // an early return would otherwise leave the previous project's counts on
+            // screen under the new project's name. observeLongform and
+            // observeLivingWorld both reset for the same reason.
+            _state.update { it.copy(canonFactCount = 0, openConflicts = emptyList()) }
             val branchId = runCatching { branchStore.createMainBranch(projectId).id }
-                .onFailure { android.util.Log.w("CreativeVM", "branch resolve failed: ${it.message}", it) }
+                .onFailure { android.util.Log.w("CreativeStudio", "branch resolve failed: ${it.message}", it) }
                 .getOrNull() ?: return@launch
             val facts = runCatching { canonFactDao.activeForBranch(projectId, branchId) }
-                .onFailure { android.util.Log.w("CreativeVM", "canon read failed: ${it.message}", it) }
+                .onFailure { android.util.Log.w("CreativeStudio", "canon read failed: ${it.message}", it) }
                 .getOrDefault(emptyList())
             _state.update { it.copy(canonFactCount = facts.size) }
             continuityIssueDao.observeOpen(projectId, branchId).collect { issues ->

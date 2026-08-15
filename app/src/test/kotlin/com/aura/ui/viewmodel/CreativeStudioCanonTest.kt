@@ -164,4 +164,36 @@ class CreativeStudioCanonTest {
         assertEquals(2, vm.state.value.canonFactCount)
         assertEquals(1, vm.state.value.openConflicts.size)
     }
+
+    /**
+     * Branch resolution is real DB I/O (`branchDao.forProject` plus, for a new
+     * project, an `upsert`) and can fail. Without a reset up front, a failed
+     * resolution for the newly selected project does nothing to
+     * `canonFactCount`/`openConflicts`, so whatever the previously observed
+     * project left behind stays on screen, now silently attributed to the new
+     * project. `observeLongform`/`observeLivingWorld` both reset first for the
+     * same reason; `observeCanon` has to as well.
+     */
+    @Test
+    fun `switching to a project whose branch resolution fails clears the previous project's canon`() = runTest {
+        val project2 = CreativeProject(
+            "p2", "Second City", "", "fantasy", "grim", WorldBible(overview = "Second remembers"),
+            "novel", 0, 1L, 1L,
+        )
+        coEvery { store.get("p2") } returns project2
+        coEvery { canonFactDao.activeForBranch("p1", "main") } returns listOf(fact("f1"), fact("f2"))
+        every { continuityIssueDao.observeOpen("p1", "main") } returns flowOf(listOf(issue("i1")))
+        coEvery { branchStore.createMainBranch("p2") } throws RuntimeException("branch resolve boom")
+
+        val vm = newViewModel()
+        vm.loadProject("p1")
+        advanceUntilIdle()
+        assertTrue(vm.state.value.canonFactCount > 0)
+
+        vm.loadProject("p2")
+        advanceUntilIdle()
+
+        assertEquals(0, vm.state.value.canonFactCount)
+        assertTrue(vm.state.value.openConflicts.isEmpty())
+    }
 }

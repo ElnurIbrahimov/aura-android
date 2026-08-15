@@ -713,7 +713,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
         item(key = "manuscript-canon") {
             ManuscriptCard(title = "Canon") {
                 Text(
-                    "${state.canonFactCount} facts recorded from the scenes so far.",
+                    if (state.canonFactCount == 1) {
+                        "1 fact recorded from the scenes so far."
+                    } else {
+                        "${state.canonFactCount} facts recorded from the scenes so far."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = AuraThemeTokens.colors.textSecondary,
                 )
