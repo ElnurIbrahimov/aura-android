@@ -16,6 +16,7 @@ import com.aura.providers.ProviderChunk
 import com.aura.providers.ProviderRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
@@ -295,6 +296,7 @@ class SceneLedgerTest {
         ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
 
         coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+        coVerify(exactly = 0) { canonFactDao.updateStatus(any(), any(), any()) }
     }
 
     /**
@@ -339,5 +341,49 @@ class SceneLedgerTest {
         ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
 
         assertEquals("relationship", issueSlot.captured.category)
+    }
+
+    /**
+     * `record` runs outside the caller's `NonCancellable` block on purpose, so
+     * being interrupted mid-`reconcile` is an expected condition, not an edge
+     * case. Superseding first would leave a fact retired with no replacement —
+     * `forSubject` filters to active, so the next pass would find nothing to
+     * compare against and lose the continuity issue for good. Writing first
+     * fails toward two active facts instead, which is recoverable. If a later
+     * change moves the write back to the end, this fails.
+     */
+    @Test
+    fun `the new fact is written before the old one is superseded`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerifyOrder {
+            canonFactDao.upsertAll(any())
+            canonFactDao.updateStatus("old1", "superseded", any())
+        }
+    }
+
+    /**
+     * Now that the new fact is written before the comparison runs, `forSubject`
+     * can echo it straight back as one of the subject's "active" facts. Without
+     * excluding it by id, a fact would be compared against itself.
+     */
+    @Test
+    fun `a fact is never compared against itself`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } answers {
+            listOf(factSlot.captured.first())
+        }
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
     }
 }

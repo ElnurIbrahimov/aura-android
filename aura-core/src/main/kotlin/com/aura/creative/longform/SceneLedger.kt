@@ -191,11 +191,23 @@ class SceneLedger @Inject constructor(
         artifactId: String,
         facts: List<CanonFactEntity>,
     ) {
+        // New facts first, supersession second — deliberately not the other way
+        // round, and deliberately not one transaction.
+        //
+        // `record` is called outside the caller's NonCancellable block on
+        // purpose, so being interrupted here is an expected condition. Superseding
+        // first would leave a fact retired with no replacement, and `forSubject`
+        // filters to active — so the next pass would find nothing to compare
+        // against, detect no conflict, and lose the continuity issue for good.
+        // This order fails toward two active facts instead: visible, re-detected
+        // next pass, and repaired. Absence cannot be recovered; duplication can.
+        canonFactDao.upsertAll(facts)
+
         for (fact in facts) {
             if (fact.predicate !in SINGLE_VALUED) continue
             val existing = canonFactDao
                 .forSubject(projectId, branchId, fact.subjectType, fact.subjectId)
-                .filter { it.predicate == fact.predicate && it.status == "active" }
+                .filter { it.predicate == fact.predicate && it.status == "active" && it.id != fact.id }
             for (old in existing) {
                 if (old.valueJson == fact.valueJson) continue
                 continuityIssueDao.upsert(
@@ -218,7 +230,6 @@ class SceneLedger @Inject constructor(
                 canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
             }
         }
-        canonFactDao.upsertAll(facts)
     }
 
     companion object {
