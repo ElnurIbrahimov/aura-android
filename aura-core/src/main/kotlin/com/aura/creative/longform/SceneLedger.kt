@@ -126,6 +126,59 @@ class SceneLedger @Inject constructor(
     }
 
     /**
+     * Fill in synopses for scenes that were committed without one.
+     *
+     * Two populations need this and both matter. A scene whose extraction failed
+     * — the deliberate consequence of running [record] outside the commit's
+     * `NonCancellable` block — and every scene drafted before this class
+     * existed, which is every scene in every existing project. Neither should
+     * stay permanently invisible to the scene after it.
+     *
+     * Capped per slice, for the reason `MAX_SCENE_ATTEMPTS` exists: a
+     * persistently failing extraction must not consume the drafting window it is
+     * there to support.
+     *
+     * @return how many were filled.
+     */
+    suspend fun backFill(
+        project: CreativeProject,
+        branchId: String,
+        sceneModel: String,
+    ): Int {
+        var filled = 0
+        val beats = project.world.outline
+        for ((index, beat) in beats.withIndex()) {
+            if (filled >= MAX_BACKFILL_PER_SLICE) break
+            if (beat.status != STATUS_DRAFTED) continue
+            if (beat.synopsis.isNotBlank()) continue
+            if (beat.artifactId.isBlank()) continue
+
+            val text = runCatching { artifactStore.currentContent(beat.artifactId) }
+                .onFailure { Log.w(TAG, "could not read scene ${index + 1} to back-fill: ${it.message}", it) }
+                .getOrNull()
+            if (text.isNullOrBlank()) continue
+
+            // Re-read inside the loop: record() writes worldJson, so the snapshot
+            // this loop started with is stale after the first success.
+            val current = runCatching { projectStore.get(project.id) }
+                .onFailure { Log.w(TAG, "could not re-read the project: ${it.message}", it) }
+                .getOrNull() ?: break
+
+            val ok = record(
+                project = current,
+                branchId = branchId,
+                beatIndex = index,
+                artifactId = beat.artifactId,
+                revisionId = beat.revisionId,
+                sceneText = text,
+                sceneModel = sceneModel,
+            )
+            if (ok) filled++ else break
+        }
+        return filled
+    }
+
+    /**
      * Everything the book has established before the beat being drafted.
      *
      * **No model call.** Each synopsis was written once, by [record], when the
@@ -323,6 +376,11 @@ class SceneLedger @Inject constructor(
 
     companion object {
         private const val TAG = "SceneLedger"
+
+        /** Bounds a broken extraction's cost per slice. */
+        const val MAX_BACKFILL_PER_SLICE = 3
+
+        private const val STATUS_DRAFTED = "drafted"
 
         /**
          * A prompt asking for two sentences is a request; a cap is a guarantee.

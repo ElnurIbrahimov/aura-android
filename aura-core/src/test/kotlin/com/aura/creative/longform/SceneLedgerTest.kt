@@ -528,4 +528,62 @@ class SceneLedgerTest {
         ledger().retrieve("p1", draftedBeats(3), beatIndex = 0)
         coVerify(exactly = 0) { revisionDao.searchScenes(any(), any(), any(), any()) }
     }
+
+    @Test
+    fun `it fills a drafted beat whose synopsis is blank`() = runTest {
+        stubModel(goodReply)
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = "r1", synopsis = ""),
+            StoryBeat(id = "b2", title = "Two", status = "drafted", artifactId = "a2", revisionId = "r2", synopsis = "already there"),
+        )
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+        coEvery { artifactStore.currentContent("a1") } returns "x".repeat(600)
+
+        val filled = ledger().backFill(project(beats), "main", "openai:gpt-4o")
+
+        assertEquals(1, filled)
+        coVerify(exactly = 0) { artifactStore.currentContent("a2") }
+    }
+
+    /**
+     * A persistently failing extraction must not consume the drafting window it
+     * exists to support — the same reasoning as MAX_SCENE_ATTEMPTS.
+     */
+    @Test
+    fun `back-fill is capped so a broken extraction cannot eat the slice`() = runTest {
+        stubModel(goodReply)
+        val beats = (1..10).map {
+            StoryBeat(id = "b$it", title = "B$it", status = "drafted", artifactId = "a$it", revisionId = "r$it")
+        }
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+        coEvery { artifactStore.currentContent(any()) } returns "x".repeat(600)
+
+        val filled = ledger().backFill(project(beats), "main", "openai:gpt-4o")
+
+        assertTrue(filled <= SceneLedger.MAX_BACKFILL_PER_SLICE, "filled $filled")
+    }
+
+    @Test
+    fun `a beat with no stored text is skipped rather than retried forever`() = runTest {
+        stubModel(goodReply)
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "One", status = "drafted", artifactId = "a1", revisionId = "r1"),
+        )
+        coEvery { projectStore.get("p1") } returns project(beats)
+        coEvery { artifactStore.currentContent("a1") } returns null
+
+        assertEquals(0, ledger().backFill(project(beats), "main", "openai:gpt-4o"))
+    }
+
+    @Test
+    fun `an undrafted beat is never back-filled`() = runTest {
+        stubModel(goodReply)
+        val beats = listOf(StoryBeat(id = "b1", title = "One", status = "planned"))
+        coEvery { projectStore.get("p1") } returns project(beats)
+
+        assertEquals(0, ledger().backFill(project(beats), "main", "openai:gpt-4o"))
+        coVerify(exactly = 0) { artifactStore.currentContent(any()) }
+    }
 }

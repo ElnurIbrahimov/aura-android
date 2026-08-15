@@ -112,6 +112,14 @@ class LongformRunner @Inject constructor(
                 return LongformOutcome.FAILED
             }
 
+            // Heal any scene committed without a synopsis before drafting the
+            // next one, so the context this slice assembles is as complete as
+            // the manuscript allows. Bounded inside the ledger.
+            if (scenesThisSlice == 0) {
+                runCatching { sceneLedger.backFill(project, beatBranch(jobId), model) }
+                    .onFailure { Log.w(TAG, "back-fill failed: ${it.message}", it) }
+            }
+
             // Cancellation is checked from Room, not just from the worker's own
             // flag: markCancelling writes there first precisely so a worker that
             // is mid-scene or re-enqueuing still sees it.

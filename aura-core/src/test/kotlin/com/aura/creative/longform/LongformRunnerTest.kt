@@ -366,6 +366,40 @@ class LongformRunnerTest {
         assertTrue(system.content.contains("the keeper refused her"))
     }
 
+    /**
+     * The symmetric regression gate. `storySoFar` and `retrieved` were wired into
+     * `contextBuilder.build(...)` together — see `drafting scene two sends the
+     * story so far` above — but only `storySoFar` had a test proving the wiring
+     * survives. Deleting `retrieved = ...` from that call site would compile and
+     * pass every other test, which is exactly the ungated-wiring pattern this
+     * plan exists to correct.
+     */
+    @Test
+    fun `drafting scene two sends what the manuscript retrieved`() = runTest {
+        val messagesSlot = slot<List<com.aura.providers.ProviderMessage>>()
+        setUpRun(
+            listOf(
+                StoryBeat(
+                    id = "b1", title = "Arrival", status = "drafted",
+                    artifactId = "art1", revisionId = "rev1",
+                    synopsis = "Mira reached the lighthouse and the keeper refused her.",
+                ),
+                StoryBeat(id = "b2", title = "The lantern room", summary = "Mira climbs"),
+            ),
+        )
+        coEvery { sceneLedger.retrieve(any(), any(), any()) } returns
+            listOf("the lamp had not been lit in forty years")
+        coEvery { brain.stream(any(), capture(messagesSlot), any(), any()) } returns
+            flowOf(BrainChunk.Text("x".repeat(600)))
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+
+        runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        val system = messagesSlot.captured.first { it.role == com.aura.providers.ProviderMessage.Role.system }
+        assertTrue(system.content.contains("== FROM THE MANUSCRIPT =="), system.content)
+        assertTrue(system.content.contains("the lamp had not been lit"))
+    }
+
     /** A committed scene is handed to the ledger, and the ledger's failure is not the scene's. */
     @Test
     fun `it records each committed scene and survives the ledger failing`() = runTest {
