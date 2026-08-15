@@ -57,6 +57,15 @@ class SceneLedgerTest {
         StoryBeat(id = "b$it", title = "Beat $it", summary = "Summary $it", status = "planned")
     }
 
+    private fun draftedBeats(count: Int, synopsisChars: Int = 40) = (1..count).map { i ->
+        StoryBeat(
+            id = "b$i",
+            title = "Beat $i",
+            status = "drafted",
+            synopsis = "S$i " + "z".repeat(synopsisChars),
+        )
+    }
+
     private fun project(beatList: List<StoryBeat> = beats(3)) = CreativeProject(
         id = "p1",
         name = "The Lighthouse",
@@ -394,5 +403,51 @@ class SceneLedgerTest {
 
         coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
         coVerify(exactly = 0) { canonFactDao.updateStatus(any(), any(), any()) }
+    }
+
+    @Test
+    fun `story so far reads the beats before this one, in order`() {
+        val beats = draftedBeats(4) + StoryBeat(id = "b5", title = "Beat 5")
+        val text = ledger().storySoFar(beats, beatIndex = 4)
+
+        assertTrue(text.indexOf("S1") < text.indexOf("S2"), "chronological order")
+        assertTrue(text.indexOf("S3") < text.indexOf("S4"))
+        assertTrue(!text.contains("S5"), "the beat being drafted is not part of the story so far")
+    }
+
+    @Test
+    fun `a beat with no synopsis is skipped rather than leaving a hole`() {
+        val beats = listOf(
+            StoryBeat(id = "b1", title = "Beat 1", status = "drafted", synopsis = "S1 happened"),
+            StoryBeat(id = "b2", title = "Beat 2", status = "drafted", synopsis = ""),
+            StoryBeat(id = "b3", title = "Beat 3", status = "drafted", synopsis = "S3 happened"),
+            StoryBeat(id = "b4", title = "Beat 4"),
+        )
+        val text = ledger().storySoFar(beats, beatIndex = 3)
+
+        assertTrue(text.contains("S1 happened"))
+        assertTrue(text.contains("S3 happened"))
+        assertTrue(!text.contains("Beat 2"))
+    }
+
+    /**
+     * The direction is the point. `section()` applies `.take(cap)`, which truncates
+     * the tail — so a book long enough to exceed the budget would keep scene one and
+     * discard the scene just written, which is backwards for continuity.
+     */
+    @Test
+    fun `over budget it keeps the most recent synopses and drops the oldest`() {
+        val beats = draftedBeats(60, synopsisChars = 380) + StoryBeat(id = "last", title = "Last")
+        val text = ledger().storySoFar(beats, beatIndex = 60)
+
+        assertTrue(text.length <= SceneContextBuilder.SUMMARY_CAP, "length was ${text.length}")
+        assertTrue(text.contains("S60 "), "the most recent synopsis must survive")
+        assertTrue(!text.contains("S1 "), "the oldest is the one to drop")
+        assertTrue(text.indexOf("S58") < text.indexOf("S59"), "what survives is still chronological")
+    }
+
+    @Test
+    fun `the first scene of a book has no story so far`() {
+        assertEquals("", ledger().storySoFar(draftedBeats(3), beatIndex = 0))
     }
 }

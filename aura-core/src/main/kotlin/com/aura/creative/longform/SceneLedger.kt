@@ -8,6 +8,7 @@ import com.aura.creative.CreativeArtifactStore
 import com.aura.creative.CreativeProject
 import com.aura.creative.CreativeProjectStore
 import com.aura.creative.CreativeRevisionDao
+import com.aura.creative.StoryBeat
 import com.aura.providers.ChatOptions
 import com.aura.providers.CheapModelResolver
 import com.aura.providers.ModelRole
@@ -121,6 +122,36 @@ class SceneLedger @Inject constructor(
         return runCatching { projectStore.updateWorld(project.id, current.world.copy(outline = updated)) }
             .onFailure { Log.w(TAG, "could not store the synopsis: ${it.message}", it) }
             .isSuccess
+    }
+
+    /**
+     * Everything the book has established before the beat being drafted.
+     *
+     * **No model call.** Each synopsis was written once, by [record], when the
+     * scene was fresh. Nothing re-summarises them. Rolling re-summarisation is
+     * where a story-so-far drifts: every pass compounds the previous pass's
+     * compression, and by scene twelve it is a summary of summaries with nothing
+     * left to check it against.
+     *
+     * Budgeted here rather than by `section()`'s `.take()`, because `.take()`
+     * truncates the tail — it would keep scene one and drop the scene just
+     * written. Accumulates backwards from the current beat until the budget is
+     * spent, then reverses, so the most recent scenes are the ones guaranteed to
+     * survive. A book long enough to lose its early synopses still carries every
+     * beat title in the OUTLINE section, which is what that section is for.
+     */
+    fun storySoFar(beats: List<StoryBeat>, beatIndex: Int): String {
+        val kept = ArrayDeque<String>()
+        var used = 0
+        for (i in (beatIndex - 1) downTo 0) {
+            val line = beats.getOrNull(i)?.synopsis?.trim().orEmpty()
+            if (line.isEmpty()) continue
+            val cost = line.length + 1
+            if (used + cost > SceneContextBuilder.SUMMARY_CAP) break
+            kept.addFirst(line)
+            used += cost
+        }
+        return kept.joinToString("\n")
     }
 
     /**
