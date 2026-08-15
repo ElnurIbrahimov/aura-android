@@ -2031,10 +2031,18 @@ class CanonQueryToolTest {
         world = WorldBible(), templateId = "novel", turnCount = 0, createdAt = 0L, updatedAt = 0L,
     )
 
+    private fun mainBranch() = CreativeBranchEntity(id = "main", projectId = "p1", name = "main")
+
+    /** `Tool.execute` is `suspend (ToolCall, ToolContext) -> ToolResult`; neither is nullable. */
+    private fun call(vararg pairs: Pair<String, Any?>) =
+        ToolCall(id = "tc1", name = "canon_query", arguments = mapOf(*pairs))
+
+    private fun ctx() = ToolContext(conversationId = "conv-1")
+
     @Test
     fun `it answers from canon and never touches personal memory`() = runTest {
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { branchStore.createMainBranch("p1").id } returns "main"
+        coEvery { branchStore.createMainBranch("p1") } returns mainBranch()
         coEvery { canonFactDao.activeForBranch("p1", "main") } returns listOf(
             CanonFactEntity(
                 id = "f1", projectId = "p1", branchId = "main",
@@ -2044,8 +2052,8 @@ class CanonQueryToolTest {
         )
 
         val result = tool().execute(
-            ToolCall(id = "c1", name = "canon_query", arguments = mapOf("projectId" to "p1", "question" to "where is Mira")),
-            null,
+            call("projectId" to "p1", "question" to "where is Mira"),
+            ctx(),
         )
 
         assertTrue(result is ToolResult.Ok)
@@ -2057,12 +2065,12 @@ class CanonQueryToolTest {
     @Test
     fun `an empty canon says so rather than inventing an answer`() = runTest {
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { branchStore.createMainBranch("p1").id } returns "main"
+        coEvery { branchStore.createMainBranch("p1") } returns mainBranch()
         coEvery { canonFactDao.activeForBranch("p1", "main") } returns emptyList()
 
         val result = tool().execute(
-            ToolCall(id = "c1", name = "canon_query", arguments = mapOf("projectId" to "p1", "question" to "where is Mira")),
-            null,
+            call("projectId" to "p1", "question" to "where is Mira"),
+            ctx(),
         )
 
         assertTrue((result as ToolResult.Ok).output.contains("No canon"))
@@ -2070,7 +2078,7 @@ class CanonQueryToolTest {
 }
 ```
 
-Check `ToolCall`'s and `Tool.execute`'s exact signatures in `aura-core/src/main/kotlin/com/aura/agent/` and adjust the two `execute(...)` calls to match — the second argument is whatever the existing `Tool.execute` lambda's second parameter is (it is ignored by this tool).
+Add these imports alongside the others: `com.aura.agent.ToolContext`, `com.aura.creative.CreativeBranchEntity`. `BraveSearchToolTest` is the house pattern for `call()`/`ctx()` helpers if anything here does not line up.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -2327,9 +2335,8 @@ class CreativeStudioCanonTest {
         Dispatchers.setMain(dispatcher)
         every { store.observeAll() } returns flowOf(listOf(project))
         coEvery { store.get("p1") } returns project
-        coEvery { branchStore.createMainBranch("p1") } returns mockk(relaxed = true) {
-            every { id } returns "main"
-        }
+        coEvery { branchStore.createMainBranch("p1") } returns
+            com.aura.creative.CreativeBranchEntity(id = "main", projectId = "p1", name = "main")
     }
 
     @After
@@ -2370,7 +2377,7 @@ class CreativeStudioCanonTest {
 }
 ```
 
-If `CreativeBranchStore.createMainBranch` returns a concrete entity rather than something mockable that way, build a real one instead of the nested mock — check its return type first.
+`createMainBranch` returns a concrete `CreativeBranchEntity`, so the stub returns a real one rather than a nested mock.
 
 - [ ] **Step 2: Run it to verify it fails**
 
