@@ -229,4 +229,95 @@ class SceneLedgerTest {
         assertEquals(false, stored)
         coVerify(exactly = 0) { projectStore.updateWorld(any(), any()) }
     }
+
+    private fun existingFact(
+        predicate: String,
+        value: String,
+        id: String = "old1",
+    ) = CanonFactEntity(
+        id = id,
+        projectId = "p1",
+        branchId = "main",
+        subjectType = "character",
+        subjectId = "Mira",
+        predicate = predicate,
+        valueJson = "\"$value\"",
+        sourceRevisionId = "rev0",
+        status = "active",
+    )
+
+    private fun replyWith(predicate: String, value: String) = """
+        {"synopsis":"Mira moved.",
+         "facts":[{"subjectType":"character","subjectId":"Mira","predicate":"$predicate",
+                   "value":"$value","confidence":0.9}]}
+    """.trimIndent()
+
+    /**
+     * A single-valued predicate cannot hold two values at once, so a different one
+     * is a contradiction rather than a change. The issue is what makes canon catch
+     * drift instead of merely remembering it.
+     */
+    @Test
+    fun `a changed single-valued fact is flagged and the old one superseded`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 1) { continuityIssueDao.upsert(match { it.status == "open" && it.category == "location" }) }
+        coVerify(exactly = 1) { canonFactDao.updateStatus("old1", "superseded", any()) }
+    }
+
+    /** Traits, allies and possessions accumulate. Nothing about them is a conflict. */
+    @Test
+    fun `a changed multi-valued fact writes no issue at all`() = runTest {
+        stubModel(replyWith("traits", "reckless"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("traits", "cautious"))
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+        coVerify(exactly = 0) { canonFactDao.updateStatus(any(), any(), any()) }
+    }
+
+    /** Restating a fact is not a contradiction. */
+    @Test
+    fun `repeating an identical single-valued fact writes no issue`() = runTest {
+        stubModel(replyWith("location", "Varn"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+    }
+
+    /**
+     * `evidenceFactIdsJson` is named for what it holds. Each fact already carries
+     * its own `sourceRevisionId`, and that chain is how the card names the scene
+     * each half came from without duplicating the link.
+     */
+    @Test
+    fun `the issue cites the two fact ids, not artifact ids`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        val issueSlot = slot<com.aura.creative.ContinuityIssueEntity>()
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+        coEvery { continuityIssueDao.upsert(capture(issueSlot)) } returns Unit
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        val newFactId = factSlot.captured.first().id
+        assertTrue(issueSlot.captured.evidenceFactIdsJson.contains("old1"))
+        assertTrue(issueSlot.captured.evidenceFactIdsJson.contains(newFactId))
+        assertEquals("art2", issueSlot.captured.artifactId)
+    }
 }

@@ -17,6 +17,7 @@ import com.aura.providers.ProviderRegistry
 import com.aura.providers.ResponseSchema
 import com.aura.providers.StructuredJson
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
@@ -105,8 +106,8 @@ class SceneLedger @Inject constructor(
             .map { it.toEntity(project.id, branchId, revisionId) }
 
         if (facts.isNotEmpty()) {
-            val written = runCatching { canonFactDao.upsertAll(facts) }
-                .onFailure { Log.w(TAG, "could not write canon facts: ${it.message}", it) }
+            val written = runCatching { reconcile(project.id, branchId, artifactId, facts) }
+                .onFailure { Log.w(TAG, "could not reconcile canon facts: ${it.message}", it) }
                 .isSuccess
             // The synopsis is back-fill's only sentinel: a beat with one is never
             // revisited. Writing it after the facts failed would strand them, so the
@@ -173,6 +174,53 @@ class SceneLedger @Inject constructor(
             status = "active",
         )
 
+    /**
+     * Write the new facts, and record where they disagree with what canon holds.
+     *
+     * Nothing here calls a model: a contradiction is a comparison of two triples.
+     *
+     * The new fact always wins and the old is superseded, so canon stays clean
+     * and singular and a reader never has to decide which of two rows is
+     * current. The disagreement is recorded *beside* canon rather than inside
+     * it, which is the whole point — silently superseding absorbs every mistake
+     * as though the character simply moved.
+     */
+    private suspend fun reconcile(
+        projectId: String,
+        branchId: String,
+        artifactId: String,
+        facts: List<CanonFactEntity>,
+    ) {
+        for (fact in facts) {
+            if (fact.predicate !in SINGLE_VALUED) continue
+            val existing = canonFactDao
+                .forSubject(projectId, branchId, fact.subjectType, fact.subjectId)
+                .filter { it.predicate == fact.predicate && it.status == "active" }
+            for (old in existing) {
+                if (old.valueJson == fact.valueJson) continue
+                continuityIssueDao.upsert(
+                    com.aura.creative.ContinuityIssueEntity(
+                        id = UUID.randomUUID().toString(),
+                        projectId = projectId,
+                        branchId = branchId,
+                        artifactId = artifactId,
+                        category = fact.predicate,
+                        severity = "warning",
+                        message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
+                            "and this scene says ${fact.valueJson}.",
+                        evidenceFactIdsJson = json.encodeToString(
+                            kotlinx.serialization.builtins.ListSerializer(String.serializer()),
+                            listOf(old.id, fact.id),
+                        ),
+                        status = "open",
+                    ),
+                )
+                canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
+            }
+        }
+        canonFactDao.upsertAll(facts)
+    }
+
     companion object {
         private const val TAG = "SceneLedger"
 
@@ -186,6 +234,19 @@ class SceneLedger @Inject constructor(
         val SUBJECT_TYPES = setOf(
             "character", "location", "faction", "object", "rule", "timeline", "relationship",
         )
+
+        /**
+         * Predicates that cannot hold two values at once, and are therefore the
+         * only ones where a different value is a contradiction rather than an
+         * addition. Everything else — traits, allies, possessions, knowledge —
+         * accumulates.
+         *
+         * Conservative on purpose. Pausing a run on a conflict was rejected
+         * precisely because early false positives are likely, and a flag earns
+         * trust by having its first ten be real. Tune this by reading real
+         * flags, not by argument.
+         */
+        val SINGLE_VALUED = setOf("location", "age", "alive", "allegiance", "occupation", "rank")
 
         /** A scene is 1,200 words; this is generous and bounds a runaway one. */
         private const val MAX_SCENE_CHARS = 12_000
