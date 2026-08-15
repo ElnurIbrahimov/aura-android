@@ -154,4 +154,39 @@ class SceneContextBuilderTest {
         assertEquals("", ctx.systemPrompt)
         assertEquals("", ctx.userPrompt)
     }
+
+    /**
+     * The two sections the builder documents and has never been given. Both were
+     * defaulted parameters that no production caller passed, so `section()` saw an
+     * empty body and emitted nothing at all — the headings did not appear, which is
+     * why nothing ever looked wrong.
+     */
+    @Test
+    fun `it renders the story-so-far and manuscript sections when supplied`() {
+        val ctx = builder.build(
+            project = project(beats(12)),
+            beats = beats(12),
+            beatIndex = 5,
+            previousSceneTail = "the door closed behind her",
+            storySoFar = "Mira reached the lighthouse. The keeper refused her.",
+            retrieved = listOf("the lamp had not been lit in forty years"),
+        )
+
+        assertTrue(ctx.systemPrompt.contains("== STORY SO FAR =="), ctx.systemPrompt)
+        assertTrue(ctx.systemPrompt.contains("The keeper refused her."))
+        assertTrue(ctx.systemPrompt.contains("== FROM THE MANUSCRIPT =="))
+        assertTrue(ctx.systemPrompt.contains("the lamp had not been lit"))
+    }
+
+    /**
+     * Thirty two-sentence synopses do not fit 1,500 characters, which is what the
+     * cap was when nothing ever filled the section.
+     */
+    @Test
+    fun `the story-so-far budget holds a book's worth of synopses`() {
+        assertTrue(
+            SceneContextBuilder.SUMMARY_CAP >= 8_000,
+            "SUMMARY_CAP is ${SceneContextBuilder.SUMMARY_CAP}; 30 synopses at 400 chars need 8,000",
+        )
+    }
 }

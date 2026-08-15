@@ -31,7 +31,7 @@ data class SceneContext(val systemPrompt: String, val userPrompt: String)
  * | world bible          | 6,000  | filtered to this beat, not the whole project      |
  * | outline spine        | 3,000  | every beat title, so the model knows where it is  |
  * | previous scene tail  | 2,000  | carries voice, place, an unfinished line          |
- * | story so far         | 1,500  | rolling summary, regenerated every few scenes     |
+ * | story so far         | 8,000  | rolling summary, regenerated every few scenes     |
  * | retrieved prior text | 2,800  | what the manuscript itself says about this beat   |
  * | scene instruction    |   600  | the beat, its target, where to stop               |
  *
@@ -198,7 +198,18 @@ class SceneContextBuilder @Inject constructor(
         const val WORLD_CAP = 6_000
         const val OUTLINE_CAP = 3_000
         const val PREVIOUS_TAIL_CAP = 2_000
-        const val SUMMARY_CAP = 1_500
+        /**
+         * Thirty two-sentence synopses, at the 400-character cap `SceneLedger`
+         * writes them under. Was 1,500 while nothing ever filled the section —
+         * a budget for content that never arrived, so its size was never tested
+         * against real input.
+         *
+         * `SceneLedger.storySoFar` budgets against this constant and drops from
+         * the oldest end, so `section()`'s `.take()` is a backstop rather than
+         * the mechanism. That matters: `.take()` truncates the tail, which would
+         * keep scene one and discard the scene just written.
+         */
+        const val SUMMARY_CAP = 8_000
         const val RETRIEVED_CAP = 2_800
         const val RETRIEVED_ITEM_CAP = 700
         const val INSTRUCTION_CAP = 600
