@@ -22,6 +22,7 @@ import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -368,22 +369,30 @@ class SceneLedgerTest {
     }
 
     /**
-     * Now that the new fact is written before the comparison runs, `forSubject`
-     * can echo it straight back as one of the subject's "active" facts. Without
-     * excluding it by id, a fact would be compared against itself.
+     * `it.id != fact.id` and the `valueJson` equality check are not the same
+     * guard, and only one shape tells them apart: a returned row with the
+     * *same* id as the fact under reconciliation but a *different* value — a
+     * stale read racing the write `reconcile` just did. Same id, same
+     * subject+predicate, different value is exactly what a genuine
+     * contradiction from a *different* fact also looks like; only the id
+     * distinguishes "this is the row I just wrote, read back before its value
+     * caught up" from "this is really a different fact." Without the id
+     * filter, the value check does not save it — the fact would be recorded
+     * as contradicting itself. The id is computed with `toEntity`'s own
+     * formula rather than hardcoded, so this cannot silently stop meaning
+     * anything if that formula changes.
      */
     @Test
-    fun `a fact is never compared against itself`() = runTest {
+    fun `a stale read of the same fact is not treated as a contradiction`() = runTest {
         stubModel(replyWith("location", "Kesh"))
-        val factSlot = slot<List<CanonFactEntity>>()
+        val factId = UUID.nameUUIDFromBytes("rev2|character|Mira|location".toByteArray()).toString()
         coEvery { projectStore.get("p1") } returns project()
-        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
-        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } answers {
-            listOf(factSlot.captured.first())
-        }
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn", id = factId))
 
         ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
 
         coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+        coVerify(exactly = 0) { canonFactDao.updateStatus(any(), any(), any()) }
     }
 }
