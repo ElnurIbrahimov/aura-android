@@ -70,6 +70,8 @@ class CreativeEngine @Inject constructor(
     private val brain: com.aura.agent.Brain,
     private val smartCodexInjector: SmartCodexInjector,
     private val modelRoleRouter: com.aura.providers.ModelRoleRouter? = null,
+    // Appended, not inserted — several tests construct this positionally.
+    private val craftResolver: CraftResolver? = null,
 ) {
     fun generate(
         projectId: String,
@@ -83,7 +85,20 @@ class CreativeEngine @Inject constructor(
             ?: throw IllegalArgumentException("Creative project not found.")
         val model = resolveModel()
         val template = WritingTemplates.byId(project.templateId)
-        val systemPrompt = buildSystemPrompt(project, mode, template, input)
+        // Resolved here, in the suspend context, and passed down — buildSystemPrompt
+        // stays synchronous and its existing tests keep working against the
+        // shipped constants.
+        val templateCraft = craftResolver?.let { r ->
+            runCatching { r.forTemplate(project.templateId) }
+                .onFailure { Log.w("CreativeEngine", "craft resolution failed: ${it.message}", it) }
+                .getOrNull()
+        }
+        val modeCraft = craftResolver?.let { r ->
+            runCatching { r.forMode(mode) }
+                .onFailure { Log.w("CreativeEngine", "mode craft resolution failed: ${it.message}", it) }
+                .getOrNull()
+        }
+        val systemPrompt = buildSystemPrompt(project, mode, template, input, templateCraft, modeCraft)
         val messages = buildMessages(projectId, project, mode, input, perspective, systemPrompt)
         val outputBudget = when (mode) {
             CreativeMode.SIMULATE, CreativeMode.DRAFT -> 28_672
@@ -140,6 +155,13 @@ class CreativeEngine @Inject constructor(
         mode: CreativeMode,
         template: WritingTemplate?,
         prompt: String = "",
+        /**
+         * The author's craft guidance, resolved by [CraftResolver] in the
+         * suspend caller. Null falls back to what shipped, which is also what
+         * every existing test of this method does.
+         */
+        templateCraft: String? = null,
+        modeCraft: String? = null,
     ): String = buildString {
         appendLine("You are Aura's Creative Studio engine working inside one durable creative project.")
         appendLine("You are not a chatbot. You are a craftsperson. Every word you write should serve the story.")
@@ -150,14 +172,14 @@ class CreativeEngine @Inject constructor(
         // Genre-specific craft
         if (template != null) {
             appendLine("== FORM: ${template.name} ==")
-            GenreCraftPrompts.forTemplate(template.id)?.let { craft ->
+            (templateCraft ?: GenreCraftPrompts.forTemplate(template.id))?.let { craft ->
                 appendLine(craft)
                 appendLine()
             }
         }
         // Mode-specific craft
         appendLine("== MODE GUIDANCE ==")
-        appendLine(GenreCraftPrompts.forMode(mode))
+        appendLine(modeCraft ?: GenreCraftPrompts.forMode(mode))
         appendLine()
         // Word count target for long-form modes
         if (mode == CreativeMode.DRAFT || mode == CreativeMode.SIMULATE) {

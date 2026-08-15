@@ -63,8 +63,49 @@ class SkillsStore @Inject constructor(
         runCatching { evolutionHooks?.onSkillEdited(skill.id) }.onFailure { Log.w("SkillsStore", "onSkillEdited hook failed", it) }
     }
 
+    /**
+     * Insert any [seeds] whose name is not already present.
+     *
+     * Keyed on absent *names* rather than on an empty store, which is what
+     * makes it safe to call on every startup: a later version that adds a craft
+     * prompt seeds only that one, and an author who has rewritten a builtin
+     * keeps their version forever. Modelled on `AgentStore.seedBuiltins`, which
+     * does the same job for the seven builtin agents.
+     *
+     * Fires no evolution hook. Seeding is the app arriving with its own
+     * knowledge, not the user authoring a skill, and recording it as authorship
+     * would put a creation event on every install.
+     */
+    suspend fun seedBuiltins(seeds: List<Skill>) {
+        awaitLoaded()
+        val existing = _skills.value.mapTo(mutableSetOf()) { it.name.lowercase() }
+        val missing = seeds.filterNot { it.name.lowercase() in existing }
+        if (missing.isEmpty()) return
+        val updated = _skills.value + missing
+        _skills.value = updated
+        secureDataStore.putString(KEY_SKILLS, updated.encodeToJsonString())
+    }
+
+    /**
+     * Restore a builtin's body and description to what shipped, from the same
+     * [seeds] list that created it. A no-op for a name that is not a seed.
+     */
+    suspend fun resetBuiltin(name: String, seeds: List<Skill>) {
+        awaitLoaded()
+        val current = findByName(name) ?: return
+        val seed = seeds.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return
+        update(current.withBody(seed.body).withDescription(seed.description))
+    }
+
     suspend fun remove(id: String) {
         awaitLoaded()
+        // Builtins are editable, not deletable — see [Skill.builtin]. The refusal
+        // lives here rather than in the UI so it holds for every caller,
+        // including the evolution system's RETIRE_SKILL action.
+        if (_skills.value.firstOrNull { it.id == id }?.builtin == true) {
+            Log.w("SkillsStore", "refusing to remove builtin skill $id; reset it instead")
+            return
+        }
         val previous = _skills.value.firstOrNull { it.id == id }
         val updated = _skills.value.filterNot { it.id == id }
         _skills.value = updated

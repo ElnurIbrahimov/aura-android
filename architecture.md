@@ -168,11 +168,28 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,113 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,131 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
   `ChatGptSubscriptionProvider` and `CustomOpenAiCompatProvider`), 7 builtin agents
+
+### Craft skills (`CraftSkills`, `CraftResolver`)
+
+- `GenreCraftPrompts` held several hundred lines of genre and mode technique compiled into the
+  binary, while `SkillsStore` — built for exactly this shape of content — shipped empty. `CraftSkills.seeds()`
+  turns each prompt into a builtin `Skill`, seeded from `ProactiveBootstrap` beside the builtin agents
+- Seeding keys on **absent names**, not an empty store: a later version that adds a craft prompt seeds
+  only that one, and an author who has rewritten a builtin keeps their version forever
+- `CraftResolver` prefers the stored body and falls back to the constant. That fallback is why the
+  constants were not deleted — an unseeded install, a discarded blob, or a body the author emptied must
+  draft with the craft that shipped, not with an empty section
+- Resolution happens in `LongformRunner` and `CreativeEngine`, never inside `SceneContextBuilder`, whose
+  design property is that every input is already-fetched data. `SceneContextBuilder.craft` is a defaulted
+  parameter and `LongformRunnerTest` gates the wire — the same defaulted-parameter shape that left
+  `storySoFar` and `retrieved` unsupplied for months
+- Builtins are editable and resettable, never deletable: `SkillsStore.remove` refuses them, so the
+  guarantee holds for every caller including the evolution system's `RETIRE_SKILL`
 
 ## Prompt assembly
 

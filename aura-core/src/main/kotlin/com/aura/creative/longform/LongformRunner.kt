@@ -58,6 +58,8 @@ class LongformRunner @Inject constructor(
     // the ProactiveBootstrap KDoc's rule holds regardless: a parameter added
     // mid-list silently re-binds every positional argument after it.
     private val sceneLedger: SceneLedger,
+    // Appended, not inserted — same rule as sceneLedger above.
+    private val craftResolver: com.aura.creative.CraftResolver,
 ) {
 
     /**
@@ -230,6 +232,12 @@ class LongformRunner @Inject constructor(
             retrieved = runCatching { sceneLedger.retrieve(project.id, beats, index) }
                 .onFailure { Log.w(TAG, "manuscript retrieval failed: ${it.message}", it) }
                 .getOrDefault(emptyList()),
+            // The author's craft guidance, if they have edited it. Resolved here
+            // rather than inside the builder, which stays pure and database-free.
+            // Falls back inside CraftResolver to the shipped constant.
+            craft = runCatching { craftResolver.forTemplate(project.templateId) }
+                .onFailure { Log.w(TAG, "craft resolution failed: ${it.message}", it) }
+                .getOrNull(),
         )
 
         progressBus.beginScene(jobId, index, beats.size, beat.title)

@@ -24,6 +24,18 @@ data class Skill(
     val name: String,
     val description: String,
     val body: String,
+    /**
+     * Shipped with the app rather than written by the user.
+     *
+     * A builtin is seeded on first run, is editable, and can be reset to what
+     * shipped — but it cannot be deleted. The craft guidance the creative
+     * engine depends on lives here, and a user who removed one would silently
+     * degrade every draft afterwards with nothing saying why.
+     *
+     * Defaulted, so an install written before this field existed decodes as
+     * user-authored — which is what those skills are.
+     */
+    val builtin: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {

@@ -45,6 +45,7 @@ class LongformRunnerTest {
     private val progressBus = LongformProgressBus()
     private val modelRoleRouter = mockk<ModelRoleRouter>(relaxed = true)
     private val sceneLedger = mockk<SceneLedger>(relaxed = true)
+    private val craftResolver = mockk<com.aura.creative.CraftResolver>(relaxed = true)
 
     private fun runner() = LongformRunner(
         runStore = runStore,
@@ -55,6 +56,7 @@ class LongformRunnerTest {
         progressBus = progressBus,
         modelRoleRouter = modelRoleRouter,
         sceneLedger = sceneLedger,
+        craftResolver = craftResolver,
     )
 
     private fun beats(count: Int, draftedUpTo: Int = 0) = (1..count).map { i ->
@@ -468,4 +470,28 @@ class LongformRunnerTest {
         assertEquals(LongformOutcome.COMPLETED, outcome)
         coVerify(exactly = 1) { sceneLedger.record(any(), any(), 0, any(), any(), any(), any()) }
     }
+
+    /**
+     * The wiring gate for craft guidance.
+     *
+     * `SceneContextBuilder.craft` is a defaulted parameter, which is exactly the
+     * shape that left `storySoFar` and `retrieved` unsupplied for months while
+     * their own tests passed. Deleting the `craft = ...` argument from
+     * `draftScene` makes this fail.
+     */
+    @Test
+    fun `drafting a scene sends the author's craft, not the shipped constant`() = runTest {
+        val messagesSlot = slot<List<com.aura.providers.ProviderMessage>>()
+        setUpRun(beats(2, draftedUpTo = 1))
+        coEvery { craftResolver.forTemplate(any()) } returns "WRITE ONLY IN SECOND PERSON"
+        coEvery { brain.stream(any(), capture(messagesSlot), any(), any()) } returns
+            flowOf(BrainChunk.Text("x".repeat(600)))
+        coEvery { projectStore.updateWorld(any(), any()) } returns null
+
+        runner().runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        val system = messagesSlot.captured.first { it.role == com.aura.providers.ProviderMessage.Role.system }
+        assertTrue(system.content.contains("WRITE ONLY IN SECOND PERSON"), system.content.take(500))
+    }
+
 }

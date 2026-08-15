@@ -69,6 +69,8 @@ class ProactiveBootstrap @Inject constructor(
      * one launch in a thousand where the marker actually exists.
      */
     private val backupManager: javax.inject.Provider<com.aura.backup.BackupManager>? = null,
+    // Appended, not inserted — this constructor's own KDoc records why.
+    private val skillsStore: com.aura.skills.SkillsStore? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -142,6 +144,14 @@ class ProactiveBootstrap @Inject constructor(
         }
         theoryOfMind?.let { tom ->
             scope.launch { runCatching { tom.load() }.onFailure { Log.w("Bootstrap", "theory-of-mind load failed: ${it.message}", it) } }
+        }
+        // Seed the craft skills beside the builtin agents, and for the same
+        // reason: guidance the app ships with belongs in a store the author can
+        // read and edit, not only in a constant a recompile could change. Keyed
+        // on absent names, so it is a no-op once done and never reverts an edit.
+        scope.launch {
+            runCatching { skillsStore?.seedBuiltins(com.aura.creative.CraftSkills.seeds()) }
+                .onFailure { Log.w("Bootstrap", "craft skill seeding failed: ${it.message}", it) }
         }
         // Seed builtin agents on first run, then repair the descriptions of
         // installs seeded before they were written by hand — a no-op once done.

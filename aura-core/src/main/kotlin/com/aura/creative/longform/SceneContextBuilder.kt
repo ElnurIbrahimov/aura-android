@@ -50,6 +50,7 @@ class SceneContextBuilder @Inject constructor(
         previousSceneTail: String = "",
         storySoFar: String = "",
         retrieved: List<String> = emptyList(),
+        craft: String? = null,
     ): SceneContext {
         val beat = beats.getOrNull(beatIndex)
             ?: return SceneContext(systemPrompt = "", userPrompt = "")
@@ -59,7 +60,7 @@ class SceneContextBuilder @Inject constructor(
             appendLine("You are Aura's Creative Studio engine, writing one scene of a longer work.")
             appendLine("You are not a chatbot. You are a craftsperson. Every word should serve the story.")
             appendLine()
-            append(craftGuidance(project))
+            append(craftGuidance(project, craft))
             append(section("PROJECT", projectHeader(project), PROJECT_HEADER_CAP))
             append(section("WORLD", worldFor(project.world, beatText), WORLD_CAP))
             append(section("OUTLINE", outlineSpine(beats, beatIndex), OUTLINE_CAP))
@@ -73,10 +74,19 @@ class SceneContextBuilder @Inject constructor(
         return SceneContext(systemPrompt = system, userPrompt = sceneInstruction(beat, beatIndex, beats.size))
     }
 
-    private fun craftGuidance(project: CreativeProject): String = buildString {
+    /**
+     * Genre craft for this project's form.
+     *
+     * [craft] is the author's version, resolved by `CraftResolver` outside this
+     * class — reading the skills store here would make this builder suspend and
+     * database-bound, and its whole design property is that every input is
+     * already-fetched data. Null means the caller did not resolve one, and the
+     * shipped constant answers, which is also what every existing test does.
+     */
+    private fun craftGuidance(project: CreativeProject, craft: String?): String = buildString {
         val template = WritingTemplates.byId(project.templateId)
         if (template != null) {
-            GenreCraftPrompts.forTemplate(template.id)?.let {
+            (craft ?: GenreCraftPrompts.forTemplate(template.id))?.let {
                 appendLine("== FORM: ${template.name} ==")
                 appendLine(it)
                 appendLine()
