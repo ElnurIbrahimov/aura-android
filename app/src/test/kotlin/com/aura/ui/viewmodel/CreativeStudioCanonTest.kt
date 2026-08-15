@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -130,5 +131,37 @@ class CreativeStudioCanonTest {
         advanceUntilIdle()
 
         coVerify { continuityIssueDao.resolve("i1", "intentional_exception", any(), "user") }
+    }
+
+    /**
+     * `observeLongform`/`observeLivingWorld` are wired into two places:
+     * `loadProject`, and a fallback inside `init`'s `store.observeAll()`
+     * collector for when a project becomes selected some other way
+     * (`createProject`, which sets `selectedProject` directly and never calls
+     * `loadProject`). Canon has to start observing from both places too — a
+     * project reached via the fallback path would otherwise show an empty
+     * card not because there is nothing to show, but because nobody asked.
+     */
+    @Test
+    fun `a project selected via the init fallback path also gets its canon observed`() = runTest {
+        // flowOf can't model a second emission arriving after createProject
+        // sets selectedProject, so a MutableStateFlow stands in for the
+        // Room-backed Flow that would genuinely re-emit once the insert
+        // createProject just made becomes visible to its own query.
+        val projects = MutableStateFlow<List<CreativeProject>>(emptyList())
+        every { store.observeAll() } returns projects
+        coEvery { store.create(any(), any(), any(), any(), any()) } returns project
+        coEvery { canonFactDao.activeForBranch("p1", "main") } returns listOf(fact("f1"), fact("f2"))
+        every { continuityIssueDao.observeOpen("p1", "main") } returns flowOf(listOf(issue("i1")))
+
+        val vm = newViewModel()
+        // Selects the project the way createProject does — never loadProject.
+        vm.createProject("Glass City", "Memory city", "fantasy", "haunting", "novel")
+        advanceUntilIdle()
+        projects.value = listOf(project)
+        advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.canonFactCount)
+        assertEquals(1, vm.state.value.openConflicts.size)
     }
 }

@@ -243,10 +243,12 @@ class CreativeStudioViewModel @Inject constructor(
     // see commit 719ae507 (SettingsViewModel: two StateFlows declared 570
     // lines below `init` were still null when a coroutine launched in `init`
     // assigned to them, because Kotlin runs property initialisers and init
-    // blocks in declaration order). observeCanon is only ever called from
-    // loadProject, after the constructor has finished, so this particular
-    // field is not actually at risk — but declaring it beside its siblings
-    // above `init` is the same house rule, applied before it needs to be.
+    // blocks in declaration order). This is not just the house rule applied
+    // early: observeCanon is called both from loadProject and from init's
+    // own store.observeAll() fallback below, so a coroutine launched in init
+    // really can assign to this field before construction finishes. Declared
+    // after init, the field's own `= null` initialiser would run after that
+    // assignment and silently wipe it back to null.
     private var canonJob: Job? = null
 
     init {
@@ -298,6 +300,7 @@ class CreativeStudioViewModel @Inject constructor(
                         observedProjectId = id
                         observeLongform(id)
                         observeLivingWorld(id)
+                        observeCanon(id)
                     }
                 }
             }
