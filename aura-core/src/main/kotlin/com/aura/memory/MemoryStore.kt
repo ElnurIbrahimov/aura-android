@@ -37,7 +37,38 @@ class MemoryStore @Inject constructor(
      * harness, which must not see state the fixtures do not describe.
      */
     private val correctionDao: CorrectionDao? = null,
+    /**
+     * Records what recall returned so it can be judged later. Null in the eval
+     * harness for the same reason [correctionDao] is — and harmless there
+     * anyway, since the harness passes no provenance and [recordRetrievalLabels]
+     * writes nothing without it.
+     */
+    private val retrievalLabels: RetrievalLabelStore? = null,
 ) {
+
+    /**
+     * Record what this recall returned, from every branch that returns anything.
+     *
+     * A private helper with two call sites rather than the write repeated twice,
+     * because this function has already shipped the half-wired version of
+     * exactly this: the comment above the vector-fallback branch records that
+     * `evolutionHooks.onMemoryRecalled` fired on the lexical path and not the
+     * fallback, so recall telemetry saw BM25 hits and never saw fallback hits.
+     * Labels harvested from only one branch would be worse than that was —
+     * they would bias the eval corpus toward the recalls a hash embedder already
+     * handles, which is precisely the comparison Gate B exists to make.
+     */
+    private suspend fun recordRetrievalLabels(
+        results: List<MemoryEntity>,
+        queryText: String,
+        options: RecallOptions,
+    ) {
+        retrievalLabels?.record(
+            queryText = queryText,
+            memoryIdsInRankOrder = results.map { it.id },
+            provenance = options.provenance,
+        )
+    }
     private val exactInsertMutex = Mutex()
 
     /**
@@ -419,6 +450,7 @@ class MemoryStore @Inject constructor(
                     )
                 }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled in vector fallback failed (non-fatal)", it) }
             }
+            recordRetrievalLabels(results, text, options)
             trace(
                 RetrievalTrace.Branch.VECTOR_FALLBACK,
                 candidateCount = scored.size,
@@ -615,6 +647,7 @@ class MemoryStore @Inject constructor(
                     )
             }.onFailure { Log.w("MemoryStore", "evolutionHooks.onMemoryRecalled failed (non-fatal)", it) }
         }
+        recordRetrievalLabels(results, text, options)
         trace(
             RetrievalTrace.Branch.LEXICAL,
             queryTerms = queryWords,
