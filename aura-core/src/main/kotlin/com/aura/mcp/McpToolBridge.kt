@@ -30,12 +30,47 @@ import javax.inject.Singleton
  * base name already exists, the MCP version is still registered with the
  * prefix — the LLM sees both and can choose either.
  *
- * Tool risk is [ToolRisk.REMOTE_COST] for MCP tools by default: they
- * call external network endpoints that may consume paid API credits.
+ * Tool risk is derived from the tool's own MCP annotations, not from what it
+ * costs. Every MCP tool used to be [ToolRisk.REMOTE_COST] on the reasoning that
+ * "they call external network endpoints that may consume paid API credits" —
+ * a statement about billing, applied to tools whose capabilities this bridge
+ * cannot know.
+ *
+ * That mattered because `REMOTE_COST` sits *below* `WRITE_LOCAL` in the ordinal
+ * order that four separate gates compare against (see [ToolRiskOrdinalAuditTest]).
+ * A third-party server exposing a write tool therefore ran during incognito,
+ * whose promise is that the session "cannot write memory or profile facts", and
+ * was recorded as no world event at all — the model's own history of what it did
+ * simply missing those calls.
+ *
+ * So: `readOnlyHint` keeps `REMOTE_COST`, which is now an accurate statement
+ * rather than a lucky one — a read-only tool writes nothing, so it *should* run
+ * in incognito, and it still costs, so it should still hit the per-run cost
+ * approval. `destructiveHint` maps to [ToolRisk.DESTRUCTIVE]. **Anything
+ * unstated becomes [ToolRisk.WRITE_REMOTE]**, above the write boundary, because
+ * "nobody said whether this writes" is not the same fact as "this does not
+ * write", and only one of the two is safe to assume about someone else's server.
+ *
+ * The cost of failing closed is a confirmation prompt on unannotated tools. A
+ * server that publishes annotations — which the protocol asks for — pays nothing.
+ *
  * The local security controls (deny list, prefix allow list, response
  * bounding) are enforced by [McpClientManager] before the call is
  * dispatched.
  */
+/**
+ * What an MCP tool is allowed to do, as far as its server will say.
+ *
+ * Deliberately total and deliberately pessimistic about silence. `null` is the
+ * common case — annotations are optional in the protocol — and it is the case
+ * that decides whether this change is worth anything.
+ */
+internal fun mcpToolRisk(readOnlyHint: Boolean?, destructiveHint: Boolean?): ToolRisk = when {
+    destructiveHint == true -> ToolRisk.DESTRUCTIVE
+    readOnlyHint == true -> ToolRisk.REMOTE_COST
+    else -> ToolRisk.WRITE_REMOTE
+}
+
 @Singleton
 class McpToolBridge @Inject constructor(
     private val mcpClientManager: McpClientManager,
@@ -91,7 +126,7 @@ class McpToolBridge @Inject constructor(
                 val tool = Tool(
                     name = registeredName,
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
-                    risk = ToolRisk.REMOTE_COST,
+                    risk = mcpToolRisk(mcpTool.readOnlyHint, mcpTool.destructiveHint),
                     parameters = parseSchema(mcpTool.inputSchemaJson),
                     execute = { call, ctx ->
                         val result = mcpClientManager.callTool(
@@ -164,7 +199,7 @@ class McpToolBridge @Inject constructor(
                 val tool = Tool(
                     name = mcpTool.name,
                     description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
-                    risk = ToolRisk.REMOTE_COST,
+                    risk = mcpToolRisk(mcpTool.readOnlyHint, mcpTool.destructiveHint),
                     parameters = parseSchema(mcpTool.inputSchemaJson),
                     execute = { call, ctx ->
                         val result = mcpClientManager.callTool(

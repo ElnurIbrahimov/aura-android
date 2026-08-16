@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -113,12 +114,20 @@ internal class McpConnection(
             val tools = toolsArray.mapNotNull { item ->
                 val obj = item as? JsonObject ?: return@mapNotNull null
                 val name = obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                // Tool annotations, which the protocol defines precisely so a
+                // client does not have to guess what a tool does. They were
+                // arriving in this object and being dropped, which is why every
+                // MCP tool was classified by what it costs rather than by what
+                // it can do.
+                val annotations = obj["annotations"] as? JsonObject
                 McpToolInfo(
                     serverId = config.id,
                     name = name,
                     description = obj["description"]?.jsonPrimitive?.content ?: "",
                     inputSchemaJson = obj["inputSchema"]?.toString() ?: "{}",
                     serverName = config.name,
+                    readOnlyHint = annotations?.get("readOnlyHint")?.jsonPrimitive?.booleanOrNull,
+                    destructiveHint = annotations?.get("destructiveHint")?.jsonPrimitive?.booleanOrNull,
                 )
             }.take(config.maxTools)
             _health = _health.copy(toolCount = tools.size)

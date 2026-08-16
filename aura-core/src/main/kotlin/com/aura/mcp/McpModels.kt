@@ -38,6 +38,17 @@ data class McpToolInfo(
     val description: kotlin.String,
     val inputSchemaJson: kotlin.String = "{}",
     val serverName: kotlin.String = "",
+    /**
+     * `annotations.readOnlyHint` from `tools/list`, when the server sends it.
+     *
+     * Null means the server said nothing, which is not the same as `false` and
+     * must not be collapsed into it: "this tool does not write" and "nobody
+     * said whether this tool writes" lead to different risk classifications,
+     * and only one of them is safe to assume. See [McpToolBridge].
+     */
+    val readOnlyHint: kotlin.Boolean? = null,
+    /** `annotations.destructiveHint`. Null means unstated, as above. */
+    val destructiveHint: kotlin.Boolean? = null,
 )
 
 @Serializable

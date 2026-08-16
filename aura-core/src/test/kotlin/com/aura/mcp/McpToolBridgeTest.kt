@@ -172,8 +172,19 @@ class McpToolBridgeTest {
         assertEquals(0, bridge.registeredToolNames().size)
     }
 
+    /**
+     * Was `MCP tools are registered as REMOTE_COST`, and that is the behaviour
+     * this replaces rather than a rename.
+     *
+     * Registering every third-party tool by what it costs classified tools whose
+     * capabilities this bridge cannot know. `REMOTE_COST` sits below
+     * `WRITE_LOCAL` in the ordinal order four gates compare against, so a server
+     * exposing a write tool ran during incognito — whose promise is that the
+     * session "cannot write memory or profile facts" — and was recorded as no
+     * world event at all.
+     */
     @Test
-    fun `MCP tools are registered as REMOTE_COST`() = runTest {
+    fun `an unannotated MCP tool is registered above the local-write boundary`() = runTest {
         val config = McpServerConfig(id = "srv1", name = "Test", url = "http://localhost:3000")
         every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
         coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "expensive_op", "Costs money"))
@@ -181,8 +192,25 @@ class McpToolBridgeTest {
         bridge.syncTools(listOf(config))
         val tool = toolRegistry.get("expensive_op")
         assertNotNull(tool)
-        assertEquals(ToolRisk.REMOTE_COST, tool!!.risk)
+        assertEquals(ToolRisk.WRITE_REMOTE, tool!!.risk)
+        assertTrue(
+            "an unannotated third-party tool must not escape the incognito gate",
+            tool.risk.ordinal >= ToolRisk.WRITE_LOCAL.ordinal,
+        )
         assertEquals("mcp", tool.category)
+    }
+
+    /** A server that publishes `readOnlyHint` pays nothing for failing closed. */
+    @Test
+    fun `a declared read-only MCP tool keeps the cost classification`() = runTest {
+        val config = McpServerConfig(id = "srv1", name = "Test", url = "http://localhost:3000")
+        every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
+        coEvery { mcpClientManager.listTools("srv1") } returns listOf(
+            mockTool("srv1", "search_docs", "Reads only").copy(readOnlyHint = true),
+        )
+
+        bridge.syncTools(listOf(config))
+        assertEquals(ToolRisk.REMOTE_COST, toolRegistry.get("search_docs")!!.risk)
     }
 
     @Test
