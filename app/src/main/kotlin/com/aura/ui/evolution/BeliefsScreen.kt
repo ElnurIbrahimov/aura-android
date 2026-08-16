@@ -1,5 +1,6 @@
 package com.aura.ui.evolution
 
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
@@ -58,13 +59,13 @@ internal fun LazyListScope.beliefsSection(viewModel: BeliefsViewModel) {
                     style = MaterialTheme.typography.titleMedium,
                 )
                 for (belief in beliefs) {
-                    Card(
+                    AuraCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = AuraSpacing.xxs)
                             .clickable { viewModel.select(belief.id) },
                     ) {
-                        Column(modifier = Modifier.padding(AuraSpacing.md)) {
+                        Column {
                             Text(
                                 "${belief.subject} — ${belief.predicate}",
                                 style = MaterialTheme.typography.titleMedium,

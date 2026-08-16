@@ -1,5 +1,6 @@
 package com.aura.ui.screens
 
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
@@ -105,7 +106,7 @@ fun MindScreen(
             tasteSection(tasteViewModel, showEmptyState = false)
             consolidationSection(mindViewModel, onOpenConsolidation)
             item {
-                Card(
+                AuraCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = AuraSpacing.md),
@@ -176,8 +177,8 @@ private fun LazyListScope.openQuestionsSection(viewModel: MindViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 SectionHeading("Wants to ask you")
                 for (question in questions) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(AuraSpacing.md)) {
+                    AuraCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
                             Text(question.question, style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 "It'll ask next time you're in chat",
@@ -207,9 +208,8 @@ private fun LazyListScope.correctionsSection(viewModel: MindViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
                 SectionHeading("Corrections you've made (${corrections.size})")
                 for (correction in corrections) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    AuraCard(modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.padding(AuraSpacing.md),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -250,11 +250,10 @@ private fun LazyListScope.consolidationSection(viewModel: MindViewModel, onOpenA
                 )
             } else {
                 for (summary in summaries) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    AuraCard(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             summary.compressedText,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(AuraSpacing.md),
                         )
                     }
                 }

@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
@@ -103,7 +104,7 @@ fun CrashLogScreen(
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
             ) {
                 items(crashes, key = { it.fileName }) { entry ->
-                    Card(
+                    AuraCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {

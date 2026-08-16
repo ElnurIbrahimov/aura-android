@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
@@ -113,9 +114,8 @@ private fun BeliefCard(
     onVerify: () -> Unit,
     onRetire: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
@@ -155,9 +155,8 @@ private fun BeliefCard(
 
 @Composable
 private fun WorldEventCard(event: com.aura.world.WorldEventEntity) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
@@ -185,9 +184,8 @@ private fun OpportunityCard(
     opportunity: com.aura.world.OpportunityEntity,
     onResolve: (String, Boolean) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
@@ -218,9 +216,8 @@ private fun OpportunityCard(
 
 @Composable
 private fun ContradictionCard(contradiction: com.aura.dream.ContradictionEntity) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(

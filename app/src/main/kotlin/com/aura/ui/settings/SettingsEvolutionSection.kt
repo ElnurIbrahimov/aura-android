@@ -1,4 +1,5 @@
 package com.aura.ui.settings
+import com.aura.ui.components.AuraCard
 import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
@@ -26,8 +27,8 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
     val enabled = state.evolutionEnabled
     val interval = state.evolutionIntervalHours
     val autoApply = state.evolutionAutoApply
-    Card(modifier = Modifier.fillMaxWidth().padding(AuraSpacing.md)) {
-        Column(modifier = Modifier.padding(AuraSpacing.md)) {
+    AuraCard(modifier = Modifier.fillMaxWidth().padding(AuraSpacing.md)) {
+        Column {
             Text(stringResource(R.string.evolution), style = MaterialTheme.typography.titleMedium)
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(stringResource(R.string.enabled), modifier = Modifier.weight(1f))

@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.components.AuraCard
 import com.aura.ui.theme.AuraThemeTokens
 
 import com.aura.R
@@ -208,9 +209,8 @@ fun DreamsScreen(
 
 @Composable
 private fun SummaryCard(summary: DreamSummaryEntity) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(
@@ -235,9 +235,8 @@ private fun SummaryCard(summary: DreamSummaryEntity) {
 
 @Composable
 private fun RoutineCard(routine: RoutineEntity) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Row(
@@ -277,9 +276,8 @@ private fun ContradictionCard(
     onResolve: (String) -> Unit,
     onDismiss: (String) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Row(
@@ -329,9 +327,8 @@ private fun KgProposalCard(
     onAccept: (String) -> Unit,
     onReject: (String) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
             Text(

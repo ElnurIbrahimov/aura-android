@@ -1,5 +1,6 @@
 package com.aura.ui.evolution
 
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
@@ -290,13 +291,13 @@ private fun ProposalCard(
     onDetail: () -> Unit,
     onRollback: () -> Unit = {},
 ) {
-    Card(
+    AuraCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs)
             .clickable { onDetail() },
     ) {
-        Column(modifier = Modifier.padding(AuraSpacing.md)) {
+        Column {
             Text(text = proposal.title, style = MaterialTheme.typography.titleMedium)
             Text(text = proposal.summary, style = MaterialTheme.typography.bodyMedium)
             Text(

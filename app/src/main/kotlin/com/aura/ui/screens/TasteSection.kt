@@ -1,4 +1,5 @@
 package com.aura.ui.screens
+import com.aura.ui.components.AuraCard
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
@@ -72,9 +73,8 @@ internal fun LazyListScope.tasteSection(
 
 @Composable
 private fun ProfileAttributesCard(profile: com.aura.taste.StyleProfileEntity?) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(AuraSpacing.md),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
         ) {
             if (profile == null) {
@@ -152,11 +152,9 @@ private fun SignalCard(
     signal: com.aura.taste.PreferenceSignalEntity,
     onDelete: (String) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AuraCard(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .padding(AuraSpacing.md)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(modifier = Modifier.weight(1f)) {

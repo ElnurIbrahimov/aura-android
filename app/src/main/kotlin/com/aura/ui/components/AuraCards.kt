@@ -15,6 +15,18 @@ import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 
+/**
+ * The app's card. Use this rather than Material's `Card`.
+ *
+ * Material3's `Card` defaults to `surfaceContainerLow` — a light flat grey —
+ * which sits wrong on Aura's near-black ground and reads as borrowed UI. This
+ * one takes [AuraThemeTokens], so a card looks like part of the app without
+ * every call site having to remember the tokens.
+ *
+ * It existed with **zero callers** until 2026-08-17 while eighteen sites drew a
+ * bare `Card {}` and got the grey. `AuraCardIsUsedTest` now fails the build if a
+ * new one appears, because a shared component nothing calls is just a file.
+ */
 @Composable
 fun AuraCard(
     modifier: Modifier = Modifier,
