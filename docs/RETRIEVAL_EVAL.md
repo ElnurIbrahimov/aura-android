@@ -91,26 +91,59 @@ The classes are deliberately adversarial. Each names a known weakness:
 | `ambiguous-term` | the answer is old **and** low-importance |
 | `expect-empty` | feeds the zero-result metric |
 
-To get a head start on the file, write your queries one per line and run:
+**You should not have to write these by hand.** Since the retrieval-label
+harvest shipped, Aura records what recall returned for each real question, and
+`build_eval_corpus.py` reads those labels out of the same backup:
 
 ```bash
-python scripts/build_eval_corpus.py backup.json --seed queries.txt --queries queries.jsonl
+python scripts/build_eval_corpus.py backup.json --queries queries.jsonl
 ```
 
-That emits one stub per query with a candidate pool listed underneath as
-comments, all graded 0 for you to correct. The pool is crude word overlap — a
-different bias from the retrieval system's own, which is the point (see below) —
-and it finds no synonyms at all, so the class that matters most is exactly the
-one you must fill in by hand.
+Queries then come from questions actually asked, in their real class
+distribution — which matters beyond convenience, because the *share* of
+synonym-only queries is half of the Gate B bar and is a fact about how you ask
+things, not something a fixture author can decide. Grades come from the two
+signals Aura can infer per (question, memory): the consult pass, and your
+explicit "not for this question" corrections.
+
+The hand-written path still exists for a backup with no labels in it — pass
+`--seed queries.txt` and correct the zero-graded stubs. It is the fallback now,
+not the route.
 
 ### 3. Judge by pooling, not by inspection
 
-Run the current system, a lexical-only config and a vector-only config at k=20,
-union the three result sets, and judge that union.
+```bash
+python3 scripts/pool_eval_queries.py            # needs ANTHROPIC_API_KEY
+python3 scripts/pool_eval_queries.py --pool-only # build pools, judge nothing
+```
+
+Union the candidates from several strategies — what production returned, BM25 at
+k=20, and each `vectors-<model>.jsonl` at k=20 — and judge that union.
 
 Judging only what the current system returns makes recall improvements
-**structurally unmeasurable** — a document the current system never retrieves
-gets no grade, so retrieving it later scores as no gain.
+**structurally unmeasurable**: a document the current system never retrieves gets
+no grade, `RetrievalMetrics` scores an ungraded id as 0, and retrieving it later
+therefore reads as no gain.
+
+That is not a rough edge, it is the whole of Gate B. Gate B asks whether
+`gte-small` surfaces synonym-only documents `local-hash-v2` never does — and
+those are, by construction, exactly the documents the shipped ranker did not
+return. Harvested grades alone would mark them 0 by omission, compute a gain near
+zero, and print **"Do not proceed"** with complete confidence from a corpus that
+could not have shown anything else.
+
+**Run this before reading any Gate B verdict.** `EvalFixtures.isScaffold()` is
+the safety catch that currently forces the verdict to *inconclusive*, and it
+disarms the moment a real corpus lands — so a real corpus committed without
+pooling produces a confident wrong answer rather than an obviously missing one.
+
+Two things the pooling step does *not* take on trust. Judging is advisory — a
+model grading another model's retrieval is a prior, not ground truth, and grades
+already marked `source = user` are never overwritten. And every `synonym-only`
+label is verified mechanically: the query must share no stemmed token with any of
+its own grade-2-or-better documents. That class's share is two thirds of the Gate
+B bar, so a judge with a loose notion of "no words in common" would clear half
+the bar on its own. Mislabelled queries are reclassified as `lexical` and named.
 
 ### 4. Regenerate the baseline
 

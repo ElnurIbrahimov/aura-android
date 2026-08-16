@@ -93,7 +93,8 @@ def write_harvested_queries(
 
     for row in labels:
         key = (str(row.get("conversationId", "")), int(row.get("turnTimestamp", 0)))
-        entry = by_turn.setdefault(key, {"query": "", "judgments": {}, "cls": None, "graded": 0})
+        entry = by_turn.setdefault(
+            key, {"query": "", "judgments": {}, "cls": None, "graded": 0, "pool": []})
         if not entry["query"]:
             entry["query"] = redact(str(row.get("queryText", "")).strip(), counts)
         entry["cls"] = entry["cls"] or row.get("queryClass")
@@ -103,6 +104,18 @@ def write_harvested_queries(
         # which is exactly an expect-empty query: it contributes no judgments.
         if not memory_id:
             continue
+        mapped_any = positional.get(memory_id)
+        if mapped_any is not None and mapped_any not in entry["pool"]:
+            # Everything recall returned, graded or not.
+            #
+            # RetrievalMetrics treats an id with no judgment as grade 0, so a
+            # memory returned at rank 1 that nobody happened to grade is scored
+            # as irrelevant — the current ranker penalised for the results it got
+            # right. These ids have to reach the judge, and they are carried on a
+            # field the Kotlin harness ignores (EvalFixtures parses with
+            # ignoreUnknownKeys) so `queries.jsonl` stays a valid EvalQuery.
+            entry["pool"].append(mapped_any)
+
         grade = row.get("grade")
         if grade is None:
             continue
@@ -135,6 +148,8 @@ def write_harvested_queries(
             continue
         out.append({
             "qid": f"q{i + 1:04d}",
+            # Ignored by the Kotlin harness; consumed by pool_eval_queries.py.
+            "pool": entry["pool"],
             # Assigned by the judge, which is the only thing that can tell a
             # synonym-only query from a lexical one. Unclassified until then.
             "class": entry["cls"] or "unclassified",
