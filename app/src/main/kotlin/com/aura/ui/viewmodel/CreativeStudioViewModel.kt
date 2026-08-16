@@ -121,6 +121,16 @@ private const val EVENT_PAGE = 200
 private const val TAG = "CreativeStudioVM"
 
 /**
+ * The `kind` long-form scenes are written under.
+ *
+ * Mirrors `LongformRunner.KIND_SCENE`, which is private to that class, and the
+ * literal `'scene'` already hardcoded in `CreativeRevisionDao.searchScenes`.
+ * Third copy of the same string, and the reason a manuscript export must agree
+ * with the drafter about what a scene is.
+ */
+private const val SCENE_KIND = "scene"
+
+/**
  * Project the stored world state into the handful of numbers the tab shows.
  *
  * Only factions get rows. Locations and characters are seeded and simulated but
@@ -903,6 +913,56 @@ class CreativeStudioViewModel @Inject constructor(
         generationJob?.cancel()
         generationJob = null
         _state.update { it.copy(generating = false) }
+    }
+
+    /**
+     * Compile the open project's drafted scenes into one Markdown document.
+     *
+     * Returns the document, or null when there is nothing to export or the read
+     * failed — the caller launches the share Intent, because no ViewModel in
+     * this app constructs one. `BackupViewModel.prepareExportFile` is the shape
+     * this follows: produce the payload here, hand it out at the composable.
+     *
+     * Reads through [CreativeArtifactStore.currentRevision], never
+     * `currentContent`. `currentContent` falls back to `previewText` — the first
+     * 200 characters — whenever the revision does not resolve, and a stub that
+     * length reads as a finished scene in the middle of a novel. Here the text
+     * is either genuinely recovered or the document says it could not be.
+     *
+     * The total artifact count goes to the compiler so it can name prose the
+     * outline has lost track of. Re-planning an outline replaces every beat with
+     * a fresh one carrying a blank `artifactId`, which would otherwise produce a
+     * document that reads as total data loss while the scenes sit safely in the
+     * table.
+     */
+    suspend fun exportManuscript(): String? {
+        val project = _state.value.selectedProject ?: return null
+        return runCatching {
+            val texts = project.world.outline
+                .map { it.artifactId }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .associateWith { artifactStore.currentRevision(it)?.contentText }
+            val sceneCount = artifactStore
+                .forProjectByKind(project.id, SCENE_KIND)
+                .size
+            com.aura.creative.ManuscriptCompiler.compile(project, texts, sceneCount)
+        }.onFailure { error ->
+            _state.update { it.copy(error = error.message ?: "Could not compile the manuscript.") }
+        }.getOrNull()
+    }
+
+    /**
+     * The share sheet refused the document.
+     *
+     * `shareTextFile` returns false when the file could not be staged or nothing
+     * on the device accepted the intent, and without this the user taps Export
+     * and sees absolutely nothing — indistinguishable from a button that was
+     * never wired up. The banner already renders `state.error`, so saying so
+     * costs one line.
+     */
+    fun reportExportFailed() {
+        _state.update { it.copy(error = "Nothing on this device accepted the manuscript.") }
     }
 
     fun canonizeSimulation(simulationId: String) {

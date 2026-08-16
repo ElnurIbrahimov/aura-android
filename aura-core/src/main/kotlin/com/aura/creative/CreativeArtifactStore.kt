@@ -209,9 +209,34 @@ class CreativeArtifactStore @Inject constructor(
      */
     suspend fun currentContent(artifactId: String): String? {
         val artifact = artifactDao.getById(artifactId) ?: return null
-        val revisionId = artifact.currentRevisionId
-        val current = revisionId?.let { revisionDao.getById(it) }
-        return current?.contentText ?: artifact.previewText.takeIf { it.isNotBlank() }
+        return currentRevision(artifactId)?.contentText
+            ?: artifact.previewText.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * The revision row [currentContent] resolves through, without its fallback.
+     *
+     * Null means the text genuinely cannot be recovered — the artifact is gone,
+     * its pointer is null, or its pointer names a row that no longer exists.
+     * All three collapse to the same answer here, deliberately: a caller cannot
+     * tell them apart from the outside and, more to the point, should not have
+     * to. Testing `currentRevisionId == null` looks like it distinguishes the
+     * recoverable case and does not — a **non-null** pointer to a deleted row
+     * takes [currentContent]'s fallback too, which is what
+     * `CreativeArtifactCurrentContentTest` has asserted since before this method
+     * existed.
+     *
+     * That distinction matters to exactly one kind of caller: one for which
+     * `previewText` — the first 200 characters — would be worse than nothing.
+     * The manuscript exporter is that caller. A 200-character stub silently
+     * placed mid-novel reads as a finished scene; a gap the document admits to
+     * can be fixed. Callers happy with a preview should keep using
+     * [currentContent], whose behaviour is unchanged.
+     */
+    suspend fun currentRevision(artifactId: String): CreativeRevisionEntity? {
+        val artifact = artifactDao.getById(artifactId) ?: return null
+        val revisionId = artifact.currentRevisionId ?: return null
+        return revisionDao.getById(revisionId)
     }
 
     fun observeForProject(projectId: String) = artifactDao.observeForProject(projectId)

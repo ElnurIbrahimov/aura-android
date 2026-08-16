@@ -3,7 +3,6 @@ package com.aura.ui.screens
 import com.aura.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
-import android.content.Intent
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -60,18 +59,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.core.content.FileProvider
 import com.aura.agent.Conversation
 import com.aura.ui.components.AuraScreenHeader
 import com.aura.ui.components.SwipeToDeleteContainer
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.HistoryViewModel
 import com.aura.ui.theme.AuraSpacing
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -604,35 +599,21 @@ private fun SkeletonHistoryCard(alpha: Float) {
 }
 
 /**
- * Build a file in the app cache, hand it to the system share
- * chooser, and clean up after. The file is named after the
- * conversation title (slugified) plus a timestamp so multiple
- * shares in a row don't collide.
+ * Share a conversation as Markdown.
+ *
+ * The body of this used to live here and was the fifth hand-rolled copy of
+ * stage-file → FileProvider → `ACTION_SEND` in the app. It now delegates to
+ * [com.aura.ui.components.shareTextFile], which the manuscript export also
+ * uses, and which fixes three things this version had: neither the write nor
+ * `startActivity` was guarded, the cache was never swept despite the old KDoc
+ * claiming it was, and `startActivity` ran on the IO dispatcher.
  */
 private suspend fun shareMarkdown(context: Context, markdown: String, title: String) {
-    withContext(Dispatchers.IO) {
-        val safeTitle = title.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9]+"), "-")
-            .trim('-')
-            .take(40)
-            .ifBlank { "conversation" }
-        val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val file = File(context.cacheDir, "aura-$safeTitle-$ts.md")
-        file.writeText(markdown)
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
-        val share = Intent(Intent.ACTION_SEND).apply {
-            type = "text/markdown"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, title)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(
-            Intent.createChooser(share, "Share conversation")
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-    }
+    com.aura.ui.components.shareTextFile(
+        context = context,
+        fileStem = com.aura.ui.components.markdownFileName(title.ifBlank { "conversation" }),
+        content = markdown,
+        subject = title,
+        chooserTitle = "Share conversation",
+    )
 }

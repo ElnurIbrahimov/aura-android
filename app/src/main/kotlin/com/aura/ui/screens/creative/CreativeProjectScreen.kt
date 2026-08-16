@@ -51,6 +51,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +82,12 @@ fun CreativeProjectScreen(
     val project = state.selectedProject
     var selectedTab by remember { mutableIntStateOf(0) }
     var showEdit by remember { mutableStateOf(false) }
+    // The Intent fires here, not in the ViewModel. No ViewModel in this app
+    // constructs one — the ViewModel produces the payload and the composable
+    // hands it out. manuscriptSection cannot hold these itself: it is a
+    // LazyListScope extension, not a @Composable.
+    val context = LocalContext.current
+    val exportScope = rememberCoroutineScope()
 
     LaunchedEffect(projectId) { viewModel.loadProject(projectId) }
 
@@ -155,7 +165,32 @@ fun CreativeProjectScreen(
                 // measures all of it on every frame.
                 when (selectedTab) {
                     LIVING_TAB -> livingWorldSection(state, viewModel)
-                    MANUSCRIPT_TAB -> manuscriptSection(state, viewModel)
+                    MANUSCRIPT_TAB -> manuscriptSection(
+                        state = state,
+                        viewModel = viewModel,
+                        onExport = {
+                            exportScope.launch {
+                                val markdown = viewModel.exportManuscript()
+                                if (markdown == null) {
+                                    // exportManuscript already set state.error if the
+                                    // read failed; a null with no error means there was
+                                    // simply nothing drafted, which the disabled button
+                                    // should have prevented.
+                                    return@launch
+                                }
+                                val shared = com.aura.ui.components.shareTextFile(
+                                    context = context,
+                                    fileStem = com.aura.ui.components.markdownFileName(project.name),
+                                    content = markdown,
+                                    subject = project.name,
+                                    chooserTitle = "Export manuscript",
+                                )
+                                if (!shared) {
+                                    viewModel.reportExportFailed()
+                                }
+                            }
+                        },
+                    )
                     else -> item {
                         when (selectedTab) {
                             0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
@@ -610,11 +645,28 @@ private const val MANUSCRIPT_TAB = 3
 private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
     state: CreativeStudioUiState,
     viewModel: CreativeStudioViewModel,
+    // No default value, deliberately. With `= {}` the call site keeps compiling
+    // if the wire is ever removed, and the export button renders and silently
+    // does nothing — which is precisely the shape CraftWiringTest was written
+    // about. A required parameter makes that a compile error instead of a
+    // feature nobody notices is dead.
+    onExport: () -> Unit,
 ) {
     val project = state.selectedProject ?: return
     val beats = project.world.outline
     val run = state.longform
     val drafted = beats.count { it.status == DRAFTED }
+
+    // Deliberately a different count from `drafted` above.
+    //
+    // `status` is free-form text — WorldBibleEditor and CreativeTools both let a
+    // user or a model write anything into it — while the exporter resolves
+    // through `artifactId`. Enabling the button on `status` would offer an
+    // export to legacy and hand-added beats that have no scene behind them, and
+    // hand back a document of nothing but placeholders. Keying both on the same
+    // fact means "enabled" and "has something to export" cannot drift apart.
+    // Matches LongformRunner.drafted().
+    val exportable = beats.count { it.artifactId.isNotBlank() }
 
     if (beats.isEmpty()) {
         item(key = "manuscript-plan") {
@@ -694,7 +746,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
             run?.error?.let { error ->
                 Text(error, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.error)
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm, Alignment.End),
+            ) {
+                OutlinedButton(onClick = onExport, enabled = exportable > 0) {
+                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(AuraSpacing.md))
+                    Text("Export")
+                }
                 if (run?.active == true) {
                     OutlinedButton(onClick = viewModel::cancelDrafting) {
                         Icon(Icons.Filled.Stop, contentDescription = null)

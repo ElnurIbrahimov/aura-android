@@ -168,11 +168,35 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,131 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,151 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
   `ChatGptSubscriptionProvider` and `CustomOpenAiCompatProvider`), 7 builtin agents
+
+### Manuscript export (`ManuscriptCompiler`, `TextExport`)
+
+- The only outbound paths in the app were images and URLs; a drafted novella could not
+  leave the phone. `ManuscriptCompiler` is pure — handed already-resolved text, returns one
+  Markdown document — so the whole format is JVM-testable, the `SceneContextBuilder` discipline
+- Spine is `project.world.outline`, never `forProjectByKind` (`ORDER BY updatedAt DESC`).
+  Headings number from the beat's current position, not the artifact title, which freezes its
+  index at draft time and goes stale when a beat is deleted
+- **Gaps are stated.** No scene → `*[not yet written]*`; unrecoverable text →
+  `*[scene text unavailable]*`; scenes orphaned by a re-planned outline are counted in a footer.
+  A manuscript that silently comes out short is worse than one that says where the holes are
+- Reads via `CreativeArtifactStore.currentRevision`, added for this. `currentContent` falls back
+  to `previewText` — the first 200 characters — whenever the revision does not resolve, and that
+  fallback fires for a **non-null pointer to a deleted row** as well as a null one, so testing
+  `currentRevisionId == null` looks like it distinguishes the recoverable case and does not
+- `TextExport.shareTextFile` is `HistoryScreen.shareMarkdown` extracted and hardened — it was the
+  fifth hand-rolled stage-file → FileProvider → `ACTION_SEND` block in the app. Now guarded at
+  both steps, sweeps stale exports on entry (the old KDoc claimed cleanup it never did), and keeps
+  `startActivity` off the IO dispatcher
+- `manuscriptSection`'s `onExport` takes **no default**, so removing the wire is a compile error
+  rather than a button that renders and does nothing; and the enable predicate is
+  `artifactId.isNotBlank()` — the exporter's own predicate — not `status == "drafted"`, which is
+  free-form text a user or model can write anything into
 
 ### Craft skills (`CraftSkills`, `CraftResolver`)
 

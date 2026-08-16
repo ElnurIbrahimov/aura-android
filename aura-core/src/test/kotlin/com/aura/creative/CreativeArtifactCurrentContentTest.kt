@@ -151,4 +151,55 @@ class CreativeArtifactCurrentContentTest {
         // to point at it.
         assertEquals(listOf("revision", "artifact"), order)
     }
+
+    // ---------------------------------------------------------------------
+    // currentRevision: the resolution `currentContent` is built on, exposed so
+    // a caller that must not receive a truncated preview can ask for the row
+    // itself. The manuscript exporter is that caller — a 200-character
+    // `previewText` stub silently placed in a finished novel is worse than a
+    // gap the document admits to.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `currentRevision returns the row the artifact points at`() = runTest {
+        coEvery { artifactDao.getById("a1") } returns artifact(currentRevisionId = "r2")
+        coEvery { revisionDao.getById("r2") } returns revision("r2", "the one pointed at", 500L)
+
+        assertEquals("the one pointed at", store.currentRevision("a1")?.contentText)
+    }
+
+    /**
+     * Fallback case one: the pointer is null. `currentContent` answers with the
+     * preview here, and must keep doing so — some callers would rather have 200
+     * characters than nothing.
+     */
+    @Test
+    fun `currentRevision is null when the artifact points at nothing`() = runTest {
+        coEvery { artifactDao.getById("a1") } returns artifact(currentRevisionId = null, preview = "preview text")
+
+        assertNull(store.currentRevision("a1"))
+        assertEquals("preview text", store.currentContent("a1"), "currentContent's fallback is unchanged")
+    }
+
+    /**
+     * Fallback case two, and the one that disproved the exporter's first design:
+     * a **non-null** pointer to a row that is gone. Detecting the fallback by
+     * testing `currentRevisionId == null` would call this artifact healthy and
+     * emit the preview as if it were the scene.
+     */
+    @Test
+    fun `currentRevision is null when a non-null pointer dangles`() = runTest {
+        coEvery { artifactDao.getById("a1") } returns artifact(currentRevisionId = "gone", preview = "preview text")
+        coEvery { revisionDao.getById("gone") } returns null
+
+        assertNull(store.currentRevision("a1"))
+        assertEquals("preview text", store.currentContent("a1"), "currentContent's fallback is unchanged")
+    }
+
+    @Test
+    fun `currentRevision is null for an unknown artifact`() = runTest {
+        coEvery { artifactDao.getById("nope") } returns null
+        assertNull(store.currentRevision("nope"))
+    }
+
 }
