@@ -57,6 +57,31 @@ jobs:
       - name: Version documentation drift
         run: bash scripts/check-version-docs.sh
 
+      # The corpus builder decides which memories reach the eval and which
+      # judgments survive, and both of its rules fail *quietly*: a labelled
+      # memory outside the window dangles its judgment, and a query that loses
+      # its last positive to a forgotten memory looks exactly like a query that
+      # expected nothing — which inflates correctly_empty_rate for a reason that
+      # has nothing to do with retrieval. The second got past a hand check on the
+      # function's first run. Runs here because it needs python3 and nothing else.
+      - name: Eval corpus builder self-test
+        run: python3 scripts/build_eval_corpus.py --self-test
+
+      # The pooling step is what makes a Gate B verdict mean anything, and it has
+      # one rule that decides a number rather than shaping one: a query counts as
+      # `synonym-only` only if it shares no stemmed token with its own answers.
+      # That class's share is two thirds of the Gate B bar and is assigned by a
+      # model, so it is verified rather than believed.
+      - name: Eval query pooling self-test
+        run: python3 scripts/pool_eval_queries.py --self-test
+
+      # 145 hardcoded strings were moved into strings.xml on 2026-08-16, and that
+      # work is only worth anything if it stays done — a translation is
+      # all-or-nothing from the user's side, and the count reached 205 one PR at
+      # a time. Interpolated strings are still allowed and counted, not silenced.
+      - name: Hardcoded user-visible strings
+        run: bash scripts/check-hardcoded-strings.sh
+
   build-test:
     needs: gates
     runs-on: ubuntu-latest
