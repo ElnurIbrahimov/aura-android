@@ -654,6 +654,31 @@ using the app on a phone, which is §4's point, unchanged and still unacted-on.
   about the location, and it was wrong because a class was cleared by counting rather
   than by reading. The instrumentation added *because* the reasoning was uncertain is
   what closed it — two days later, on the first run that hung after it shipped.
+
+  **And the timeout was not the fix (2026-08-16).** It bounded the symptom. The next green
+  run was read as confirmation and recorded here as one; three CI runs later the same two
+  tests failed again, now in 60 seconds rather than 40 minutes. The cause was in
+  `ProviderKeys.init`, not in the tests: `_loaded.value = true` was the last statement of
+  the happy path and only the per-provider loop was guarded, so anything thrown after it —
+  by `loadEmbeddingModel`, or by the mutex block — skipped the assignment and left
+  `_loaded` false forever. `awaitLoaded()`'s `_loaded.first { it }` then had nothing
+  remaining that could wake it. The KDoc on `loaded` promised consumers were "never stuck
+  in a perpetual loading state"; that held only for failures *inside* the loop. The
+  escaping exception also had no parent on a process-scoped `SupervisorJob`, which is why
+  the second failure read `UncaughtExceptionsBeforeTest` in whichever test ran next — a
+  test that was fine, named as the culprit.
+
+  `_loaded` now flips in a `finally`. The first attempt stopped there and was wrong in a
+  way the new test caught at once: `loaded` went true while `_credentialStates` stayed at
+  `Loading` for every provider, because the throw still skipped the publish. That is worse
+  than the hang was — it reports loading as finished and shows none of it. The
+  embedding-model read is now guarded on its own and falls back to blank, the documented
+  "use the local embedder" value, so a trailing failure cannot discard provider state that
+  was already gathered.
+
+  The lesson on top of the lesson: a symptom that stops being visible is not a cause that
+  stopped happening, and a green run immediately after a timeout is added is the weakest
+  available evidence that anything was repaired.
 - **`onACall` fired on any WhatsApp notification.** `SituationReader` matched package
   substrings over `NotificationCaptureStore.snapshot(20)`, which holds *posted
   notifications*. One unread message set `onACall`, which set `interruptible` false, which

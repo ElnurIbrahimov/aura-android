@@ -304,6 +304,40 @@ class ProviderKeysTest {
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["anthropic"])
     }
 
+    /**
+     * The failure the class timeout was masking.
+     *
+     * `_loaded` was assigned on the happy path only: the per-provider `catch`
+     * covered one bad entry, but anything thrown *after* the loop — by
+     * `loadEmbeddingModel` or the mutex block — skipped the assignment and left
+     * `_loaded` false permanently. `awaitLoaded()` then suspends on
+     * `_loaded.first { it }` with nothing left that could flip it.
+     *
+     * This is the actual 40-minute CI hang. Bounding the tests with a timeout on
+     * 2026-08-15 converted it into a fast, intermittent failure and was recorded
+     * as a fix; it was a better symptom. This test fails by timing out against
+     * the old code and passes against the `finally`.
+     *
+     * `embedding_model` is the thrower because it is read outside the loop and
+     * is the one call there whose failure a user could plausibly hit — a
+     * corrupted entry decrypts no better than a corrupted key.
+     */
+    @Test
+    fun `loaded becomes true when the embedding model read throws`() = runTest(timeout = 30.seconds) {
+        val mockStore = mockk<SecureDataStore>()
+        coEvery { mockStore.getString(any()) } returns null
+        coEvery { mockStore.getString("embedding_model") } throws DecryptionFailedException("bad decrypt")
+        coEvery { mockStore.removeString(any()) } returns Unit
+        coEvery { mockStore.putString(any(), any()) } returns Unit
+
+        val keys = ProviderKeys(mockStore)
+        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+
+        assertTrue(keys.loaded.value)
+        // The providers themselves loaded cleanly; only the trailing read failed.
+        assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["ollama"])
+    }
+
     @Test
     fun `loaded becomes true even when init load encounters errors`() = kotlinx.coroutines.runBlocking {
         val mockStore = mockk<SecureDataStore>()

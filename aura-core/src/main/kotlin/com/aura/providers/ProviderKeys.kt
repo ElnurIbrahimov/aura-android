@@ -120,37 +120,85 @@ class ProviderKeys @Inject constructor(
             val values = mutableMapOf<String, String>()
             val states = mutableMapOf<String, ProviderCredentialState>()
 
-            for (prefix in PREFIXES) {
-                try {
-                    val key = secureDataStore.getString("${prefix}_api_key")?.takeIf { it.isNotBlank() }
-                    if (key == null) {
-                        states[prefix] = ProviderCredentialState.NotConfigured
-                    } else {
-                        values[prefix] = key
-                        states[prefix] = ProviderCredentialState.Saved
+            try {
+                for (prefix in PREFIXES) {
+                    try {
+                        val key = secureDataStore.getString("${prefix}_api_key")?.takeIf { it.isNotBlank() }
+                        if (key == null) {
+                            states[prefix] = ProviderCredentialState.NotConfigured
+                        } else {
+                            values[prefix] = key
+                            states[prefix] = ProviderCredentialState.Saved
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        states[prefix] = ProviderCredentialState.StorageError
                     }
+                }
+
+                // Guarded separately, and not folded into the block below.
+                //
+                // This read sits after the provider loop but before the publish,
+                // so letting it throw past here discards every provider state
+                // just gathered: `_credentialStates` stays at its initial
+                // `Loading` for all of them, permanently. With `_loaded` now
+                // flipped in a `finally`, that combination is worse than the
+                // original hang was honest about — consumers would be told
+                // loading had finished while every provider still read
+                // "Loading". A blank model is the documented meaning of "use
+                // the local embedder", so falling back to it costs nothing.
+                val model = try {
+                    loadEmbeddingModel()
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
-                    states[prefix] = ProviderCredentialState.StorageError
+                } catch (e: Exception) {
+                    android.util.Log.w("ProviderKeys", "embedding model unreadable; using local", e)
+                    ""
                 }
+                stateMutex.withLock {
+                    _state.value = values
+                    _values.clear()
+                    _values.putAll(values)
+                    _credentialStates.value = states.toMap()
+                    _embeddingModel.value = model
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Logged, not thrown. This body runs on a process-scoped
+                // SupervisorJob with no parent to receive a failure, so an
+                // escaping exception becomes an uncaught one — which is how a
+                // fault here surfaced as `UncaughtExceptionsBeforeTest` inside
+                // whichever test happened to run next, naming a test that was
+                // perfectly fine.
+                android.util.Log.w(
+                    "ProviderKeys",
+                    "initial key load failed; some provider states may be incomplete: ${e.message}",
+                    e,
+                )
+            } finally {
+                // In a `finally`, and that is the entire point of this change.
+                //
+                // The per-provider catch above handles one bad entry, and the
+                // KDoc on `loaded` promises consumers are "never stuck in a
+                // perpetual loading state". That promise did not hold: only the
+                // loop was guarded, so anything thrown by `loadEmbeddingModel`
+                // or the mutex block skipped this assignment and left `_loaded`
+                // false forever. `awaitLoaded()` suspends on `_loaded.first { it }`
+                // with nothing remaining that could flip it, and every caller —
+                // Settings, Onboarding, the agentic loop — waits for good.
+                //
+                // That is the 40-minute CI hang. Bounding the tests with a
+                // timeout turned it into a fast failure, which is a better
+                // symptom and was not a fix.
+                //
+                // Assigned last, after the state above is populated, so a
+                // consumer woken by it sees that state in the same read; and
+                // assigned even when a provider is in StorageError, because a
+                // terminal error is not "still loading".
+                _loaded.value = true
             }
-
-            val model = loadEmbeddingModel()
-            stateMutex.withLock {
-                _state.value = values
-                _values.clear()
-                _values.putAll(values)
-                _credentialStates.value = states.toMap()
-                _embeddingModel.value = model
-            }
-            // Flip the loaded signal last, after all state is
-            // populated, so a consumer waiting on loaded.value
-            // sees the populated state in the same read.
-            // Always set to true, even if individual providers
-            // encountered StorageError — terminal error is not
-            // "still loading".
-            _loaded.value = true
         }
     }
 
