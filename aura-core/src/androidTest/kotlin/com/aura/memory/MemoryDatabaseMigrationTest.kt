@@ -564,4 +564,66 @@ class MemoryDatabaseMigrationTest {
             assertEquals("analysis outlived the revision it read", 0, it.getInt(0))
         }
     }
+
+    /**
+     * The v23 to v24 hop adds `retrieval_labels`.
+     *
+     * The assertion that earns its place is the primary key. It is derived —
+     * `"$conversationId|$turnTimestamp|$memoryId"` — precisely so a retry, which
+     * re-runs recall for the same turn and gets the same memories back, updates
+     * its row instead of writing a second one. Under a random key the export
+     * would count one query's judgments once per retry, silently weighting
+     * whichever questions the user happened to ask twice. `@Upsert` is what makes
+     * that an UPDATE rather than the DELETE-plus-INSERT of `INSERT OR REPLACE`,
+     * and this is the level at which that is observable.
+     *
+     * No foreign key is asserted because none exists or can: `conversations`
+     * lives in a different Room database, and SQLite has no cross-database
+     * foreign keys.
+     */
+    @Test
+    fun migrate23To24_addsRetrievalLabelsKeyedSoRetriesUpdate() {
+        val name = "test-aura-memory-23-to-24.db"
+        val db = helper.createDatabase(name, 23)
+        insertV18Memory(db, "m23", "pre-label memory")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 24, true, MemoryModule.MIGRATION_23_24)
+
+        migrated.query("SELECT content FROM memories WHERE id = 'm23'").use {
+            assertTrue("memory did not survive the 23->24 hop", it.moveToFirst())
+            assertEquals("pre-label memory", it.getString(0))
+        }
+
+        // Same conversation, same turn, same memory, recalled twice at different
+        // ranks — one row, newest rank.
+        migrated.execSQL(
+            "INSERT OR REPLACE INTO retrieval_labels (id, conversationId, turnTimestamp, queryText, " +
+                "memoryId, rank, grade, gradeSource, heuristicGrade, signalsJson, sampled, judgedAt, " +
+                "queryClass, supersededByEdit, createdAt) " +
+                "VALUES ('c1|1000|m23', 'c1', 1000, 'what do I like?', 'm23', 3, NULL, '', NULL, " +
+                "'[]', 0, NULL, NULL, 0, 1000)",
+        )
+        migrated.execSQL(
+            "INSERT OR REPLACE INTO retrieval_labels (id, conversationId, turnTimestamp, queryText, " +
+                "memoryId, rank, grade, gradeSource, heuristicGrade, signalsJson, sampled, judgedAt, " +
+                "queryClass, supersededByEdit, createdAt) " +
+                "VALUES ('c1|1000|m23', 'c1', 1000, 'what do I like?', 'm23', 1, NULL, '', NULL, " +
+                "'[]', 0, NULL, NULL, 0, 1000)",
+        )
+
+        migrated.query("SELECT COUNT(*), MIN(rank) FROM retrieval_labels WHERE conversationId = 'c1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("a re-recall of the same turn wrote a second row", 1, it.getInt(0))
+            assertEquals("the newer rank did not win", 1, it.getInt(1))
+        }
+
+        // An unjudged row must keep a NULL grade. RetrievalMetrics reads a
+        // missing or zero grade as "irrelevant", so a NOT NULL default of 0
+        // would score every unjudged recall against the ranker.
+        migrated.query("SELECT grade FROM retrieval_labels WHERE id = 'c1|1000|m23'").use {
+            assertTrue(it.moveToFirst())
+            assertTrue("grade must stay NULL until something judges it", it.isNull(0))
+        }
+    }
 }

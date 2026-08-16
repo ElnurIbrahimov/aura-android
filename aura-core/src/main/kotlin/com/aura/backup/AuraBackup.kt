@@ -134,6 +134,13 @@ data class AuraBackup(
      * — see `BackupManager.restoreEvolutionRows`.
      */
     val keyCanary: String? = null,
+    /**
+     * Schema v26. Rides this file rather than a separate export so the
+     * UUID-to-positional-id mapping `scripts/build_eval_corpus.py` builds while
+     * writing `corpus.jsonl` can be consumed in the same pass — see
+     * [RetrievalLabelBackup].
+     */
+    val retrievalLabels: List<RetrievalLabelBackup> = emptyList(),
 ) {
     companion object {
         /**
@@ -142,7 +149,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 25
+        const val SCHEMA_VERSION = 26
     }
 }
 

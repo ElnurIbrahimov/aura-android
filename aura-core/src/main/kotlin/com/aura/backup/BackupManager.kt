@@ -152,6 +152,8 @@ class BackupManager @Inject constructor(
     private val emotionEngine: com.aura.emotion.EmotionEngine? = null,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
     private val keyManager: com.aura.security.KeyManager? = null,
+    // Schema v26. Appended for the reason stated on the v18 block above.
+    private val retrievalLabelDao: com.aura.memory.RetrievalLabelDao? = null,
 ) {
 
     private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
@@ -343,6 +345,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             kgEdgeProposals = kgEdgeProposalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             // Schema v12: durable state previously dropped on backup/restore.
             memoryFeedback = memoryFeedbackDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v26: harvested retrieval labels.
+            retrievalLabels = retrievalLabelDao?.all()?.map { it.toBackup() } ?: emptyList(),
             documentChunks = documentChunkDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             referenceIdentities = referenceIdentityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             agentRuns = agentRunDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
@@ -784,6 +788,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val kgEdgeProposalRows = backup.kgEdgeProposals.map { it.toEntity() }
         // Schema v12 rows.
         val memoryFeedbackRows = backup.memoryFeedback.map { it.toEntity() }
+        val retrievalLabelRows = backup.retrievalLabels.map { it.toEntity() }
         val documentChunkRows = backup.documentChunks.map { it.toEntity() }
         val referenceIdentityRows = backup.referenceIdentities.map { it.toEntity() }
         val agentRunRows = backup.agentRuns.map { it.toEntity() }
@@ -842,6 +847,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (kgEdgeProposalRows.isNotEmpty()) kgEdgeProposalDao?.insertAll(kgEdgeProposalRows)
         // Schema v12: restore durable state previously dropped on roundtrip.
         if (memoryFeedbackRows.isNotEmpty()) memoryFeedbackDao?.insertAll(memoryFeedbackRows)
+        if (retrievalLabelRows.isNotEmpty()) retrievalLabelDao?.upsertAll(retrievalLabelRows)
         if (documentChunkRows.isNotEmpty()) documentChunkDao?.insertAll(documentChunkRows)
         if (referenceIdentityRows.isNotEmpty()) referenceIdentityDao?.insertAll(referenceIdentityRows)
         if (goalRows.isNotEmpty()) goalDao?.insertAll(goalRows)
@@ -918,6 +924,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             kgEdgeProposals = kgEdgeProposalRows.size,
             // Schema v12: durable state previously dropped on backup/restore.
             memoryFeedback = memoryFeedbackRows.size,
+            retrievalLabels = retrievalLabelRows.size,
             documentChunks = documentChunkRows.size,
             referenceIdentities = referenceIdentityRows.size,
             agentRuns = agentRunRows.size,
@@ -1138,6 +1145,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         kgEdgeProposalDao?.deleteAll()
         // Schema v13: memory feedback (audit trail for memory ratings).
         memoryFeedbackDao?.deleteAll()
+        // Schema v26: harvested retrieval labels.
+        retrievalLabelDao?.deleteAll()
         // Schema v12: purge durable state previously dropped on roundtrip.
         documentChunkDao?.deleteAll()
         referenceIdentityDao?.deleteAll()
@@ -1222,6 +1231,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             val kgEdgeProposals: Int = 0,
             // Schema v12: durable state previously dropped on backup/restore.
             val memoryFeedback: Int = 0,
+            val retrievalLabels: Int = 0,
             val documentChunks: Int = 0,
             val referenceIdentities: Int = 0,
             val agentRuns: Int = 0,
@@ -1266,7 +1276,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 creativeArtifacts + creativeRevisions + creativeBranches +
                 canonFacts + livingWorlds + livingEvents + corrections + openQuestions + placeVisits + creativeAnalysis + proactiveOutcomes + preferenceSignals + styleProfiles +
                 dreamSummaries + routines + contradictions + kgEdgeProposals +
-                memoryFeedback + documentChunks + referenceIdentities +
+                memoryFeedback + retrievalLabels + documentChunks + referenceIdentities +
                 agentRuns + agentGoals + agentSteps + agentEvents +
                 agentApprovals + runCheckpoints +
                 artifactDependencies + continuityIssues + creativeSimulations +

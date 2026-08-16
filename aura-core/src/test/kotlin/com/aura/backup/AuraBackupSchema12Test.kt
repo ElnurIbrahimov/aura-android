@@ -10,8 +10,8 @@ import org.junit.Test
 
 class AuraBackupSchema12Test {
     @Test
-    fun `schema version is 25`() {
-        assertEquals(25, AuraBackup.SCHEMA_VERSION)
+    fun `schema version is 26`() {
+        assertEquals(26, AuraBackup.SCHEMA_VERSION)
     }
 
     @Test

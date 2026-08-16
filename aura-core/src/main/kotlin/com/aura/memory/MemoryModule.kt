@@ -784,6 +784,48 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_23_24 = object : Migration(23, 24) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Which memory was retrieved for which question, and how good that
+            // turned out to be.
+            //
+            // The retrieval eval harness has always been able to measure fusion,
+            // BM25, candidate pools and decay — against synthetic fixtures whose
+            // absolute scores docs/RETRIEVAL_EVAL.md says mean nothing, and which
+            // force Gate B to print "inconclusive". The one input it lacks is
+            // judgments, and judgments were documented as a weekend of hand
+            // grading. This is where they accumulate from ordinary use instead.
+            //
+            // No foreign key, and none is possible: `conversations` lives in
+            // ConversationDatabase and SQLite has no cross-database foreign keys.
+            // Orphans are therefore the default state and deletion is wired by
+            // hand — see RetrievalLabelDao.deleteForConversation.
+            //
+            // DDL copied verbatim from the generated 24.json, per MIGRATION_20_21.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `retrieval_labels` (`id` TEXT NOT NULL, " +
+                    "`conversationId` TEXT NOT NULL, `turnTimestamp` INTEGER NOT NULL, " +
+                    "`queryText` TEXT NOT NULL, `memoryId` TEXT NOT NULL, `rank` INTEGER NOT NULL, " +
+                    "`grade` INTEGER, `gradeSource` TEXT NOT NULL, `heuristicGrade` INTEGER, " +
+                    "`signalsJson` TEXT NOT NULL, `sampled` INTEGER NOT NULL, `judgedAt` INTEGER, " +
+                    "`queryClass` TEXT, `supersededByEdit` INTEGER NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_retrieval_labels_conversationId` " +
+                    "ON `retrieval_labels` (`conversationId`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_retrieval_labels_createdAt` " +
+                    "ON `retrieval_labels` (`createdAt`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_retrieval_labels_sampled_grade` " +
+                    "ON `retrieval_labels` (`sampled`, `grade`)",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -791,7 +833,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is
@@ -807,6 +849,9 @@ object MemoryModule {
 
     @Provides
     fun provideOpenQuestionDao(db: MemoryDatabase): com.aura.curiosity.OpenQuestionDao = db.openQuestionDao()
+
+    @Provides
+    fun provideRetrievalLabelDao(db: MemoryDatabase): RetrievalLabelDao = db.retrievalLabelDao()
 
     @Provides
     fun provideMemoryDao(db: MemoryDatabase): MemoryDao = db.memoryDao()
