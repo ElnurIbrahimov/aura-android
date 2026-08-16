@@ -423,4 +423,145 @@ class MemoryDatabaseMigrationTest {
             assertEquals("events outlived the world they belong to", 0, it.getInt(0))
         }
     }
+
+    /** Every NOT NULL column of `memories` at v18, in order. */
+    private fun insertV18Memory(
+        db: androidx.sqlite.db.SupportSQLiteDatabase,
+        id: String,
+        content: String,
+    ) = db.execSQL(
+        "INSERT INTO memories (id, content, source, category, scope, importance, createdAt, accessedAt, " +
+            "accessCount, decayScore, tags, metadata, sourceConversationId, sourceTurnTimestamp, embeddingVersion) " +
+            "VALUES ('$id', '$content', 'user', 'fact', 'general', 0.6, 1000, 1000, 1, 1.0, '[]', '{}', '', 0, 0)",
+    )
+
+    /**
+     * The hops from 18 to head, which until now had no instrumented coverage at
+     * all — `migrate6To18_fullChain` stopped exactly where this starts, so five
+     * migrations were validated only by `MigrationReplayTest` on the JVM, which
+     * diffs schemas and never opens SQLite.
+     */
+    @Test
+    fun migrate18To23_fullChain_validatesAgainstHeadSchema() {
+        val name = "test-aura-memory-18-to-23.db"
+        val db = helper.createDatabase(name, 18)
+        insertV18Memory(db, "m18", "chain test memory")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            name,
+            23,
+            true,
+            MemoryModule.MIGRATION_18_19,
+            MemoryModule.MIGRATION_19_20,
+            MemoryModule.MIGRATION_20_21,
+            MemoryModule.MIGRATION_21_22,
+            MemoryModule.MIGRATION_22_23,
+        )
+
+        migrated.query("SELECT content FROM memories WHERE id = 'm18'").use {
+            assertTrue("seeded memory did not survive the v18 to v23 chain", it.moveToFirst())
+            assertEquals("chain test memory", it.getString(0))
+        }
+
+        // The four tables these hops introduce. `runMigrationsAndValidate`
+        // compares against the head schema and would catch a missing table, but
+        // naming them here is what makes a failure legible.
+        for (table in listOf("corrections", "open_questions", "place_visits", "creative_analysis")) {
+            migrated.query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '$table'",
+            ).use {
+                assertTrue(it.moveToFirst())
+                assertEquals("$table was not created by the 18->23 chain", 1, it.getInt(0))
+            }
+        }
+    }
+
+    /**
+     * `retiredAt` must be NULL on rows that predate it.
+     *
+     * Retirement is how a memory stops being retrievable without being
+     * destroyed, and every `MemoryDao` retrieval path excludes
+     * `retiredAt IS NOT NULL`. So a migration that backfilled these columns with
+     * anything non-null would retire the user's **entire** memory store on
+     * upgrade — and do it silently, because a store that returns nothing looks
+     * exactly like a store with no matches. NULL means "this memory is live",
+     * which is why all three columns were added nullable and without defaults.
+     */
+    @Test
+    fun migrate18To19_leavesPreexistingMemoriesLive() {
+        val name = "test-aura-memory-18-to-19.db"
+        val db = helper.createDatabase(name, 18)
+        insertV18Memory(db, "m19", "pre-retirement memory")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 19, true, MemoryModule.MIGRATION_18_19)
+
+        migrated.query("SELECT retiredAt FROM memories WHERE id = 'm19'").use {
+            assertTrue("pre-retirement row missing after migration", it.moveToFirst())
+            assertTrue(
+                "retiredAt must be NULL on a pre-existing memory, or the whole store reads as retired",
+                it.isNull(0),
+            )
+        }
+    }
+
+    /**
+     * The v22 to v23 hop adds `creative_analysis`, keyed to the revision it read.
+     *
+     * Asserted the same way as the 17->18 hop above, and for the same two
+     * reasons. The CASCADE onto `creative_revisions` matters because analysis of
+     * a revision that no longer exists is unreachable rows nothing deletes; and
+     * the unique index on (revisionId, kind) is the only thing stopping two runs
+     * of the same analysis on the same revision from both persisting, which
+     * would make "the" result of an analysis ambiguous.
+     */
+    @Test
+    fun migrate22To23_creativeAnalysisCascadesAndIsUniquePerRevisionAndKind() {
+        val name = "test-aura-memory-22-to-23.db"
+        val db = helper.createDatabase(name, 22)
+        db.execSQL(
+            "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, templateId, " +
+                "metadataJson, turnCount, lastSessionEnded, createdAt, updatedAt) " +
+                "VALUES ('p1', 'Ashfall', '', '', '', '{}', 'novel', '{}', 0, 0, 1000, 1000)",
+        )
+        db.execSQL(
+            "INSERT INTO creative_artifacts (id, projectId, branchId, kind, title, currentRevisionId, " +
+                "previewText, mimeType, storageUri, contentHash, status, metadataJson, createdAt, updatedAt) " +
+                "VALUES ('a1', 'p1', 'main', 'scene', '1. Arrival', 'r1', '', 'text/plain', NULL, 'h', " +
+                "'ready', '{}', 1000, 1000)",
+        )
+        db.execSQL(
+            "INSERT INTO creative_revisions (id, artifactId, branchId, parentRevisionId, contentText, " +
+                "storageUri, contentHash, authorKind, providerPrefix, modelId, prompt, settingsJson, createdAt) " +
+                "VALUES ('r1', 'a1', 'main', NULL, 'She reached the lighthouse.', NULL, 'h', 'model', " +
+                "'test', 'test-model', '', '{}', 1000)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 23, true, MemoryModule.MIGRATION_22_23)
+
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL(
+            "INSERT INTO creative_analysis (id, revisionId, artifactId, kind, payloadJson, headline, note, createdAt) " +
+                "VALUES ('an1', 'r1', 'a1', 'pacing', '{}', 0.5, '', 1000)",
+        )
+
+        var threw = false
+        try {
+            migrated.execSQL(
+                "INSERT INTO creative_analysis (id, revisionId, artifactId, kind, payloadJson, headline, note, createdAt) " +
+                    "VALUES ('an2', 'r1', 'a1', 'pacing', '{}', 0.9, '', 2000)",
+            )
+        } catch (_: Exception) {
+            threw = true
+        }
+        assertTrue("a second 'pacing' analysis of the same revision was allowed", threw)
+
+        migrated.execSQL("DELETE FROM creative_revisions WHERE id = 'r1'")
+        migrated.query("SELECT COUNT(*) FROM creative_analysis").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("analysis outlived the revision it read", 0, it.getInt(0))
+        }
+    }
 }
