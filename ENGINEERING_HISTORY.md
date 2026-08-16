@@ -769,6 +769,126 @@ succeeds, 11.80 MB. All three gate scripts pass. Device verification
 (`scripts/smoke.sh` plus the manual six-scene draft check) was **not**
 performed as part of this pass — see the task-11 report.
 
+### The audit pass (2026-08-16)
+
+A full-repository audit: inventory, baseline, then category-by-category
+inspection with every claim tied to source. Four defects found and fixed. What
+was checked and found sound is recorded at the end, because a pass that lists
+only what it broke is not evidence that anything else was read — and because
+three of this pass's own first drafts were wrong, which is worth more as a
+record than a clean narrative would be.
+
+**A shared `SimpleDateFormat` lost three quarters of every concurrent parse.**
+`TimeParser` is an `object` — one instance for the process — and kept its ISO
+formatter in a field (`TimeParser.kt:18`). `SimpleDateFormat` carries a mutable
+`Calendar` across `parse`, and three tools reach this one: `set_reminder`,
+`manage_tasks` and `calendar_write`, which `ToolExecutor` runs up to eight at a
+time on a bounded dispatcher. "Remind me at 3, 4 and 5" is a single model turn
+emitting three parallel calls into it. Measured at 8 threads × 400 parses of one
+valid ISO string: **2,427 of 3,200 came back null — 76%**. Null is not a visible
+failure here. The torn parse throws, `tryIso`'s `catch (_: Exception)` maps it to
+null, the `HH:mm` fallback cannot read ISO, and the caller reads the result as
+"the user typed a bad time" and drops the reminder with a plausible error and no
+log. The formatter is now built per call — which is what `format()`, two lines
+below it, had always done. The shared field was the inconsistency, not the fix.
+`CrashLogger` holds a formatter the same way and is *not* affected: every path
+that touches it is inside `synchronized(this)`.
+
+**A fetched page reached the model unframed.** `PromptFraming`'s own KDoc names
+the threat it was written for — the model reads a page, judges a line memorable,
+calls `remember`, and that line is recalled into a later prompt — and frames the
+recall block, the compaction summary, beliefs and taste accordingly. That is the
+two-hop path. The one-hop path was open: a page fetched by `web_search` or
+`firecrawl_fetch` landed in the same turn's tool result, in a conversation that
+can also reach `screen_act` and `send_email_background`, with nothing marking it
+as data. The derivative was defended and the original was not.
+`frameToolResult` now prefixes results from `ToolCategories.WEB` tools with the
+existing `UNTRUSTED_DATA_DIRECTIVE`, after truncation so the directive does not
+eat the content budget, and on errors as well as successes because an error can
+carry an echoed response body. It keys off `category` rather than a new flag so
+there is one fact rather than two that can drift; `ToolFramingAuditTest` pins the
+fifteen-tool membership so recategorising a tool for the Tools browser cannot
+quietly remove a security control. This is defence in depth and not a boundary —
+the confirmation gates are what actually stand between a hostile page and an
+irreversible action, and no JVM test can show the directive changes a real
+model's behaviour. The regression gate is a wire test, not a format test:
+`MemoryAugmentedAgenticLoopToolResultFramingTest` asserts on the messages the
+loop hands the provider, and was confirmed to fail when the call site is reverted.
+
+**The backup screen warned about the omission that heals itself and not the one
+that does not.** `AuraBackup` and `BackupManager` both document that the export
+deliberately omits API keys and OAuth tokens — correctly, since they live under
+an Android Keystore key that never leaves the install and writing them into a
+JSON file would be a security regression. Nothing on the screen said so. The
+restore dialog named embeddings, which `Rebuild embeddings` regenerates in one
+pass, and stayed silent on the keys, which cannot be recovered from anywhere and
+have to be re-issued by the provider. Export had no disclosure at all: the user
+taps *Export to JSON*, receives a file, and reasonably believes the keys they
+pasted are inside it. Both ends now say what is missing, and the export line says
+it before the file is relied on rather than after.
+
+**Nothing pinned `ToolRisk`'s declaration order.** Four checks compare risks with
+`>=` on `ordinal` — the incognito gate in `PolicyEngine`, its fallback in
+`ToolExecutor`, world-event recording in the loop, and `ToolRegistry.byRisk` — so
+the order of the enum *is* the policy, and `ScreenActTool`'s KDoc already said as
+much. The only test that touched it mapped the entries `.toSet()` and asserted
+membership, which passes under every permutation. Alphabetising the enum, or
+grouping the two `WRITE_` risks because they read better together, would have
+silently changed what incognito blocks and what the world model records, with a
+green suite. `ToolRiskOrdinalAuditTest` now holds the order and the
+`>= WRITE_LOCAL` boundary explicitly.
+
+That boundary has one consequence worth stating rather than fixing here.
+`REMOTE_COST` sits *below* it, so anything classified by what a call costs
+escapes all four capability gates. For the native tools this is deliberate and
+correct — `deep_research` and `code_interpreter` write nothing local. But
+`McpToolBridge` registers **every** third-party MCP tool as `REMOTE_COST` by
+default, reasoning explicitly about billing ("they call external network
+endpoints that may consume paid API credits") for tools whose capabilities it
+cannot know. A user-configured MCP server exposing a write tool therefore runs in
+incognito and is recorded as no world event. The literal incognito promise —
+"cannot write memory or profile facts" — still holds, since MCP tools do not
+touch Aura's stores. `ToolRisk` conflating cost with capability is the design
+question underneath, and it should be answered deliberately rather than patched.
+
+**Checked and found sound**, recorded so the next pass need not re-derive it: the
+policy gate is genuinely a chokepoint — `tool.execute` has exactly one call site
+(`ToolExecutor.kt:140`), and the chat loop, background agent runs and hands all
+reach it through `execute(name, args, ctx)`, so none can bypass policy. Dagger
+does inject a real `PolicyEngine` (verified in the generated
+`ToolExecutor_Factory`, not assumed from the source); the `= null` default is
+test-only, though it is a shape worth remembering, since removing the binding
+would silently disable the primary gate rather than fail the build. `email_send`
+and `sms_send` are `WRITE_LOCAL` and correctly so — both only open the platform
+composer via `ACTION_SENDTO`, delegating confirmation to an OS surface stronger
+than an in-app dialog. `KeyManager` is textbook AES-256-GCM with a per-call
+random IV. Release builds never destructively migrate — the fallback is
+`OnDowngrade` and `BuildConfig.DEBUG`-only. MCP's deny list and prefix allow list
+exist as claimed. `HttpFileReadTool` runs through `SsrfGuard.pinnedClient`. The
+JS sandbox blocks network in `shouldInterceptRequest`. Cleartext is off except
+loopback; cloud backup and device transfer are fully excluded. Zero
+`allowMainThreadQueries`, zero SQL string interpolation in `@Query`, zero
+`printStackTrace`, zero TODO/FIXME, and 124 `collectAsStateWithLifecycle` against
+zero bare `collectAsState`.
+
+Three first drafts of this pass's own findings were wrong, each because a count
+was trusted over a read — the failure §4 already names. A case-sensitive regex
+reported six suites with no assertions; all six assert via `coVerify`, and the
+true count is zero. A line-based grep reported eleven lazy lists missing item
+keys; nine are static enums or fixed-count skeletons where keys are irrelevant,
+one has its key on the following line, and only `ProactiveHistoryScreen.kt:129`
+is a real dynamic list — low impact, left alone. The same line-based error
+reported that 18% of `runCatching` sites log their failure; counted properly it
+is 592 `onFailure` against 750 `runCatching`, about 79%, which is a strength
+rather than a gap.
+
+Full gate re-verified at this pass: **463 suites, 3,157 unit tests, 0 failures,
+0 errors, 0 skipped** (baseline before it was 460 / 3,151). `assembleRelease`
+succeeds. All three gate scripts pass. Nothing here was verified on a device —
+the concurrency fix is measured on the JVM, the framing change cannot be shown to
+alter a real model's behaviour without one, and the backup disclosure is text on
+a screen no test in this repo renders.
+
 ### Blocked on measurement, not on work
 
 Four items are deliberately unfinished. Each is blocked on evidence that does not exist yet,

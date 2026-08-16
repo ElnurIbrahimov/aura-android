@@ -15,7 +15,20 @@ import java.util.TimeZone
  * Returns epoch millis in the local timezone, or null on parse failure.
  */
 object TimeParser {
-    private val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+    /**
+     * Built per call, never cached in a field.
+     *
+     * `SimpleDateFormat` keeps a mutable `Calendar` across `parse`, and this is
+     * an `object` — one instance for the process — reached from `set_reminder`,
+     * `manage_tasks` and `calendar_write`, which `ToolExecutor` runs up to eight
+     * at a time. A shared formatter here lost 76% of parses to `null` under that
+     * contention ([TimeParserTest]), and null is indistinguishable from "the user
+     * typed a bad time": the reminder was dropped with a plausible error.
+     *
+     * Allocation is nothing against a tool call, and [format] below has always
+     * done it this way.
+     */
+    private fun isoFormat() = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
         .apply { timeZone = TimeZone.getDefault() }
 
     fun parse(s: String): Long? {
@@ -26,7 +39,7 @@ object TimeParser {
     }
 
     private fun tryIso(s: String): Long? = try {
-        iso.parse(s)?.time
+        isoFormat().parse(s)?.time
     } catch (_: Exception) {
         null
     }

@@ -112,6 +112,37 @@ internal fun truncateToolResult(raw: String): String =
     }
 
 /**
+ * Mark the output of a web-reaching tool as data rather than instructions.
+ *
+ * [PromptFraming] already frames everything Aura pulls back *out* of its own
+ * stores, and its own KDoc names the path it was written for: the model reads a
+ * page, calls `remember`, and that line is recalled into a later prompt. That is
+ * the two-hop case. The one-hop case — a fetched page landing in this turn's
+ * tool result, in the same conversation, beside `screen_act` and
+ * `send_email_background` — went in unframed. The derivative was defended and
+ * the original was not.
+ *
+ * Framing keys off [com.aura.tools.ToolCategories.WEB] rather than a new flag on
+ * `Tool`, so there is one fact rather than two that can drift, and
+ * `ToolFramingAuditTest` pins the membership so recategorising a tool for the
+ * Tools browser cannot quietly remove a security control.
+ *
+ * Applied after truncation — the directive is metadata and must not eat the
+ * model's content budget — and to errors as well as successes, because an error
+ * message can carry an echoed response body.
+ *
+ * This is defence in depth, not a boundary. It cannot stop a determined
+ * injection on its own; the confirmation gates in [ToolExecutor] are what stand
+ * between a hostile page and an irreversible action.
+ */
+internal fun frameToolResult(category: String, result: String): String =
+    if (category == com.aura.tools.ToolCategories.WEB) {
+        PromptFraming.UNTRUSTED_DATA_DIRECTIVE + "\n\n" + result
+    } else {
+        result
+    }
+
+/**
  * The memory-augmented agentic loop. Pre-pends relevant memories to the system
  * prompt before each model call, and auto-stores memorable user facts after.
  * Also extracts a knowledge graph from each assistant turn (best-effort).
@@ -1258,7 +1289,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                     is ToolResult.NeedsApproval -> "Approval needed: ${result.rationale}"
                     is ToolResult.NeedsConfirmation -> "Confirmation needed: ${result.rationale}"
                 }
-                val resultText = truncateToolResult(rawResultText)
+                val resultText = frameToolResult(
+                    category = toolRegistry.get(name)?.category.orEmpty(),
+                    result = truncateToolResult(rawResultText),
+                )
                 currentConversation = currentConversation.setToolResult(id, resultText)
                 // Mid-loop compaction: the conversation grows by ~4k chars
                 // per tool result. Without re-compacting, a 10-step run can

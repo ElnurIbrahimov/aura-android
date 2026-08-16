@@ -109,6 +109,26 @@ fun DataAndBackupSection(
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (backupState.exportInFlight) "Exporting..." else "Export to JSON") }
 
+        // What the file does NOT contain, said before the user relies on it.
+        //
+        // The omission is deliberate and correct: API keys and OAuth tokens live
+        // in SecureDataStore under an Android Keystore key that never leaves the
+        // install, and writing them into a JSON file would be a security
+        // regression (see AuraBackup's KDoc). But nothing said so on this screen.
+        // The restore dialog mentions embeddings — which rebuild themselves — and
+        // stays silent on the keys, which cannot be recovered from anywhere and
+        // have to be re-issued by the provider. That is the omission worth
+        // naming, and this is the last moment naming it can still prevent the
+        // loss rather than explain it.
+        Text(
+            "Does not include API keys, connected accounts, or embeddings — those are " +
+                "encrypted to this install and cannot be restored from a file. Keep a " +
+                "copy of your API keys somewhere else.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+            modifier = Modifier.padding(top = AuraSpacing.xxs),
+        )
+
         Spacer(Modifier.height(AuraSpacing.xs))
 
         OutlinedButton(
@@ -156,7 +176,10 @@ fun DataAndBackupSection(
                         "Either way, the settings in the backup overwrite your current settings - " +
                         "a merge merges rows, not preferences.\n\n" +
                         "Embeddings are NOT included - after restoring, go to the Memory tab " +
-                        "and tap 'Rebuild embeddings' to re-embed everything in one pass."
+                        "and tap 'Rebuild embeddings' to re-embed everything in one pass.\n\n" +
+                        "API keys and connected accounts are NOT included either - they are " +
+                        "encrypted to the install that made the file. Re-paste your keys in " +
+                        "Settings after restoring."
                     )
                 },
                 confirmButton = {

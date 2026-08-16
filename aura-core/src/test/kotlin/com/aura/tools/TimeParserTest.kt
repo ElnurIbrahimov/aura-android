@@ -53,4 +53,54 @@ class TimeParserTest {
         val out = TimeParser.format(System.currentTimeMillis() + 60_000L)
         assertTrue(out.isNotBlank(), "format should produce a non-blank string")
     }
+
+    /**
+     * Three tools call [TimeParser.parse] — `set_reminder`, `manage_tasks` and
+     * `calendar_write` — and `ToolExecutor` runs up to eight tool bodies at once
+     * on a bounded dispatcher. "Remind me at 9, 10 and 11" is one model turn
+     * emitting three parallel calls into a process-wide `object`.
+     *
+     * `SimpleDateFormat` is documented as not thread-safe: it keeps a mutable
+     * `Calendar` across `parse`, so concurrent callers overwrite each other's
+     * fields. The corruption is silent in the worst way. A torn parse either
+     * returns the *wrong instant* — a reminder that fires on another day — or
+     * throws, and the throw lands in `tryIso`'s `catch (_: Exception) { null }`,
+     * falls through to `tryHhMm`, which cannot read ISO, and yields null. Null
+     * reads to the caller as "the user typed a bad time", so the reminder is
+     * dropped with a plausible error and nothing is logged.
+     *
+     * Note [TimeParser.format] one line below already builds its formatter per
+     * call. The shared field is the inconsistency, not the fix.
+     */
+    @Test
+    fun `parse is safe to call from several tools at once`() {
+        val iso = "2027-03-09T15:30:00"
+        val expected = java.util.Calendar.getInstance().apply {
+            clear()
+            set(2027, java.util.Calendar.MARCH, 9, 15, 30, 0)
+        }.timeInMillis
+
+        val threads = 8
+        val perThread = 400
+        val barrier = java.util.concurrent.CyclicBarrier(threads)
+        val wrong = java.util.concurrent.atomic.AtomicInteger()
+        val nulls = java.util.concurrent.atomic.AtomicInteger()
+
+        val workers = (1..threads).map {
+            Thread {
+                barrier.await()
+                repeat(perThread) {
+                    when (TimeParser.parse(iso)) {
+                        null -> nulls.incrementAndGet()
+                        expected -> Unit
+                        else -> wrong.incrementAndGet()
+                    }
+                }
+            }.apply { start() }
+        }
+        workers.forEach { it.join() }
+
+        assertEquals(0, nulls.get(), "a valid ISO time parsed to null under concurrency")
+        assertEquals(0, wrong.get(), "a valid ISO time parsed to the wrong instant under concurrency")
+    }
 }

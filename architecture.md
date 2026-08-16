@@ -155,7 +155,7 @@ aura-android-clean/
 - SecureDataStore: AES-256-GCM for credentials, SMTP passwords, MCP auth tokens
 - BiometricPrompt: BIOMETRIC_STRONG for app lock and sensitive tools
 - ToolExecutor: withTimeout per tool, bounded tool parallelism (8), typed confirmation/approval gates via PolicyEngine
-- PolicyEngine: risk-based defaults (READ_ONLY, WRITE_LOCAL, WRITE_REMOTE, REMOTE_COST, PRIVACY) + per-tool user policy with confirmation grants
+- PolicyEngine: risk-based defaults + per-tool user policy with confirmation grants. `ToolRisk` is READ_ONLY, REMOTE_COST, WRITE_LOCAL, WRITE_REMOTE, PRIVACY, DESTRUCTIVE — **in that order**, which four `>= WRITE_LOCAL` ordinal comparisons depend on (incognito gate, its ToolExecutor fallback, world-event recording, `ToolRegistry.byRisk`); held by `ToolRiskOrdinalAuditTest`
 - Screen capture: per-capture consent, visible FGS notification during capture
 - WebView: JS enabled, DOM storage enabled, file/content access disabled, mixed content blocked,
   `javaScriptCanOpenWindowsAutomatically` off, destroyed on dispose. Cookies are left at the
@@ -168,7 +168,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,151 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,157 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 78 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
