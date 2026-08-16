@@ -400,7 +400,16 @@ class ChatViewModel @Inject constructor(
     private val proactiveEventDao: com.aura.proactive.ProactiveEventDao? = null,
     private val curiosityStore: com.aura.curiosity.CuriosityStore? = null,
     private val situationReader: com.aura.situation.SituationReader? = null,
+    /** Turn-level relevance signals for the harvested retrieval labels. */
+    private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
 ) : AndroidViewModel(application) {
+
+    /** The turn a signal is about, in the form the label rows are keyed by. */
+    private fun turnProvenance(turnTimestamp: Long?) =
+        com.aura.provenance.ConversationProvenance(
+            _state.value.conversation.id,
+            turnTimestamp ?: 0L,
+        )
 
     private val _state = MutableStateFlow(ChatUiState())
 
@@ -941,6 +950,15 @@ class ChatViewModel @Inject constructor(
         val conv = _state.value.conversation
         if (turnIndex < 0 || turnIndex >= conv.turns.size) return
         // Truncate to the turn being edited, replace the user message, resend
+        // Marked, never graded down. An edit says the *question* was wrong, not
+        // the memories; grading it as a miss would teach the eval that
+        // correctly-retrieved memories for a badly-phrased question are
+        // irrelevant.
+        val editedTurn = conv.turns[turnIndex].timestamp
+        viewModelScope.launch {
+            runCatching { retrievalLabels?.markSupersededByEdit(turnProvenance(editedTurn)) }
+                .onFailure { Log.w("ChatViewModel", "edit marker write failed: ${it.message}", it) }
+        }
         val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex))
         _state.update {
             it.copy(
@@ -1132,6 +1150,20 @@ class ChatViewModel @Inject constructor(
         _state.update { it.copy(conversation = current.copy(turns = newTurns)) }
         saveConversation()
         recordTasteSignal(turnTimestamp, newReaction)
+        // Recorded as a turn-level signal, which deliberately does not set a
+        // grade: a verdict on the answer spread across every memory recalled for
+        // that turn grades them all alike, and nDCG cannot separate those.
+        val signal = when (newReaction) {
+            Reaction.Up -> com.aura.memory.RetrievalLabelStore.TurnSignal.THUMBS_UP
+            Reaction.Down -> com.aura.memory.RetrievalLabelStore.TurnSignal.THUMBS_DOWN
+            null -> null
+        }
+        if (signal != null) {
+            viewModelScope.launch {
+                runCatching { retrievalLabels?.recordTurnSignal(turnProvenance(turnTimestamp), signal) }
+                    .onFailure { Log.w("ChatViewModel", "turn signal write failed: ${it.message}", it) }
+            }
+        }
     }
 
     private fun recordTasteSignal(turnTimestamp: Long, reaction: Reaction?) {
@@ -1202,7 +1234,19 @@ class ChatViewModel @Inject constructor(
 
     fun retryLast() {
         if (_state.value.streaming) return
+        // Captured before prepareConversationForRetry, whose first act is to
+        // null `recall` — after that call there is nothing left identifying the
+        // turn whose retrieval the user is implicitly rejecting.
+        val retriedTurn = _state.value.conversation.turns.lastOrNull()?.timestamp
         val retry = prepareConversationForRetry(_state.value.conversation) ?: return
+        viewModelScope.launch {
+            runCatching {
+                retrievalLabels?.recordTurnSignal(
+                    turnProvenance(retriedTurn),
+                    com.aura.memory.RetrievalLabelStore.TurnSignal.REGENERATED,
+                )
+            }.onFailure { Log.w("ChatViewModel", "regenerate signal write failed: ${it.message}", it) }
+        }
         _state.update {
             it.copy(
                 conversation = retry.conversation,

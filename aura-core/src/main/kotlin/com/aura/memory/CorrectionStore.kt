@@ -27,6 +27,8 @@ class CorrectionStore @Inject constructor(
     private val embedder: Embedder,
     private val knowledgeGraphDao: KnowledgeGraphDao? = null,
     private val evolutionHooks: com.aura.evolution.EvolutionHooks? = null,
+    /** Records the user's "not for this question" as a graded label. */
+    private val retrievalLabels: RetrievalLabelStore? = null,
 ) {
 
     /**
@@ -136,6 +138,9 @@ class CorrectionStore @Inject constructor(
             provenance = provenance,
             now = now,
         )
+        // The strongest relevance signal the app has: precise to the pair, and
+        // asserted by a person rather than inferred from what they did next.
+        retrievalLabels?.recordIrrelevantHere(provenance, memoryId, now)
         return Report(id, "Noted. It stays, but it won't lead on questions like that.")
     }
 

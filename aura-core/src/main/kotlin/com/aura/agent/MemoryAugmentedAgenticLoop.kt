@@ -185,6 +185,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     // and a parameter added mid-list silently re-binds every argument after it
     // into the wrong slot — the failure ProactiveBootstrap's KDoc records.
     private val consultGate: ConsultGate? = null,
+    /** Grades the consult pass's verdict onto the labels recall already recorded. */
+    private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -616,6 +618,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // Stays null when no consult ran, which is a different fact from "ran
         // and selected nothing" and has to reach the UI as such.
         var cachedConsultedIds: List<kotlin.String>? = null
+        // The provenance the recall was actually recorded under.
+        //
+        // Captured rather than rebuilt where the consult verdict lands, because
+        // that is several hundred lines later and `currentConversation` may have
+        // gained a turn in between. Rebuilding it there would compute a
+        // different turnTimestamp, and the label UPDATE keyed on it would match
+        // no rows and say nothing about having missed.
+        var cachedRecallProvenance: com.aura.provenance.ConversationProvenance? = null
 
         // Tracks the most recent recall across all steps. The agentic loop
         // can perform multiple model steps for one user turn — for example,
@@ -728,6 +738,10 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             ),
                         )
                         cachedRecall = Triple(lastUserMessage, agentId, hits)
+                        cachedRecallProvenance = com.aura.provenance.ConversationProvenance(
+                            currentConversation.id,
+                            currentConversation.turns.lastOrNull()?.timestamp ?: 0L,
+                        )
                         hits
                     }
                 } else emptyList()
@@ -951,7 +965,16 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
             // rather than where lastRecall is first assigned, because the
             // consult needs the belief rows and the cached cheap model, neither
             // of which exists that early.
-            cachedConsultedIds?.let { consulted -> lastRecall = lastRecall?.copy(consultedIds = consulted) }
+            cachedConsultedIds?.let { consulted ->
+                lastRecall = lastRecall?.copy(consultedIds = consulted)
+                // The consult pass is one of only two signals in the app that is
+                // about this memory for this question rather than about the answer
+                // as a whole, so it is worth a real grade.
+                cachedRecallProvenance?.let { provenance ->
+                    runCatching { retrievalLabels?.recordConsulted(provenance, consulted) }
+                        .onFailure { android.util.Log.w("AgenticLoop", "consulted label write failed: ${it.message}", it) }
+                }
+            }
 
             val messages = buildList {
                 // The system prompt goes out as TWO messages, not one.

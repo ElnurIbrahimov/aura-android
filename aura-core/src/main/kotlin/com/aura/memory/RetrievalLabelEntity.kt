@@ -146,6 +146,50 @@ interface RetrievalLabelDao {
     suspend fun countSampledTurnsSince(since: Long): Int
 
     /**
+     * Grade one (query, memory) pair.
+     *
+     * A targeted UPDATE rather than a read-modify-write, so a grade arriving
+     * while the row is being written cannot lose to it. Matches nothing when the
+     * id is unknown, which is the correct outcome for a consulted id that names
+     * a belief rather than a memory (`RecallSummary.consultedIds` carries both,
+     * prefixed) or for a turn whose labels have already been pruned.
+     */
+    @Query(
+        "UPDATE retrieval_labels SET grade = :grade, gradeSource = :source, judgedAt = :now " +
+            "WHERE id = :id",
+    )
+    suspend fun gradeOne(id: String, grade: Int, source: String, now: Long)
+
+    /**
+     * Attach a turn-level signal to every row of that turn.
+     *
+     * Writes [heuristicGrade], never [grade]. Thumbs and regenerate are verdicts
+     * on the *answer*, and spreading one across all five memories recalled for
+     * that turn yields five rows sharing a grade — dense in rows and nearly
+     * empty of information, since nDCG cannot separate documents that grade
+     * alike. Keeping it out of `grade` is what stops that noise from reaching
+     * the metric, while still recording it so the judge sample can be checked
+     * against it.
+     */
+    @Query(
+        "UPDATE retrieval_labels SET heuristicGrade = :heuristicGrade, signalsJson = :signalsJson " +
+            "WHERE conversationId = :conversationId AND turnTimestamp = :turnTimestamp",
+    )
+    suspend fun applyTurnHeuristic(
+        conversationId: String,
+        turnTimestamp: Long,
+        heuristicGrade: Int,
+        signalsJson: String,
+    )
+
+    /** The user rewrote the question; these rows are recorded but not exported. */
+    @Query(
+        "UPDATE retrieval_labels SET supersededByEdit = 1 " +
+            "WHERE conversationId = :conversationId AND turnTimestamp = :turnTimestamp",
+    )
+    suspend fun markSupersededByEdit(conversationId: String, turnTimestamp: Long)
+
+    /**
      * Explicit, because no cascade can reach here — see the entity KDoc. Called
      * from every path that removes a conversation.
      */

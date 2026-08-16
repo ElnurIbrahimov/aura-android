@@ -68,6 +68,106 @@ class RetrievalLabelStore @Inject constructor(
             .onFailure { Log.w(TAG, "retrieval label write failed (non-fatal): ${it.message}", it) }
     }
 
+    /**
+     * The consult pass judged these recalled memories to bear on the question.
+     *
+     * One of only two signals in the app that is genuinely about *this memory
+     * for this question* rather than about the answer as a whole, which is why
+     * it writes [RetrievalLabelEntity.grade] and the turn-level signals do not.
+     * Graded 2 — "relevant" — rather than 3: the pass decided the memory applies,
+     * not that it is the ideal answer, and `RetrievalMetrics` reserves 3 for that.
+     *
+     * Memories recalled and *not* consulted are deliberately left ungraded.
+     * Unselected is not the same as irrelevant, and grading them 0 here would
+     * manufacture negatives the pass never asserted.
+     */
+    suspend fun recordConsulted(
+        provenance: ConversationProvenance,
+        consultedIds: List<String>,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        if (!provenance.isPresent || consultedIds.isEmpty()) return
+        runCatching {
+            for (memoryId in consultedIds) {
+                dao.gradeOne(
+                    id = RetrievalLabelEntity.idFor(provenance.conversationId, provenance.turnTimestamp, memoryId),
+                    grade = GRADE_RELEVANT,
+                    source = SOURCE_HEURISTIC,
+                    now = now,
+                )
+            }
+        }.onFailure { Log.w(TAG, "consulted label write failed (non-fatal): ${it.message}", it) }
+    }
+
+    /**
+     * The user said this memory should not have answered that question.
+     *
+     * The strongest signal available and the only explicit negative: precise to
+     * the pair, and asserted by a person rather than inferred. Graded 0 with
+     * source `user`, so a later judge pass can see it was not guesswork.
+     */
+    suspend fun recordIrrelevantHere(
+        provenance: ConversationProvenance,
+        memoryId: String,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        if (!provenance.isPresent) return
+        runCatching {
+            dao.gradeOne(
+                id = RetrievalLabelEntity.idFor(provenance.conversationId, provenance.turnTimestamp, memoryId),
+                grade = GRADE_IRRELEVANT,
+                source = SOURCE_USER,
+                now = now,
+            )
+        }.onFailure { Log.w(TAG, "irrelevant-here label write failed (non-fatal): ${it.message}", it) }
+    }
+
+    /**
+     * A verdict on the whole answer — thumbs, or a regenerate.
+     *
+     * Recorded against every memory recalled for that turn, into
+     * [RetrievalLabelEntity.heuristicGrade] and never into `grade`. See the DAO
+     * for why: a turn-level verdict spread across five memories produces five
+     * rows sharing a grade, which nDCG cannot separate and which would dilute
+     * the metric rather than inform it. It is kept because the judge sample
+     * exists precisely to find out whether signals like this predict relevance.
+     */
+    suspend fun recordTurnSignal(
+        provenance: ConversationProvenance,
+        signal: TurnSignal,
+    ) {
+        if (!provenance.isPresent) return
+        runCatching {
+            dao.applyTurnHeuristic(
+                conversationId = provenance.conversationId,
+                turnTimestamp = provenance.turnTimestamp,
+                heuristicGrade = signal.heuristicGrade,
+                signalsJson = """["${signal.wire}"]""",
+            )
+        }.onFailure { Log.w(TAG, "turn signal write failed (non-fatal): ${it.message}", it) }
+    }
+
+    /**
+     * The user rewrote the question and re-sent it.
+     *
+     * Marked rather than graded down, and excluded from export. An edit says
+     * *the question* was wrong, not the memories; grading it as a miss would
+     * teach the eval that correctly-retrieved memories for a badly-phrased
+     * question are irrelevant, which is the opposite of true.
+     */
+    suspend fun markSupersededByEdit(provenance: ConversationProvenance) {
+        if (!provenance.isPresent) return
+        runCatching { dao.markSupersededByEdit(provenance.conversationId, provenance.turnTimestamp) }
+            .onFailure { Log.w(TAG, "edit marker write failed (non-fatal): ${it.message}", it) }
+    }
+
+    /** A verdict on the answer as a whole. */
+    enum class TurnSignal(val wire: String, val heuristicGrade: Int) {
+        THUMBS_UP("thumbs_up", GRADE_RELEVANT),
+        THUMBS_DOWN("thumbs_down", GRADE_IRRELEVANT),
+        REGENERATED("regenerated", GRADE_IRRELEVANT),
+    }
+
     /** Called when a conversation is deleted; see the entity KDoc for why no cascade can do this. */
     suspend fun forgetConversation(conversationId: String) {
         runCatching { dao.deleteForConversation(conversationId) }
@@ -95,6 +195,13 @@ class RetrievalLabelStore @Inject constructor(
 
     companion object {
         private const val TAG = "RetrievalLabelStore"
+
+        /** Grades, matching `RetrievalMetrics`: 0 irrelevant, 1 related, 2 relevant, 3 ideal. */
+        const val GRADE_IRRELEVANT = 0
+        const val GRADE_RELEVANT = 2
+
+        const val SOURCE_HEURISTIC = "heuristic"
+        const val SOURCE_USER = "user"
 
         /**
          * 30 days. Long enough to accumulate the ~50 judged queries below which
