@@ -149,6 +149,23 @@ class RetrievalLabelHeuristicsTest {
         )
     }
 
+    /**
+     * A recall that found nothing is the only honest source of expect-empty
+     * queries, and `RetrievalEvalTest` fails a fixture set containing none.
+     * Hand-written ones make `correctly_empty_rate` a fact about whoever wrote
+     * the fixtures rather than about retrieval.
+     */
+    @Test
+    fun `a recall that returned nothing is recorded as a sentinel`() = runBlocking {
+        store.record("zzqxv nothing matches this", emptyList(), turn)
+
+        val rows = dao.forConversation("c1")
+        assertEquals(1, rows.size)
+        assertEquals("", rows.first().memoryId)
+        assertEquals("rank 0 marks the sentinel apart from a real hit", 0, rows.first().rank)
+        assertTrue("the question is what makes the row useful", rows.first().queryText.isNotBlank())
+    }
+
     /** Everything here is a no-op for a read that was not serving a turn. */
     @Test
     fun `signals with no provenance do nothing`() = runBlocking {

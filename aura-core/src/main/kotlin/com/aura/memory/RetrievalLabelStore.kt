@@ -51,18 +51,44 @@ class RetrievalLabelStore @Inject constructor(
         provenance: ConversationProvenance,
         now: Long = System.currentTimeMillis(),
     ) {
-        if (!provenance.isPresent || memoryIdsInRankOrder.isEmpty()) return
+        if (!provenance.isPresent) return
         val scrubbed = Redactor.scrub(queryText)
-        val rows = memoryIdsInRankOrder.mapIndexed { index, memoryId ->
-            RetrievalLabelEntity(
-                id = RetrievalLabelEntity.idFor(provenance.conversationId, provenance.turnTimestamp, memoryId),
-                conversationId = provenance.conversationId,
-                turnTimestamp = provenance.turnTimestamp,
-                queryText = scrubbed,
-                memoryId = memoryId,
-                rank = index + 1,
-                createdAt = now,
+        val rows = if (memoryIdsInRankOrder.isEmpty()) {
+            // "Aura looked and found nothing" is a datapoint, not an absence of
+            // one, and the harness already models it: a query whose judgments
+            // contain no grade >= 1 is a first-class *expect-empty* case, and
+            // `RetrievalEvalTest` fails a fixture set containing none. Recall
+            // returning empty is the only honest source of those — inventing
+            // them by hand is how `correctly_empty_rate` becomes a number about
+            // the fixture author rather than about retrieval.
+            //
+            // One sentinel row, `memoryId` blank and `rank` 0, carrying the
+            // question and nothing else. It keys distinctly because the id
+            // derives from the turn, and it exports as a query with no
+            // judgments.
+            listOf(
+                RetrievalLabelEntity(
+                    id = RetrievalLabelEntity.idFor(provenance.conversationId, provenance.turnTimestamp, ""),
+                    conversationId = provenance.conversationId,
+                    turnTimestamp = provenance.turnTimestamp,
+                    queryText = scrubbed,
+                    memoryId = "",
+                    rank = 0,
+                    createdAt = now,
+                ),
             )
+        } else {
+            memoryIdsInRankOrder.mapIndexed { index, memoryId ->
+                RetrievalLabelEntity(
+                    id = RetrievalLabelEntity.idFor(provenance.conversationId, provenance.turnTimestamp, memoryId),
+                    conversationId = provenance.conversationId,
+                    turnTimestamp = provenance.turnTimestamp,
+                    queryText = scrubbed,
+                    memoryId = memoryId,
+                    rank = index + 1,
+                    createdAt = now,
+                )
+            }
         }
         runCatching { dao.upsertAll(rows) }
             .onFailure { Log.w(TAG, "retrieval label write failed (non-fatal): ${it.message}", it) }
