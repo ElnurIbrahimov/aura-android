@@ -27,6 +27,7 @@ class DecayWorker @AssistedInject constructor(
     private val outcomePass: ProactiveOutcomePass? = null,
     private val workerRunRecorder: com.aura.health.WorkerRunRecorder? = null,
     private val placeLog: com.aura.place.PlaceLog? = null,
+    private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
 ) : CoroutineWorker(appContext, params) {
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
@@ -80,6 +81,13 @@ class DecayWorker @AssistedInject constructor(
             // window with no caller is a table that grows forever.
             runCatching { placeLog?.prune() }
                 .onFailure { android.util.Log.w("DecayWorker", "place prune failed: ${it.message}", it) }
+
+            // Fourth sweep, same placement, same reason. Harvested retrieval
+            // labels carry the user's own questions, so the 30-day window is
+            // not only about table size — and decayEnabled means "do not let my
+            // memories fade", never "keep my questions indefinitely".
+            runCatching { retrievalLabels?.prune() }
+                .onFailure { android.util.Log.w("DecayWorker", "retrieval label prune failed: ${it.message}", it) }
 
             if (!userPreferences.decayEnabled.first()) {
                 // Skipped, not ok — but note the three sweeps above still ran.

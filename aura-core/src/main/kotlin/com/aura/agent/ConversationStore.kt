@@ -15,6 +15,14 @@ private const val EMBEDDING_BACKFILL_BATCH_SIZE = 24
 class ConversationStore @Inject constructor(
     private val dao: ConversationDao,
     private val embedder: com.aura.memory.Embedder,
+    /**
+     * Harvested retrieval labels, deleted from here because nothing else can
+     * delete them. `retrieval_labels` lives in `MemoryDatabase` and
+     * `conversations` lives in `ConversationDatabase`; SQLite has no
+     * cross-database foreign keys, so no cascade reaches them and every
+     * deletion path is manual.
+     */
+    private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
 ) {
     /**
      * Serialises the read-modify-write in [save].
@@ -161,6 +169,13 @@ class ConversationStore @Inject constructor(
         // background sweep hard-deletes tombstones older than the
         // retention window.
         dao.softDelete(id, System.currentTimeMillis())
+        // Labels go at the tombstone rather than at the eventual hard delete.
+        // This is where the user said "delete this", and the hard delete —
+        // purgeDeletedOlderThan — returns a count rather than ids, so it could
+        // not target them anyway. The cost is that [restore] hands back a
+        // conversation whose harvested labels are gone; accepted, because they
+        // are 30-day telemetry rather than content.
+        retrievalLabels?.forgetConversation(id)
     }
 
     /** Clear a soft-delete tombstone. Returns the restored conversation, or null. */
@@ -179,7 +194,10 @@ class ConversationStore @Inject constructor(
         return dao.purgeDeletedBefore(cutoff)
     }
 
-    suspend fun deleteAll() = dao.deleteAll()
+    suspend fun deleteAll() {
+        dao.deleteAll()
+        retrievalLabels?.forgetAll()
+    }
 
     /**
      * Rename a conversation. The new title must be non-blank and
