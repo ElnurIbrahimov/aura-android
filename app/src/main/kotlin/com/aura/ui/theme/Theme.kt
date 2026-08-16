@@ -89,6 +89,19 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = DarkAuraSemanticColors.surface2,
     onSurfaceVariant = DarkAuraSemanticColors.textSecondary,
     surfaceTint = DarkAuraSemanticColors.actionPrimary,
+    // The surfaceContainer roles, which Material3 components actually read.
+    //
+    // `surface` and `surfaceVariant` above were mapped and these were not, so
+    // every component that draws its own container fell through to
+    // darkColorScheme()'s stock values — light greys, on a near-black app.
+    // Card reads surfaceContainerLow and AlertDialog reads surfaceContainerHigh,
+    // which is why 18 cards and 55 dialogs rendered in a grey nobody chose. Menus
+    // and bottom sheets read these too.
+    surfaceContainerLowest = DarkAuraSemanticColors.surface0,
+    surfaceContainerLow = DarkAuraSemanticColors.surface1,
+    surfaceContainer = DarkAuraSemanticColors.surface1,
+    surfaceContainerHigh = DarkAuraSemanticColors.surface2,
+    surfaceContainerHighest = DarkAuraSemanticColors.surface2,
     inverseSurface = Color.White,
     inverseOnSurface = DarkAuraSemanticColors.surface0,
     inversePrimary = DarkAuraSemanticColors.actionPrimary,
@@ -124,5 +137,12 @@ private val LightColors = lightColorScheme(
     outlineVariant = LightAuraSemanticColors.borderSubtle,
     error = Color(0xFFDC2626),
     onError = Color.White,
+    // Same as the dark scheme: without these, Card and AlertDialog read
+    // lightColorScheme()'s stock containers rather than Aura's surfaces.
+    surfaceContainerLowest = LightAuraSemanticColors.surface0,
+    surfaceContainerLow = LightAuraSemanticColors.surface1,
+    surfaceContainer = LightAuraSemanticColors.surface1,
+    surfaceContainerHigh = LightAuraSemanticColors.surface2,
+    surfaceContainerHighest = LightAuraSemanticColors.surface2,
     scrim = LightAuraSemanticColors.scrim,
 )
