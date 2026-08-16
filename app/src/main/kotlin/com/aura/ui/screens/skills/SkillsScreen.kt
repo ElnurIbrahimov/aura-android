@@ -1,6 +1,15 @@
 package com.aura.ui.screens.skills
 
 import com.aura.R
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -164,39 +173,113 @@ private fun SkillList(
             .padding(padding)
             .padding(horizontal = AuraSpacing.md),
         verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+        // The FAB sits bottom-end over this list and used to overlap the last
+        // card. Reserving its height means the final skill can be read and
+        // tapped like every other one.
+        contentPadding = PaddingValues(bottom = AuraSpacing.xxl + AuraSpacing.lg),
     ) {
         items(items = skills, key = { it.id }) { skill ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(AuraSpacing.md)) {
+            SkillCard(skill = skill, onClick = { onClick(skill) })
+        }
+    }
+}
+
+/**
+ * One skill, in the shape the rest of the app uses.
+ *
+ * This list previously drew a bare `Card {}`, which takes Material3's default
+ * `surfaceContainerLow` — a light flat grey — while every other surface in Aura
+ * is `AuraThemeTokens.colors.surface1` (#121214) on a near-black ground. The
+ * cards read as borrowed UI rather than part of the app, which is the actual
+ * cause of the "grey" complaint; the fix is to use the tokens, not to pick a
+ * nicer grey.
+ *
+ * The row also had an `Edit` button floating under a large empty gap, making
+ * each card about 380px tall to show three lines. The whole card is the target
+ * now, so the height roughly halves and twice as many skills fit on screen.
+ */
+@Composable
+private fun SkillCard(skill: Skill, onClick: () -> Unit) {
+    val colors = AuraThemeTokens.colors
+    Surface(
+        color = colors.surface1,
+        shape = RoundedCornerShape(AuraSpacing.xl2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(AuraSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(color = colors.actionPrimary.copy(alpha = 0.14f), shape = CircleShape) {
+                Icon(
+                    Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = colors.actionPrimary,
+                    modifier = Modifier.padding(AuraSpacing.medium).size(AuraSpacing.xxl2),
+                )
+            }
+            Spacer(Modifier.size(AuraSpacing.sm))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         skill.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (skill.description.isNotBlank()) {
-                        Text(
-                            skill.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = AuraSpacing.xxs),
-                        )
+                    // Built-ins can be edited and reset but never deleted, and
+                    // the craft guidance the creative engine depends on lives
+                    // among them. Worth seeing before you open one.
+                    if (skill.builtin) {
+                        Spacer(Modifier.size(AuraSpacing.xs))
+                        Surface(
+                            color = colors.actionPrimary.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(AuraSpacing.xs),
+                        ) {
+                            Text(
+                                stringResource(R.string.built_in),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.actionPrimary,
+                                modifier = Modifier.padding(
+                                    horizontal = AuraSpacing.small,
+                                    vertical = AuraSpacing.xxs,
+                                ),
+                            )
+                        }
                     }
-                    Text(
-                        skill.preview(),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = AuraSpacing.xs),
-                        maxLines = 2,
-                    )
-                    FilledTonalButton(
-                        onClick = { onClick(skill) },
-                        modifier = Modifier
-                            .padding(top = AuraSpacing.xs)
-                            .align(Alignment.End),
-                    ) { Text(stringResource(R.string.edit)) }
                 }
+                if (skill.description.isNotBlank()) {
+                    Text(
+                        skill.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = AuraSpacing.xxs),
+                    )
+                }
+                // Dimmer than the description on purpose: this is a peek at the
+                // body, not a second summary. They were the same size and colour
+                // before, so a card read as three interchangeable grey lines.
+                Text(
+                    skill.preview(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = AuraSpacing.xxs),
+                )
             }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = colors.textTertiary,
+            )
         }
     }
 }
