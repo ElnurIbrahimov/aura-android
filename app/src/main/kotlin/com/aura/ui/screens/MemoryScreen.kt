@@ -805,29 +805,29 @@ private fun MemoryRow(
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("Edit") },
+                        text = { Text(stringResource(R.string.edit)) },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         onClick = { actionsOpen = false; onEdit() },
                     )
                     DropdownMenuItem(
-                        text = { Text("Edit history") },
+                        text = { Text(stringResource(R.string.edit_history)) },
                         leadingIcon = { Icon(Icons.Filled.History, contentDescription = null) },
                         onClick = { actionsOpen = false; onShowHistory() },
                     )
                     DropdownMenuItem(
-                        text = { Text("Helpful") },
+                        text = { Text(stringResource(R.string.helpful)) },
                         leadingIcon = { Icon(Icons.Filled.ThumbUp, contentDescription = null) },
                         onClick = { actionsOpen = false; onFeedback(true) },
                     )
                     DropdownMenuItem(
-                        text = { Text("Not helpful") },
+                        text = { Text(stringResource(R.string.not_helpful)) },
                         leadingIcon = { Icon(Icons.Filled.ThumbDown, contentDescription = null) },
                         onClick = { actionsOpen = false; onFeedback(false) },
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = {
-                            Text("Forget", color = AuraThemeTokens.colors.error)
+                            Text(stringResource(R.string.forget), color = AuraThemeTokens.colors.error)
                         },
                         leadingIcon = {
                             Icon(

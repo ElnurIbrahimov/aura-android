@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -92,7 +94,7 @@ fun OpenQuestionCard(
                 OutlinedTextField(
                     value = reply,
                     onValueChange = { reply = it },
-                    placeholder = { Text("Your answer") },
+                    placeholder = { Text(stringResource(R.string.your_answer)) },
                     singleLine = false,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -102,12 +104,12 @@ fun OpenQuestionCard(
                     TextButton(
                         enabled = reply.isNotBlank(),
                         onClick = { onAnswer(reply) },
-                    ) { Text("Answer") }
-                    TextButton(onClick = onNotNow) { Text("Not now") }
+                    ) { Text(stringResource(R.string.answer)) }
+                    TextButton(onClick = onNotNow) { Text(stringResource(R.string.not_now)) }
                     // Permanent, and the reason dismissed rows are kept and
                     // backed up: this subject is never raised again.
                     TextButton(onClick = onNeverAsk) {
-                        Text("Never ask", color = colors.textSecondary)
+                        Text(stringResource(R.string.never_ask), color = colors.textSecondary)
                     }
                 }
             }

@@ -1,5 +1,7 @@
 package com.aura.ui.screens.chat
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -676,17 +678,17 @@ fun ChatRoute(
     if (showClearConfirm) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { androidx.compose.material3.Text("Clear chat?") },
-            text = { androidx.compose.material3.Text("This removes all messages from this conversation. The conversation itself is kept.") },
+            title = { androidx.compose.material3.Text(stringResource(R.string.clear_chat)) },
+            text = { androidx.compose.material3.Text(stringResource(R.string.this_removes_all_messages_from_this)) },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     showClearConfirm = false
                     viewModel.clearConversation()
-                }) { androidx.compose.material3.Text("Clear") }
+                }) { androidx.compose.material3.Text(stringResource(R.string.clear)) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showClearConfirm = false }) {
-                    androidx.compose.material3.Text("Cancel")
+                    androidx.compose.material3.Text(stringResource(R.string.cancel))
                 }
             },
         )
@@ -696,7 +698,7 @@ fun ChatRoute(
         var editFieldText by remember { mutableStateOf(editingText) }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { androidx.compose.material3.Text("Edit and resend") },
+            title = { androidx.compose.material3.Text(stringResource(R.string.edit_and_resend)) },
             text = {
                 androidx.compose.material3.OutlinedTextField(
                     value = editFieldText,
@@ -709,11 +711,11 @@ fun ChatRoute(
                 androidx.compose.material3.TextButton(onClick = {
                     showEditDialog = false
                     viewModel.editAndResend(editingTurnIndex, editFieldText)
-                }) { androidx.compose.material3.Text("Send") }
+                }) { androidx.compose.material3.Text(stringResource(R.string.send)) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showEditDialog = false }) {
-                    androidx.compose.material3.Text("Cancel")
+                    androidx.compose.material3.Text(stringResource(R.string.cancel))
                 }
             },
         )
@@ -755,11 +757,11 @@ fun ChatRoute(
                     // Pre-fill the chat input with the proactive message
                     // so the user can send it as context for a conversation
                     viewModel.setDraft(msg)
-                }) { androidx.compose.material3.Text("Let's talk") }
+                }) { androidx.compose.material3.Text(stringResource(R.string.let_s_talk)) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = viewModel::dismissProactiveMessage) {
-                    androidx.compose.material3.Text("Not now")
+                    androidx.compose.material3.Text(stringResource(R.string.not_now))
                 }
             },
         )

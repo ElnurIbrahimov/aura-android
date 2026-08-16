@@ -316,8 +316,8 @@ private fun ContradictionCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(onClick = { onDismiss(contradiction.id) }) { Text("Dismiss") }
-                OutlinedButton(onClick = { onResolve(contradiction.id) }) { Text("Use newer") }
+                TextButton(onClick = { onDismiss(contradiction.id) }) { Text(stringResource(R.string.dismiss)) }
+                OutlinedButton(onClick = { onResolve(contradiction.id) }) { Text(stringResource(R.string.use_newer)) }
             }
         }
     }
@@ -348,8 +348,8 @@ private fun KgProposalCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(onClick = { onReject(proposal.id) }) { Text("Reject") }
-                OutlinedButton(onClick = { onAccept(proposal.id) }) { Text("Accept") }
+                TextButton(onClick = { onReject(proposal.id) }) { Text(stringResource(R.string.reject)) }
+                OutlinedButton(onClick = { onAccept(proposal.id) }) { Text(stringResource(R.string.accept)) }
             }
         }
     }

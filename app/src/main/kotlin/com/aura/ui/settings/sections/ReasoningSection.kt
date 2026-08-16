@@ -1,4 +1,6 @@
 package com.aura.ui.settings.sections
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.*
@@ -39,7 +41,7 @@ fun ReasoningSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Extended Thinking", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.extended_thinking), style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (reasoningEnabled) "ON — maximum reasoning (32K token budget)" else "OFF — faster, cheaper responses",
                 style = MaterialTheme.typography.bodySmall,
@@ -65,7 +67,7 @@ fun ReasoningSection(
                 .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("8K", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.s_8k), style = MaterialTheme.typography.bodySmall)
             Slider(
                 value = reasoningBudget.toFloat(),
                 onValueChange = { viewModel.setReasoningBudget(it.toInt()) },
@@ -73,7 +75,7 @@ fun ReasoningSection(
                 steps = 14,
                 modifier = Modifier.weight(1f).padding(horizontal = AuraSpacing.xs),
             )
-            Text("64K", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.s_64k), style = MaterialTheme.typography.bodySmall)
         }
         Text(
             "Supported by: Anthropic (thinking budget), OpenAI o-series (reasoning effort), Gemini (thinking config). Other providers ignore the budget and respond normally.",

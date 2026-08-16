@@ -1,4 +1,6 @@
 package com.aura.ui.settings.sections
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.*
@@ -42,7 +44,7 @@ fun IntegrationsSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Google Workspace", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.google_workspace), style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (googleConnected) "Connected — Gmail, Calendar, Drive" else "Not connected",
                 style = MaterialTheme.typography.bodySmall,
@@ -50,9 +52,9 @@ fun IntegrationsSection(
             )
         }
         if (googleConnected) {
-            TextButton(onClick = { viewModel.disconnectGoogle() }) { Text("Disconnect") }
+            TextButton(onClick = { viewModel.disconnectGoogle() }) { Text(stringResource(R.string.disconnect)) }
         } else {
-            TextButton(onClick = { viewModel.connectGoogle() }) { Text("Connect") }
+            TextButton(onClick = { viewModel.connectGoogle() }) { Text(stringResource(R.string.connect)) }
         }
     }
 
@@ -60,7 +62,7 @@ fun IntegrationsSection(
         OutlinedTextField(
             value = googleClientId,
             onValueChange = { viewModel.setGoogleClientId(it) },
-            label = { Text("Google OAuth Client ID") },
+            label = { Text(stringResource(R.string.google_oauth_client_id)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),
@@ -85,7 +87,7 @@ fun IntegrationsSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Microsoft 365", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.microsoft_365), style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (microsoftConnected) "Connected — Outlook, Calendar, OneDrive" else "Not connected",
                 style = MaterialTheme.typography.bodySmall,
@@ -93,9 +95,9 @@ fun IntegrationsSection(
             )
         }
         if (microsoftConnected) {
-            TextButton(onClick = { viewModel.disconnectMicrosoft() }) { Text("Disconnect") }
+            TextButton(onClick = { viewModel.disconnectMicrosoft() }) { Text(stringResource(R.string.disconnect)) }
         } else {
-            TextButton(onClick = { viewModel.connectMicrosoft() }) { Text("Connect") }
+            TextButton(onClick = { viewModel.connectMicrosoft() }) { Text(stringResource(R.string.connect)) }
         }
     }
 
@@ -103,7 +105,7 @@ fun IntegrationsSection(
         OutlinedTextField(
             value = microsoftClientId,
             onValueChange = { viewModel.setMicrosoftClientId(it) },
-            label = { Text("Microsoft App Client ID") },
+            label = { Text(stringResource(R.string.microsoft_app_client_id)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xxs),

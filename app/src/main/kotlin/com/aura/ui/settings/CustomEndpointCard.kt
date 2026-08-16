@@ -107,7 +107,7 @@ fun CustomEndpointCard(
                 value = baseUrl,
                 onValueChange = onBaseUrlChange,
                 label = { Text(stringResource(R.string.base_url)) },
-                placeholder = { Text("https://api.example.com/v1") },
+                placeholder = { Text(stringResource(R.string.https_api_example_com_v1)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("custom-endpoint-url"),

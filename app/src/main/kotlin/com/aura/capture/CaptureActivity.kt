@@ -1,5 +1,7 @@
 package com.aura.capture
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
@@ -159,11 +161,11 @@ private fun CaptureSheet(
         ) {
             when (val s = state) {
                 is CaptureViewModel.State.Composing -> {
-                    Text("Capture a thought", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.capture_long_label), style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it },
-                        placeholder = { Text("Aura will remember this") },
+                        placeholder = { Text(stringResource(R.string.aura_will_remember_this)) },
                         modifier = Modifier.fillMaxWidth().focusRequester(focus),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { viewModel.capture(draft) }),
@@ -175,11 +177,11 @@ private fun CaptureSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs, Alignment.End),
                     ) {
-                        TextButton(onClick = onDone) { Text("Cancel") }
+                        TextButton(onClick = onDone) { Text(stringResource(R.string.cancel)) }
                         Button(
                             onClick = { viewModel.capture(draft) },
                             enabled = draft.isNotBlank(),
-                        ) { Text("Save") }
+                        ) { Text(stringResource(R.string.save)) }
                     }
                 }
 
@@ -202,7 +204,7 @@ private fun CaptureSheet(
                 )
 
                 is CaptureViewModel.State.Failed -> {
-                    Text("Couldn't save that", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.couldn_t_save_that), style = MaterialTheme.typography.titleMedium)
                     Text(
                         s.message,
                         style = MaterialTheme.typography.bodySmall,
@@ -212,8 +214,8 @@ private fun CaptureSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs, Alignment.End),
                     ) {
-                        TextButton(onClick = onDone) { Text("Close") }
-                        Button(onClick = { viewModel.capture(draft) }) { Text("Try again") }
+                        TextButton(onClick = onDone) { Text(stringResource(R.string.close)) }
+                        Button(onClick = { viewModel.capture(draft) }) { Text(stringResource(R.string.try_again)) }
                     }
                 }
             }
@@ -240,9 +242,9 @@ private fun Confirmation(
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs, Alignment.End),
     ) {
         if (onUndo != null) {
-            TextButton(onClick = onUndo) { Text("Undo") }
+            TextButton(onClick = onUndo) { Text(stringResource(R.string.undo)) }
         }
-        TextButton(onClick = onAsk) { Text("Ask about this") }
-        Button(onClick = onDone) { Text("Done") }
+        TextButton(onClick = onAsk) { Text(stringResource(R.string.ask_about_this)) }
+        Button(onClick = onDone) { Text(stringResource(R.string.done)) }
     }
 }

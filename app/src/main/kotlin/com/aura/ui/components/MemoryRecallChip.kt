@@ -177,7 +177,7 @@ private fun MemoryRecallSheet(
                                 modifier = Modifier.weight(1f),
                             )
                             if (state.lastCorrectionId != null) {
-                                TextButton(onClick = { viewModel.undo() }) { Text("Undo") }
+                                TextButton(onClick = { viewModel.undo() }) { Text(stringResource(R.string.undo)) }
                             }
                         }
                     }
@@ -292,12 +292,12 @@ private fun CorrectableRow(
         if (expanded && !corrected) {
             Column(modifier = Modifier.padding(start = AuraSpacing.xl, top = AuraSpacing.xxs)) {
                 if (item.isSkill) {
-                    TextButton(onClick = onBadAnswer) { Text("This gave a bad answer") }
+                    TextButton(onClick = onBadAnswer) { Text(stringResource(R.string.this_gave_a_bad_answer)) }
                 } else if (editing) {
                     OutlinedTextField(
                         value = replacement,
                         onValueChange = { replacement = it },
-                        label = { Text("What is true now?") },
+                        label = { Text(stringResource(R.string.what_is_true_now)) },
                         singleLine = false,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -308,14 +308,14 @@ private fun CorrectableRow(
                                 onNoLongerTrue(replacement)
                                 editing = false
                             },
-                        ) { Text("Save") }
-                        TextButton(onClick = { editing = false }) { Text("Cancel") }
+                        ) { Text(stringResource(R.string.save)) }
+                        TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) }
                     }
                 } else {
-                    TextButton(onClick = onNeverTrue) { Text("This was never true") }
-                    TextButton(onClick = { editing = true }) { Text("This has changed") }
+                    TextButton(onClick = onNeverTrue) { Text(stringResource(R.string.this_was_never_true)) }
+                    TextButton(onClick = { editing = true }) { Text(stringResource(R.string.this_has_changed)) }
                     if (canScope) {
-                        TextButton(onClick = onIrrelevant) { Text("Not relevant to what I asked") }
+                        TextButton(onClick = onIrrelevant) { Text(stringResource(R.string.not_relevant_to_what_i_asked)) }
                     }
                 }
             }

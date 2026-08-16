@@ -92,7 +92,7 @@ fun DataAndBackupSection(
         Spacer(Modifier.height(AuraSpacing.xxs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Crash logs", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.crash_logs), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     "View crash history without ADB",
                     style = MaterialTheme.typography.bodySmall,
@@ -188,7 +188,7 @@ fun DataAndBackupSection(
                             onClick = { onConfirmImport(false) },
                             modifier = Modifier.padding(end = AuraSpacing.xs),
                         ) { Text(stringResource(R.string.add_to_existing)) }
-                        TextButton(onClick = { onConfirmImport(true) }) { Text("Replace all") }
+                        TextButton(onClick = { onConfirmImport(true) }) { Text(stringResource(R.string.replace_all)) }
                     }
                 },
                 dismissButton = {
@@ -218,7 +218,7 @@ private fun AutomaticBackupRows(
     var showPassphrase by remember { mutableStateOf(false) }
     val ready = state.backupFolderLabel.isNotBlank() && state.passphraseSet
 
-    Text("Automatic backup", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.automatic_backup), style = MaterialTheme.typography.titleSmall)
     Text(
         "Everything Aura knows lives on this phone only. Android's own backup is " +
             "switched off deliberately — it would hand your whole memory store to Google.",
@@ -229,7 +229,7 @@ private fun AutomaticBackupRows(
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Folder", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.folder), style = MaterialTheme.typography.bodyLarge)
             Text(
                 state.backupFolderLabel.ifBlank { "Not set — pick one your cloud already syncs" },
                 style = MaterialTheme.typography.bodySmall,
@@ -241,7 +241,7 @@ private fun AutomaticBackupRows(
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Passphrase", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.passphrase), style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (state.passphraseSet) "Set. The backup file cannot be opened without it."
                 else "Not set",
@@ -254,7 +254,7 @@ private fun AutomaticBackupRows(
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Back up weekly", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.back_up_weekly), style = MaterialTheme.typography.bodyLarge)
             Text(
                 when {
                     !ready -> "Needs a folder and a passphrase first"
@@ -282,7 +282,7 @@ private fun AutomaticBackupRows(
         // A backup that has never been restored is not a backup. This is how a
         // person finds out the folder and passphrase work without waiting a week
         // to not find out.
-        OutlinedButton(onClick = onRunNow, modifier = Modifier.fillMaxWidth()) { Text("Back up now") }
+        OutlinedButton(onClick = onRunNow, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.back_up_now)) }
     }
 
     if (showPassphrase) {
@@ -303,7 +303,7 @@ private fun PassphraseDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Backup passphrase") },
+        title = { Text(stringResource(R.string.backup_passphrase)) },
         text = {
             Column {
                 // Said once, plainly, at the only moment it can be acted on.
@@ -328,9 +328,9 @@ private fun PassphraseDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit)
             TextButton(
                 onClick = { onConfirm(value) },
                 enabled = value.length >= MIN_PASSPHRASE,
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 

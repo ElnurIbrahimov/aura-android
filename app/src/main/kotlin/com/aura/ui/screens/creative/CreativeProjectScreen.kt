@@ -328,7 +328,7 @@ private fun CraftRoom(
     var selectedText by remember { mutableStateOf("") }
     var context by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
-        Text("Prose Craft Tools", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.prose_craft_tools), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "Select a craft tool, paste the text you want to transform, and run. Each tool applies a specific craft principle.",
             style = MaterialTheme.typography.bodySmall,
@@ -348,15 +348,15 @@ private fun CraftRoom(
             onValueChange = { selectedText = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
-            label = { Text("Selected text to transform") },
+            label = { Text(stringResource(R.string.selected_text_to_transform)) },
         )
         OutlinedTextField(
             value = context,
             onValueChange = { context = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
-            label = { Text("Surrounding context (optional)") },
-            supportingText = { Text("Paste the paragraph before/after for reference") },
+            label = { Text(stringResource(R.string.surrounding_context_optional)) },
+            supportingText = { Text(stringResource(R.string.paste_the_paragraph_before_after_for)) },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) {
@@ -385,7 +385,7 @@ private fun ToolsRoom(
     var tensionText by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
         // Voice Calibration
-        Text("Voice Calibration", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.voice_calibration), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "Paste 500-5000 words of your writing. Aura will analyze your prose style and match it in generated content.",
             style = MaterialTheme.typography.bodySmall,
@@ -396,7 +396,7 @@ private fun ToolsRoom(
             onValueChange = { voiceSample = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5,
-            label = { Text("Your writing sample") },
+            label = { Text(stringResource(R.string.your_writing_sample)) },
         )
         Button(
             enabled = voiceSample.length > 200 && !state.calibrating,
@@ -411,14 +411,14 @@ private fun ToolsRoom(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(AuraSpacing.md)) {
-                    Text("Voice Profile", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.voice_profile), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(state.voiceProfile, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = AuraSpacing.xs))
         // Tension Analysis
-        Text("Tension Analysis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.tension_analysis), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(
             "Paste your manuscript. Aura will analyze pacing scene-by-scene and produce a tension heatmap with recommendations.",
             style = MaterialTheme.typography.bodySmall,
@@ -429,7 +429,7 @@ private fun ToolsRoom(
             onValueChange = { tensionText = it },
             modifier = Modifier.fillMaxWidth(),
             minLines = 5,
-            label = { Text("Manuscript text") },
+            label = { Text(stringResource(R.string.manuscript_text)) },
         )
         Button(
             enabled = tensionText.length > 500 && !state.analyzingTension,
@@ -444,7 +444,7 @@ private fun ToolsRoom(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(AuraSpacing.md)) {
-                    Text("Tension Report", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.tension_report), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
 
                     // The comparison goes above the report, not below it. What
                     // moved since the last draft is the finding; the scores are
@@ -548,7 +548,7 @@ private fun SimulationRoom(
                         Text(simulation.premise, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(simulation.outcome, style = MaterialTheme.typography.bodySmall, maxLines = 8)
                         if (simulation.canonized) {
-                            Text("CANON", color = colors.actionPrimary, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.canon), color = colors.actionPrimary, style = MaterialTheme.typography.labelSmall)
                         } else {
                             TextButton(onClick = { onCanonize(simulation.id) }, modifier = Modifier.align(Alignment.End)) {
                                 Icon(Icons.Filled.CheckCircleOutline, contentDescription = null)
@@ -680,7 +680,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
                 OutlinedTextField(
                     value = brief,
                     onValueChange = { brief = it },
-                    label = { Text("What is this about?") },
+                    label = { Text(stringResource(R.string.what_is_this_about)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     enabled = !state.planningOutline,
@@ -700,7 +700,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
                         )
                     } else {
                         Button(onClick = { viewModel.planOutline(brief) }, enabled = brief.isNotBlank()) {
-                            Text("Plan outline")
+                            Text(stringResource(R.string.plan_outline))
                         }
                     }
                 }
@@ -752,12 +752,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
             ) {
                 OutlinedButton(onClick = onExport, enabled = exportable > 0) {
                     Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(AuraSpacing.md))
-                    Text("Export")
+                    Text(stringResource(R.string.export))
                 }
                 if (run?.active == true) {
                     OutlinedButton(onClick = viewModel::cancelDrafting) {
                         Icon(Icons.Filled.Stop, contentDescription = null)
-                        Text("Stop")
+                        Text(stringResource(R.string.stop))
                     }
                 } else {
                     Button(onClick = viewModel::startDrafting, enabled = drafted < beats.size) {
@@ -791,7 +791,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
                             modifier = Modifier.weight(1f),
                         )
                         TextButton(onClick = { viewModel.dismissConflict(issue.id) }) {
-                            Text("Intentional")
+                            Text(stringResource(R.string.intentional))
                         }
                     }
                 }

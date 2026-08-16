@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,8 +48,8 @@ fun TriggersSection(
         Column(modifier = Modifier.padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Enable triggers", style = MaterialTheme.typography.bodyLarge)
-                    Text("Run hands or prompts on schedule", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.enable_triggers), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.run_hands_or_prompts_on_schedule), style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = triggersEnabled, onCheckedChange = onSetEnabled)
             }
@@ -71,7 +73,7 @@ fun TriggersSection(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { onRemove(trigger.id) }) {
-                        Text("Delete")
+                        Text(stringResource(R.string.delete))
                     }
                 }
             }
@@ -79,11 +81,11 @@ fun TriggersSection(
             Spacer(modifier = Modifier.height(AuraSpacing.sm))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(AuraSpacing.sm))
-            Text("Add schedule trigger", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.add_schedule_trigger), style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(
                 value = label,
                 onValueChange = { label = it },
-                label = { Text("Label") },
+                label = { Text(stringResource(R.string.label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -91,7 +93,7 @@ fun TriggersSection(
             OutlinedTextField(
                 value = cron,
                 onValueChange = { cron = it },
-                label = { Text("Cron: hourly | daily@HH:mm | weekly@DAY@HH:mm") },
+                label = { Text(stringResource(R.string.cron_hourly_daily_hh_mm_weekly)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -113,7 +115,7 @@ fun TriggersSection(
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },
-                label = { Text("Chat prompt when fired") },
+                label = { Text(stringResource(R.string.chat_prompt_when_fired)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -137,7 +139,7 @@ fun TriggersSection(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = label.isNotBlank() && cron.isNotBlank() && prompt.isNotBlank(),
             ) {
-                Text("Save trigger")
+                Text(stringResource(R.string.save_trigger))
             }
         }
     }

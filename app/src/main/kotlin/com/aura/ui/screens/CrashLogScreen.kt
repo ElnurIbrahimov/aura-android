@@ -1,4 +1,6 @@
 package com.aura.ui.screens
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import android.content.Intent
@@ -83,7 +85,7 @@ fun CrashLogScreen(
                     val crashDir = File(context.cacheDir, "crash_logs")
                     crashDir.listFiles { f -> f.isFile }?.forEach { it.delete() }
                     crashes.clear()
-                }) { Text("Clear") }
+                }) { Text(stringResource(R.string.clear)) }
             }
         },
     ) { padding ->
@@ -146,7 +148,7 @@ fun CrashLogScreen(
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
                                     context.startActivity(Intent.createChooser(shareIntent, "Share crash log"))
-                                }) { Text("Share") }
+                                }) { Text(stringResource(R.string.share)) }
                             }
                         }
                     }

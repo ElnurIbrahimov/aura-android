@@ -226,7 +226,7 @@ fun DiagnosticsScreen(
                     }
                 } else {
                     OutlinedButton(onClick = viewModel::rebuildKnowledgeGraph) {
-                        Text("Rebuild from history")
+                        Text(stringResource(R.string.rebuild_from_history))
                     }
                 }
             }

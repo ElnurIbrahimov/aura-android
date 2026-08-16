@@ -1,5 +1,7 @@
 package com.aura.ui.settings.sections
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,7 +68,7 @@ fun CouncilSettingsSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Enable overnight council", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.enable_overnight_council), style = MaterialTheme.typography.bodyMedium)
                     Text(
                         "Agents debate findings and propose interventions while idle",
                         style = MaterialTheme.typography.bodySmall,

@@ -49,7 +49,7 @@ fun SmtpConfigCard(
                 value = host,
                 onValueChange = onHostChange,
                 label = { Text(stringResource(R.string.smtp_host)) },
-                placeholder = { Text("smtp.gmail.com") },
+                placeholder = { Text(stringResource(R.string.smtp_gmail_com)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )

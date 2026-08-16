@@ -1,5 +1,7 @@
 package com.aura.ui.settings
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -108,7 +110,7 @@ fun ChatGptAccountCard(
                 OutlinedTextField(
                     value = paste,
                     onValueChange = onPasteChange,
-                    label = { Text("auth.json") },
+                    label = { Text(stringResource(R.string.auth_json)) },
                     placeholder = { Text("{\"tokens\":{\"access_token\":\"…\",\"refresh_token\":\"…\"}}") },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -147,7 +149,7 @@ fun ChatGptAccountCard(
                 }
                 if (connected) {
                     TextButton(onClick = onDisconnect, modifier = Modifier.testTag("chatgpt-disconnect")) {
-                        Text("Disconnect", color = AuraThemeTokens.colors.error)
+                        Text(stringResource(R.string.disconnect), color = AuraThemeTokens.colors.error)
                     }
                 }
             }

@@ -121,7 +121,7 @@ fun TasksScreen(
                 subtitle = "${state.tasks.size} task${if (state.tasks.size == 1) "" else "s"}",
                 action = {
                     Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs)) {
-                        TextButton(onClick = onOpenSchedule) { Text("Schedule") }
+                        TextButton(onClick = onOpenSchedule) { Text(stringResource(R.string.schedule)) }
                         if (doneCount > 0 && state.statusFilter != "pending") {
                             TextButton(onClick = { showClearConfirm = true }) {
                                 Text("Clear $doneCount done", color = AuraThemeTokens.colors.error)
@@ -607,12 +607,12 @@ private fun TaskRow(
                 TextButton(onClick = onReopen) { Text(stringResource(R.string.reopen)) }
             } else {
                 if (onRevive != null) {
-                    TextButton(onClick = onRevive) { Text("Bring back") }
+                    TextButton(onClick = onRevive) { Text(stringResource(R.string.bring_back)) }
                 } else if (onDefer != null) {
                     // "Not now" rather than "snooze": snoozing moves a date,
                     // this records that you pushed it away, and enough of that
                     // is what lets the task go quiet by itself.
-                    TextButton(onClick = onDefer) { Text("Not now") }
+                    TextButton(onClick = onDefer) { Text(stringResource(R.string.not_now)) }
                 }
                 TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
             }
@@ -816,7 +816,7 @@ private fun TaskEditFields(
                     dateState.selectedDateMillis?.let { selectedDateMs = it }
                     showDatePicker = false
                     showTimePicker = true
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
@@ -837,7 +837,7 @@ private fun TaskEditFields(
                     calendar.set(Calendar.HOUR_OF_DAY, timeState.hour)
                     calendar.set(Calendar.MINUTE, timeState.minute)
                     showTimePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = {
                 TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) }
@@ -940,7 +940,7 @@ private fun AddReminderDialog(
                 TextButton(onClick = {
                     dpState.selectedDateMillis?.let { selectedDateMillis = it }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
@@ -959,7 +959,7 @@ private fun AddReminderDialog(
                     selectedHour = tpState.hour
                     selectedMinute = tpState.minute
                     showTimePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = {
                 TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) }

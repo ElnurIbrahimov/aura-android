@@ -1,5 +1,7 @@
 package com.aura.ui.components
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable

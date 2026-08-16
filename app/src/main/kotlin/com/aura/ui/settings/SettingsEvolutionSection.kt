@@ -41,7 +41,7 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             Spacer(modifier = Modifier.padding(top = AuraSpacing.xs))
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Suggest improvements", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.suggest_improvements), modifier = Modifier.weight(1f))
                 Switch(
                     checked = state.evolutionProposalsEnabled,
                     onCheckedChange = { viewModel.setEvolutionProposals(it) },
@@ -57,7 +57,7 @@ fun SettingsEvolutionSection(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             Spacer(modifier = Modifier.padding(top = AuraSpacing.xs))
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Auto-apply approved proposals", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.auto_apply_approved_proposals), modifier = Modifier.weight(1f))
                 Switch(checked = autoApply, onCheckedChange = { viewModel.setEvolutionAutoApply(it) })
             }
             Text(

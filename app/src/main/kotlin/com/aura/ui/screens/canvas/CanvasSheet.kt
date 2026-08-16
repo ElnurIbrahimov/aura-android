@@ -1,5 +1,7 @@
 package com.aura.ui.screens.canvas
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -145,7 +147,7 @@ fun CanvasSheet(
                             fontFamily = FontFamily.Monospace,
                             color = colors.textPrimary,
                         ),
-                        placeholder = { Text("Edit markdown…", color = colors.textSecondary) },
+                        placeholder = { Text(stringResource(R.string.edit_markdown), color = colors.textSecondary) },
                     )
                     // Preview
                     Surface(
@@ -176,7 +178,7 @@ fun CanvasSheet(
                             fontFamily = FontFamily.Monospace,
                             color = colors.textPrimary,
                         ),
-                        placeholder = { Text("Edit code…", color = colors.textSecondary) },
+                        placeholder = { Text(stringResource(R.string.edit_code), color = colors.textSecondary) },
                     )
                 }
                 CanvasType.HTML, CanvasType.DATA -> {

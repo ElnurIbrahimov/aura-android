@@ -1,5 +1,7 @@
 package com.aura.ui.voice
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,7 +46,7 @@ fun LiveCallSheet(
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Live call", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.live_call), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     text = when (availability) {
                         is RealtimeAvailability.Availability.Ready ->
@@ -74,14 +76,14 @@ fun LiveCallSheet(
                         is RealtimeAvailability.Availability.Unavailable -> Unit
                     }
                 },
-            ) { Text("Call") }
+            ) { Text(stringResource(R.string.call)) }
         }
 
         Spacer(modifier = Modifier.height(AuraSpacing.sm))
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Voice mode", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.voice_mode), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     // Push-to-talk stays the default and keeps working with
                     // every provider. It is also the only option that works
@@ -91,7 +93,7 @@ fun LiveCallSheet(
                     color = colors.textPrimary.copy(alpha = 0.6f),
                 )
             }
-            OutlinedButton(onClick = onStartPushToTalk) { Text("Start") }
+            OutlinedButton(onClick = onStartPushToTalk) { Text(stringResource(R.string.start)) }
         }
     }
 }

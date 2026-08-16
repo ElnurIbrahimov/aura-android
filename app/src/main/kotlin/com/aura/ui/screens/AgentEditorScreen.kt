@@ -98,7 +98,7 @@ fun AgentEditorScreen(
                 }
                 Spacer(modifier = Modifier.height(AuraSpacing.xxs))
                 TextButton(onClick = viewModel::dismissTemplatePicker) {
-                    Text("Skip — start from scratch")
+                    Text(stringResource(R.string.skip_start_from_scratch))
                 }
                 Spacer(modifier = Modifier.height(AuraSpacing.sm))
             } else if (state.name.isBlank()) {
@@ -106,7 +106,7 @@ fun AgentEditorScreen(
                     onClick = viewModel::showTemplatePicker,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Pick a template")
+                    Text(stringResource(R.string.pick_a_template))
                 }
                 Spacer(modifier = Modifier.height(AuraSpacing.xs))
             }

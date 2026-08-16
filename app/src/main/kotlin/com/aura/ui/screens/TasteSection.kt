@@ -1,4 +1,6 @@
 package com.aura.ui.screens
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -47,8 +49,8 @@ internal fun LazyListScope.tasteSection(
             SectionHeading("Learned preferences", top = false)
             ProfileAttributesCard(profile)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { viewModel.clearAllSignals() }) { Text("Clear all") }
-                OutlinedButton(onClick = { viewModel.recompute() }) { Text("Recompute") }
+                TextButton(onClick = { viewModel.clearAllSignals() }) { Text(stringResource(R.string.clear_all)) }
+                OutlinedButton(onClick = { viewModel.recompute() }) { Text(stringResource(R.string.recompute)) }
             }
             if (signals.isNotEmpty()) {
                 SectionHeading("Signals (${signals.size})")
@@ -176,7 +178,7 @@ private fun SignalCard(
                     color = AuraThemeTokens.colors.textSecondary,
                 )
             }
-            TextButton(onClick = { onDelete(signal.id) }) { Text("Delete") }
+            TextButton(onClick = { onDelete(signal.id) }) { Text(stringResource(R.string.delete)) }
         }
     }
 }

@@ -217,7 +217,7 @@ fun HistoryScreen(
                     androidx.compose.material3.FilterChip(
                         selected = state.projectFilter == null,
                         onClick = { viewModel.setProjectFilter(null) },
-                        label = { Text("All") },
+                        label = { Text(stringResource(R.string.all)) },
                     )
                 }
                 items(state.availableProjects, key = { it }) { project ->
@@ -342,13 +342,13 @@ private fun HistoryRow(
         var text by androidx.compose.runtime.remember { mutableStateOf(conv.title) }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { androidx.compose.material3.Text("Rename conversation") },
+            title = { androidx.compose.material3.Text(stringResource(R.string.rename_conversation)) },
             text = {
                 androidx.compose.material3.OutlinedTextField(
                     value = text,
                     onValueChange = { text = it.take(120) },
                     singleLine = true,
-                    label = { androidx.compose.material3.Text("Title") },
+                    label = { androidx.compose.material3.Text(stringResource(R.string.title)) },
                 )
             },
             confirmButton = {
@@ -356,12 +356,12 @@ private fun HistoryRow(
                     onRename(text)
                     showRenameDialog = false
                 }) {
-                    androidx.compose.material3.Text("Save")
+                    androidx.compose.material3.Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showRenameDialog = false }) {
-                    androidx.compose.material3.Text("Cancel")
+                    androidx.compose.material3.Text(stringResource(R.string.cancel))
                 }
             },
         )

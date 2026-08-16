@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.aura.ui.screens.schedule
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.clickable
@@ -53,7 +55,7 @@ fun ScheduleScreen(
         title = "Schedule",
         subtitle = "Triggers and scheduled actions",
         action = {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
         },
     ) { padding ->
         Column(
@@ -115,9 +117,9 @@ private fun TaskList(
             if (showDelete) {
                 AlertDialog(
                     onDismissRequest = { showDelete = false },
-                    confirmButton = { TextButton(onClick = { onDelete(task.id); showDelete = false }) { Text("Delete") } },
-                    dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Cancel") } },
-                    title = { Text("Delete task?") },
+                    confirmButton = { TextButton(onClick = { onDelete(task.id); showDelete = false }) { Text(stringResource(R.string.delete)) } },
+                    dismissButton = { TextButton(onClick = { showDelete = false }) { Text(stringResource(R.string.cancel)) } },
+                    title = { Text(stringResource(R.string.delete_task)) },
                 )
             }
         }
@@ -148,14 +150,14 @@ private fun ReminderList(
                     )
                     Text(reminder.recurrence, style = MaterialTheme.typography.labelSmall)
                 }
-                OutlinedButton(onClick = { showMenu = true }) { Text("…") }
+                OutlinedButton(onClick = { showMenu = true }) { Text(stringResource(R.string.label_3)) }
             }
             HorizontalDivider()
             if (showMenu) {
                 AlertDialog(
                     onDismissRequest = { showMenu = false },
-                    confirmButton = { TextButton(onClick = { onCancel(reminder.id); showMenu = false }) { Text("Cancel") } },
-                    dismissButton = { TextButton(onClick = { onDelete(reminder.id); showMenu = false }) { Text("Delete") } },
+                    confirmButton = { TextButton(onClick = { onCancel(reminder.id); showMenu = false }) { Text(stringResource(R.string.cancel)) } },
+                    dismissButton = { TextButton(onClick = { onDelete(reminder.id); showMenu = false }) { Text(stringResource(R.string.delete)) } },
                     title = { Text(reminder.message) },
                 )
             }

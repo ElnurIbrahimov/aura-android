@@ -225,10 +225,10 @@ fun ConfirmationDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(toolName) }) { Text("Confirm") }
+            TextButton(onClick = { onConfirm(toolName) }) { Text(stringResource(R.string.confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Dismiss") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
         },
     )
 }

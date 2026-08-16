@@ -170,7 +170,7 @@ internal fun ReminderEditorDialog(
                 TextButton(onClick = {
                     picker.selectedDateMillis?.let { selectedDateMillis = it }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) } },
         ) { DatePicker(state = picker) }
@@ -190,7 +190,7 @@ internal fun ReminderEditorDialog(
                     selectedHour = picker.hour
                     selectedMinute = picker.minute
                     showTimePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) } },
         )

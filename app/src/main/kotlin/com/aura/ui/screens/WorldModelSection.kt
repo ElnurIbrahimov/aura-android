@@ -1,4 +1,6 @@
 package com.aura.ui.screens
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import com.aura.ui.theme.AuraThemeTokens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -136,7 +138,7 @@ private fun BeliefCard(
                 modifier = Modifier.padding(top = AuraSpacing.xxs),
             ) {
                 TextButton(onClick = onVerify) {
-                    Text("Verify")
+                    Text(stringResource(R.string.verify))
                 }
                 TextButton(
                     onClick = onRetire,
@@ -144,7 +146,7 @@ private fun BeliefCard(
                         contentColor = AuraThemeTokens.colors.error,
                     ),
                 ) {
-                    Text("Retire")
+                    Text(stringResource(R.string.retire))
                 }
             }
         }
@@ -207,8 +209,8 @@ private fun OpportunityCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                TextButton(onClick = { onResolve(opportunity.id, false) }) { Text("Dismiss") }
-                OutlinedButton(onClick = { onResolve(opportunity.id, true) }) { Text("Approve") }
+                TextButton(onClick = { onResolve(opportunity.id, false) }) { Text(stringResource(R.string.dismiss)) }
+                OutlinedButton(onClick = { onResolve(opportunity.id, true) }) { Text(stringResource(R.string.approve)) }
             }
         }
     }

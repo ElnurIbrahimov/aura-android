@@ -125,14 +125,14 @@ internal fun LazyListScope.beliefsSection(viewModel: BeliefsViewModel) {
                         Text("Status: ${belief.status}", style = MaterialTheme.typography.labelMedium)
                         Spacer(modifier = Modifier.height(AuraSpacing.md))
                         Row {
-                            TextButton(onClick = { viewModel.verify(belief.id) }) { Text("Verify") }
+                            TextButton(onClick = { viewModel.verify(belief.id) }) { Text(stringResource(R.string.verify)) }
                             Spacer(modifier = Modifier.width(AuraSpacing.xs))
                             TextButton(
                                 onClick = {
                                     viewModel.retire(belief.id)
                                     viewModel.clearSelection()
                                 },
-                            ) { Text("Retire", color = AuraThemeTokens.colors.error) }
+                            ) { Text(stringResource(R.string.retire), color = AuraThemeTokens.colors.error) }
                         }
                     }
                 },

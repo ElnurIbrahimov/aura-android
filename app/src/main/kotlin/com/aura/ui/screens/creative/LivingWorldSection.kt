@@ -1,5 +1,7 @@
 package com.aura.ui.screens.creative
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -214,7 +216,7 @@ private fun StartWorldCard(state: CreativeStudioUiState, viewModel: CreativeStud
                         ),
                     )
                 },
-            ) { Text("Start the world") }
+            ) { Text(stringResource(R.string.start_the_world)) }
         }
     }
 }
@@ -307,7 +309,7 @@ private fun EventRow(event: LivingEventUi, narrating: Boolean, viewModel: Creati
                 TextButton(
                     onClick = { viewModel.narrateEvent(event.id) },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                ) { Text("Tell me about this") }
+                ) { Text(stringResource(R.string.tell_me_about_this)) }
             }
         }
     }

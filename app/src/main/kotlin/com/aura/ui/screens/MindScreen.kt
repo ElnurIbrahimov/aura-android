@@ -1,5 +1,7 @@
 package com.aura.ui.screens
 
+import com.aura.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -109,8 +111,8 @@ fun MindScreen(
                         .padding(top = AuraSpacing.md),
                 ) {
                     ListItem(
-                        headlineContent = { Text("Knowledge graph") },
-                        supportingContent = { Text("Everything Aura has connected, as a map") },
+                        headlineContent = { Text(stringResource(R.string.knowledge_graph)) },
+                        supportingContent = { Text(stringResource(R.string.everything_aura_has_connected_as_a)) },
                         modifier = Modifier.clickable(onClick = onOpenKnowledgeGraph),
                     )
                 }
@@ -225,7 +227,7 @@ private fun LazyListScope.correctionsSection(viewModel: MindViewModel) {
                                     )
                                 }
                             }
-                            TextButton(onClick = { viewModel.undoCorrection(correction.id) }) { Text("Undo") }
+                            TextButton(onClick = { viewModel.undoCorrection(correction.id) }) { Text(stringResource(R.string.undo)) }
                         }
                     }
                 }
@@ -256,7 +258,7 @@ private fun LazyListScope.consolidationSection(viewModel: MindViewModel, onOpenA
                         )
                     }
                 }
-                TextButton(onClick = onOpenAll) { Text("See all, and pending proposals") }
+                TextButton(onClick = onOpenAll) { Text(stringResource(R.string.see_all_and_pending_proposals)) }
             }
         }
     }

@@ -443,7 +443,7 @@ private fun DayPicker(selected: Int, onSelected: (Int) -> Unit) {
             AssistChip(
                 onClick = { onSelected(day.value) },
                 label = { Text(day.name.take(3).lowercase().replaceFirstChar { it.uppercase() }) },
-                leadingIcon = if (selected == day.value) ({ Text("•") }) else null,
+                leadingIcon = if (selected == day.value) ({ Text(stringResource(R.string.label_2)) }) else null,
             )
         }
     }
