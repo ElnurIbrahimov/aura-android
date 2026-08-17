@@ -26,6 +26,7 @@ class ChatHeaderTest {
                     ChatHeader(
                         activeModel = "provider:an-extremely-long-model-name-that-must-ellipsis",
                         conversationModel = null,
+                        onShowProjectPicker = {},
                     )
                 }
             }
@@ -41,7 +42,7 @@ class ChatHeaderTest {
 
     @Test
     fun missing_model_is_an_explicit_picker_state() {
-        composeRule.setContent { AuraTheme { ChatHeader(activeModel = "", conversationModel = null) } }
+        composeRule.setContent { AuraTheme { ChatHeader(activeModel = "", conversationModel = null, onShowProjectPicker = {}) } }
 
         composeRule.onNodeWithText("Choose model").assertIsDisplayed()
         composeRule.onNodeWithTag("chat-model-missing", useUnmergedTree = true).assertIsDisplayed()
@@ -54,6 +55,7 @@ class ChatHeaderTest {
                 ChatHeader(
                     activeModel = "ollama:default-model",
                     conversationModel = "anthropic:session-model",
+                    onShowProjectPicker = {},
                 )
             }
         }
@@ -66,7 +68,7 @@ class ChatHeaderTest {
         composeRule.setContent {
             AuraTheme {
                 Box(Modifier.width(320.dp)) {
-                    ChatHeader(activeModel = "ollama:model", streaming = true)
+                    ChatHeader(activeModel = "ollama:model", streaming = true, onShowProjectPicker = {})
                 }
             }
         }
