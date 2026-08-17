@@ -195,6 +195,37 @@ class ProactiveScheduler @Inject constructor(
     }
 
     /**
+     * The project ledger sweep, at WorkManager's fifteen-minute floor.
+     *
+     * Network-connected and battery-not-low, unlike the place log: this one
+     * makes a model call, and a sweep that fires with no connection burns a
+     * wakeup to log a failure. The same two constraints `DaemonWorker` carries,
+     * for the same reason.
+     *
+     * Not user-switchable, and deliberately: it reads conversations the user
+     * chose to attribute to a project and writes nothing new about them. The
+     * spend it can cause is bounded by `BackgroundBudget` like every other
+     * unattended caller, which is the control that actually matters.
+     */
+    fun scheduleProjectLedger() {
+        val request = PeriodicWorkRequestBuilder<com.aura.projects.ProjectLedgerWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .setRequiresBatteryNotLow(true)
+                    .build(),
+            )
+            .addTag("project-ledger")
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                com.aura.projects.ProjectLedgerWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request,
+            )
+    }
+
+    /**
      * Run one backup now, through the same worker the schedule uses.
      *
      * This is how a person finds out their folder and passphrase actually work

@@ -581,6 +581,104 @@ class MemoryDatabaseMigrationTest {
      * lives in a different Room database, and SQLite has no cross-database
      * foreign keys.
      */
+    /**
+     * The 24->25 hop, and the property the ledger rests on: the CASCADE is real.
+     *
+     * A hand-written migration can create a table whose foreign key clause is
+     * syntactically present and unenforced — SQLite silently ignores a malformed
+     * one, and `runMigrationsAndValidate` compares columns and indices rather
+     * than deleting a parent to see what happens. If the CASCADE were not live,
+     * deleting a project would leave its notes behind as orphans pointing at
+     * nothing, and `purgeAll` would report a clean database over rows that
+     * survived it.
+     */
+    /**
+     * The 25->26 hop, and the property the calibration report rests on.
+     *
+     * `claim_resolutions` CASCADEs from `beliefs`. If that clause were present
+     * but unenforced — SQLite ignores a malformed one silently, and
+     * `runMigrationsAndValidate` compares columns and indices rather than
+     * deleting a parent to find out — then deleting a belief would strand its
+     * verdicts pointing at nothing, and `purgeAll` would report a clean database
+     * over rows that outlived it.
+     */
+    @Test
+    fun migrate25To26_addsClaimResolutionsWithALiveCascade() {
+        val name = "test-aura-memory-25-to-26.db"
+        val db = helper.createDatabase(name, 25)
+        insertV18Memory(db, "m25", "pre-calibration memory")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 26, true, MemoryModule.MIGRATION_25_26)
+
+        migrated.query("SELECT content FROM memories WHERE id = 'm25'").use {
+            assertTrue("memory did not survive the 25->26 hop", it.moveToFirst())
+            assertEquals("pre-calibration memory", it.getString(0))
+        }
+
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL(
+            "INSERT INTO beliefs (id, subject, predicate, valueJson, confidence, validFrom, " +
+                "validTo, status, supersededBy, privacyClass, agentScope, createdAt, updatedAt, " +
+                "lastVerifiedAt) VALUES ('b1', 'user', 'location', '\"Baku\"', 0.9, 0, 0, " +
+                "'active', NULL, 'personal', 'general', 1, 1, 0)",
+        )
+        migrated.execSQL(
+            "INSERT INTO claim_resolutions (id, beliefId, verdict, verdictSource, " +
+                "assertedConfidence, beliefSource, note, resolvedAt) " +
+                "VALUES ('r1', 'b1', 'never_true', 'chat_answer', 0.9, 'user_statement', '', 1)",
+        )
+
+        migrated.execSQL("DELETE FROM beliefs WHERE id = 'b1'")
+        migrated.query("SELECT COUNT(*) FROM claim_resolutions WHERE beliefId = 'b1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(
+                "deleting a belief left its verdicts behind, so the CASCADE in the migration is " +
+                    "not enforced and purgeAll would report clean over surviving rows",
+                0,
+                it.getInt(0),
+            )
+        }
+    }
+
+    @Test
+    fun migrate24To25_addsProjectsWithALiveCascade() {
+        val name = "test-aura-memory-24-to-25.db"
+        val db = helper.createDatabase(name, 24)
+        insertV18Memory(db, "m24", "pre-project memory")
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 25, true, MemoryModule.MIGRATION_24_25)
+
+        migrated.query("SELECT content FROM memories WHERE id = 'm24'").use {
+            assertTrue("memory did not survive the 24->25 hop", it.moveToFirst())
+            assertEquals("pre-project memory", it.getString(0))
+        }
+
+        migrated.execSQL("PRAGMA foreign_keys = ON")
+        migrated.execSQL(
+            "INSERT INTO projects (id, name, description, status, lastTurnAt, turnCount, " +
+                "createdAt, updatedAt) VALUES ('p1', 'ARC-AGI-2', '', 'active', 0, 0, 1, 1)",
+        )
+        migrated.execSQL(
+            "INSERT INTO project_notes (id, projectId, kind, subject, body, sourceConversationId, " +
+                "sourceTurnAt, state, supersededBy, resolvedAt, createdAt) " +
+                "VALUES ('n1', 'p1', 'decision', 'router', 'three-wisdom architecture', 'c1', " +
+                "1, 'active', NULL, NULL, 1)",
+        )
+
+        migrated.execSQL("DELETE FROM projects WHERE id = 'p1'")
+        migrated.query("SELECT COUNT(*) FROM project_notes WHERE projectId = 'p1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(
+                "deleting a project left its notes behind, so the CASCADE in the migration is " +
+                    "not enforced and purgeAll would report clean over surviving rows",
+                0,
+                it.getInt(0),
+            )
+        }
+    }
+
     @Test
     fun migrate23To24_addsRetrievalLabelsKeyedSoRetriesUpdate() {
         val name = "test-aura-memory-23-to-24.db"

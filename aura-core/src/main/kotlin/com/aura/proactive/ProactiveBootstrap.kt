@@ -240,6 +240,17 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
+        // Project ledger sweep. Scheduled unconditionally, like the re-embed
+        // worker above and for the same shape of reason: there is no coherent
+        // "off". The sweep reads only conversations the user attributed to a
+        // project, so on an install with none it finds nothing and skips, and a
+        // toggle would exist solely to switch off a feature that costs nothing
+        // when unused. What it can spend is bounded by BackgroundBudget.
+        scope.launch {
+            runCatching { scheduler.scheduleProjectLedger() }
+                .onFailure { android.util.Log.w("ProactiveBootstrap", "project ledger schedule failed", it) }
+        }
+
         // Living world reconciliation — its own flow, same reason as dream.
         // A live collector rather than a start-up read, so flipping the toggle
         // reschedules in the running process instead of at next launch.

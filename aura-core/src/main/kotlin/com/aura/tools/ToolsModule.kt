@@ -87,6 +87,7 @@ object ToolsModule {
         indexDocument: IndexDocumentTool,
         queryWorldModel: QueryWorldModelTool,
         queryTaste: QueryTasteTool,
+        projectState: ProjectStateTool,
         useSkill: UseSkillTool,
         approveProposal: ApproveEvolutionProposalTool,
         rollbackEvolution: RollbackEvolutionTool,
@@ -174,6 +175,7 @@ object ToolsModule {
         registry.register(indexDocument.tool)
         registry.register(queryWorldModel.tool)
         registry.register(queryTaste.tool)
+        registry.register(projectState.tool)
         registry.register(useSkill.tool)
         registry.register(approveProposal.tool)
         registry.register(rollbackEvolution.tool)

@@ -154,7 +154,12 @@ class BackupManager @Inject constructor(
     private val keyManager: com.aura.security.KeyManager? = null,
     // Schema v26. Appended for the reason stated on the v18 block above.
     private val retrievalLabelDao: com.aura.memory.RetrievalLabelDao? = null,
-) {
+    // Schema v27. Projects and their ledger, appended for the same reason.
+    private val projectDao: com.aura.projects.ProjectDao? = null,
+    private val projectNoteDao: com.aura.projects.ProjectNoteDao? = null,
+    // Schema v28. Appended for the reason stated on the v18 block above.
+    private val claimResolutionDao: com.aura.calibration.ClaimResolutionDao? = null,
+) : BackupService {
 
     private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
         val triggers = userPreferences.triggers.first()
@@ -274,7 +279,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 smtpFrom = userPreferences.smtpFrom.first().takeIf { it.isNotBlank() },
             )
 
-    suspend fun snapshot(appVersionName: String): AuraBackup =
+    override suspend fun snapshot(appVersionName: String): AuraBackup =
         snapshot(appVersionName = appVersionName, strict = false)
 
     /**
@@ -347,6 +352,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             memoryFeedback = memoryFeedbackDao?.all()?.map { it.toBackup() } ?: emptyList(),
             // Schema v26: harvested retrieval labels.
             retrievalLabels = retrievalLabelDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v27: projects and every ledger row, superseded ones included —
+            // exporting only the active row would restore a project that has never
+            // changed its mind. See AuraBackupSchema27.
+            projects = projectDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            projectNotes = projectNoteDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            // Schema v28: the only rows here that a person produced by hand.
+            claimResolutions = claimResolutionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             documentChunks = documentChunkDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             referenceIdentities = referenceIdentityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
             agentRuns = agentRunDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
@@ -449,13 +461,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * a preview or write the bytes to a content URI via
      * `ContentResolver.openOutputStream`.
      */
-    fun encodeToJson(backup: AuraBackup): String = json.encodeToString(backup)
+    override fun encodeToJson(backup: AuraBackup): String = json.encodeToString(backup)
 
     /**
      * Parse [bytes] into an [AuraBackup]. Throws if the JSON is
      * unparseable or the schema version is newer than this build.
      */
-    fun decodeFromJson(bytes: String): AuraBackup {
+    override fun decodeFromJson(bytes: String): AuraBackup {
         val parsed = json.decodeFromString<AuraBackup>(bytes)
         require(parsed.schemaVersion <= AuraBackup.SCHEMA_VERSION) {
             "Backup schema version ${parsed.schemaVersion} is newer than " +
@@ -481,9 +493,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      *
      * @return the count of rows written per table.
      */
-    suspend fun restore(
+    override suspend fun restore(
         backup: AuraBackup,
-        mode: RestoreMode = RestoreMode.MERGE,
+        mode: RestoreMode,
     ): RestoreCounts = withContext(Dispatchers.IO) {
         // Spooled to disk, not held in heap: the pre-restore AuraBackup used to
         // stay live for the whole write phase, so the failure most likely to
@@ -678,7 +690,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * the file existing at all is the signal, and reporting nothing because the
      * body failed to parse would hide exactly the case it exists to catch.
      */
-    fun consumeInterruptedRestore(): InterruptedRestore? {
+    override fun consumeInterruptedRestore(): InterruptedRestore? {
         val pending = peekInterruptedRestore() ?: return null
         clearRestoreInProgress()
         return pending
@@ -693,7 +705,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * nothing ever removed it. One complete copy accumulated per export, for
      * the life of the install, readable by anything holding the app's uid.
      */
-    fun pruneCacheExports(now: Long = System.currentTimeMillis()): Int = runCatching {
+    override fun pruneCacheExports(now: Long): Int = runCatching {
         val stale = context.cacheDir?.listFiles()?.filter { file ->
             file.isFile &&
                 file.name.startsWith("aura-backup-") &&
@@ -789,6 +801,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // Schema v12 rows.
         val memoryFeedbackRows = backup.memoryFeedback.map { it.toEntity() }
         val retrievalLabelRows = backup.retrievalLabels.map { it.toEntity() }
+        val projectRows = backup.projects.map { it.toEntity() }
+        val projectNoteRows = backup.projectNotes.map { it.toEntity() }
+        val claimResolutionRows = backup.claimResolutions.map { it.toEntity() }
         val documentChunkRows = backup.documentChunks.map { it.toEntity() }
         val referenceIdentityRows = backup.referenceIdentities.map { it.toEntity() }
         val agentRunRows = backup.agentRuns.map { it.toEntity() }
@@ -848,6 +863,15 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // Schema v12: restore durable state previously dropped on roundtrip.
         if (memoryFeedbackRows.isNotEmpty()) memoryFeedbackDao?.insertAll(memoryFeedbackRows)
         if (retrievalLabelRows.isNotEmpty()) retrievalLabelDao?.upsertAll(retrievalLabelRows)
+        // Projects before their notes: `project_notes` carries a CASCADE foreign
+        // key into `projects`, and Room restores with `PRAGMA foreign_keys = ON`,
+        // so the reverse order rejects every note and loses the whole ledger.
+        if (projectRows.isNotEmpty()) projectDao?.upsertAll(projectRows)
+        if (projectNoteRows.isNotEmpty()) projectNoteDao?.upsertAll(projectNoteRows)
+        // After beliefRows above: claim_resolutions CASCADEs into `beliefs`, and
+        // Room restores with foreign keys on, so the reverse order rejects every
+        // verdict — the one table in the export nothing could reproduce.
+        if (claimResolutionRows.isNotEmpty()) claimResolutionDao?.upsertAll(claimResolutionRows)
         if (documentChunkRows.isNotEmpty()) documentChunkDao?.insertAll(documentChunkRows)
         if (referenceIdentityRows.isNotEmpty()) referenceIdentityDao?.insertAll(referenceIdentityRows)
         if (goalRows.isNotEmpty()) goalDao?.insertAll(goalRows)
@@ -925,6 +949,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             // Schema v12: durable state previously dropped on backup/restore.
             memoryFeedback = memoryFeedbackRows.size,
             retrievalLabels = retrievalLabelRows.size,
+            projects = projectRows.size,
+            projectNotes = projectNoteRows.size,
+            claimResolutions = claimResolutionRows.size,
             documentChunks = documentChunkRows.size,
             referenceIdentities = referenceIdentityRows.size,
             agentRuns = agentRunRows.size,
@@ -1147,6 +1174,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         memoryFeedbackDao?.deleteAll()
         // Schema v26: harvested retrieval labels.
         retrievalLabelDao?.deleteAll()
+        // Schema v27: notes before projects. The CASCADE would take the notes
+        // anyway, but relying on it means the order here silently decides whether
+        // a foreign-key error can happen, and explicit child-first never can.
+        projectNoteDao?.deleteAll()
+        projectDao?.deleteAll()
+        // Schema v28: before `beliefs` is cleared, so the CASCADE never has to.
+        claimResolutionDao?.deleteAll()
         // Schema v12: purge durable state previously dropped on roundtrip.
         documentChunkDao?.deleteAll()
         referenceIdentityDao?.deleteAll()
@@ -1178,13 +1212,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * Default export filename: `aura-backup-YYYYMMDD-HHMMSS.json`.
      * Caller uses this when constructing the share Intent.
      */
-    fun defaultExportFileName(now: Long = System.currentTimeMillis()): String {
+    override fun defaultExportFileName(now: Long): String {
         val date = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date(now))
         return "aura-backup-$date.json"
     }
 
     /** Default cache dir for the export file before sharing. */
-    fun exportFile(): File = File(context.cacheDir, defaultExportFileName())
+    override fun exportFile(): File = File(context.cacheDir, defaultExportFileName(System.currentTimeMillis()))
 
     data class RestoreCounts(
             val memories: Int,
@@ -1260,6 +1294,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
              * the number say the opposite of what happened.
              */
             val evolutionRevisionsUnreadable: Int = 0,
+            // Schema v27.
+            val projects: Int = 0,
+            val projectNotes: Int = 0,
+            val claimResolutions: Int = 0,
         ) {
             // Auto-derived: every non-self Int field summed. Until v0.30.x
             // this was a 17-term hand-sum that fell out of sync with the
@@ -1281,7 +1319,8 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                 agentApprovals + runCheckpoints +
                 artifactDependencies + continuityIssues + creativeSimulations +
                 evolutionEvidence + evolutionCandidates + proactiveInteractions +
-                routingOutcomes + toolPolicies + consciousness
+                routingOutcomes + toolPolicies + consciousness +
+                projects + projectNotes + claimResolutions
             )
     }
 

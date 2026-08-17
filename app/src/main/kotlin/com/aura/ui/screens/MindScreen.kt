@@ -93,6 +93,8 @@ fun MindScreen(
             // First, deliberately. Everything below is present tense — what Aura
             // believes now, what it wants to ask now — and the one question none
             // of it answered was what actually moved.
+            calibrationSection(mindViewModel)
+            projectsSection(mindViewModel)
             changesSection(mindViewModel)
             beliefsSection(beliefsViewModel)
             worldModelSection(
@@ -150,6 +152,122 @@ private fun LazyListScope.changesSection(viewModel: MindViewModel) {
             }
         }
     }
+}
+
+/**
+ * How often Aura's stated confidence was earned.
+ *
+ * Shows the **resolved count first and always**, and refuses a percentage until
+ * there is enough behind it. That refusal is the feature, not a limitation: a
+ * confident-looking rate over six samples is worse than no rate, because it
+ * launders a guess into a statistic and nothing downstream can tell them apart.
+ *
+ * Nothing here is computed at render time and nothing is a model's opinion —
+ * every figure is arithmetic over `claim_resolutions` rows the user themselves
+ * produced by answering.
+ */
+private fun LazyListScope.calibrationSection(viewModel: MindViewModel) {
+    item {
+        val report by viewModel.calibration.collectAsStateWithLifecycle()
+        val current = report
+        if (current != null && current.total > 0) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                SectionHeading("Calibration", top = false)
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (current.reportable) {
+                                "${current.scored} claims scored"
+                            } else {
+                                // Named as progress, not as an error. The floor
+                                // is doing its job here, and a user who sees
+                                // "not enough yet" should read it as the system
+                                // being careful rather than broken.
+                                "${current.scored} of ${com.aura.calibration.Calibration.MIN_SCORED} " +
+                                    "claims scored — not enough to say yet"
+                            },
+                        )
+                    },
+                    supportingContent = {
+                        val excluded = current.total - current.scored
+                        Text(
+                            if (excluded > 0) {
+                                "$excluded more changed rather than being wrong, so they are not scored"
+                            } else {
+                                "Aura asks about one belief every few days"
+                            },
+                        )
+                    },
+                )
+                if (current.reportable) {
+                    current.bands.filter { it.resolved > 0 }.forEach { band ->
+                        ListItem(
+                            overlineContent = { Text("When Aura says \"${band.label}\"") },
+                            headlineContent = {
+                                Text(
+                                    band.rate?.let { rate ->
+                                        "right ${band.held} of ${band.resolved} (${(rate * 100).toInt()}%)"
+                                    } ?: "${band.held} of ${band.resolved} — too few to rate",
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Where each project stands, from rows rather than from a model.
+ *
+ * The section exists as much to make the ledger *correctable* as to make it
+ * readable: the rows are written by a cheap model on a background sweep, so an
+ * invented decision is the failure that would otherwise sit at the top of "where
+ * is X" indefinitely. Nothing here is generated at render time — every line is a
+ * `project_notes` row with the date it was recorded.
+ */
+private fun LazyListScope.projectsSection(viewModel: MindViewModel) {
+    item {
+        val projects by viewModel.projects.collectAsStateWithLifecycle()
+        if (projects.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                SectionHeading("Projects", top = false)
+                projects.forEach { ledger ->
+                    ListItem(
+                        headlineContent = { Text(ledger.project.name) },
+                        supportingContent = {
+                            Text(
+                                text = ledger.notes.firstOrNull()?.body
+                                    // Named rather than blank: a project with no
+                                    // rows yet is new, not broken, and saying so
+                                    // is the honest empty state.
+                                    ?: "Nothing recorded yet",
+                                maxLines = 2,
+                            )
+                        },
+                        trailingContent = { Text(relativeAge(ledger.project.lastTurnAt)) },
+                    )
+                    ledger.notes.take(PROJECT_NOTES_SHOWN).forEach { note ->
+                        ListItem(
+                            overlineContent = { Text(noteLabel(note.kind)) },
+                            headlineContent = { Text(note.body) },
+                            trailingContent = { Text(relativeAge(note.createdAt)) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val PROJECT_NOTES_SHOWN = 4
+
+private fun noteLabel(kind: String): String = when (kind) {
+    com.aura.projects.ProjectNoteEntity.KIND_DECISION -> "Decided"
+    com.aura.projects.ProjectNoteEntity.KIND_BLOCKER -> "Blocked on"
+    com.aura.projects.ProjectNoteEntity.KIND_STATUS -> "Status"
+    else -> kind
 }
 
 private fun changeLabel(kind: com.aura.changelog.Change.Kind): String = when (kind) {

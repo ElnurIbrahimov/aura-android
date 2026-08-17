@@ -28,6 +28,7 @@ class DecayWorker @AssistedInject constructor(
     private val workerRunRecorder: com.aura.health.WorkerRunRecorder? = null,
     private val placeLog: com.aura.place.PlaceLog? = null,
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
+    private val verdictSweep: com.aura.calibration.BeliefVerdictSweep? = null,
 ) : CoroutineWorker(appContext, params) {
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
@@ -62,6 +63,14 @@ class DecayWorker @AssistedInject constructor(
             // off measuring whether proactive suggestions helped.
             runCatching { outcomePass?.run() }
                 .onFailure { android.util.Log.w("DecayWorker", "outcome pass failed: ${it.message}", it) }
+
+            // Above the gate for the same reason a third time: decayEnabled
+            // means "do not let my memories fade", not "stop finding out
+            // whether my beliefs were right". Grading is the only input the
+            // calibration report has, and a user who switched decay off would
+            // otherwise silently switch that off too.
+            runCatching { verdictSweep?.sweep() }
+                .onFailure { android.util.Log.w("DecayWorker", "verdict sweep failed: ${it.message}", it) }
 
             // Above the gate for the same reason, and it is the same reason
             // twice: decayEnabled means "do not let my memories fade", not

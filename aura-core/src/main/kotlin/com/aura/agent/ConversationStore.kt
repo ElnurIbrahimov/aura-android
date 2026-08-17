@@ -264,9 +264,50 @@ class ConversationStore @Inject constructor(
 
     /**
      * Extract the project tag from a conversation. Null if untagged.
+     *
+     * The tag is a project **name**, not an id, because `HistoryScreen` has
+     * shown it to the user as a filter chip since before `projects` existed and
+     * a UUID there would be unreadable. `ProjectDao.byName` resolves it, which
+     * is why `projects.name` carries a unique index. The cost is that renaming a
+     * project orphans the tags on its older conversations; nothing renames one
+     * today, and the alternative was breaking a surface that already works.
      */
     fun projectOf(conv: Conversation): String? =
         conv.metadata["project"]?.takeIf { it.isNotBlank() }
+
+    /**
+     * When the project ledger last read this conversation.
+     *
+     * Lives in metadata beside the project tag rather than in a column: the
+     * watermark is derived bookkeeping that means nothing after the conversation
+     * is deleted, so it does not need a schema version, a migration, a backup
+     * mapper and three doc counts — the same reasoning `BackgroundBudget`'s
+     * SharedPreferences counter is recorded under.
+     *
+     * Zero means never read, which makes a conversation that predates the ledger
+     * eligible on the first sweep rather than invisible to it.
+     */
+    fun ledgerWatermarkOf(conv: Conversation): Long =
+        conv.metadata["ledgerAt"]?.toLongOrNull() ?: 0L
+
+    /** Advance the ledger watermark. Called only after a pass has committed. */
+    suspend fun setLedgerWatermark(id: String, at: Long): Boolean {
+        val entity = dao.getById(id) ?: return false
+        val metadata = runCatching {
+            convJson.decodeFromString<Map<String, String>>(entity.metadataJson)
+        }.onFailure { Log.w("ConvStore", "op failed: ${it.message}", it) }.getOrElse { emptyMap() }.toMutableMap()
+        metadata["ledgerAt"] = at.toString()
+        dao.insert(
+            entity.copy(
+                metadataJson = convJson.encodeToString(metadata),
+                // Deliberately NOT touching updatedAt: the watermark is Aura's
+                // bookkeeping, and bumping it would reorder the user's history
+                // list every time a background sweep ran.
+                updatedAt = entity.updatedAt,
+            ),
+        )
+        return true
+    }
 
     /**
      * Return all unique project names from the conversation list.

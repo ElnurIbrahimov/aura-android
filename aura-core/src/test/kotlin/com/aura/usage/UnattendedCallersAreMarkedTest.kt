@@ -40,6 +40,8 @@ class UnattendedCallersAreMarkedTest {
         "curiosity/QuestionAuthor.kt",
         "curiosity/SelfServeResearcher.kt",
         "creative/livingworld/WorldNarrator.kt",
+        "projects/ProjectLedgerExtractor.kt",
+        "calibration/BeliefVerdictSweep.kt",
     )
 
     private fun source(relative: String): File =

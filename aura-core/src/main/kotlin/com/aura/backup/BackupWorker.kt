@@ -43,7 +43,7 @@ import kotlinx.coroutines.withContext
 class BackupWorker @AssistedInject constructor(
     @Assisted private val appContext: Context,
     @Assisted params: WorkerParameters,
-    private val backupManager: BackupManager,
+    private val backupManager: BackupService,
     private val userPreferences: UserPreferences,
     private val secureDataStore: SecureDataStore,
     private val recorder: WorkerRunRecorder? = null,

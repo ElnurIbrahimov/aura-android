@@ -91,6 +91,7 @@ import com.aura.ui.components.AgentPickerSheet
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.ChatViewModel
 import com.aura.ui.viewmodel.calculateImageSampleSize
+import com.aura.ui.components.ProjectPickerSheet
 import com.aura.ui.voice.VoiceCallScreen
 import com.aura.ui.voice.VoiceOverlay
 import com.aura.ui.voice.ContinuousVoiceOverlay
@@ -257,6 +258,7 @@ fun ChatRoute(
 
     var showModelPicker by remember { mutableStateOf(false) }
     var showAgentPicker by remember { mutableStateOf(false) }
+    var showProjectPicker by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
     var showVoiceOverlay by remember { mutableStateOf(false) }
     var showHoldToTalk by remember { mutableStateOf(false) }
@@ -430,6 +432,7 @@ fun ChatRoute(
         onDismissProviderWarning = viewModel::dismissProviderWarning,
         onDismissSaveWarning = viewModel::dismissSaveWarning,
         onShowAgentPicker = { showAgentPicker = true },
+        onShowProjectPicker = { showProjectPicker = true },
         onOpenCouncil = {
             navController.navigate("council?convId=" + state.conversation.id)
         },
@@ -519,6 +522,18 @@ fun ChatRoute(
             onPick = viewModel::setModel,
             onRefresh = { viewModel.refreshModels() },
             onDismiss = { showModelPicker = false },
+        )
+    }
+
+    if (showProjectPicker) {
+        ProjectPickerSheet(
+            current = state.activeProject,
+            projects = state.availableProjects,
+            onPick = { name ->
+                viewModel.setActiveProject(name)
+                showProjectPicker = false
+            },
+            onDismiss = { showProjectPicker = false },
         )
     }
 

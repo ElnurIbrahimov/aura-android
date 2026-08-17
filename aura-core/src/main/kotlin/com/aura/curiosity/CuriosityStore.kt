@@ -34,6 +34,8 @@ class CuriosityStore @Inject constructor(
     private val memoryStore: MemoryStore,
     private val narrativeSelf: NarrativeSelf? = null,
     private val intrinsicMotivation: IntrinsicMotivation? = null,
+    /** Writes belief-verification questions into the same single slot. */
+    private val verificationAuthor: com.aura.calibration.BeliefVerificationAuthor? = null,
 ) {
 
     /**
@@ -44,6 +46,32 @@ class CuriosityStore @Inject constructor(
      */
     suspend fun scanAndAuthor(now: Long = System.currentTimeMillis()): Int {
         if (dao.openCount() > 0) return 0
+
+        // Verification first, and bounded by its own cooldown so it cannot
+        // monopolise the slot.
+        //
+        // Ordered ahead of curiosity because a belief that is wrong actively
+        // corrupts every future turn that recalls it, while a gap only limits
+        // one. The cooldown is what stops that priority becoming starvation:
+        // with beliefs always available to check, an unbounded verification pass
+        // would take the single slot every time and curiosity would never ask
+        // anything again.
+        val verification = verificationAuthor?.let { author ->
+            runCatching {
+                author.nextQuestion(
+                    claimedSubjects = dao.claimedSubjects().toSet(),
+                    lastAskedAt = dao.lastCreatedAtForKind(OpenQuestionEntity.KIND_VERIFICATION) ?: 0L,
+                    now = now,
+                )
+            }.onFailure { android.util.Log.w("CuriosityStore", "verification author failed: ${it.message}", it) }
+                .getOrNull()
+        }
+        if (verification != null) {
+            dao.insert(verification)
+            refreshNarrative()
+            return 1
+        }
+
         val subjects = scanner.scan(now = now)
         if (subjects.isEmpty()) return 0
 
