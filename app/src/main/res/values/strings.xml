@@ -226,6 +226,10 @@
     <string name="proactive_history">Proactive history</string>
     <string name="profile">Profile</string>
     <string name="project">Project</string>
+    <string name="change_project">Change project</string>
+    <string name="no_project">No project</string>
+    <string name="project_find_or_create">Find or create a project</string>
+    <string name="project_create">Create \"%1$s\"</string>
     <string name="project_details">Project details</string>
     <string name="project_name">Project name</string>
     <string name="prompt_prefix_optional">Prompt prefix (optional)</string>

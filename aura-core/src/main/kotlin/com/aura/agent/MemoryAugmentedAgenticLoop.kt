@@ -187,6 +187,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val consultGate: ConsultGate? = null,
     /** Grades the consult pass's verdict onto the labels recall already recorded. */
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
+    /** Resolves a conversation's project tag to a scope for auto-stored memories. */
+    private val projectStore: com.aura.projects.ProjectStore? = null,
 ) {
     /**
      * Tools the loop paused on because they returned
@@ -1027,6 +1029,43 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 // The user profile moved here out of the stable block: the profile
                 // extractor rewrites it between turns, so it is exactly the thing
                 // that changes while everything above it does not.
+                // The belief Aura currently wants checked, if there is one.
+                //
+                // Rendered directly rather than through [IntrinsicMotivation],
+                // which is where every other open question goes.
+                // `IntrinsicMotivation.toPrompt()` emits only `mostUrgent()` —
+                // one drive out of four — so a verification question routed that
+                // way surfaces whenever CURIOSITY happens to win and stays silent
+                // otherwise. For curiosity that intermittency is harmless; here
+                // the answer *is* the feature, because a verdict is the only
+                // honest input the calibration report has.
+                //
+                // Trusted region, beside the consciousness blocks rather than
+                // inside `# Retrieved context`: this is Aura asking about its own
+                // record, not attacker-reachable content.
+                val verificationBlock = if (step == 1 && curiosityStore != null) {
+                    runCatching {
+                        val pending = curiosityStore.current()
+                        if (pending?.kind == com.aura.curiosity.OpenQuestionEntity.KIND_VERIFICATION) {
+                            // Marked asked because it has now been put in front
+                            // of the user. Whether the model chooses to raise it
+                            // is not observable from here, and treating surfaced
+                            // as asked is what keeps the cooldown honest instead
+                            // of letting one question repeat every turn.
+                            curiosityStore.markAsked(pending.id)
+                            "[Checking a belief] I want to confirm something I have on record. " +
+                                "Ask this naturally, once, when it fits: \"${pending.question}\" " +
+                                "Do not push if they move on."
+                        } else {
+                            null
+                        }
+                    }.onFailure {
+                        android.util.Log.w("AgenticLoop", "verification block failed: ${it.message}", it)
+                    }.getOrNull()
+                } else {
+                    null
+                }
+
                 val volatileSys = buildString {
                     if (plan.isNotBlank()) append(plan)
                     cachedUserProfilePrompt?.ifBlank { null }?.let {
@@ -1052,6 +1091,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                             runCatching { situationReader?.get()?.describe() }
                                 .getOrNull()?.ifBlank { null }?.let { "[Right now] $it" },
                             affinityTracker?.getDirective()?.ifBlank { null },
+                            verificationBlock,
                         ).joinToString("\n\n").ifBlank { null }?.let { append(it) }
                     }
                     // Last in the volatile block, and therefore the last thing
@@ -1435,7 +1475,37 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                 )
                 val decision = gate.evaluate(lastUserMessage, "user")
                 if (decision.shouldStore) {
-                    val storeScope = if (agentId != null) "agent:$agentId" else "general"
+                    // Agent scope wins over project scope, and that precedence is
+                    // a decision rather than an ordering accident.
+                    //
+                    // `MemoryEntity.scope` is one string and cannot hold both.
+                    // Per-agent scopes are an existing privacy boundary — a
+                    // non-General agent's memories are private to it — so letting
+                    // a project tag override one would silently move memories out
+                    // of that boundary and widen what other agents can recall.
+                    // Project scope therefore fills the case that was previously
+                    // undifferentiated ("general") and changes nothing else.
+                    //
+                    // The conversation carries a project NAME (see
+                    // ConversationStore.projectOf); resolving it to an id keeps
+                    // the scope stable if the project is ever renamed.
+                    val projectScope = if (agentId == null) {
+                        currentConversation.metadata["project"]
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { name ->
+                                runCatching { projectStore?.byName(name)?.id }
+                                    .onFailure { Log.w("AgenticLoop", "project scope lookup failed: ${it.message}", it) }
+                                    .getOrNull()
+                            }
+                            ?.let { "project:$it" }
+                    } else {
+                        null
+                    }
+                    val storeScope = when {
+                        agentId != null -> "agent:$agentId"
+                        projectScope != null -> projectScope
+                        else -> "general"
+                    }
                     // Route through maybeStore so the auto-store path gets
                     // exact-content + semantic dedup. The gate decision's
                     // category/importance are passed through, so maybeStore

@@ -12,6 +12,7 @@ import com.aura.security.SecureDataStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import com.aura.backup.BackupService
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -58,7 +59,7 @@ class BackupWorkerGateTest {
         val worker = BackupWorker(
             mockk<Context>(relaxed = true),
             mockk<WorkerParameters>(relaxed = true),
-            mockk<BackupManager>(relaxed = true),
+            mockk<BackupService>(relaxed = true),
             prefs,
             secure,
             recorder = null,
@@ -147,7 +148,7 @@ class BackupWorkerGateTest {
             BackupWorker(
                 mockk<Context>(relaxed = true),
                 mockk<WorkerParameters>(relaxed = true),
-                mockk<BackupManager>(relaxed = true),
+                mockk<BackupService>(relaxed = true),
                 prefs,
                 secure,
                 WorkerRunRecorder(db.workerRunDao()),
@@ -180,7 +181,7 @@ class BackupWorkerGateTest {
             every { prefs.backupFolderUri } returns flowOf("content://tree/backups")
             val secure = mockk<SecureDataStore>(relaxed = true)
             coEvery { secure.getString(any()) } returns "a good long passphrase"
-            val manager = mockk<BackupManager>(relaxed = true)
+            val manager = mockk<BackupService>(relaxed = true)
 
             BackupWorker(
                 mockk<Context>(relaxed = true),

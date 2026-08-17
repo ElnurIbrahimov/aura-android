@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.aura.backup.AuraBackup
 import com.aura.backup.BackupManager
+import com.aura.backup.BackupService
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -33,7 +34,7 @@ import kotlin.test.assertTrue
 class BackupViewModelTest {
 
     private val context = mockk<Context>(relaxed = true)
-    private val backupManager = mockk<BackupManager>(relaxed = true)
+    private val backupManager = mockk<BackupService>(relaxed = true)
 
     /**
      * The automatic-backup dependencies, stubbed to "nothing configured".

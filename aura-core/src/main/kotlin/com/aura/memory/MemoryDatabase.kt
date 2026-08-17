@@ -82,8 +82,11 @@ import com.aura.kg.NodeEntity
         CorrectionEntity::class,
         com.aura.curiosity.OpenQuestionEntity::class,
         RetrievalLabelEntity::class,
+        com.aura.projects.ProjectEntity::class,
+        com.aura.projects.ProjectNoteEntity::class,
+        com.aura.calibration.ClaimResolutionEntity::class,
     ],
-    version = 24,
+    version = 26,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -118,4 +121,7 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun correctionDao(): CorrectionDao
     abstract fun openQuestionDao(): com.aura.curiosity.OpenQuestionDao
     abstract fun retrievalLabelDao(): RetrievalLabelDao
+    abstract fun projectDao(): com.aura.projects.ProjectDao
+    abstract fun projectNoteDao(): com.aura.projects.ProjectNoteDao
+    abstract fun claimResolutionDao(): com.aura.calibration.ClaimResolutionDao
 }

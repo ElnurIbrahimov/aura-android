@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.BuildConfig
 import com.aura.backup.BackupManager
+import com.aura.backup.BackupService
 import com.aura.data.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,7 +49,7 @@ data class BackupUiState(
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val backupManager: BackupManager,
+    private val backupManager: BackupService,
     private val userPreferences: com.aura.data.UserPreferences,
     private val secureDataStore: com.aura.security.SecureDataStore,
     private val scheduler: com.aura.proactive.ProactiveScheduler,

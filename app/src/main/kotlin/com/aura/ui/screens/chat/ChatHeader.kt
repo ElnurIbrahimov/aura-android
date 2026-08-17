@@ -1,5 +1,7 @@
 package com.aura.ui.screens.chat
 
+import androidx.compose.ui.res.stringResource
+import com.aura.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +70,8 @@ fun ChatHeader(
     conversationModel: String? = null,
     activeAgent: AgentEntity? = null,
     availableAgents: List<AgentEntity> = emptyList(),
+    /** Name of the project this conversation is attributed to, or null. */
+    activeProject: String? = null,
     streaming: Boolean = false,
     ttsEnabled: Boolean = false,
     deepModeEnabled: Boolean = false,
@@ -84,6 +88,15 @@ fun ChatHeader(
     onClear: () -> Unit = {},
     onShowModelPicker: () -> Unit = {},
     onShowAgentPicker: () -> Unit = {},
+    /**
+     * Takes no default.
+     *
+     * A defaulted callback here would render a chip that opens nothing and looks
+     * exactly like a working one — the shape that left `storySoFar` and
+     * `retrieved` unsupplied in `SceneContextBuilder` for months. Removing the
+     * wire is a compile error instead.
+     */
+    onShowProjectPicker: () -> Unit,
     onOpenCouncil: () -> Unit = {},
 ) {
     var overflowExpanded by remember { mutableStateOf(false) }
@@ -175,6 +188,50 @@ fun ChatHeader(
                     Icon(
                         imageVector = Icons.Filled.ArrowDropDown,
                         contentDescription = if (activeAgentName != null) "Change agent" else "Change model",
+                        tint = AuraThemeTokens.colors.textTertiary,
+                        modifier = Modifier.size(AuraSpacing.xl2),
+                    )
+                }
+            }
+
+            // The project this conversation is attributed to.
+            //
+            // Always rendered, including when nothing is attributed, and that is
+            // the point: attribution is sticky, so the one failure mode that
+            // matters is a conversation quietly inheriting the wrong project and
+            // writing into its ledger. A chip that disappears when unset would
+            // make "no project" and "some project you have forgotten about" look
+            // identical. Reads "Project" when unset so the affordance is legible
+            // before there is anything to show.
+            Surface(
+                modifier = Modifier
+                    .widthIn(max = maxPillWidth)
+                    .heightIn(min = AuraSpacing.xxl)
+                    .testTag("chat-project-pill")
+                    .clickable(onClick = onShowProjectPicker),
+                color = AuraThemeTokens.colors.surface2,
+                shape = RoundedCornerShape(AuraSpacing.xl2),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = AuraSpacing.medium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = activeProject ?: stringResource(R.string.project),
+                        modifier = Modifier
+                            .widthIn(max = maxLabelWidth)
+                            .testTag(if (activeProject != null) "chat-project-set" else "chat-project-none"),
+                        color = if (activeProject != null) AuraThemeTokens.colors.textPrimary
+                        else AuraThemeTokens.colors.textTertiary,
+                        fontFamily = InterDisplay,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = stringResource(R.string.change_project),
                         tint = AuraThemeTokens.colors.textTertiary,
                         modifier = Modifier.size(AuraSpacing.xl2),
                     )

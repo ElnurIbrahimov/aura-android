@@ -72,9 +72,47 @@ data class OpenQuestionEntity(
         /** Well-connected and never used: recorded without being understood. */
         const val KIND_SHALLOW = "shallow"
 
+        /**
+         * Aura asking whether one of its own beliefs still holds.
+         *
+         * Unlike the other kinds, this is not a gap in what Aura knows — it is a
+         * test of what Aura already claims to know. The answer becomes a
+         * `claim_resolutions` verdict, which is the only honest input the
+         * calibration report has: nothing else in the system can distinguish a
+         * belief that was right from one that merely went uncontradicted.
+         */
+        const val KIND_VERIFICATION = "verification"
+
         const val SUBJECT_KG_NODE = "kg_node"
         const val SUBJECT_CONTRADICTION = "contradiction"
         const val SUBJECT_MEMORY = "memory"
+
+        /**
+         * A row in `beliefs`, written by `BeliefVerificationAuthor`.
+         *
+         * Keeps this table's invariant that every subject names a real row, so
+         * "is this still worth asking" stays re-checkable, and inherits the
+         * per-subject dismissal path — here meaning "stop asking me about this
+         * particular belief", which is the right granularity for a claim.
+         */
+        const val SUBJECT_BELIEF = "belief"
+
+        /**
+         * A row in `projects`, written by `ProjectLedgerExtractor`.
+         *
+         * Reuses this table rather than adding a fourth `kind` to
+         * `project_notes`, which would have reimplemented the dismissal path,
+         * the `(subjectKind, subjectId)` index, the curiosity scanner and the
+         * Mind screen's section, all of which this table already has.
+         *
+         * The subject is the **project**, not a topic within it, so
+         * [STATUS_DISMISSED] means "stop asking me about this project" — a
+         * coarser instruction than the other subject kinds carry, and a coherent
+         * one. It also keeps the invariant this table's KDoc rests on: every
+         * [subjectId] names a real row, so "is this still worth asking" stays
+         * re-checkable by looking the project up.
+         */
+        const val SUBJECT_PROJECT = "project"
 
         /** Live: waiting to be asked, or asked and not yet resolved. */
         const val STATUS_OPEN = "open"
@@ -139,6 +177,16 @@ interface OpenQuestionDao {
 
     @Query("UPDATE open_questions SET askedAt = :now, timesAsked = timesAsked + 1 WHERE id = :id")
     suspend fun markAsked(id: String, now: Long)
+
+    /**
+     * When a question of this kind was last written. Null if never.
+     *
+     * Drives the verification cooldown. Reads `createdAt` rather than `askedAt`
+     * because the cooldown bounds how often Aura *decides* to ask; a question
+     * written and never surfaced still occupies the single open slot.
+     */
+    @Query("SELECT MAX(createdAt) FROM open_questions WHERE kind = :kind")
+    suspend fun lastCreatedAtForKind(kind: String): Long?
 
     @Query("DELETE FROM open_questions")
     suspend fun deleteAll()

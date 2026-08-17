@@ -826,6 +826,95 @@ object MemoryModule {
         }
     }
 
+    val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Projects, and the ledger that answers "where is this".
+            //
+            // `project` already existed three times in this schema as a tag —
+            // a string in a conversation's metadata JSON, a `category` value on
+            // `memories`, and `NodeType.PROJECT` in the graph, which nothing
+            // wrote. None of them could hold a state, so "where is ARC-AGI-2"
+            // had to be answered by a BM25 query over whatever had been said.
+            //
+            // `projects` is created first: `project_notes` carries a CASCADE
+            // foreign key into it, and SQLite resolves that at DDL time.
+            //
+            // DDL copied verbatim from the generated 25.json, per MIGRATION_20_21.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `projects` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`description` TEXT NOT NULL, `status` TEXT NOT NULL, `lastTurnAt` INTEGER NOT NULL, " +
+                    "`turnCount` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                    "`updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_projects_status` ON `projects` (`status`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_projects_lastTurnAt` ON `projects` (`lastTurnAt`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_projects_name` ON `projects` (`name`)")
+
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `project_notes` (`id` TEXT NOT NULL, " +
+                    "`projectId` TEXT NOT NULL, `kind` TEXT NOT NULL, `subject` TEXT NOT NULL, " +
+                    "`body` TEXT NOT NULL, `sourceConversationId` TEXT NOT NULL, " +
+                    "`sourceTurnAt` INTEGER NOT NULL, `state` TEXT NOT NULL, `supersededBy` TEXT, " +
+                    "`resolvedAt` INTEGER, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`), " +
+                    "FOREIGN KEY(`projectId`) REFERENCES `projects`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_project_notes_projectId_state` " +
+                    "ON `project_notes` (`projectId`, `state`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_project_notes_projectId_kind_subject` " +
+                    "ON `project_notes` (`projectId`, `kind`, `subject`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_project_notes_createdAt` " +
+                    "ON `project_notes` (`createdAt`)",
+            )
+        }
+    }
+
+    val MIGRATION_25_26 = object : Migration(25, 26) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Verdicts on Aura's own claims.
+            //
+            // `beliefs.confidence` has been asserted since v6 and never checked.
+            // The only thing calling itself verification bumps `lastVerifiedAt`
+            // when the same KG edge is seen twice, which tests nothing.
+            //
+            // No backfill, and none is possible: a verdict is a judgment about a
+            // claim, and there is no record of anyone having made one. The table
+            // starts empty and stays honest.
+            //
+            // DDL copied verbatim from the generated 26.json, per MIGRATION_20_21.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `claim_resolutions` (`id` TEXT NOT NULL, " +
+                    "`beliefId` TEXT NOT NULL, `verdict` TEXT NOT NULL, " +
+                    "`verdictSource` TEXT NOT NULL, `assertedConfidence` REAL NOT NULL, " +
+                    "`beliefSource` TEXT NOT NULL, `note` TEXT NOT NULL, " +
+                    "`resolvedAt` INTEGER NOT NULL, PRIMARY KEY(`id`), " +
+                    "FOREIGN KEY(`beliefId`) REFERENCES `beliefs`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_claim_resolutions_beliefId` " +
+                    "ON `claim_resolutions` (`beliefId`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_claim_resolutions_verdict` " +
+                    "ON `claim_resolutions` (`verdict`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_claim_resolutions_beliefSource_verdict` " +
+                    "ON `claim_resolutions` (`beliefSource`, `verdict`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_claim_resolutions_resolvedAt` " +
+                    "ON `claim_resolutions` (`resolvedAt`)",
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -833,7 +922,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is
@@ -852,6 +941,16 @@ object MemoryModule {
 
     @Provides
     fun provideRetrievalLabelDao(db: MemoryDatabase): RetrievalLabelDao = db.retrievalLabelDao()
+
+    @Provides
+    fun provideProjectDao(db: MemoryDatabase): com.aura.projects.ProjectDao = db.projectDao()
+
+    @Provides
+    fun provideProjectNoteDao(db: MemoryDatabase): com.aura.projects.ProjectNoteDao = db.projectNoteDao()
+
+    @Provides
+    fun provideClaimResolutionDao(db: MemoryDatabase): com.aura.calibration.ClaimResolutionDao =
+        db.claimResolutionDao()
 
     @Provides
     fun provideMemoryDao(db: MemoryDatabase): MemoryDao = db.memoryDao()

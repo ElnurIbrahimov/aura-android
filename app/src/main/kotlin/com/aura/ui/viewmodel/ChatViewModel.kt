@@ -234,6 +234,10 @@ data class ChatUiState(
     val activeAgent: com.aura.agent.AgentEntity? = null,
     /** Available agents from [AgentStore]. Populated on init. */
     val availableAgents: List<com.aura.agent.AgentEntity> = emptyList(),
+    /** Name of the project this conversation is attributed to, or null. */
+    val activeProject: String? = null,
+    /** Active project names, most recently worked first, for the picker. */
+    val availableProjects: List<String> = emptyList(),
     /** Agent ID for per-agent memory scoping. Derived from [activeAgent]. */
     val activeAgentId: String? = null,
     /**
@@ -402,7 +406,55 @@ class ChatViewModel @Inject constructor(
     private val situationReader: com.aura.situation.SituationReader? = null,
     /** Turn-level relevance signals for the harvested retrieval labels. */
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
+    /** Projects this conversation can be attributed to. */
+    private val projectStore: com.aura.projects.ProjectStore? = null,
 ) : AndroidViewModel(application) {
+
+    /**
+     * Attribute this conversation to a project, or clear it.
+     *
+     * Writes three places, all of which have to agree or the ledger reads the
+     * wrong conversation: the conversation's own tag (what the sweep and the
+     * History filter read), the sticky preference (what the *next* conversation
+     * inherits), and the UI state.
+     *
+     * The project is created if the name is new — `ProjectStore.create` is
+     * idempotent on name, so picking an existing one from the list and typing
+     * its name are the same operation.
+     *
+     * Never called from anywhere but the picker: attribution changing without a
+     * tap is the failure this whole design avoids, since a wrong project writes
+     * into the wrong ledger and nothing would look broken.
+     */
+    fun setActiveProject(name: String?) {
+        viewModelScope.launch {
+            val store = projectStore
+            val resolved = if (name.isNullOrBlank()) {
+                null
+            } else {
+                runCatching { store?.create(name) }
+                    .onFailure { android.util.Log.w("ChatViewModel", "could not resolve project: ${it.message}", it) }
+                    .getOrNull()
+            }
+            runCatching {
+                conversationStore.setProject(_state.value.conversation.id, resolved?.name)
+                userPreferences.setStickyProjectId(resolved?.name)
+            }.onFailure { android.util.Log.w("ChatViewModel", "could not attribute conversation: ${it.message}", it) }
+            _state.update { it.copy(activeProject = resolved?.name) }
+            refreshProjects()
+        }
+    }
+
+    /** Refresh the picker's list. Active projects only, most recent first. */
+    internal fun refreshProjects() {
+        viewModelScope.launch {
+            val names = runCatching { projectStore?.active()?.map { it.name } }
+                .onFailure { android.util.Log.w("ChatViewModel", "could not list projects: ${it.message}", it) }
+                .getOrNull()
+                .orEmpty()
+            _state.update { it.copy(availableProjects = names) }
+        }
+    }
 
     /** The turn a signal is about, in the form the label rows are keyed by. */
     private fun turnProvenance(turnTimestamp: Long?) =
@@ -521,6 +573,21 @@ class ChatViewModel @Inject constructor(
 
     init {
         textToSpeech.initialize()
+        // Sticky project attribution.
+        //
+        // The conversation's own tag wins over the sticky preference: reopening
+        // an old chat must show the project it was actually filed under, not the
+        // one currently in use. The preference only supplies the answer for a
+        // conversation that has none — which is what "sticky" means, and is the
+        // only case where inheriting is not a guess about the past.
+        viewModelScope.launch {
+            runCatching {
+                val tagged = conversationStore.projectOf(_state.value.conversation)
+                val sticky = userPreferences.stickyProjectId.first()
+                _state.update { it.copy(activeProject = tagged ?: sticky) }
+            }.onFailure { Log.w(TAG, "sticky project resolve failed", it) }
+        }
+        refreshProjects()
         // Mirror TTS state into UI state so the chat can show a
         // "Stop reading" pill and highlight the currently-speaking turn.
         // Use launchIn instead of collect { } so this coroutine doesn't

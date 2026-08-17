@@ -98,6 +98,7 @@ fun ChatContent(
     onDismissProviderWarning: () -> Unit,
     onDismissSaveWarning: () -> Unit,
     onShowAgentPicker: () -> Unit = {},
+    onShowProjectPicker: () -> Unit,
     onOpenCouncil: () -> Unit = {},
     onRunVisionPrompt: (android.graphics.Bitmap, String) -> Unit,
     onDismissVision: () -> Unit,
@@ -134,6 +135,8 @@ fun ChatContent(
                 onClear = onClear,
                 onShowModelPicker = onShowModelPicker,
                 onShowAgentPicker = onShowAgentPicker,
+                activeProject = state.activeProject,
+                onShowProjectPicker = onShowProjectPicker,
                 onOpenCouncil = onOpenCouncil,
             )
 

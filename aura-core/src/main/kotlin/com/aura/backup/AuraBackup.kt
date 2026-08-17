@@ -141,6 +141,22 @@ data class AuraBackup(
      * [RetrievalLabelBackup].
      */
     val retrievalLabels: List<RetrievalLabelBackup> = emptyList(),
+    /**
+     * Schema v27. Projects and their ledger.
+     *
+     * [projects] must be restored before [projectNotes]: the notes table carries
+     * a CASCADE foreign key into it, and Room runs restores with
+     * `PRAGMA foreign_keys = ON`, so the reverse order rejects every note.
+     */
+    val projects: List<ProjectBackup> = emptyList(),
+    val projectNotes: List<ProjectNoteBackup> = emptyList(),
+    /**
+     * Schema v28. Verdicts on Aura's own claims.
+     *
+     * Restored after [beliefs]: `claim_resolutions` carries a CASCADE foreign
+     * key into them and Room restores with `PRAGMA foreign_keys = ON`.
+     */
+    val claimResolutions: List<ClaimResolutionBackup> = emptyList(),
 ) {
     companion object {
         /**
@@ -149,7 +165,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 26
+        const val SCHEMA_VERSION = 28
     }
 }
 

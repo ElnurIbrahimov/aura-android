@@ -44,6 +44,7 @@ internal val KEY_BACKGROUND_MODEL_SEEDED = booleanPreferencesKey("background_mod
 internal val KEY_DEEP_MODE_MODEL = stringPreferencesKey("deep_mode_model")
 internal val KEY_MOA_REFERENCE_MODELS = stringPreferencesKey("moa_reference_models")
 internal val KEY_MOA_AGGREGATOR_MODEL = stringPreferencesKey("moa_aggregator_model")
+internal val KEY_STICKY_PROJECT = stringPreferencesKey("sticky_project_id")
 
 /** Normalize a catalog model id without inventing or rewriting it. */
 internal fun normalizeModelId(model: String): String = model.trim()
@@ -840,6 +841,32 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         val normalized = model?.let(::normalizeModelId)?.takeIf(kotlin.String::isNotBlank)
         context.auraPrefs.edit { prefs ->
             if (normalized == null) prefs.remove(key) else prefs[key] = normalized
+        }
+    }
+
+    // ---- Sticky project ----
+
+    /**
+     * The project a new conversation inherits.
+     *
+     * A preference rather than derived from the most recent conversation,
+     * because "the last project I worked on" and "the project of the last
+     * conversation I happened to open" are different things — reading history
+     * would silently re-point the sticky project every time an old chat was
+     * opened to look something up.
+     *
+     * Null means unattributed, which stays a first-class state: not every
+     * conversation belongs to a project, and forcing one would put the weather
+     * into ARC-AGI-2's ledger.
+     */
+    val stickyProjectId: Flow<kotlin.String?> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_STICKY_PROJECT]?.takeIf(kotlin.String::isNotBlank)
+    }
+
+    suspend fun setStickyProjectId(projectId: kotlin.String?) {
+        context.auraPrefs.edit { prefs ->
+            val clean = projectId?.trim()?.takeIf(kotlin.String::isNotEmpty)
+            if (clean == null) prefs.remove(KEY_STICKY_PROJECT) else prefs[KEY_STICKY_PROJECT] = clean
         }
     }
 
