@@ -317,6 +317,23 @@ class SettingsViewModel @Inject constructor(
 
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
+    /**
+     * Credential prefixes the user has typed into since the last successful
+     * save. [reload] rebuilds the whole [SettingsUiState] from disk rather
+     * than patching it, so anything unsaved in the old object is lost unless
+     * it is carried across deliberately — the same shape of defect the
+     * `credentialStates` note inside [reload] records, one field over.
+     *
+     * Declared above `init` for the reason spelled out below: `init` calls
+     * [reload], which reads this, and a property declared further down the
+     * file is still null by then.
+     *
+     * Main-thread only: every writer is a Compose callback or a
+     * `viewModelScope` continuation, both of which run on the main
+     * dispatcher, so a plain set is enough.
+     */
+    private val editedDrafts = mutableSetOf<String>()
+
     // Declared above `init`, not 570 lines below it, because Kotlin runs
     // property initialisers and init blocks in declaration order. The init block
     // launches coroutines that assign both of these, and when they were declared
@@ -479,7 +496,20 @@ class SettingsViewModel @Inject constructor(
                 // showed their stored keys as unsaved while working fine.
                 credentialStates = providerKeys.credentialStates.value,
                 keyDrafts = ProviderKeys.PREFIXES.associateWith { prefix ->
-                    providerKeys.keyFor(prefix).orEmpty()
+                    // Disk wins, except where the user is mid-edit. reload()
+                    // does ~80 sequential DataStore and Room reads before it
+                    // gets here, and Settings is interactive the whole time —
+                    // so a key typed in the first second or two was being
+                    // overwritten with the stored value, silently. Tapping
+                    // "Save & Test" then wrote the *empty* draft, which
+                    // `ProviderKeys.set` treats as a clear: a user retyping a
+                    // key during the load window could delete the working one.
+                    // See [editedDrafts].
+                    if (prefix in editedDrafts) {
+                        _state.value.keyDrafts[prefix].orEmpty()
+                    } else {
+                        providerKeys.keyFor(prefix).orEmpty()
+                    }
                 },
                 roleModels = roleModels,
                 roleFallbacks = roleFallbacks,
@@ -534,6 +564,19 @@ class SettingsViewModel @Inject constructor(
                 interruptionPolicies = storedPolicies,
                 triggers = triggers,
             )
+            // Re-derive everything the catalog owns. The assignment above is a
+            // whole new SettingsUiState, so availableModels, imageModels,
+            // videoModels, voiceModels and embeddingModels all reverted to
+            // their empty defaults — and the collector that fills them is a
+            // StateFlow subscription, which does not re-emit just because we
+            // discarded its last result. Every model picker in Settings
+            // therefore went empty on each reload and stayed empty until some
+            // other screen forced a catalog refresh.
+            //
+            // Found on an emulator: the instrumented flow verified a provider,
+            // opened the Chat default picker, and found no rows — because the
+            // reload launched at init happened to publish in between.
+            applyCatalog(modelCatalogRepository.catalog.value)
         }
     }
 
@@ -1102,6 +1145,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateCredentialDraft(prefix: String, value: String) {
         require(prefix in ProviderKeys.PREFIXES) { "Unknown credential prefix: $prefix" }
+        editedDrafts += prefix
         _state.update { current ->
             current.copy(
                 keyDrafts = current.keyDrafts + (prefix to value),
@@ -1120,6 +1164,9 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 providerKeys.set(prefix, value)
+                // Written, so the draft and the stored value now agree and a
+                // later reload should go back to reading disk for this one.
+                editedDrafts -= prefix
                 if (providerKeys.credentialStates.value[prefix] == ProviderCredentialState.StorageError) {
                     updateProviderTest(prefix, ProviderTestPhase.Failed, "Secure storage failed")
                     return@launch

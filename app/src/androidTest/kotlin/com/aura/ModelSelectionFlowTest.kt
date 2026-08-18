@@ -154,13 +154,27 @@ class ModelSelectionFlowTest {
         composeRule.onNodeWithTag("provider-key-ollama-cloud")
             .performScrollTo()
             .performTextReplacement("test-key-valid")
-        composeRule.onNodeWithTag("provider-test-ollama-cloud").performClick()
+        // Scrolled to, not just clicked. `performScrollTo` on the key field
+        // stops as soon as the *field* is inside the viewport, which leaves the
+        // helper text and this button below the fold — and Compose's touch
+        // injection does not bounds-check: it taps the node's origin, off
+        // screen, dispatches nothing, and throws nothing. The click looked like
+        // it happened, `saveAndTestProvider` was never called, and the failure
+        // surfaced 10 seconds later at the `waitUntil` below, pointing at the
+        // wrong line entirely. Verified on an emulator with a probe inside
+        // `saveAndTestProvider`, which never logged.
+        composeRule.onNodeWithTag("provider-test-ollama-cloud")
+            .performScrollTo()
+            .performClick()
         composeRule.waitUntil(10_000) {
             composeRule.onAllNodesWithText("Verified").fetchSemanticsNodes().isNotEmpty()
         }
 
         composeRule.onNodeWithText("Chat default").performScrollTo()
-        composeRule.onAllNodesWithText("Choose")[0].performClick()
+        composeRule.onAllNodesWithText("Choose")[0].performScrollTo().performClick()
+        // This row was missing until `reload()` stopped discarding the catalog:
+        // it rebuilt SettingsUiState without `availableModels`, so the picker
+        // opened empty whenever the init reload landed after the verify.
         composeRule.onNodeWithTag("model-row-ollama:model-a").performClick()
         composeRule.waitForIdle()
 

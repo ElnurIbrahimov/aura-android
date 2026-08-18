@@ -599,9 +599,66 @@ exception fails them, and cancel-when-idle is exactly where
 `RealtimeCallController` had a self-join deadlock). **Verify a deletion target
 yourself before removing it.**
 
+**What the instrumented job found on its first run, which is the point of it.**
+
+The `app-instrumented` CI job added by this pass had never executed. Its first run
+was red, and it earned its place immediately: 38 tests, 5 failures, identical
+across two runs, none of them in code this pass had touched.
+
+- **The chat header pushed its own buttons off screen.** A `maxWidth * 0.55f`
+  budget was applied to the model pill *and* the project chip — 110% of the
+  header between them — so at 320 dp with a long model name the three 48 dp
+  trailing buttons were laid out past the right edge: present in the semantics
+  tree, and unreachable by a thumb. The budget now subtracts the touch targets
+  and the header chrome before the pills get a share.
+- **Two `HomeContentTest` assertions could never have passed**, and this was the
+  *third* blind fix to the same line — `performScrollToIndex`, then
+  `performScrollTo`, both wrong for one reason nobody had checked: `HomeContent`'s
+  root is a `LazyColumn`, which does not compose what is off screen, and both of
+  those act on a node that must already be composed. `performScrollToNode` asks
+  the list to bring the node in, which is the only ordering that exists here.
+- **`ModelSelectionFlowTest` — the repo's only true end-to-end flow — was failing
+  on a click that never happened.** `performScrollTo` on the key field stops as
+  soon as the *field* is inside the viewport, leaving "Save & Test" below the
+  fold, and Compose's touch injection does not bounds-check: it taps the node's
+  origin, off screen, dispatches nothing, and throws nothing. The click appeared
+  to succeed, `saveAndTestProvider` was never called, and the failure surfaced ten
+  seconds later at an unrelated `waitUntil`. Established with a probe inside
+  `saveAndTestProvider` that never logged, not by reading.
+
+**And behind it, two real defects in `SettingsViewModel.reload()`** — both from
+one cause. `reload()` assigns a whole new `SettingsUiState` rather than patching
+the existing one, so every field it does not list silently reverts to a default.
+The note beside its `credentialStates` line already records this mechanism biting
+once. It was biting two more fields.
+
+- **A key typed while Settings was still loading was erased, and saving then
+  cleared the stored one.** `reload()` performs ~80 sequential DataStore and Room
+  reads before it publishes, and the screen is interactive throughout; it then
+  re-seeded every key field from disk. Tapping "Save & Test" wrote the *empty*
+  draft, and `ProviderKeys.set("")` treats blank as a clear — so retyping a key
+  during the load window could delete the working one. This is what made the
+  instrumented test nondeterministic: two identical runs, one logging
+  `draftLen=14` and passing, the next `draftLen=0` and failing, differing only in
+  whether reload landed before or after the keystroke. `editedDrafts` now holds
+  the prefixes the user is mid-edit on, and disk wins everywhere else.
+- **Every model picker in Settings emptied on reload.** `availableModels`,
+  `imageModels`, `videoModels`, `voiceModels` and `embeddingModels` are not among
+  the fields `reload()` sets, and nothing refilled them: `applyCatalog` runs off a
+  `StateFlow` subscription, and a `StateFlow` does not re-emit because a consumer
+  discarded its last value. The picker opened with no rows immediately after a
+  successful verify. Masked in normal use only because `ChatViewModel` forces a
+  catalog refresh at startup. `reload()` now ends by re-deriving from
+  `modelCatalogRepository.catalog.value`.
+
+Neither is a logic error. Both are the seam shape this pass opened with, found the
+way §4 says they get found — by running the thing.
+
 **Method note.** Every fix carries a regression test shown to fail against the
 unfixed code — reverted, watched go red, restored — rather than merely to pass
-against the fixed one. That is not ceremony: it caught one FTS test that could
+against the fixed one. Applied again for the two `reload()` defects: with both
+fixes backed out the class ran 19 tests with exactly 2 red, and the third new test
+stayed green because it pins behaviour the old code already had. That is not ceremony: it caught one FTS test that could
 never have demonstrated the old behaviour, because `MIGRATION_16_17` shares the
 trigger source with the fix. The OAuth CSRF tests were verified by mutation
 (`pendingFlows.values.firstOrNull()`, the realistic bug), and the scaffold guard

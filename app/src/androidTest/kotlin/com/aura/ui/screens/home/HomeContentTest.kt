@@ -1,13 +1,14 @@
 package com.aura.ui.screens.home
 
 import androidx.compose.ui.test.assertIsDisplayed
-
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import com.aura.ui.theme.AuraTheme
 import com.aura.ui.viewmodel.HomeLoadState
@@ -104,7 +105,15 @@ class HomeContentTest {
         // a lazy list publishes — `home-destinations` is a Column, so the call
         // could never have worked. Scrolling the outer LazyColumn to the target
         // node is what actually reaches it.
-        composeRule.onNodeWithText("All 38 tools").performScrollTo().assertIsDisplayed()
+        //
+        // The replacement, `performScrollTo`, could not work either, and this
+        // is the third blind fix to this line: it acts on a node that must
+        // already be composed, and `HomeContent`'s root is a `LazyColumn`,
+        // which composes nothing that is off screen. `performScrollToNode` asks
+        // the *list* to bring the node in, which is the only ordering that
+        // exists here.
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("All 38 tools"))
+        composeRule.onNodeWithText("All 38 tools").assertIsDisplayed()
     }
 
     @Test
@@ -125,9 +134,20 @@ class HomeContentTest {
             }
         }
 
+        // The banner and its retry sit at the top and are on screen already.
         composeRule.onNodeWithText("Calendar is unavailable").assertIsDisplayed()
-        composeRule.onNodeWithText("Keep working").assertIsDisplayed()
         composeRule.onNodeWithText("Retry").assertIsDisplayed()
+
+        // The priority card is below the fold. `assertIsDisplayed` was asserted
+        // on it directly, which cannot pass: `HomeContent`'s root is a
+        // `LazyColumn`, and a lazy list does not compose what is off screen —
+        // so the node either does not exist yet or exists un-displayed.
+        // `performScrollToNode` on the scrollable is the only thing that brings
+        // it into composition. The partial-error branch does render it — it
+        // calls `homeResolvedItems(isEmpty = false)` after the banner — which is
+        // what this test is actually for: an error that keeps the content.
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Keep working"))
+        composeRule.onNodeWithText("Keep working").assertIsDisplayed()
     }
 
     @Test
