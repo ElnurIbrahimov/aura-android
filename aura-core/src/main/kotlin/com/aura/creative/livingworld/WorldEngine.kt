@@ -1,5 +1,7 @@
 package com.aura.creative.livingworld
 
+import kotlin.math.abs
+
 /**
  * The world's mechanism. Pure, deterministic, and entirely free of Android and
  * of the network.
@@ -38,6 +40,11 @@ object WorldEngine {
         val relations = LinkedHashMap<String, Relation>(current.relations.size * 2)
         for (relation in current.relations) relations[relationKey(relation)] = decay(relation)
 
+        // Truth outs: every error shrinks a little each tick, before events
+        // refresh or deepen it. Zero rows are dropped at the end of the belief
+        // step, not here, so the step still sees what just became accurate.
+        val decayedBeliefs = current.beliefs.map { decayBelief(it) }
+
         val living = current.living()
         val byId = LinkedHashMap<String, SimEntity>(living.size * 2)
         for (entity in living) byId[entity.id] = entity
@@ -70,6 +77,8 @@ object WorldEngine {
 
         resolveClaims(claims, stocks, byId, seed, tick, events)
 
+        val nextBeliefs = beliefStep(decayedBeliefs, events, stocks, living, current.relations, byId, seed, tick)
+
         val firedIds = firings.map { it.rule.id to it.subject.id }.toSet()
         val updatedRules = current.rules.map { rule -> recordFirings(rule, firedIds, tick) }
 
@@ -78,6 +87,7 @@ object WorldEngine {
             stocks = stocks.values.toList(),
             relations = relations.values.toList(),
             rules = updatedRules,
+            beliefs = nextBeliefs,
         ).canonical()
 
         return TickResult(next, events.mapIndexed { index, event -> event.copy(seq = index) })
@@ -107,6 +117,17 @@ object WorldEngine {
             else relation.copy(magnitudeMilli = towardZero(relation.magnitudeMilli, relation.decayPerTickMilli * ticks))
         }
 
+        // Belief decay is linear too, so it folds the same way. Nothing forms
+        // and nothing is revealed inside a folded span: a folded absence is a
+        // world that quietly caught up on the news.
+        val beliefs = current.beliefs.mapNotNull { belief ->
+            if (belief.decayPerTickMilli == 0L) belief
+            else {
+                val moved = towardZero(belief.deviationMilli, belief.decayPerTickMilli * ticks)
+                if (moved == 0L) null else belief.copy(deviationMilli = moved)
+            }
+        }
+
         val summary = "$ticks quiet days passed."
         val event = WorldEvent(
             tick = atTick,
@@ -117,7 +138,7 @@ object WorldEngine {
             summary = summary,
         )
         return TickResult(
-            WorldState(current.entities, stocks, relations, current.rules).canonical(),
+            WorldState(current.entities, stocks, relations, current.rules, beliefs).canonical(),
             listOf(event),
         )
     }
@@ -312,6 +333,190 @@ object WorldEngine {
         }
     }
 
+
+    private fun decayBelief(belief: Belief): Belief {
+        if (belief.decayPerTickMilli == 0L) return belief
+        val moved = towardZero(belief.deviationMilli, belief.decayPerTickMilli)
+        return if (moved == belief.deviationMilli) belief else belief.copy(deviationMilli = moved)
+    }
+
+    private data class StockChange(val subjectId: String, val key: String, val deltaMilli: Long)
+
+    private data class Reveal(
+        val observerId: String,
+        val subjectId: String,
+        val key: String,
+        val clearedMilli: Long,
+        val reachPermille: Long,
+    )
+
+    /** The two changes a claim is, or the one a shift is. Nothing else moves a stock. */
+    private fun stockChanges(event: WorldEvent): List<StockChange> = when (event.kind) {
+        KIND_STOCK_SHIFT -> listOf(StockChange(event.actorId, event.stockKey, event.magnitudeMilli))
+        KIND_CLAIM_WON -> listOf(
+            StockChange(event.actorId, event.stockKey, event.magnitudeMilli),
+            StockChange(event.targetId, event.stockKey, -event.magnitudeMilli),
+        )
+        else -> emptyList()
+    }
+
+    /**
+     * Who knows what, after this tick's events.
+     *
+     * Runs once every stock has settled, so the deviations it writes are against
+     * the tick's final truth. For each stock-moving event it first computes reach
+     * (how far the news travels) and surprise (how wrong the non-principals were)
+     * from the deviation table as it stood, copies both onto the event, and only
+     * then updates beliefs: principals and witnesses snap to accurate, rumor
+     * reaches some of the rest, and everyone else's picture goes stale by exactly
+     * the change they missed. Snapping an error of at least [REVEAL_FLOOR_MILLI]
+     * is a discovery, and the largest few become [KIND_BELIEF_REVEAL] events.
+     */
+    private fun beliefStep(
+        beliefs: List<Belief>,
+        events: MutableList<WorldEvent>,
+        stocks: Map<String, Stock>,
+        living: List<SimEntity>,
+        relations: List<Relation>,
+        byId: Map<String, SimEntity>,
+        tickSeed: Long,
+        tick: Long,
+    ): List<Belief> {
+        val factions = living.filter { it.kind == "faction" }.sortedBy { it.id }
+        if (factions.size < 2) return beliefs.filter { it.deviationMilli != 0L }
+
+        // Local index only; iteration is always over sorted lists.
+        val table = LinkedHashMap<String, Belief>(beliefs.size * 2)
+        for (belief in beliefs) table[beliefKey(belief.observerId, belief.subjectId, belief.key)] = belief
+
+        val reveals = mutableListOf<Reveal>()
+
+        for (index in events.indices) {
+            val event = events[index]
+            val changes = stockChanges(event)
+            if (changes.isEmpty()) continue
+
+            val principals = buildSet {
+                add(event.actorId)
+                if (event.targetId.isNotBlank()) add(event.targetId)
+            }
+            val audience = factions.filter { it.id !in principals }
+
+            val knowers = mutableSetOf<String>()
+            for (faction in audience) {
+                if (watches(faction.id, principals, relations)) {
+                    knowers += faction.id
+                    continue
+                }
+                val draw = WorldRng.substream(
+                    tickSeed,
+                    "belief:${faction.id}:${event.kind}:${event.actorId}:${event.targetId}:${event.stockKey}",
+                )
+                if (WorldRng.bounded(draw, 1_000L) < RUMOR_CHANCE_PERMILLE) knowers += faction.id
+            }
+
+            // Pre-update truths. Surprise averages the audience's standing error
+            // about what just moved; reach is how many of them now know it did.
+            var surpriseSum = 0L
+            var surpriseCount = 0
+            for (faction in audience) {
+                for (change in changes) {
+                    val standing = table[beliefKey(faction.id, change.subjectId, change.key)]?.deviationMilli ?: 0L
+                    surpriseSum += permille(abs(standing), deviationCap(change.subjectId, change.key, stocks))
+                    surpriseCount++
+                }
+            }
+            val surprise = if (surpriseCount == 0) 0L else (surpriseSum / surpriseCount).coerceIn(0L, 1_000L)
+            val reach = if (audience.isEmpty()) 0L else knowers.size * 1_000L / audience.size
+            events[index] = event.copy(reachPermille = reach, surprisePermille = surprise)
+
+            for (change in changes) {
+                for (faction in factions) {
+                    val key = beliefKey(faction.id, change.subjectId, change.key)
+                    val knows = faction.id in principals || faction.id in knowers
+                    if (knows) {
+                        val standing = table.remove(key) ?: continue
+                        val cleared = abs(standing.deviationMilli)
+                        if (cleared >= REVEAL_FLOOR_MILLI) {
+                            reveals += Reveal(faction.id, change.subjectId, change.key, cleared, reach)
+                        }
+                    } else {
+                        val cap = deviationCap(change.subjectId, change.key, stocks)
+                        val standing = table[key]
+                        val updated = ((standing?.deviationMilli ?: 0L) - change.deltaMilli)
+                            .coerceIn(-cap, cap)
+                        if (updated == 0L) {
+                            table.remove(key)
+                        } else {
+                            table[key] = Belief(
+                                observerId = faction.id,
+                                subjectId = change.subjectId,
+                                key = change.key,
+                                deviationMilli = updated,
+                                provenance = Belief.PROVENANCE_STALE,
+                                sourceId = "",
+                                sinceTick = tick,
+                                decayPerTickMilli = standing?.decayPerTickMilli ?: DEFAULT_BELIEF_DECAY_MILLI,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        val emitted = reveals
+            .sortedWith(
+                compareByDescending<Reveal> { it.clearedMilli }
+                    .thenBy { it.observerId }.thenBy { it.subjectId }.thenBy { it.key },
+            )
+            .take(MAX_BELIEF_EVENTS_PER_TICK)
+        for (reveal in emitted) {
+            val observerName = byId[reveal.observerId]?.name ?: reveal.observerId
+            val subjectName = byId[reveal.subjectId]?.name ?: reveal.subjectId
+            events += WorldEvent(
+                tick = tick,
+                seq = 0,
+                kind = KIND_BELIEF_REVEAL,
+                actorId = reveal.observerId,
+                targetId = reveal.subjectId,
+                magnitudeMilli = reveal.clearedMilli,
+                stockKey = reveal.key,
+                // The discovery is as public as the event that forced it.
+                reachPermille = reveal.reachPermille,
+                surprisePermille = permille(reveal.clearedMilli, deviationCap(reveal.subjectId, reveal.key, stocks)),
+                summary = "$observerName discovers the truth of $subjectName's ${reveal.key}.",
+            )
+        }
+
+        return table.values.filter { it.deviationMilli != 0L }
+    }
+
+    /** Enemies are observed: adjacency in either direction, or a grievance this hot. */
+    private fun watches(factionId: String, principals: Set<String>, relations: List<Relation>): Boolean =
+        relations.any { relation ->
+            when (relation.kind) {
+                REL_ADJACENCY ->
+                    (relation.fromId == factionId && relation.toId in principals) ||
+                        (relation.toId == factionId && relation.fromId in principals)
+                REL_GRIEVANCE ->
+                    relation.fromId == factionId && relation.toId in principals &&
+                        relation.magnitudeMilli >= WATCH_GRIEVANCE_MILLI
+                else -> false
+            }
+        }
+
+    /** A deviation is bounded by the stock's own capacity where it declares one. */
+    private fun deviationCap(subjectId: String, key: String, stocks: Map<String, Stock>): Long {
+        val capacity = stocks[stockKey(subjectId, key)]?.capacityMilli ?: 0L
+        return if (capacity > 0L) capacity else DEVIATION_CAP_MILLI
+    }
+
+    private fun permille(value: Long, cap: Long): Long =
+        if (cap <= 0L) 0L else (value * 1_000L / cap).coerceIn(0L, 1_000L)
+
+    private fun beliefKey(observerId: String, subjectId: String, key: String): String =
+        "$observerId $subjectId $key"
+
     private fun stockKey(entityId: String, key: String): String = "$entityId $key"
 
     private fun relationKey(relation: Relation): String =
@@ -321,6 +526,28 @@ object WorldEngine {
     const val KIND_RELATION_SHIFT = "relation_shift"
     const val KIND_CLAIM_WON = "claim_won"
     const val KIND_QUIET_INTERVAL = "quiet_interval"
+    const val KIND_BELIEF_REVEAL = "belief_reveal"
+
+    /** A grievance at or above this watches its object: enemies are observed. */
+    const val WATCH_GRIEVANCE_MILLI = 400L
+
+    /** Chance per event, in permille, that a non-witness hears anyway. */
+    const val RUMOR_CHANCE_PERMILLE = 250L
+
+    /** Snapping an error at least this large is a discovery worth an event. */
+    const val REVEAL_FLOOR_MILLI = 1_000L
+
+    /** At most this many belief_reveal events per tick; the rest apply silently. */
+    const val MAX_BELIEF_EVENTS_PER_TICK = 4
+
+    /** Deviation bound for stocks that declare no capacity of their own. */
+    const val DEVIATION_CAP_MILLI = 16_000L
+
+    /** Decay for engine-formed beliefs; seeded rows may carry their own. */
+    const val DEFAULT_BELIEF_DECAY_MILLI = 2L
+
+    private const val REL_ADJACENCY = "adjacency"
+    private const val REL_GRIEVANCE = "grievance"
 
     /** Stock consulted when weighting a contested claim. Absent means average. */
     const val STOCK_MIGHT = "might"

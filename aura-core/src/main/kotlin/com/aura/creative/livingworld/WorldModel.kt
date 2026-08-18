@@ -22,6 +22,7 @@ data class WorldState(
     val stocks: List<Stock> = emptyList(),
     val relations: List<Relation> = emptyList(),
     val rules: List<Rule> = emptyList(),
+    val beliefs: List<Belief> = emptyList(),
 ) {
     /** Re-sorts every collection into canonical order. Cheap, and the only way in. */
     fun canonical(): WorldState = WorldState(
@@ -29,6 +30,7 @@ data class WorldState(
         stocks = stocks.sortedWith(compareBy({ it.entityId }, { it.key })),
         relations = relations.sortedWith(compareBy({ it.fromId }, { it.toId }, { it.kind })),
         rules = rules.sortedWith(compareBy({ -it.priority }, { it.id })),
+        beliefs = beliefs.sortedWith(compareBy({ it.observerId }, { it.subjectId }, { it.key })),
     )
 
     fun living(): List<SimEntity> = entities.filter { it.diedAtTick == 0L }
@@ -93,6 +95,36 @@ data class Relation(
     /** Pulled toward zero by this much per tick. Grudges fade unless fed. */
     val decayPerTickMilli: Long = 0L,
 )
+
+/**
+ * One observer's error about one stock.
+ *
+ * **No row means accurate common knowledge.** The observer believes the truth;
+ * a row exists only while somebody is wrong, so storage is proportional to
+ * secrets and errors, never to entities x facts. `believed = actual +
+ * deviationMilli`, and the engine drops rows whose deviation reaches zero.
+ */
+@Serializable
+data class Belief(
+    val observerId: String,
+    val subjectId: String,
+    /** Which stock the error is about ("might", "grain", "territory"). */
+    val key: String,
+    val deviationMilli: Long,
+    /** Why the deviation exists: [PROVENANCE_STALE] or [PROVENANCE_LIED_TO]. */
+    val provenance: String = PROVENANCE_STALE,
+    /** Who planted it, for lied_to. Blank for stale. */
+    val sourceId: String = "",
+    /** Tick the error last formed or grew, so a reveal can say how long it stood. */
+    val sinceTick: Long = 0L,
+    /** Linear pull toward zero per tick: truth outs. Folds like relation decay. */
+    val decayPerTickMilli: Long = 2L,
+) {
+    companion object {
+        const val PROVENANCE_STALE = "stale"
+        const val PROVENANCE_LIED_TO = "lied_to"
+    }
+}
 
 /**
  * One executable law of the world.
@@ -194,7 +226,7 @@ sealed class Effect {
 data class WorldEvent(
     val tick: Long,
     val seq: Int,
-    /** `stock_shift`, `relation_shift`, `claim_won`, `claim_lost`, `quiet_interval`. */
+    /** `stock_shift`, `relation_shift`, `claim_won`, `claim_lost`, `quiet_interval`, `belief_reveal`. */
     val kind: String,
     val actorId: String,
     val targetId: String = "",
@@ -206,6 +238,14 @@ data class WorldEvent(
      * denominator — a number is only large or small relative to something.
      */
     val stockKey: String = "",
+    /**
+     * How far the news travelled and how wrong the world was about it, in
+     * permille. The belief step computes both from the deviation table as it
+     * stood *before* the event applied, so they are pre-event truths; they
+     * feed notability and are folded into the persisted score.
+     */
+    val reachPermille: Long = 0L,
+    val surprisePermille: Long = 0L,
     val summary: String,
 ) {
     /**
