@@ -718,14 +718,14 @@ internal fun com.aura.creative.livingworld.LivingWorldEntity.toBackup() = Living
     id = id, projectId = projectId, branchId = branchId, rootSeed = rootSeed,
     branchSalt = branchSalt, parentWorldId = parentWorldId, forkedAtTick = forkedAtTick,
     worldEpochMs = worldEpochMs, currentTick = currentTick, stateJson = stateJson,
-    status = status, createdAt = createdAt, updatedAt = updatedAt,
+    genesisJson = genesisJson, status = status, createdAt = createdAt, updatedAt = updatedAt,
 )
 
 internal fun LivingWorldBackup.toEntity() = com.aura.creative.livingworld.LivingWorldEntity(
     id = id, projectId = projectId, branchId = branchId, rootSeed = rootSeed,
     branchSalt = branchSalt, parentWorldId = parentWorldId, forkedAtTick = forkedAtTick,
     worldEpochMs = worldEpochMs, currentTick = currentTick, stateJson = stateJson,
-    status = status, createdAt = createdAt, updatedAt = updatedAt,
+    genesisJson = genesisJson, status = status, createdAt = createdAt, updatedAt = updatedAt,
 )
 
 internal fun com.aura.creative.livingworld.LivingEventEntity.toBackup() = LivingEventBackup(

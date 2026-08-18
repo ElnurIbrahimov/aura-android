@@ -133,10 +133,10 @@ aura-android-clean/
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v28, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
+- MemoryDB v29, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
-- Backup SCHEMA_VERSION 28 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
+- Backup SCHEMA_VERSION 29 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
 ### Tools (80)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
@@ -280,7 +280,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 `MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
 `k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
 
-- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v28), kept current by SQL
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v29), kept current by SQL
   triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
   and forced a full table scan.
 - **BM25** takes its corpus size and per-term document frequency from the index rather than from

@@ -68,12 +68,12 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Global search (conversations, memories, tasks, hands, skills, knowledge graph in one query)
 - Google Workspace + Microsoft Graph integrations (Gmail, Google Calendar, Google Drive, Outlook Mail, Outlook Calendar, OneDrive — OAuth 2.0, tokens in SecureDataStore)
 - In-app WebView, Canvas/Artifacts, Compose-native charts, JavaScript code interpreter, inline image generation, proactive in-chat messages
-- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v28, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
+- Backup/restore (JSON export/import, SecureDataStore for credentials, schema v29, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - Craft guidance is **data, not constants**. The genre and mode prompts in `GenreCraftPrompts` are seeded into `SkillsStore` as builtin skills on first run (`CraftSkills`), so the author can read and rewrite them, `use_skill("craft-novel")` returns them, and the evolution system's `PATCH_SKILL` action finally has real targets. The constants stay as the seed source *and* the fallback: a deleted, blank or unreadable skill drafts with the craft that shipped rather than with none. Builtins are editable and resettable, never deletable.
 - **A manuscript can leave the phone.** Export in the Manuscript tab compiles the drafted outline into one Markdown document and hands it to the share sheet — Drive, Obsidian, email, anywhere. Until now the only outbound paths in the app were images and URLs, so prose, the thing Creative Studio exists to produce, terminated in a Room table. Gaps are stated rather than hidden: a beat with no scene reads `*[not yet written]*`, one whose text cannot be recovered reads `*[scene text unavailable]*`, and scenes orphaned by a re-planned outline are counted in a footer instead of vanishing. Reads through `CreativeArtifactStore.currentRevision` rather than `currentContent`, whose `previewText` fallback would place 200-character stubs mid-novel that read like finished scenes.
 - 3,356 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
   - **Down 45, on purpose.** Deleting `SpecialistRouter`, `com.aura.pipeline.ProductionPipeline` and `AgentTextAccumulator` took their tests with them — all of it thorough coverage of code that had no production caller. ENGINEERING_HISTORY §4 records test count becoming the quality metric while screens went untested; a number that can only go up is the mechanism by which that happens.
-- 77 instrumented test methods (30 Room migration-chain methods in :aura-core, 43 in :app — 38 Compose rendering, 5 device smoke). The :aura-core migration suites now **execute** in CI on an emulator (the `migrations` job); :app's are still **compiled** only, and run via `connectedAndroidTest` on a device
+- 78 instrumented test methods (31 Room migration-chain methods in :aura-core, 43 in :app — 38 Compose rendering, 5 device smoke). The :aura-core migration suites now **execute** in CI on an emulator (the `migrations` job); :app's are still **compiled** only, and run via `connectedAndroidTest` on a device
 - 5 device smoke checks (`scripts/smoke.sh`) asserting outcomes against a real model and a real database: a stated preference becomes a categorised memory, a pleasantry becomes none, an imported document is retrievable and outlined, a fired worker leaves a non-empty run detail, the screenshot path answers rather than going silent. These are the only tests in the repo that exercise the real provider graph.
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -367,7 +367,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v28 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
+| MemoryDatabase | v29 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v7 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
@@ -380,7 +380,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-28, all committed — migration tests cover
+schema exports span versions 1-29, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -470,7 +470,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 68 entities, 52 migrations, schema export)
+- Room 2.8.4 (11 databases, 68 entities, 53 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

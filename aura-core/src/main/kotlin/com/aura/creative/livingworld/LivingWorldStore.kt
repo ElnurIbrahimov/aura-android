@@ -37,6 +37,7 @@ class LivingWorldStore @Inject constructor(
         worldEpochMs: Long,
         rootSeed: Long = java.security.SecureRandom().nextLong(),
     ): LivingWorldEntity {
+        val encoded = encode(state)
         val world = LivingWorldEntity(
             id = UUID.randomUUID().toString(),
             projectId = projectId,
@@ -44,7 +45,10 @@ class LivingWorldStore @Inject constructor(
             rootSeed = rootSeed,
             worldEpochMs = worldEpochMs,
             currentTick = 0L,
-            stateJson = encode(state),
+            stateJson = encoded,
+            // Written once, never updated: the exact state fork-at-past
+            // replays from. commitTick touches only stateJson and the tick.
+            genesisJson = encoded,
         )
         worldDao.upsert(world)
         return world

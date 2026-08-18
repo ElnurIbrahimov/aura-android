@@ -724,4 +724,36 @@ class MemoryDatabaseMigrationTest {
             assertTrue("grade must stay NULL until something judges it", it.isNull(0))
         }
     }
+
+    @Test
+    fun migrate28To29() {
+        val db = helper.createDatabase("test-aura-memory.db", 28)
+        db.execSQL(
+            "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, " +
+                "templateId, turnCount, createdAt, updatedAt) " +
+                "VALUES ('p1', 'P', '', '', '', '{}', 'novel', 0, 0, 0)",
+        )
+        db.execSQL(
+            "INSERT INTO living_worlds (id, projectId, branchId, rootSeed, branchSalt, " +
+                "parentWorldId, forkedAtTick, worldEpochMs, currentTick, stateJson, status, " +
+                "createdAt, updatedAt) " +
+                "VALUES ('w1', 'p1', 'b1', 7, 0, '', 0, 0, 5, '{}', 'running', 0, 0)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            "test-aura-memory.db",
+            29,
+            true,
+            MemoryModule.MIGRATION_28_29,
+        )
+
+        // The pre-v29 world survives with an empty genesis — the exact state
+        // fork-at-past checks before declaring itself unavailable.
+        migrated.query("SELECT genesisJson, currentTick FROM living_worlds WHERE id = 'w1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("", it.getString(0))
+            assertEquals(5, it.getInt(1))
+        }
+    }
 }
