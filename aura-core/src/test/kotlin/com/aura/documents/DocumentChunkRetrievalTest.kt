@@ -274,15 +274,21 @@ class DocumentChunkRetrievalTest {
         // it also matched: arbitrarily, since ids are content hashes, and
         // permanently, since the order never changes.
         //
-        // The ids are chosen so the padded one sorts first, and the padding
-        // must EXCEED the candidate window or the old single-query form fits
-        // both documents in and this test passes against the defect. The
-        // window is limit * ftsOverfetch * CANDIDATE_WIDTH = 5 * 4 * 5 = 100.
-        // Written first at 60 chunks, which proved nothing.
-        importDocument("aaa-first", "padded.txt", (0 until 140).map { "protocol filler passage $it" })
+        // The padding must EXCEED the candidate window, or the old
+        // single-query form fits both documents in and this passes against the
+        // defect it exists for. The window is
+        // limit * ftsOverfetch * CANDIDATE_WIDTH, so shrinking `limit` shrinks
+        // the fixture: at limit = 1 the window is 20, and 25 filler chunks
+        // clears it.
+        //
+        // Written first at 60 chunks against a window of 100, which proved
+        // nothing, then at 140, which proved it and cost a Robolectric insert
+        // of 141 rows on a two-core CI runner. The ids are chosen so the padded
+        // document sorts first.
+        importDocument("aaa-first", "padded.txt", (0 until 25).map { "protocol filler passage $it" })
         importDocument("zzz-second", "wanted.txt", listOf("protocol handshake negotiation detail"))
 
-        val results = retrieval.search("protocol handshake", limit = 5)
+        val results = retrieval.search("protocol handshake", limit = 1)
 
         assertTrue(
             "expected a passage from the second document, got ${results.map { it.documentName }}",
