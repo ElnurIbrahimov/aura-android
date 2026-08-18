@@ -134,9 +134,35 @@ fun ChatHeader(
         // them rather than the other way round. The 0.55 cap still applies on
         // wide screens, where there is room and halving the pill would be a
         // regression for no reason.
-        val trailingControls = AuraDimensions.minimumTouchTarget * 3
-        val headerChrome = AuraSpacing.xs * 2 + AuraSpacing.xxs * 5
-        val pillBudget = (maxWidth - trailingControls - headerChrome).coerceAtLeast(112.dp)
+        //
+        // Counted from what the Row actually draws, not from a literal. The
+        // literal was 3, and the Row draws a fourth fixed-width control
+        // whenever there are agents to pick from — which is always, because
+        // `ProactiveBootstrap` seeds seven builtins on every startup. That put
+        // the budget 48dp plus one gap short on every real install, and left
+        // the overflow button at 0dp: present in the tree, unreachable by
+        // thumb, which is the exact defect this budget was added to fix.
+        //
+        // It survived because `availableAgents` defaults to empty and
+        // `ChatHeaderTest` never set it, so the test exercised the one
+        // configuration production never has. The test now covers both.
+        val agentPickerShown = availableAgents.isNotEmpty()
+        val fixedControls = if (agentPickerShown) 4 else 3
+        val gapCount = if (agentPickerShown) 6 else 5
+        val trailingControls = AuraDimensions.minimumTouchTarget * fixedControls
+        val headerChrome = AuraSpacing.xs * 2 + AuraSpacing.xxs * gapCount
+        // No floor. `coerceAtLeast(112.dp)` was here so the pills could not
+        // vanish on a narrow screen, and it is precisely what kept the defect
+        // alive after the control count was corrected: at 320dp there is 88dp
+        // left for both pills, the floor handed them 112dp anyway, and a Row
+        // measures unweighted children in order — so the pills took width that
+        // did not exist and the last child, the overflow button, absorbed the
+        // shortfall. Measured on an emulator at 28dp, and 0dp at 280dp.
+        //
+        // A floor that can exceed the space available is not a floor, it is an
+        // overdraft. The buttons cannot shrink and the pills can, so the pills
+        // yield — which is what the paragraph above always claimed this did.
+        val pillBudget = (maxWidth - trailingControls - headerChrome).coerceAtLeast(0.dp)
         val maxPillWidth = minOf(maxWidth * 0.55f, pillBudget / 2)
         val maxLabelWidth = (maxPillWidth - 52.dp).coerceAtLeast(56.dp)
 

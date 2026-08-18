@@ -62,11 +62,42 @@ class SearchDocumentsTool @Inject constructor(
                 return@Tool ToolResult.Ok("No imported document matches \"$query\".")
             }
 
-            ToolResult.Ok(
-                passages.joinToString("\n\n") { passage ->
-                    "[${passage.citation}] (chars ${passage.charStart}-${passage.charEnd})\n${passage.text}"
+            // Budgeted, and no character range.
+            //
+            // The range read as `(chars 12345-14000)`, which looks like a
+            // position in the user's file and is not one: the offsets address
+            // the *normalised* text `DocumentChunker` produces and discards,
+            // and nothing persists it. On a CRLF document the drift grows with
+            // every line. Document name plus "part N" is a citation a person
+            // can actually follow, so that is all this prints.
+            //
+            // The budget matters because the agentic loop truncates every tool
+            // result at MAX_TOOL_RESULT_CHARS (4,000). Five 1,800-character
+            // passages built ~9,000, so three were computed and thrown away
+            // and the last arrived chopped mid-word, under a header claiming a
+            // range it no longer contained. Whole passages, fewer of them.
+            val rendered = StringBuilder()
+            var used = 0
+            var included = 0
+            for (passage in passages) {
+                val block = buildString {
+                    append("[").append(passage.citation).appendLine("]")
+                    append(passage.text)
                 }
-            )
+                val cost = block.length + if (included == 0) 0 else 2
+                if (included > 0 && used + cost > RESULT_BUDGET_CHARS) break
+                if (included > 0) rendered.appendLine().appendLine()
+                rendered.append(block)
+                used += cost
+                included++
+            }
+            if (included < passages.size) {
+                rendered.appendLine().appendLine()
+                    .append("(")
+                    .append(passages.size - included)
+                    .append(" more matching passage(s) not shown - narrow the query or lower `limit`.)")
+            }
+            ToolResult.Ok(rendered.toString())
         },
     )
 
@@ -78,5 +109,13 @@ class SearchDocumentsTool @Inject constructor(
          * more context than most models should be handed from one tool call.
          */
         const val MAX_LIMIT = 20
+
+        /**
+         * Kept under `MemoryAugmentedAgenticLoop`'s 4,000-character cap on tool
+         * results, with room for the trailing note. Exceeding that ceiling does
+         * not deliver more — it truncates mid-word and discards everything
+         * computed past it.
+         */
+        const val RESULT_BUDGET_CHARS = 3_600
     }
 }

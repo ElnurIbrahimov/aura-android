@@ -234,10 +234,27 @@ class ProactiveScheduler @Inject constructor(
      * from the real thing tests the button.
      */
     fun requestBackupNow() {
-        WorkManager.getInstance(context).enqueue(
+        // Unique work, not a bare enqueue with a tag. A tag groups runs for
+        // querying; it does not stop a second one starting. Two taps in the
+        // same second race the same file — backup filenames resolve to one
+        // second, and the worker deletes, creates and then writes — so the
+        // loser truncates the winner, and one of the three retained copies
+        // becomes a zero-byte file. The whole point of retaining three is that
+        // a corrupt one is not the only one.
+        //
+        // KEEP rather than REPLACE: a second tap while a backup is already
+        // running should join it, not cancel a half-written file and start
+        // over.
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            MANUAL_BACKUP_WORK,
+            androidx.work.ExistingWorkPolicy.KEEP,
             androidx.work.OneTimeWorkRequestBuilder<com.aura.backup.BackupWorker>()
                 .addTag("automatic-backup")
                 .build(),
         )
+    }
+
+    private companion object {
+        const val MANUAL_BACKUP_WORK = "manual-backup-now"
     }
 }

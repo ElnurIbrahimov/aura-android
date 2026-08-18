@@ -705,6 +705,92 @@ written to prove the orphan problem passed against code that could not have
 fixed it. Three pieces of documentation and one redundant `clearFtsIndex()`
 method had been written on the strength of it.
 
+### The audit that inverted the backlog (2026-08-18, same day)
+
+Five open items remained after the pass above, and they had been *assumed*
+rather than checked. Twelve agents — eight read-only auditors, three adversarial
+lenses (evidence, necessity, risk), one synthesis — produced 63 claims over the
+whole repo.
+
+**Two of the five should never have been open.**
+
+- **Retention on the primary tables.** The premise was wrong. `kg_nodes` and
+  `kg_edges` are content-addressed — `KgId.node()`/`edge()` are SHA-256 of
+  type+label — so mentioning a thing again *overwrites* its row. Four of the six
+  tables named do not grow with use at all, and the two that do reach ~45 MB
+  after three years, on a phone with 246 GB free.
+- **The `contentHash` index.** The recorded justification, "indexing `content`
+  would roughly double the store's on-disk size", is wrong by about 4× — it is
+  +16%. And `DocumentChunkEntity.contentHash`, cited as proof the shape works,
+  is written and indexed and **read by nothing**. Against that: the migration
+  would run SHA-256 over the whole store on first open, with no progress bar and
+  no backup behind it.
+
+Both rows in §3 now carry the correction rather than the original reasoning. Three
+of the eleven false claims the audit found had been load-bearing in decisions
+already taken, which is the argument for fixing a journal rather than appending to
+it.
+
+**What was actually worth doing was new, and most of it was hours old.**
+
+- **The chat header fix from earlier the same day did not work.** The width budget
+  counted three fixed-width controls beside a Row that draws four — the agent
+  picker, present on every install because `ProactiveBootstrap` seeds seven
+  builtins at startup. `ChatHeaderTest` was green because `availableAgents`
+  defaults to empty and no test set it: the suite certified the one configuration
+  production never has.
+  **Correcting the count was still not enough**, and that is the more useful half.
+  `pillBudget.coerceAtLeast(112.dp)` is a floor that can exceed the space
+  available: at 320dp there are 88dp left for the two pills and the floor handed
+  them 112dp anyway. A `Row` measures unweighted children in order, so the pills
+  took width that did not exist and the last child — the overflow button —
+  absorbed the shortfall. Measured on an emulator at 28dp, then 0dp at 280dp,
+  *after* the first fix. A floor that can exceed what is available is an
+  overdraft, not a floor.
+- **A configured custom endpoint read as blank and refused to save.**
+  `customBaseUrl`, `customApiKey` and `customIsConfigured` were not among the
+  fields `reload()` assigns — the *third* instance in that one function of the
+  defect diagnosed and half-fixed hours earlier. Five occurrences in total now:
+  `credentialStates`, `keyDrafts`, the catalog lists, and these three. That earns
+  `SettingsReloadCoversStateTest`, which reads the declared fields and the
+  assigned ones and fails on any difference not named in one of two documented
+  lists — *restored elsewhere* and *deliberately reset*, kept separate so a sixth
+  omission cannot hide behind the wrong label.
+- **Two of three Hands filter chips did nothing.** `filteredHands` applied status
+  and search correctly and had no consumer anywhere in the repo; the screen
+  recomputed from the search box alone. Its only test set the field and read it
+  back on the next line.
+- **Document search returned passages from one document.** `ORDER BY
+  c.documentId, c.ordinal LIMIT :limit` is a prefix *by document*, because SQLite
+  applies LIMIT after ORDER BY — so past ~100 matching chunks in the
+  lexicographically first file, every other document was invisible. Replaced with
+  one query for the matching ids and a bounded query per document; deliberately
+  **not** `ROW_NUMBER() OVER (PARTITION BY …)`, which compiles, passes on a modern
+  emulator, and throws at runtime on Android 8-10 at `minSdk = 26`.
+- **The character range in every citation was fiction.** The offsets address the
+  normalised text `DocumentChunker` produces and discards, and nothing persists
+  it — while `DocumentChunkEntity` documented the same columns as "offset in the
+  original text". Two confident statements, one file apart, one wrong. The range
+  is no longer printed and the KDoc says what is true.
+- **`search_documents` overran its own budget.** It could build ~36,800 characters
+  against the loop's 4,000-character cap, so most of what it computed was
+  discarded and the last passage arrived chopped mid-word.
+- **Two backup safety fixes.** The manual backup was enqueued with a *tag* rather
+  than a unique name, so two taps in the same second raced the same file; and
+  `purgeAll()` sat one statement outside the `try` whose catch performs the
+  rollback, so a failure *during the wipe* skipped recovery entirely.
+- **Documents imported before the chunk table had a writer are invisible to
+  document search**, while the library shows a chunk count for them. Surfaced in
+  the UI rather than repaired: the offsets are unrecoverable and fabricating them
+  would be the same error as printing a range that addresses nothing. Re-import
+  fixes it, because document ids are content hashes.
+
+**The pattern, stated once.** Every defect above is two correct pieces wired
+together wrongly, and each was invisible to a 3,300-test suite because both pieces
+are individually right and individually tested. A width formula counting three
+buttons beside a row that draws four. A state rebuild that restores eighty fields
+and forgets three. A filter that works, on a screen that never calls it.
+
 **Method note.** Every fix carries a regression test shown to fail against the
 unfixed code — reverted, watched go red, restored — rather than merely to pass
 against the fixed one. Applied again for the two `reload()` defects: with both
@@ -1247,8 +1333,8 @@ and inflated the document frequencies BM25 had just started depending on.
 
 | Item | Detail |
 |------|--------|
-| Nothing prunes the primary tables, and that may be correct | `memories`, `kg_nodes`, `kg_edges`, `world_events`, `preference_signals`, `routing_outcomes` and `memory_feedback` have no time-based delete at all — not a missing caller this time, but a missing query. Deliberately **not** added on 2026-08-18: `MemoryEntity`'s own KDoc states "nothing here is ever destroyed", and `retire` is a soft-hide by design, so adding retention to the memory store is a product decision rather than a defect fix. The two unbounded `GROUP BY`s over full tables are the sharper end of it — `netDownvotedMemoryIds` runs on the recall path, and `statsForRole` means a model that was good two years ago never stops voting. |
-| `existsByContent` is a full table scan on every insert | `content` is not indexed and `SELECT COUNT(*) … WHERE content = :content` runs per stored memory *and per imported document chunk*. Indexing `content` directly would roughly double the store's on-disk size — a B-tree over its largest TEXT column, rewritten on every insert. The right shape is a `contentHash` column plus index, which `DocumentChunkEntity` already does, but that is a v27→v28 migration with backup mappers and was queued rather than slipped into an unrelated pass. |
+| No retention on the primary tables | **Closed as declined (2026-08-18), and the premise was wrong.** `kg_nodes` and `kg_edges` are *content-addressed* — `KgId.node()`/`edge()` are SHA-256 of type+label (`KgId.kt:17-21`) — so mentioning the same thing again overwrites its row rather than adding one. Their growth tracks the user's vocabulary, not their usage, and four of the six tables originally named do not grow with use at all. The two that genuinely do reach roughly 45 MB after three years of heavy single-user use, on a phone with 246 GB free. `memories` is additionally bounded in practice by `decayScore` and `retiredAt`, and `MemoryEntity` states outright that nothing there is ever destroyed — so deleting it is a product change, not a fix. Nothing to do. |
+| `existsByContent` is a full table scan on every insert | **Closed as declined (2026-08-18), and the reasoning that was here was wrong.** The scan is real — `content` is unindexed and the equality runs per stored memory and per imported chunk — but it needs on the order of 40,000 rows before a person could perceive it, and on the chat path it hides behind a multi-second model call. The claim that indexing `content` would *roughly double the store's on-disk size* is wrong by about 4×: measured, it is +16% for chat text and +26% for document text. The real objection is different and smaller — the index key would average ~1,850 bytes against a 4 KB page. The `contentHash` alternative was also mis-recorded as proven by precedent: `DocumentChunkEntity.contentHash` is written and indexed and **read by nothing**, so it is not a working example of the shape, it is dead weight. Against that, the migration would run SHA-256 over the entire memory store on first app open, with no progress indicator and no backup to fall back on. Not worth it. |
 | Document import writes chunks as memories | **Stages 1 and 2 done (2026-08-18); stage 3 blocked on measurement.** Import now writes `document_chunks` as well as `memories`, with real citations (documentId, ordinal, character range, content hash) and deterministic ids so a re-import replaces rather than accumulates. `document_chunks_fts` plus `MIGRATION_27_28` makes them searchable as documents, with `N` and `df` taken over the chunk corpus alone, read by a new `search_documents` tool — `index_document` had had no counterpart, so the only way back out of a document was general recall. Recall itself is untouched and reads `memories` exactly as before, so this cannot have made it worse. **Stage 3 — dropping the double write — is a retrieval change and is not being made on intuition:** whether personal recall improves once a thousand book chunks stop contributing to its IDF is a scorecard question, and Gate B still needs a corpus. |
 | `ToolExecutor` pins an IO thread per tool | `runInterruptible(Dispatchers.IO) { runBlocking { … } }` occupies an IO thread for the tool's whole duration, including for purely-suspending tools that would otherwise release it. Bounded to 8 via `limitedParallelism`. **Cancellation itself is correct** — see `ToolExecutorCancellationProbeTest`. |
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |

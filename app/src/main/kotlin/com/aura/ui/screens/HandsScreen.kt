@@ -98,6 +98,7 @@ fun HandsScreen(
     viewModel: HandsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val visibleHands by viewModel.filteredHands.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
     var editingHand by remember { mutableStateOf<Hand?>(null) }
     var showNewHand by remember { mutableStateOf(false) }
@@ -177,16 +178,13 @@ fun HandsScreen(
             Spacer(Modifier.height(AuraSpacing.medium))
 
             if (selectedTab == 0) {
-                val visibleHands = run {
-                    val q = state.searchQuery.trim()
-                    if (q.isBlank()) state.hands else {
-                        val needle = q.lowercase()
-                        state.hands.filter { hand ->
-                            hand.name.lowercase().contains(needle) ||
-                                hand.triggerPhrase.lowercase().contains(needle)
-                        }
-                    }
-                }
+                // `filteredHands` from the ViewModel, not a second filter
+                // written here. The ViewModel's version applies the status
+                // chips *and* the search box; this copy applied search only,
+                // so tapping "Enabled" or "Disabled" highlighted the chip and
+                // changed nothing. `filteredHands` had no consumer anywhere in
+                // the repo — the filter worked, on a screen that never called
+                // it.
                 when {
                     state.loading -> HandsSkeletonLoading()
                     visibleHands.isEmpty() -> HandsEmptyState()

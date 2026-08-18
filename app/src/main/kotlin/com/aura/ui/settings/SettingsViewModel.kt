@@ -483,6 +483,7 @@ class SettingsViewModel @Inject constructor(
             val roleFallbacks = ModelRole.configurable.associateWith { role ->
                 modelRoleRouter.resolve(role).orEmpty()
             }
+            val customEndpoint = customEndpointState.state.value
             val mergedPolicies = defaultPolicies().toMutableMap().apply {
                 toolPolicyStore.allPolicies.first().forEach { (name, policy) -> this[name] = policy }
             }
@@ -563,6 +564,33 @@ class SettingsViewModel @Inject constructor(
                 interruptionVerdicts = verdicts,
                 interruptionPolicies = storedPolicies,
                 triggers = triggers,
+                // Seeded from the live endpoint state for the same reason
+                // `credentialStates` is seeded above and the catalog is
+                // re-derived below: this assignment replaces the whole state
+                // object, and these three were not in it. They are filled by a
+                // collector, and a StateFlow does not re-emit a value a
+                // consumer discarded — so a configured custom endpoint read as
+                // blank and unconfigured from the first reload onward, and
+                // "Save & Test" answered "Base URL and API key are required"
+                // for an endpoint that works.
+                //
+                // Third instance of one defect in one function. The guard that
+                // stops a fourth is `SettingsReloadCoversStateTest`.
+                customBaseUrl = customEndpoint.first,
+                customApiKey = customEndpoint.second,
+                customIsConfigured = customEndpoint.first.isNotBlank() && customEndpoint.second.isNotBlank(),
+                // Seeded from the live endpoint state for the same reason
+                // `credentialStates` is seeded above and the catalog is
+                // re-derived below: this assignment replaces the whole state
+                // object, and these three were not in it. They are filled by a
+                // collector, and a StateFlow does not re-emit a value a
+                // consumer discarded — so a configured custom endpoint read as
+                // blank and unconfigured from the first reload onward, and
+                // "Save & Test" answered "Base URL and API key are required"
+                // for an endpoint that works.
+                //
+                // Third instance of one defect in one function. The guard that
+                // stops a fourth is `SettingsReloadCoversStateTest`.
             )
             // Re-derive everything the catalog owns. The assignment above is a
             // whole new SettingsUiState, so availableModels, imageModels,

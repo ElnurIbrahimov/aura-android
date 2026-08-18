@@ -80,11 +80,23 @@ class DocumentChunkRetrieval @Inject constructor(
         if (terms.isEmpty()) return emptyList()
         val ftsQuery = FtsQuery.build(terms) ?: return emptyList()
 
-        // Over-fetched for the same reason the memory path over-fetches: the
-        // window is ordered by document and ordinal, which is not a relevance
-        // signal, so at the plain limit BM25 would be re-ranking "the first N
-        // chunks in import order that share a word".
-        val candidates = chunkDao.searchFts(ftsQuery, limit * config.ftsOverfetch * CANDIDATE_WIDTH)
+        // Per document, not one window across all of them. A single query
+        // ending `ORDER BY documentId, ordinal LIMIT n` takes a *prefix by
+        // document*, so with two books the second was invisible for any query
+        // the first also matched — arbitrarily and permanently, since document
+        // ids are content hashes.
+        //
+        // Over-fetched within each document for the same reason the memory
+        // path over-fetches: ordinal order is not a relevance signal, so at
+        // the plain limit BM25 would be re-ranking "the first few chunks that
+        // share a word".
+        val documentIds = chunkDao.matchingDocumentIds(ftsQuery)
+        if (documentIds.isEmpty()) return emptyList()
+        val perDocument = (limit * config.ftsOverfetch * CANDIDATE_WIDTH)
+            .coerceAtMost(MAX_CANDIDATES_PER_DOCUMENT)
+        val candidates = documentIds
+            .take(MAX_DOCUMENTS_SCANNED)
+            .flatMap { chunkDao.searchFtsInDocument(ftsQuery, it, perDocument) }
         if (candidates.isEmpty()) return emptyList()
 
         val corpusSize = chunkDao.countChunks()
@@ -126,6 +138,20 @@ class DocumentChunkRetrieval @Inject constructor(
 
     private companion object {
         const val DEFAULT_LIMIT = 5
+
+        /**
+         * Ceiling per document, so one enormous import cannot turn a search
+         * into a full-table read now that the fetch is per document rather
+         * than one bounded window.
+         */
+        const val MAX_CANDIDATES_PER_DOCUMENT = 200
+
+        /**
+         * Ceiling on documents scanned in one search. A personal library is
+         * tens of files, not thousands; this bounds the query count rather
+         * than expressing a belief about how many documents are useful.
+         */
+        const val MAX_DOCUMENTS_SCANNED = 50
 
         /**
          * Extra width on top of [RetrievalConfig.ftsOverfetch].

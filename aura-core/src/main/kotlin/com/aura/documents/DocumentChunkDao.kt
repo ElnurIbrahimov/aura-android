@@ -43,7 +43,30 @@ interface DocumentChunkDao {
     suspend fun deleteForDocument(documentId: kotlin.String)
 
     /**
-     * Lexical candidate fetch over the chunk index.
+     * Which documents contain a match at all.
+     *
+     * The first half of a two-step fetch, and the reason there are two steps:
+     * a single `... ORDER BY c.documentId, c.ordinal LIMIT :limit` is a prefix
+     * **by document**, because SQLite applies LIMIT after ORDER BY. With two
+     * imported books and a window of 100, a query matching 100+ chunks of the
+     * first one returned nothing from the second — permanently, since document
+     * ids are content hashes and the order never changes.
+     *
+     * Deliberately not `ROW_NUMBER() OVER (PARTITION BY documentId ...)`, which
+     * is the obvious one-query form: `minSdk = 26` and the project uses plain
+     * `room-runtime` with no bundled SQLite, so window functions need Android
+     * 11+. That version compiles, passes every test on a modern emulator, and
+     * throws a syntax error at runtime on Android 8-10.
+     */
+    @Query(
+        "SELECT DISTINCT c.documentId FROM document_chunks c " +
+            "JOIN document_chunks_fts f ON f.rowid = c.rowid " +
+            "WHERE f.content MATCH :ftsQuery",
+    )
+    suspend fun matchingDocumentIds(ftsQuery: kotlin.String): List<kotlin.String>
+
+    /**
+     * The candidate window for one document.
      *
      * Joined back to `document_chunks` on `rowid`, and to `documents` for the
      * name a citation needs, so an orphaned index row matches nothing. Matches
@@ -52,20 +75,23 @@ interface DocumentChunkDao {
      * [ftsQuery] is an already-escaped FTS4 MATCH expression — build it with
      * `FtsQuery.build`, never by string-concatenating user input.
      *
-     * Ordered by `documentId, ordinal` rather than by any relevance signal:
-     * FTS4 has no `bm25()` (that is FTS5), so this is a candidate *window* and
-     * the ranking happens in Kotlin. `MemoryDao.searchFts` records what happens
-     * when the window is mistaken for a ranking — it ordered by freshness, and
-     * every stage after it re-ranked a set chosen with no relevance in it.
+     * Ordered by `ordinal` rather than by any relevance signal: FTS4 has no
+     * `bm25()` (that is FTS5), so this is a candidate *window* and the ranking
+     * happens in Kotlin. `MemoryDao.searchFts` records what happens when the
+     * window is mistaken for a ranking.
      */
     @Query(
         "SELECT c.*, d.name AS documentName FROM document_chunks c " +
             "JOIN document_chunks_fts f ON f.rowid = c.rowid " +
             "JOIN documents d ON d.id = c.documentId " +
-            "WHERE f.content MATCH :ftsQuery " +
-            "ORDER BY c.documentId, c.ordinal LIMIT :limit",
+            "WHERE f.content MATCH :ftsQuery AND c.documentId = :documentId " +
+            "ORDER BY c.ordinal LIMIT :limit",
     )
-    suspend fun searchFts(ftsQuery: kotlin.String, limit: Int = 200): List<DocumentChunkHit>
+    suspend fun searchFtsInDocument(
+        ftsQuery: kotlin.String,
+        documentId: kotlin.String,
+        limit: Int = 200,
+    ): List<DocumentChunkHit>
 
     /** Corpus size for the chunk index — the `N` in BM25's IDF, over documents only. */
     @Query("SELECT COUNT(*) FROM document_chunks")

@@ -192,6 +192,18 @@ class DocumentRepository @Inject constructor(
 
     suspend fun get(id: String): DocumentEntity? = documentDao.getById(id)
 
+    /**
+     * Which imported documents `search_documents` cannot see.
+     *
+     * Empty on any install where every document was imported after chunks got
+     * a writer. See [DocumentDao.idsWithoutChunks] for why these exist and why
+     * the answer is to say so rather than to backfill.
+     */
+    suspend fun idsMissingChunks(): Set<String> =
+        runCatching { documentDao.idsWithoutChunks().toSet() }
+            .onFailure { android.util.Log.w("DocumentRepository", "chunk coverage check failed: ${it.message}", it) }
+            .getOrDefault(emptySet())
+
     companion object {
         const val MAX_TEXT_CHARS = 2_000_000
         fun sourceFor(id: String): String = "document:$id"

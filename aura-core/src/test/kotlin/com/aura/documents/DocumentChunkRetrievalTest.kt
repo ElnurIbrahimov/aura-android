@@ -81,7 +81,7 @@ class DocumentChunkRetrievalTest {
         // which is the exact hazard MemoryFtsSchema's KDoc names.
         importDocument("doc-a", "manual.txt", listOf("the coolant loop runs at ambient pressure"))
 
-        val hits = chunks.searchFts("\"coolant\"", 10)
+        val hits = chunks.searchFtsInDocument("\"coolant\"", "doc-a", 10)
 
         assertEquals(1, hits.size)
         assertEquals("doc-a:0", hits.single().chunk.id)
@@ -176,7 +176,7 @@ class DocumentChunkRetrievalTest {
             )
         )
 
-        assertEquals(1, chunks.searchFts("\"valve\"", 10).size)
+        assertEquals(1, chunks.searchFtsInDocument("\"valve\"", "doc-g", 10).size)
         assertTrue(retrieval.search("twelve").isEmpty())
         assertTrue(retrieval.search("twenty").isNotEmpty())
     }
@@ -197,7 +197,7 @@ class DocumentChunkRetrievalTest {
 
         chunks.updateEmbedding("doc-h:0", ByteArray(1536), "model", 384, 1L)
 
-        assertEquals(1, chunks.searchFts("\"indexed\"", 10).size)
+        assertEquals(1, chunks.searchFtsInDocument("\"indexed\"", "doc-h", 10).size)
         assertTrue(retrieval.search("indexed").isNotEmpty())
     }
 
@@ -263,6 +263,41 @@ class DocumentChunkRetrievalTest {
         assertEquals(0, chunks.countChunks())
         assertEquals(0, chunks.docFreq("\"referenced\""))
         assertTrue(retrieval.search("referenced").isEmpty())
+    }
+
+    @Test
+    fun `every matching document is searchable, not just the first by id`() = runBlocking {
+        // The window used to be one query ending `ORDER BY documentId, ordinal
+        // LIMIT n`, and SQLite applies LIMIT after ORDER BY — so the candidate
+        // set was a prefix *by document*. Once one document contributed a full
+        // window of matches, every other document was invisible for any query
+        // it also matched: arbitrarily, since ids are content hashes, and
+        // permanently, since the order never changes.
+        //
+        // The ids are chosen so the padded one sorts first, and the padding
+        // must EXCEED the candidate window or the old single-query form fits
+        // both documents in and this test passes against the defect. The
+        // window is limit * ftsOverfetch * CANDIDATE_WIDTH = 5 * 4 * 5 = 100.
+        // Written first at 60 chunks, which proved nothing.
+        importDocument("aaa-first", "padded.txt", (0 until 140).map { "protocol filler passage $it" })
+        importDocument("zzz-second", "wanted.txt", listOf("protocol handshake negotiation detail"))
+
+        val results = retrieval.search("protocol handshake", limit = 5)
+
+        assertTrue(
+            "expected a passage from the second document, got ${results.map { it.documentName }}",
+            results.any { it.documentId == "zzz-second" },
+        )
+    }
+
+    @Test
+    fun `a document with no match contributes nothing`() = runBlocking {
+        importDocument("doc-m1", "relevant.txt", listOf("the anchor chain is galvanised"))
+        importDocument("doc-m2", "irrelevant.txt", listOf("a recipe for lemon posset"))
+
+        val results = retrieval.search("galvanised anchor")
+
+        assertEquals(listOf("doc-m1"), results.map { it.documentId }.distinct())
     }
 
     @Test
