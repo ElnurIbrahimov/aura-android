@@ -494,4 +494,97 @@ class LongformRunnerTest {
         assertTrue(system.content.contains("WRITE ONLY IN SECOND PERSON"), system.content.take(500))
     }
 
+
+    @Test
+    fun `a canon fetch failure still drafts and commits the scene`() = runTest {
+        val dao = mockk<com.aura.creative.CanonFactDao>(relaxed = true)
+        coEvery { dao.forSubject(any(), any(), any(), any()) } throws RuntimeException("db gone")
+        val beatList = listOf(StoryBeat(id = "b1", title = "Beat 1", summary = "s", pov = "Mira"))
+        setUpRun(beatList)
+
+        LongformRunner(
+            runStore = runStore,
+            projectStore = projectStore,
+            artifactStore = artifactStore,
+            contextBuilder = SceneContextBuilder(SmartCodexInjector()),
+            brain = brain,
+            progressBus = progressBus,
+            modelRoleRouter = modelRoleRouter,
+            sceneLedger = sceneLedger,
+            craftResolver = craftResolver,
+            canonFactDao = dao,
+        ).runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        coVerify(atLeast = 1) {
+            artifactStore.create(any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `a pinned world's standings reach the prompt`() = runTest {
+        val store = mockk<com.aura.creative.livingworld.LivingWorldStore>(relaxed = true)
+        val state = com.aura.creative.livingworld.WorldState(
+            entities = listOf(
+                com.aura.creative.livingworld.SimEntity(id = "f_a", kind = "faction", name = "Ashfall"),
+                com.aura.creative.livingworld.SimEntity(id = "f_b", kind = "faction", name = "Bramwatch"),
+            ),
+            stocks = listOf(
+                com.aura.creative.livingworld.Stock("f_a", "territory", 4_000, poolId = "territory"),
+                com.aura.creative.livingworld.Stock("f_b", "territory", 3_000, poolId = "territory"),
+            ),
+        )
+        coEvery { store.forProject("p1") } returns com.aura.creative.livingworld.LivingWorldEntity(
+            id = "w1", projectId = "p1", branchId = "main", rootSeed = 1L,
+            worldEpochMs = 0L, currentTick = 5L, stateJson = "SJ",
+            createdAt = 0L, updatedAt = 0L,
+        )
+        every { store.decode("SJ") } returns state
+
+        val beatList = beats(1)
+        coEvery { runStore.get("j1") } returns job()
+        coEvery { projectStore.get("p1") } returns project(beatList).let {
+            it.copy(world = it.world.copy(storyCursorTick = 5L))
+        }
+        coEvery { modelRoleRouter.explicit(ModelRole.CREATIVE_DRAFT) } returns "openai:gpt-4o"
+        stubArtifacts()
+        val prompts = mutableListOf<String>()
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            prompts += secondArg<List<com.aura.providers.ProviderMessage>>().first().content
+            flowOf(BrainChunk.Text("x".repeat(600)))
+        }
+
+        runner(livingWorld = store).runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        assertTrue(prompts.single().contains("THE WORLD RIGHT NOW"), "the pinned slice must render")
+        assertTrue(prompts.single().contains("Ashfall"), "standings must name the factions")
+    }
+
+    @Test
+    fun `an unpinned story never carries a world section`() = runTest {
+        val store = mockk<com.aura.creative.livingworld.LivingWorldStore>(relaxed = true)
+        setUpRun(beats(1))
+        val prompts = mutableListOf<String>()
+        coEvery { brain.stream(any(), any(), any(), any()) } answers {
+            prompts += secondArg<List<com.aura.providers.ProviderMessage>>().first().content
+            flowOf(BrainChunk.Text("x".repeat(600)))
+        }
+
+        runner(livingWorld = store).runSlice("j1", deadlineMs = Long.MAX_VALUE, isStopped = { false })
+
+        assertTrue(prompts.none { it.contains("THE WORLD RIGHT NOW") }, "no pin, no world section")
+        coVerify(exactly = 0) { store.forProject(any()) }
+    }
+
+    private fun runner(livingWorld: com.aura.creative.livingworld.LivingWorldStore?) = LongformRunner(
+        runStore = runStore,
+        projectStore = projectStore,
+        artifactStore = artifactStore,
+        contextBuilder = SceneContextBuilder(SmartCodexInjector()),
+        brain = brain,
+        progressBus = progressBus,
+        modelRoleRouter = modelRoleRouter,
+        sceneLedger = sceneLedger,
+        craftResolver = craftResolver,
+        livingWorldStore = livingWorld,
+    )
 }
