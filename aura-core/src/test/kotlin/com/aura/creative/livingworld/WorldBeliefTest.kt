@@ -237,6 +237,92 @@ class WorldBeliefTest {
     }
 
     @Test
+    fun `a standing lie changes who wins a contested pool`() {
+        fun contest(withLie: Boolean): WorldState = WorldState(
+            entities = listOf(
+                SimEntity(id = "f_a", kind = "faction", name = "A"),
+                SimEntity(id = "f_b", kind = "faction", name = "B"),
+                SimEntity(id = "f_c", kind = "faction", name = "C"),
+            ),
+            stocks = listOf(
+                grain("f_a", amount = 1_000, flow = 0), grain("f_b", amount = 1_000, flow = 0),
+                grain("f_c", flow = 0),
+                might("f_a", 500), might("f_b", 3_000),
+                territory("f_a", 2_000), territory("f_b", 2_000), territory("f_c", 6_000),
+            ),
+            relations = emptyList(),
+            rules = listOf(
+                Rule(
+                    id = "famine",
+                    name = "Famine",
+                    condition = Cond.StockBelow("grain", 2_000),
+                    effects = listOf(Effect.ClaimPool("territory", "territory", 300)),
+                    cooldownTicks = 999,
+                ),
+            ),
+            beliefs = if (!withLie) emptyList() else listOf(
+                // B has been told A is a colossus. Only the draw's weighting
+                // sees this row; nothing real moved.
+                Belief(
+                    "f_b", "f_a", "might", deviationMilli = 8_000,
+                    provenance = Belief.PROVENANCE_LIED_TO, sourceId = "f_a", decayPerTickMilli = 0,
+                ),
+            ),
+        )
+
+        fun winner(state: WorldState, seed: Long): String =
+            WorldEngine.tick(state, "w1", seed, 0L, 1L)
+                .events.first { it.kind == WorldEngine.KIND_CLAIM_WON }.actorId
+
+        val flipped = (1L..500L).any { seed -> winner(contest(false), seed) != winner(contest(true), seed) }
+        assertTrue(flipped, "no seed in 1..500 flipped the winner — the claim draw is not reading beliefs")
+    }
+
+    @Test
+    fun `a spread lie plants the same error in everyone else, sourced to the liar`() {
+        val state = WorldState(
+            entities = listOf(
+                SimEntity(id = "f_a", kind = "faction", name = "A"),
+                SimEntity(id = "f_b", kind = "faction", name = "B"),
+                SimEntity(id = "f_c", kind = "faction", name = "C"),
+            ),
+            stocks = listOf(
+                might("f_a", 400), might("f_b", 3_000), might("f_c", 3_000),
+                grain("f_a", flow = 0), grain("f_b", flow = 0), grain("f_c", flow = 0),
+            ),
+            relations = emptyList(),
+            rules = listOf(
+                Rule(
+                    id = "bluster",
+                    name = "Bluster",
+                    condition = Cond.StockBelow("might", 500),
+                    effects = listOf(Effect.SpreadLie("might", 700)),
+                    cooldownTicks = 999,
+                ),
+            ),
+        )
+
+        val result = WorldEngine.tick(state, "w1", 42L, 0L, 1L)
+
+        val lie = result.events.single { it.kind == WorldEngine.KIND_LIE_TOLD }
+        assertEquals("f_a", lie.actorId)
+        assertEquals(1_000L, lie.reachPermille, "propaganda reaches everyone by construction")
+
+        for (observer in listOf("f_b", "f_c")) {
+            val planted = result.state.beliefs.first {
+                it.observerId == observer && it.subjectId == "f_a" && it.key == "might"
+            }
+            assertEquals(700L, planted.deviationMilli, "$observer should overestimate the liar by the lie")
+            assertEquals(Belief.PROVENANCE_LIED_TO, planted.provenance)
+            assertEquals("f_a", planted.sourceId)
+        }
+        assertTrue(
+            result.state.beliefs.none { it.observerId == "f_a" && it.subjectId == "f_a" },
+            "the liar's own book stays true",
+        )
+    }
+
+    @Test
     fun `deviations never exceed the stock's cap over a thousand ticks`() {
         var current = fixture()
         for (tick in 1..1_000L) {

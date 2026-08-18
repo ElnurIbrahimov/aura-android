@@ -61,6 +61,7 @@ object WorldEngine {
         }
 
         val claims = mutableListOf<Claim>()
+        val lies = mutableListOf<LieIntent>()
         for (firing in firings) {
             for (effect in firing.rule.effects) {
                 when (effect) {
@@ -71,13 +72,23 @@ object WorldEngine {
                         relations, current.relations, byId, firing, effect, tick, events,
                     )
                     is Effect.ClaimPool -> claims += Claim(firing, effect)
+                    // Deferred like claims, so application order is canonical
+                    // rather than firing-encounter order.
+                    is Effect.SpreadLie -> lies += LieIntent(firing, effect)
                 }
             }
         }
 
-        resolveClaims(claims, stocks, byId, seed, tick, events)
+        // Local index only, for the claim seam and the belief step.
+        val beliefIndex = HashMap<String, Long>(decayedBeliefs.size * 2)
+        for (belief in decayedBeliefs) {
+            beliefIndex[beliefKey(belief.observerId, belief.subjectId, belief.key)] = belief.deviationMilli
+        }
 
-        val nextBeliefs = beliefStep(decayedBeliefs, events, stocks, living, current.relations, byId, seed, tick)
+        resolveClaims(claims, stocks, byId, beliefIndex, seed, tick, events)
+
+        val nextBeliefs =
+            beliefStep(decayedBeliefs, lies, events, stocks, living, current.relations, byId, seed, tick)
 
         val firedIds = firings.map { it.rule.id to it.subject.id }.toSet()
         val updatedRules = current.rules.map { rule -> recordFirings(rule, firedIds, tick) }
@@ -284,6 +295,7 @@ object WorldEngine {
         claims: List<Claim>,
         stocks: MutableMap<String, Stock>,
         byId: Map<String, SimEntity>,
+        beliefs: Map<String, Long>,
         tickSeed: Long,
         tick: Long,
         events: MutableList<WorldEvent>,
@@ -297,8 +309,23 @@ object WorldEngine {
             if (contenders.isEmpty()) continue
 
             val weights = contenders.map { claim ->
-                val might = stocks[stockKey(claim.firing.subject.id, STOCK_MIGHT)]?.amountMilli
-                if (might != null && might > 0L) might else DEFAULT_MIGHT_MILLI
+                val subjectId = claim.firing.subject.id
+                val actualRaw = stocks[stockKey(subjectId, STOCK_MIGHT)]?.amountMilli
+                val actual = if (actualRaw != null && actualRaw > 0L) actualRaw else DEFAULT_MIGHT_MILLI
+                // The draw is weighted by what the rival claimants believe this
+                // one could bring to bear. Self-belief is exact by construction,
+                // so an uncontested reading collapses to the actual stock — and
+                // bluffed might genuinely wins ground until a reveal snaps it.
+                val rivals = contenders.filter { it.firing.subject.id != subjectId }
+                if (rivals.isEmpty()) actual
+                else {
+                    val believedSum = rivals.sumOf { rival ->
+                        val deviation =
+                            beliefs[beliefKey(rival.firing.subject.id, subjectId, STOCK_MIGHT)] ?: 0L
+                        (actual + deviation).coerceAtLeast(0L)
+                    }
+                    believedSum / rivals.size
+                }
             }
             val winnerIndex = WorldRng.weightedPick(WorldRng.substream(tickSeed, "pool:$poolId"), weights)
             val winner = contenders[winnerIndex]
@@ -342,6 +369,8 @@ object WorldEngine {
 
     private data class StockChange(val subjectId: String, val key: String, val deltaMilli: Long)
 
+    private data class LieIntent(val firing: Firing, val effect: Effect.SpreadLie)
+
     private data class Reveal(
         val observerId: String,
         val subjectId: String,
@@ -374,6 +403,7 @@ object WorldEngine {
      */
     private fun beliefStep(
         beliefs: List<Belief>,
+        lies: List<LieIntent>,
         events: MutableList<WorldEvent>,
         stocks: Map<String, Stock>,
         living: List<SimEntity>,
@@ -390,6 +420,46 @@ object WorldEngine {
         for (belief in beliefs) table[beliefKey(belief.observerId, belief.subjectId, belief.key)] = belief
 
         val reveals = mutableListOf<Reveal>()
+
+        // Lies land first, so the walk below scores later events against a
+        // world that has already heard the propaganda.
+        for (lie in lies.sortedWith(compareBy({ it.firing.subject.id }, { it.effect.key }))) {
+            val liar = lie.firing.subject
+            for (faction in factions) {
+                if (faction.id == liar.id) continue
+                val key = beliefKey(faction.id, liar.id, lie.effect.key)
+                val cap = deviationCap(liar.id, lie.effect.key, stocks)
+                val standing = table[key]
+                val updated = ((standing?.deviationMilli ?: 0L) + lie.effect.deltaMilli).coerceIn(-cap, cap)
+                if (updated == 0L) {
+                    table.remove(key)
+                } else {
+                    table[key] = Belief(
+                        observerId = faction.id,
+                        subjectId = liar.id,
+                        key = lie.effect.key,
+                        deviationMilli = updated,
+                        provenance = Belief.PROVENANCE_LIED_TO,
+                        sourceId = liar.id,
+                        sinceTick = tick,
+                        decayPerTickMilli = standing?.decayPerTickMilli ?: DEFAULT_BELIEF_DECAY_MILLI,
+                    )
+                }
+            }
+            val boast = if (lie.effect.deltaMilli >= 0L) "greater" else "smaller"
+            events += WorldEvent(
+                tick = tick,
+                seq = 0,
+                kind = KIND_LIE_TOLD,
+                actorId = liar.id,
+                ruleId = lie.firing.rule.id,
+                magnitudeMilli = lie.effect.deltaMilli,
+                stockKey = lie.effect.key,
+                // Propaganda reaches everyone by construction; it surprises nobody.
+                reachPermille = 1_000L,
+                summary = "${liar.name} lets it be known its ${lie.effect.key} is $boast than it is.",
+            )
+        }
 
         for (index in events.indices) {
             val event = events[index]
@@ -527,6 +597,7 @@ object WorldEngine {
     const val KIND_CLAIM_WON = "claim_won"
     const val KIND_QUIET_INTERVAL = "quiet_interval"
     const val KIND_BELIEF_REVEAL = "belief_reveal"
+    const val KIND_LIE_TOLD = "lie_told"
 
     /** A grievance at or above this watches its object: enemies are observed. */
     const val WATCH_GRIEVANCE_MILLI = 400L

@@ -207,12 +207,24 @@ sealed class Effect {
      *
      * Claims are the only way a pooled stock moves, and every claim is a
      * transfer, so the pool total cannot change. Contested claims are resolved
-     * by a seeded draw weighted by real stocks — reality arbitrates, even
-     * though the claimants act on belief.
+     * by a seeded draw weighted by what the *rival claimants believe* each
+     * contender could bring to bear — belief arbitrates the draw, while the
+     * transfer itself stays strictly real. Bluffed might wins ground until a
+     * reveal snaps the audience accurate.
      */
     @Serializable
     @SerialName("claim_pool")
     data class ClaimPool(val poolId: String, val key: String, val amountMilli: Long) : Effect()
+
+    /**
+     * Propaganda: shift every other faction's belief about the subject's own
+     * [key] by [deltaMilli]. Nothing real moves — only the deviation tables of
+     * everyone listening, sourced to the subject, until truth outs by decay or
+     * an event snaps the audience accurate.
+     */
+    @Serializable
+    @SerialName("spread_lie")
+    data class SpreadLie(val key: String, val deltaMilli: Long) : Effect()
 }
 
 /**
