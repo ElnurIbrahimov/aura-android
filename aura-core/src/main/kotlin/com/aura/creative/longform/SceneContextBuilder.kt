@@ -29,6 +29,8 @@ data class SceneContext(val systemPrompt: String, val userPrompt: String)
  * | craft guidance       | ~5,000 | genre + mode technique, the existing prompts      |
  * | project header       |   600  | premise, genre, tone                              |
  * | world bible          | 6,000  | filtered to this beat, not the whole project      |
+ * | canon                | 2,400  | what the record says is true entering this beat   |
+ * | the world right now  | 1,200  | the living world's standings at the story cursor  |
  * | outline spine        | 3,000  | every beat title, so the model knows where it is  |
  * | previous scene tail  | 2,000  | carries voice, place, an unfinished line          |
  * | story so far         | 8,000  | rolling summary, regenerated every few scenes     |
@@ -51,6 +53,8 @@ class SceneContextBuilder @Inject constructor(
         storySoFar: String = "",
         retrieved: List<String> = emptyList(),
         craft: String? = null,
+        canonFacts: List<com.aura.creative.CanonFactEntity> = emptyList(),
+        worldNow: String = "",
     ): SceneContext {
         val beat = beats.getOrNull(beatIndex)
             ?: return SceneContext(systemPrompt = "", userPrompt = "")
@@ -63,6 +67,8 @@ class SceneContextBuilder @Inject constructor(
             append(craftGuidance(project, craft))
             append(section("PROJECT", projectHeader(project), PROJECT_HEADER_CAP))
             append(section("WORLD", worldFor(project.world, beatText), WORLD_CAP))
+            append(section("CANON", canonSection(beat, canonFacts), CANON_CAP))
+            append(section("THE WORLD RIGHT NOW", worldNow, WORLD_NOW_CAP))
             append(section("OUTLINE", outlineSpine(beats, beatIndex), OUTLINE_CAP))
             append(section("STORY SO FAR", storySoFar, SUMMARY_CAP))
             append(section("FROM THE MANUSCRIPT", retrieved.joinToString("\n\n---\n\n") { it.take(RETRIEVED_ITEM_CAP) }, RETRIEVED_CAP))
@@ -148,6 +154,39 @@ class SceneContextBuilder @Inject constructor(
     }
 
     /**
+     * What the record says is true, and what this beat requires.
+     *
+     * A precondition disagreeing with recorded canon renders as one
+     * informational line — the drafter is told, never blocked. The commit path
+     * stays sacrosanct; verification happens afterwards, in the ledger.
+     */
+    private fun canonSection(
+        beat: StoryBeat,
+        canonFacts: List<com.aura.creative.CanonFactEntity>,
+    ): String = buildString {
+        for (fact in canonFacts) {
+            appendLine("- ${fact.subjectId} — ${fact.predicate}: ${bareValue(fact.valueJson)}")
+        }
+        for (required in beat.preconditions) {
+            val recorded = canonFacts.firstOrNull {
+                it.subjectType == required.subjectType &&
+                    it.subjectId == required.subjectId &&
+                    it.predicate == required.predicate.lowercase()
+            } ?: continue
+            val recordedValue = bareValue(recorded.valueJson)
+            if (recordedValue != required.value) {
+                appendLine(
+                    "Note: the outline expects ${required.subjectId}'s ${required.predicate} " +
+                        "to be ${required.value}; the record says $recordedValue.",
+                )
+            }
+        }
+    }
+
+    /** `"Kesh"` renders as Kesh; anything non-string renders as its JSON. */
+    private fun bareValue(valueJson: String): String = valueJson.removeSurrounding("\"")
+
+    /**
      * Every beat title, with the current one marked.
      *
      * The model needs to know not just what this scene is but where it sits —
@@ -206,6 +245,8 @@ class SceneContextBuilder @Inject constructor(
         const val CRAFT_CAP = 5_000
         const val PROJECT_HEADER_CAP = 600
         const val WORLD_CAP = 6_000
+        const val CANON_CAP = 2_400
+        const val WORLD_NOW_CAP = 1_200
         const val OUTLINE_CAP = 3_000
         const val PREVIOUS_TAIL_CAP = 2_000
         /**

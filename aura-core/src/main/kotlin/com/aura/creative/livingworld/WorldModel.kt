@@ -272,3 +272,33 @@ data class TickResult(
     val state: WorldState,
     val events: List<WorldEvent>,
 )
+
+/**
+ * A compact, deterministic rendering of the world's standings for a prompt.
+ *
+ * Pure — no model, no I/O, no clock — and small by construction: one line per
+ * living faction. The caller's section cap is the budget; this stays well
+ * under it at bible scale.
+ */
+object WorldStateBrief {
+    fun render(state: WorldState): String = buildString {
+        val living = state.living().filter { it.kind == "faction" }
+        val byId = living.associateBy { it.id }
+        for (faction in living) {
+            val stocks = state.stocks
+                .filter { it.entityId == faction.id }
+                .joinToString(", ") { "${it.key} ${it.amountMilli / 1_000}" }
+            if (stocks.isEmpty()) continue
+            append("- ${faction.name}: ")
+            append(stocks)
+            val resented = state.relations
+                .filter { it.fromId == faction.id && it.kind == "grievance" && it.magnitudeMilli > 0L }
+                .sortedWith(compareByDescending<Relation> { it.magnitudeMilli }.thenBy { it.toId })
+                .firstOrNull()
+            if (resented != null) {
+                append("; resents ${byId[resented.toId]?.name ?: resented.toId}")
+            }
+            appendLine()
+        }
+    }
+}
