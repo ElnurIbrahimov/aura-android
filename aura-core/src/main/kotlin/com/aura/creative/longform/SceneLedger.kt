@@ -396,23 +396,48 @@ class SceneLedger @Inject constructor(
                 .filter { it.predicate == fact.predicate && it.status == "active" && it.id != fact.id }
             for (old in existing) {
                 if (old.valueJson == fact.valueJson) continue
-                continuityIssueDao.upsert(
-                    com.aura.creative.ContinuityIssueEntity(
-                        id = UUID.randomUUID().toString(),
-                        projectId = projectId,
-                        branchId = branchId,
-                        artifactId = artifactId,
-                        category = PREDICATE_CATEGORY[fact.predicate] ?: "identity",
-                        severity = "warning",
-                        message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
-                            "and this scene says ${fact.valueJson}.",
-                        evidenceFactIdsJson = json.encodeToString(
-                            kotlinx.serialization.builtins.ListSerializer(String.serializer()),
-                            listOf(old.id, fact.id),
+                // One issue per disagreeing pair, forever. Fact ids are already
+                // deterministic per revision, so the pair id is too — a re-run
+                // files the same complaint into the same row instead of a fresh
+                // UUID every pass. And a pair the author has ruled on stays
+                // ruled on: re-opening a dismissal on every back-fill is how a
+                // flag teaches the user to stop reading it. Supersession still
+                // applies either way — canon keeps meaning "the latest".
+                val issueId = UUID.nameUUIDFromBytes("issue|${old.id}|${fact.id}".toByteArray()).toString()
+                val prior = continuityIssueDao.byId(issueId)
+                val ruled = prior != null &&
+                    (prior.status == "intentional_exception" || prior.status == "dismissed")
+                if (!ruled) {
+                    continuityIssueDao.upsert(
+                        com.aura.creative.ContinuityIssueEntity(
+                            id = issueId,
+                            projectId = projectId,
+                            branchId = branchId,
+                            artifactId = artifactId,
+                            category = PREDICATE_CATEGORY[fact.predicate] ?: "identity",
+                            severity = "warning",
+                            message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
+                                "and this scene says ${fact.valueJson}.",
+                            evidenceFactIdsJson = json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(String.serializer()),
+                                listOf(old.id, fact.id),
+                            ),
+                            suggestedPatchJson = json.encodeToString(
+                                SuggestedPatch.serializer(),
+                                SuggestedPatch(
+                                    kind = "canon_fact_change",
+                                    subjectType = fact.subjectType,
+                                    subjectId = fact.subjectId,
+                                    predicate = fact.predicate,
+                                    keepFactId = fact.id,
+                                    supersedeFactId = old.id,
+                                    note = "Keep the newer scene's ${fact.predicate}; supersede the older fact.",
+                                ),
+                            ),
+                            status = "open",
                         ),
-                        status = "open",
-                    ),
-                )
+                    )
+                }
                 canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
             }
         }
@@ -559,4 +584,26 @@ internal data class ExtractedFact(
     val predicate: String = "",
     val value: String = "",
     val confidence: Float = 1.0f,
+)
+
+/**
+ * The machine-readable half of a continuity issue — the first writer
+ * `continuity_issues.suggestedPatchJson` has ever had.
+ *
+ * **Advisory only; nothing applies it yet.** It exists so the flag carries its
+ * remedy rather than only its complaint, and so a one-tap applier can exist
+ * later without a schema change. A reader must not trust it further than that.
+ */
+@Serializable
+internal data class SuggestedPatch(
+    /** Always "canon_fact_change" today; explicit so the JSON always carries it. */
+    val kind: String,
+    val subjectType: String,
+    val subjectId: String,
+    val predicate: String,
+    /** The fact to keep active. */
+    val keepFactId: String,
+    /** The fact to mark superseded. */
+    val supersedeFactId: String,
+    val note: String = "",
 )

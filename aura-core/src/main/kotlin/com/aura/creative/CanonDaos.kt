@@ -81,6 +81,10 @@ interface ContinuityIssueDao {
     @Query("UPDATE continuity_issues SET status = :status, resolvedAt = :timestamp, resolvedBy = :resolver WHERE id = :id")
     suspend fun resolve(id: kotlin.String, status: kotlin.String, timestamp: kotlin.Long, resolver: kotlin.String)
 
+    /** Reconcile consults this before re-filing a complaint the author ruled on. */
+    @Query("SELECT * FROM continuity_issues WHERE id = :id LIMIT 1")
+    suspend fun byId(id: kotlin.String): ContinuityIssueEntity?
+
     @Query("SELECT * FROM continuity_issues ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<ContinuityIssueEntity>
 
