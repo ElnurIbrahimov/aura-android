@@ -85,6 +85,7 @@ object ToolsModule {
         creativeEngine: CreativeEngineTool,
         canonQuery: CanonQueryTool,
         indexDocument: IndexDocumentTool,
+        searchDocuments: SearchDocumentsTool,
         queryWorldModel: QueryWorldModelTool,
         queryTaste: QueryTasteTool,
         projectState: ProjectStateTool,
@@ -173,6 +174,7 @@ object ToolsModule {
         registry.register(creativeEngine.tool)
         registry.register(canonQuery.tool)
         registry.register(indexDocument.tool)
+        registry.register(searchDocuments.tool)
         registry.register(queryWorldModel.tool)
         registry.register(queryTaste.tool)
         registry.register(projectState.tool)

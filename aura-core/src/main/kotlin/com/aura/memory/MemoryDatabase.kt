@@ -77,6 +77,7 @@ import com.aura.kg.NodeEntity
         RoutingOutcomeEntity::class,
         MemoryFeedbackEntity::class,
         MemoryFtsEntity::class,
+        com.aura.documents.DocumentChunkFtsEntity::class,
         LivingWorldEntity::class,
         LivingEventEntity::class,
         CorrectionEntity::class,
@@ -86,7 +87,7 @@ import com.aura.kg.NodeEntity
         com.aura.projects.ProjectNoteEntity::class,
         com.aura.calibration.ClaimResolutionEntity::class,
     ],
-    version = 27,
+    version = 28,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {

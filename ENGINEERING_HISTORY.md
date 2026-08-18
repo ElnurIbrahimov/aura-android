@@ -654,11 +654,63 @@ once. It was biting two more fields.
 Neither is a logic error. Both are the seam shape this pass opened with, found the
 way §4 says they get found — by running the thing.
 
+**The document pipeline (2026-08-18), staged.**
+
+`document_chunks` had a 13-method DAO, its own indices, backup mappers on both
+sides, and had never held a row. Import wrote its chunks into `memories` instead,
+which works — it is what recall still reads — and puts a thousand book passages
+into the same corpus statistics as a few hundred personal memories, where BM25
+takes its document frequencies. Ordinary words stop discriminating between
+memories because they are common *in the book*.
+
+Done in two steps, deliberately not three. Import writes both tables now, with
+the citations a chunk row exists to carry (documentId, ordinal, character range,
+content hash) and deterministic `documentId:ordinal` ids so a re-import replaces
+rather than accumulates. `document_chunks_fts` and `MIGRATION_27_28` make them
+searchable as documents, with `N` and `df` over the chunk corpus alone, behind a
+new `search_documents` tool — `index_document` had shipped with no counterpart,
+so the only way back out of an imported document was general recall, which
+returns a passage as an undifferentiated memory and cannot cite it.
+
+**Recall is byte-for-byte unchanged**, which is the point of stopping here: the
+third step is dropping the double write, and whether personal recall improves
+once documents leave `memories` is a scorecard question. `vectorPoolSize` is the
+standing reason not to answer it by opinion — shipped on intuition, measured at
+0.4837 against 0.7976.
+
+Found while doing it, all three from writing to a table that had never been
+written to:
+
+- The chunk insert has to follow the document insert, because the CASCADE
+  foreign key is enforced. `BackupManager` had already learned this twice, for
+  project notes and claim resolutions. Moving that insert earlier also gave a
+  failed import a parent row to strand, so the rollback grew a case.
+- The migration's backfill was `INSERT INTO document_chunks_fts(docid, …)`, and
+  `docid` is FTS4's alias for the rowid — so running it over rows the triggers
+  had already indexed inserts at an occupied docid and errors. Room never
+  re-runs a migration, so this was only reachable from a hand-rolled repair, but
+  a migration that throws is the failure that stops the app opening at all.
+- `DocumentChunkDao.deleteAll()` was `WHERE documentId IN (SELECT id FROM
+  documents)`, called by the restore *after* the documents are deleted, so it
+  matched nothing. Dead rather than dangerous — see the correction below — but a
+  wipe whose correctness depends on call order is not a wipe.
+
+**A correction, kept because the method is the point.** The claim above was
+first written as a live bug: that `ON DELETE CASCADE` skips the child table's
+DELETE triggers, leaving orphaned index rows inflating `df`. That is false —
+cascaded deletes do fire triggers; the rule about a delete skipping them belongs
+to REPLACE conflict resolution, which is why the *insert* trigger deletes by
+`chunkId` first and this does not. It was caught by the revert step: the test
+written to prove the orphan problem passed against code that could not have
+fixed it. Three pieces of documentation and one redundant `clearFtsIndex()`
+method had been written on the strength of it.
+
 **Method note.** Every fix carries a regression test shown to fail against the
 unfixed code — reverted, watched go red, restored — rather than merely to pass
 against the fixed one. Applied again for the two `reload()` defects: with both
 fixes backed out the class ran 19 tests with exactly 2 red, and the third new test
-stayed green because it pins behaviour the old code already had. That is not ceremony: it caught one FTS test that could
+stayed green because it pins behaviour the old code already had. And once more
+for the chunk wipe, where it did the more useful thing and refuted the premise. That is not ceremony: it caught one FTS test that could
 never have demonstrated the old behaviour, because `MIGRATION_16_17` shares the
 trigger source with the fix. The OAuth CSRF tests were verified by mutation
 (`pendingFlows.values.firstOrNull()`, the realistic bug), and the scaffold guard
@@ -1197,7 +1249,7 @@ and inflated the document frequencies BM25 had just started depending on.
 |------|--------|
 | Nothing prunes the primary tables, and that may be correct | `memories`, `kg_nodes`, `kg_edges`, `world_events`, `preference_signals`, `routing_outcomes` and `memory_feedback` have no time-based delete at all — not a missing caller this time, but a missing query. Deliberately **not** added on 2026-08-18: `MemoryEntity`'s own KDoc states "nothing here is ever destroyed", and `retire` is a soft-hide by design, so adding retention to the memory store is a product decision rather than a defect fix. The two unbounded `GROUP BY`s over full tables are the sharper end of it — `netDownvotedMemoryIds` runs on the recall path, and `statsForRole` means a model that was good two years ago never stops voting. |
 | `existsByContent` is a full table scan on every insert | `content` is not indexed and `SELECT COUNT(*) … WHERE content = :content` runs per stored memory *and per imported document chunk*. Indexing `content` directly would roughly double the store's on-disk size — a B-tree over its largest TEXT column, rewritten on every insert. The right shape is a `contentHash` column plus index, which `DocumentChunkEntity` already does, but that is a v27→v28 migration with backup mappers and was queued rather than slipped into an unrelated pass. |
-| Document import writes chunks as memories | `DocumentRepository.import()` writes ~1,235 memory rows for a large file, each paying a cloud embed, this unindexed scan, and a 200-row cosine dedup under one mutex — while `document_chunks`, with a full 13-method DAO, its indices and backup mappers, has never held a row. Routing to it is a *retrieval-architecture* change, not wiring: the stack has one candidate source (`memories` + `memories_fts`) and one result type (`MemoryEntity`), and every consumer — RRF, the reranker, correction demotion, `touch`, the evolution hooks, the label harvest — is typed on it. Chunks carry no `scope`, `decayScore`, `accessCount`, `importance` or `retiredAt`, and nothing embeds them. Doing it in one step takes document recall dark mid-flight; the staged version (write both, read from `memories`, build chunk retrieval behind `RetrievalConfig`, then stop double-writing) is the only one that does not. Awaiting a decision. |
+| Document import writes chunks as memories | **Stages 1 and 2 done (2026-08-18); stage 3 blocked on measurement.** Import now writes `document_chunks` as well as `memories`, with real citations (documentId, ordinal, character range, content hash) and deterministic ids so a re-import replaces rather than accumulates. `document_chunks_fts` plus `MIGRATION_27_28` makes them searchable as documents, with `N` and `df` taken over the chunk corpus alone, read by a new `search_documents` tool — `index_document` had had no counterpart, so the only way back out of a document was general recall. Recall itself is untouched and reads `memories` exactly as before, so this cannot have made it worse. **Stage 3 — dropping the double write — is a retrieval change and is not being made on intuition:** whether personal recall improves once a thousand book chunks stop contributing to its IDF is a scorecard question, and Gate B still needs a corpus. |
 | `ToolExecutor` pins an IO thread per tool | `runInterruptible(Dispatchers.IO) { runBlocking { … } }` occupies an IO thread for the tool's whole duration, including for purely-suspending tools that would otherwise release it. Bounded to 8 via `limitedParallelism`. **Cancellation itself is correct** — see `ToolExecutorCancellationProbeTest`. |
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |
 | Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–17 are all committed and the chain test now runs 6→17 (it stopped at 14 until 2026-08-08, leaving `MIGRATION_14_15` and `MIGRATION_15_16` with no coverage at all), but individual hops inside 6..10 still have no per-step data assertion. |

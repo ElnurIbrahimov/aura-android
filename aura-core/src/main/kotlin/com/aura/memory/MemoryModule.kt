@@ -939,6 +939,18 @@ object MemoryModule {
         }
     }
 
+    /**
+     * The chunk index. `document_chunks` has existed since schema 12 and held
+     * no rows until document import was routed into it; this is the index that
+     * makes those rows searchable as documents rather than only as the
+     * `memories` copies written beside them.
+     */
+    val MIGRATION_27_28 = object : Migration(27, 28) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            com.aura.documents.DocumentChunkFtsSchema.createAndBackfill(db)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -946,7 +958,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is

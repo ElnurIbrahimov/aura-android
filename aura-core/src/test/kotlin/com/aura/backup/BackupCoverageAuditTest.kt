@@ -234,6 +234,10 @@ class BackupCoverageAuditTest {
          *   maintained by SQL triggers and rebuilt from the content table, so
          *   exporting it would store a derivable artefact and risk restoring an
          *   index inconsistent with the rows it indexes.
+         * - `DocumentChunkFtsEntity` is the same thing over `document_chunks`,
+         *   for the same reason. `DocumentChunkBackup` covers the chunks
+         *   themselves, and the restore's `insertAll` fires the insert trigger,
+         *   so the index is rebuilt on the way in rather than carried.
          * - `CreativeGenerationJobEntity` is in-flight generation work. A job
          *   restored onto another device refers to a request that is no longer
          *   running anywhere; it is documented as transient at its declaration
@@ -244,6 +248,7 @@ class BackupCoverageAuditTest {
          */
         private val DERIVED_OR_TRANSIENT = setOf(
             "MemoryFtsEntity",
+            "DocumentChunkFtsEntity",
             "CreativeGenerationJobEntity",
             "WorkerRunEntity",
         )

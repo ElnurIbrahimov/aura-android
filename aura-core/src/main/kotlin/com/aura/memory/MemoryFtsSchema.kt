@@ -109,7 +109,7 @@ internal object MemoryFtsSchema {
     }
 
     /**
-     * The one callback that installs the triggers on a freshly created
+     * The one callback that installs **every** FTS trigger on a freshly created
      * database. Production wires it in `MemoryModule.provideDatabase`; tests
      * building an in-memory `MemoryDatabase` must add it too.
      *
@@ -117,10 +117,20 @@ internal object MemoryFtsSchema {
      * table but no triggers indexes nothing, and every lexical-recall assertion
      * against it would quietly become "returns empty" — passing or failing for
      * reasons unrelated to what it meant to check.
+     *
+     * `document_chunks_fts` is installed from here rather than from a second
+     * callback for that same reason, one step further on. Room takes a single
+     * callback, twenty test files already pass this one, and a database that
+     * got the memory triggers but not the chunk triggers would be exactly the
+     * half-wired index described above — with the half that is missing being
+     * the newer one nobody is looking at.
      */
     val triggerCallback: androidx.room.RoomDatabase.Callback =
         object : androidx.room.RoomDatabase.Callback() {
-            override fun onCreate(db: SupportSQLiteDatabase) = installTriggers(db)
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                installTriggers(db)
+                com.aura.documents.DocumentChunkFtsSchema.installTriggers(db)
+            }
         }
 
     /** Create the table, backfill it, and install the triggers. Used by the migration. */
