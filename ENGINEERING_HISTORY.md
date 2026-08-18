@@ -487,6 +487,22 @@ the new WorldBible.storyCursorTick pins the Living World's present exactly — t
 grew the pin button. Both reads are best-effort: a throwing canon DAO still commits its scene.
 Device look owed: the pin flow and a CANON-fed draft.
 
+*2026-08-19 (Phase C):* **3,371 unit tests / 503 suites, 0 failures.** Timelines fork.
+The one migration the spine needs landed first: living_worlds.genesisJson (MemoryDatabase v29,
+backup schema 29, replay hop + instrumented migrate28To29, every doc literal in the same
+commit) — chosen over re-seeding because a bible edit or a template retune would silently
+reconstruct a different genesis. Fork-at-present copies the moment and derives its salt
+(deterministic: a fork is a ref, not a dice roll; same name + same moment = same world).
+Fork-at-past replays genesis through the *recorded* fold spans — quiet_interval rows are the
+fold record, A4's compaction preserves them by construction — with the tripwire stated: any
+future god-edit must be event-sourced or fork-at-past breaks silently. Pre-v29 worlds are
+honestly refused. observeEventsDeep gives a fork its inheritance (ancestor pages bounded at
+the fork tick); TimelineDiff names the first field-wise parting; living_world_query (81st
+tool, READ_ONLY) ranks drama by the notability already paid for and diffs branches
+page-honestly; the Living tab grew branch chips, fork buttons (present and from-any-event
+where genesis allows), the comparison card, and a Biggest-moments filter running on the same
+DAO as the tool. Device look owed: fork a world and watch both branches tick.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

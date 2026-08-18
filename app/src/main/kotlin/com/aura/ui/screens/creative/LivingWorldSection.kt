@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import com.aura.ui.viewmodel.CreativeStudioViewModel
 import com.aura.ui.viewmodel.LivingEventUi
 import com.aura.ui.viewmodel.LivingFactionUi
 import com.aura.ui.viewmodel.LivingLiveUi
+import com.aura.ui.viewmodel.WorldBranchUi
 
 /**
  * The Living tab: a world that runs whether or not anyone is looking at it.
@@ -63,6 +65,24 @@ internal fun LazyListScope.livingWorldSection(
     if (world == null) {
         item(key = "living-start") { StartWorldCard(state, viewModel) }
         return
+    }
+
+    item(key = "living-branches") {
+        BranchRow(world.branches, world.branchName, viewModel)
+    }
+
+    if (world.divergence.isNotEmpty()) {
+        item(key = "living-diff") {
+            LivingCard(title = stringResource(R.string.timelines_compared)) {
+                world.divergence.forEach { line ->
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AuraThemeTokens.colors.textSecondary,
+                    )
+                }
+            }
+        }
     }
 
     item(key = "living-now") {
@@ -106,17 +126,108 @@ internal fun LazyListScope.livingWorldSection(
     }
 
     item(key = "living-history-header") {
-        Text(
-            "History · ${world.eventCount} events",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = AuraSpacing.xxl2),
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AuraSpacing.xxl2),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "History · ${world.eventCount} events",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            FilterChip(
+                selected = world.showNotable,
+                onClick = viewModel::toggleNotableMoments,
+                label = { Text(stringResource(R.string.biggest_moments)) },
+            )
+        }
     }
 
-    items(world.events, key = { it.id }) { event ->
-        EventRow(event, world.narrating == event.id, viewModel)
+    items(
+        if (world.showNotable) world.notableMoments else world.events,
+        key = { it.id },
+    ) { event ->
+        EventRow(event, world.narrating == event.id, world.hasGenesis, viewModel)
     }
+}
+
+/**
+ * Every timeline as a chip, the fork button beside them, and — off the root —
+ * the comparison ask. A fork is named by its author: the name seasons the
+ * salt, so the same name at the same moment recreates the same world.
+ */
+@Composable
+private fun BranchRow(
+    branches: List<WorldBranchUi>,
+    currentName: String,
+    viewModel: CreativeStudioViewModel,
+) {
+    var forkDialog by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AuraSpacing.xxl2),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm),
+        ) {
+            branches.forEach { branch ->
+                FilterChip(
+                    selected = branch.selected,
+                    onClick = { viewModel.selectWorldBranch(branch.branchId) },
+                    label = { Text(branch.name) },
+                )
+            }
+        }
+        if (currentName != "main") {
+            TextButton(onClick = viewModel::compareWithRoot) {
+                Text(stringResource(R.string.compare_with_main))
+            }
+        }
+        TextButton(onClick = { forkDialog = true }) {
+            Text(stringResource(R.string.fork_timeline))
+        }
+    }
+    if (forkDialog) {
+        ForkTimelineDialog(
+            onConfirm = { name ->
+                forkDialog = false
+                viewModel.forkLivingWorldNow(name)
+            },
+            onDismiss = { forkDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun ForkTimelineDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.fork_timeline)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.fork_name_hint)) },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
+                Text(stringResource(R.string.fork_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_edit)) }
+        },
+    )
 }
 
 @Composable
@@ -291,7 +402,22 @@ private fun FactionRow(faction: LivingFactionUi) {
 }
 
 @Composable
-private fun EventRow(event: LivingEventUi, narrating: Boolean, viewModel: CreativeStudioViewModel) {
+private fun EventRow(
+    event: LivingEventUi,
+    narrating: Boolean,
+    hasGenesis: Boolean,
+    viewModel: CreativeStudioViewModel,
+) {
+    var forkHere by remember { mutableStateOf(false) }
+    if (forkHere) {
+        ForkTimelineDialog(
+            onConfirm = { name ->
+                forkHere = false
+                viewModel.forkLivingWorldAt(event.tick, name)
+            },
+            onDismiss = { forkHere = false },
+        )
+    }
     Surface(
         color = AuraThemeTokens.colors.surface1,
         shape = MaterialTheme.shapes.medium,
@@ -342,6 +468,12 @@ private fun EventRow(event: LivingEventUi, narrating: Boolean, viewModel: Creati
                     onClick = { viewModel.narrateEvent(event.id) },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 ) { Text(stringResource(R.string.tell_me_about_this)) }
+            }
+            if (hasGenesis && event.kind != WorldEngine.KIND_QUIET_INTERVAL) {
+                TextButton(
+                    onClick = { forkHere = true },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                ) { Text(stringResource(R.string.fork_from_here)) }
             }
         }
     }
