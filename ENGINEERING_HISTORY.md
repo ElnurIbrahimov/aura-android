@@ -460,6 +460,18 @@ browser's WebViewClient consumed nothing, so an in-page redirect could reach `in
 or `javascript:`; `allowedInPageScheme` now restricts navigation to http(s), tested.
 Widget push-refresh verification stays on the device pass.
 
+*2026-08-19:* **3,337 unit tests / 499 suites, 0 failures.** The Living World gained its
+belief layer (four commits on feat/world-author): deviations-from-truth inside WorldState —
+no row means accurate common knowledge — with witness/rumor/stale mechanics and discoveries
+as capped belief_reveal events; contested claims weighted by rival-believed might, with
+Effect.SpreadLie as the lie and bluster_when_weak seeded into new worlds; the scorer's two
+documented-absent factors (reach, surprise) measured on the event itself, neutral at zero so
+belief-free worlds score byte-identically; and living_events compaction finally wired —
+trimNoiseBefore keeps the notable spine, paid narration and every quiet_interval (replay
+walks those), trimBefore becomes the emergency valve it never had a caller for, and both run
+as DecayWorker's sixth sweep above the decayEnabled gate. Device look owed: reveal rows on
+the Living tab.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

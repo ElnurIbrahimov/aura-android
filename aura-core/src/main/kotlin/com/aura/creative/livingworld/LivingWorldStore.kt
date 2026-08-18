@@ -107,8 +107,36 @@ class LivingWorldStore @Inject constructor(
 
     suspend fun eventById(eventId: String): LivingEventEntity? = eventDao.byId(eventId)
 
+    /**
+     * The sixth DecayWorker sweep, above the decayEnabled gate — retention is
+     * not a feature the user opted into. Noise first: sub-floor, unnarrated
+     * rows older than 30 real days of history (720 hourly ticks). Then the
+     * hard cap, oldest-first regardless of notability, when a world has grown
+     * past [HARD_CAP_ROWS] — an emergency valve, not policy, and the caller
+     * `trimBefore` shipped with and never had until now.
+     */
+    suspend fun compactAll() {
+        for (world in worldDao.all()) {
+            val horizon = world.currentTick - COMPACTION_HORIZON_TICKS
+            if (horizon > 0L) {
+                eventDao.trimNoiseBefore(world.id, horizon, NotabilityScorer.DEFAULT_FLOOR)
+            }
+            if (eventDao.count(world.id) > HARD_CAP_ROWS) {
+                eventDao.tickAtOffset(world.id, HARD_CAP_ROWS)?.let { overflowTick ->
+                    eventDao.trimBefore(world.id, overflowTick)
+                }
+            }
+        }
+    }
+
     companion object {
         const val DEFAULT_EVENT_PAGE = 200
+
+        /** 30 real days of hourly ticks — the house retention window. */
+        const val COMPACTION_HORIZON_TICKS = 720L
+
+        /** Rows per world past which the emergency valve opens. */
+        const val HARD_CAP_ROWS = 24_000
     }
 }
 

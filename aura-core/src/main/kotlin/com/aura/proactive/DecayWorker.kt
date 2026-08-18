@@ -30,6 +30,7 @@ class DecayWorker @AssistedInject constructor(
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
     private val verdictSweep: com.aura.calibration.BeliefVerdictSweep? = null,
     private val evidenceRecorder: com.aura.evolution.EvolutionEvidenceRecorder? = null,
+    private val livingWorldStore: com.aura.creative.livingworld.LivingWorldStore? = null,
 ) : CoroutineWorker(appContext, params) {
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
@@ -106,6 +107,13 @@ class DecayWorker @AssistedInject constructor(
             // by default.
             runCatching { evidenceRecorder?.prune() }
                 .onFailure { android.util.Log.w("DecayWorker", "evidence prune failed: ${it.message}", it) }
+
+            // Sixth sweep, same placement, same reason. World history keeps its
+            // notable spine, its paid narration, and every quiet interval —
+            // replay walks those — and sheds only sub-floor noise older than
+            // 30 days, with a hard cap as the emergency valve.
+            runCatching { livingWorldStore?.compactAll() }
+                .onFailure { android.util.Log.w("DecayWorker", "living world compaction failed: ${it.message}", it) }
 
             if (!userPreferences.decayEnabled.first()) {
                 // Skipped, not ok — but note the three sweeps above still ran.

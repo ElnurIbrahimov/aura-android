@@ -199,4 +199,41 @@ class DecayWorkerTest {
         assertEquals("memory decay is switched off", row.detail)
     }
 
+
+    /**
+     * Sixth sweep, same property as the run-log prune above: world-history
+     * compaction is retention, not decay, so it runs whether or not the user
+     * switched memory decay off.
+     */
+    @Test
+    fun `world history is compacted even when memory decay is switched off`() = runBlocking {
+        val worldDao = mockk<com.aura.creative.livingworld.LivingWorldDao>(relaxed = true)
+        val eventDao = mockk<com.aura.creative.livingworld.LivingEventDao>(relaxed = true)
+        coEvery { worldDao.all() } returns listOf(
+            com.aura.creative.livingworld.LivingWorldEntity(
+                id = "w1", projectId = "p1", branchId = "b1", rootSeed = 1L,
+                worldEpochMs = 0L, currentTick = 1_000L, stateJson = "{}",
+                createdAt = 0L, updatedAt = 0L,
+            ),
+        )
+        coEvery { eventDao.count("w1") } returns 10
+
+        val prefs = mockk<UserPreferences>(relaxed = true)
+        every { prefs.decayEnabled } returns flowOf(false)
+        DecayWorker(
+            mockk<Context>(relaxed = true),
+            mockk<WorkerParameters>(relaxed = true),
+            mockk<MemoryStore>(relaxed = true),
+            prefs,
+            livingWorldStore = com.aura.creative.livingworld.LivingWorldStore(worldDao, eventDao),
+        ).doWork()
+
+        coVerify(exactly = 1) {
+            eventDao.trimNoiseBefore(
+                "w1",
+                1_000L - com.aura.creative.livingworld.LivingWorldStore.COMPACTION_HORIZON_TICKS,
+                com.aura.creative.livingworld.NotabilityScorer.DEFAULT_FLOOR,
+            )
+        }
+    }
 }

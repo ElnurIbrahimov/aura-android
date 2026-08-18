@@ -32,6 +32,10 @@ interface LivingWorldDao {
     @Query("SELECT * FROM living_worlds WHERE status = 'running' ORDER BY id ASC")
     suspend fun running(): List<LivingWorldEntity>
 
+    /** Every world, whatever its status — compaction owes paused worlds too. */
+    @Query("SELECT * FROM living_worlds ORDER BY id ASC")
+    suspend fun all(): List<LivingWorldEntity>
+
     @Query("UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, updatedAt = :updatedAt WHERE id = :id")
     suspend fun commitTick(id: String, tick: Long, stateJson: String, updatedAt: Long)
 
@@ -96,6 +100,26 @@ interface LivingEventDao {
     @Query("SELECT COUNT(*) FROM living_events WHERE worldId = :worldId")
     suspend fun count(worldId: String): Int
 
+    /**
+     * Compaction's blade for the noise floor: sub-floor, never-narrated rows
+     * older than the horizon. What survives is the notable spine (the
+     * product), every paid narration, and every quiet_interval — replay-based
+     * forking walks those, so they are load-bearing, not sentiment.
+     */
+    @Query(
+        "DELETE FROM living_events WHERE worldId = :worldId AND tickIndex < :beforeTick " +
+            "AND notability < :floor AND narration = ''",
+    )
+    suspend fun trimNoiseBefore(worldId: String, beforeTick: Long, floor: Double)
+
+    /** The tick sitting :offset rows back from the newest, for the hard cap. */
+    @Query(
+        "SELECT tickIndex FROM living_events WHERE worldId = :worldId " +
+            "ORDER BY tickIndex DESC, seq DESC LIMIT 1 OFFSET :offset",
+    )
+    suspend fun tickAtOffset(worldId: String, offset: Int): Long?
+
+    /** The emergency valve: everything before the tick, notable or not. */
     @Query("DELETE FROM living_events WHERE worldId = :worldId AND tickIndex < :beforeTick")
     suspend fun trimBefore(worldId: String, beforeTick: Long)
 
