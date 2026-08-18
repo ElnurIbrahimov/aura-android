@@ -730,8 +730,8 @@ class MemoryDatabaseMigrationTest {
         val db = helper.createDatabase("test-aura-memory.db", 28)
         db.execSQL(
             "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, " +
-                "templateId, turnCount, createdAt, updatedAt) " +
-                "VALUES ('p1', 'P', '', '', '', '{}', 'novel', 0, 0, 0)",
+                "templateId, metadataJson, turnCount, lastSessionEnded, createdAt, updatedAt) " +
+                "VALUES ('p1', 'P', '', '', '', '{}', 'novel', '{}', 0, 0, 0, 0)",
         )
         db.execSQL(
             "INSERT INTO living_worlds (id, projectId, branchId, rootSeed, branchSalt, " +
