@@ -163,4 +163,52 @@ class OutlineParserTest {
         val beats = OutlineParser.parse("BEAT 1 | Only one | x")
         assertTrue(beats.size < OutlineParser.MIN_BEATS, "one beat is not an outline worth drafting")
     }
+
+    @Test
+    fun `REQUIRES and EFFECT clauses parse into typed assertions`() {
+        val beats = OutlineParser.parse(
+            "BEAT 1 | The beacon fails | Mara loses the light | POV: Mara | " +
+                "REQUIRES: Mara @ location = the lighthouse | " +
+                "EFFECT: Mara @ location = the harbor; Mara @ alive = true",
+        )
+        val beat = beats.single()
+        assertEquals(1, beat.preconditions.size)
+        assertEquals("Mara", beat.preconditions[0].subjectId)
+        assertEquals("location", beat.preconditions[0].predicate)
+        assertEquals("the lighthouse", beat.preconditions[0].value)
+        assertEquals(2, beat.effects.size)
+        assertEquals("the harbor", beat.effects[0].value)
+        assertEquals("alive", beat.effects[1].predicate)
+    }
+
+    @Test
+    fun `a type prefix on the subject is honored and stripped`() {
+        val beat = OutlineParser.parse(
+            "BEAT 1 | Dark | sum | EFFECT: location:The Lighthouse @ lit = false",
+        ).single()
+        assertEquals("location", beat.effects.single().subjectType)
+        assertEquals("The Lighthouse", beat.effects.single().subjectId)
+    }
+
+    @Test
+    fun `a malformed clause is skipped, never guessed`() {
+        val beat = OutlineParser.parse(
+            "BEAT 1 | Dark | sum | REQUIRES: Mara at the lighthouse; Mara @ location = the coast; Mara @ mood",
+        ).single()
+        // No "@", then a valid clause, then no "=": only the middle survives.
+        assertEquals(1, beat.preconditions.size)
+        assertEquals("the coast", beat.preconditions.single().value)
+    }
+
+    @Test
+    fun `a line without the new labels parses exactly as before`() {
+        val beat = OutlineParser.parse(
+            "BEAT 1 | The lighthouse goes dark | Mara wakes to silence | POV: Mara | SETTING: The lighthouse | TARGET: 1200",
+        ).single()
+        assertEquals("The lighthouse goes dark", beat.title)
+        assertEquals("Mara", beat.pov)
+        assertEquals(1200, beat.targetWords)
+        assertTrue(beat.preconditions.isEmpty())
+        assertTrue(beat.effects.isEmpty())
+    }
 }
