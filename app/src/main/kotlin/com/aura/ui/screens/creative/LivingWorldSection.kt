@@ -85,6 +85,24 @@ internal fun LazyListScope.livingWorldSection(
         }
     }
 
+    if (world.sinceYouLeft.isNotEmpty()) {
+        item(key = "living-since") {
+            LivingCard(title = stringResource(R.string.since_you_left)) {
+                Text(
+                    stringResource(R.string.since_you_left_summary, world.daysAway, world.sinceYouLeft.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                )
+                world.sinceYouLeft.forEach { event ->
+                    Text(
+                        "• " + (event.narration.ifBlank { event.summary }),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+
     item(key = "living-now") {
         WorldNowCard(
             world.currentTick,

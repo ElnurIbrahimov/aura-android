@@ -466,4 +466,6 @@
     <string name="timelines_identical">Identical so far — the scan is page-bounded, later divergence may exist</string>
     <string name="timelines_part_at">The timelines part at %1$s:</string>
     <string name="biggest_moments">Biggest moments</string>
+    <string name="since_you_left">Since you left</string>
+    <string name="since_you_left_summary">%1$d world days passed · %2$d moments worth telling</string>
 </resources>

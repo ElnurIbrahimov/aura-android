@@ -158,6 +158,8 @@ class HomeViewModel @Inject constructor(
     private val agentStore: AgentStore,
     private val userPreferences: UserPreferences,
     private val emotionEngine: EmotionEngine,
+    // Appended, not inserted — and nullable: Home works without a living world.
+    private val livingWorldStore: com.aura.creative.livingworld.LivingWorldStore? = null,
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -178,6 +180,24 @@ class HomeViewModel @Inject constructor(
     }
 
     init {
+        // One shot per app open: a world two or more ticks behind gets nudged.
+        // catchUpNow is REPLACE-unique work, so repeats coalesce; ticking is
+        // arithmetic and narration stays inside its own caps, so the cost of a
+        // wake is bounded, not zero — and a world on time enqueues nothing.
+        viewModelScope.launch {
+            runCatching {
+                val store = livingWorldStore ?: return@launch
+                val now = System.currentTimeMillis()
+                val behind = store.running().any {
+                    com.aura.creative.livingworld.LivingWorldCatchUp.shouldEnqueue(
+                        it.currentTick, it.worldEpochMs, now,
+                    )
+                }
+                if (behind) {
+                    com.aura.creative.livingworld.LivingWorldScheduler.catchUpNow(getApplication())
+                }
+            }.onFailure { android.util.Log.w("HomeViewModel", "world nudge failed: ${it.message}", it) }
+        }
         refresh()
         observeProactiveEvents()
         observeTasks()

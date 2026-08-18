@@ -81,6 +81,11 @@ fun CreativeProjectScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val project = state.selectedProject
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    // The tab-open ritual: snapshot what was missed, then move the marker.
+    androidx.compose.runtime.LaunchedEffect(selectedTab) {
+        if (selectedTab == LIVING_TAB) viewModel.onLivingTabOpened()
+    }
     var showEdit by remember { mutableStateOf(false) }
     // The Intent fires here, not in the ViewModel. No ViewModel in this app
     // constructs one — the ViewModel produces the payload and the composable

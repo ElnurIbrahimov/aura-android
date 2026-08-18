@@ -503,6 +503,18 @@ page-honestly; the Living tab grew branch chips, fork buttons (present and from-
 where genesis allows), the comparison card, and a Biggest-moments filter running on the same
 DAO as the tool. Device look owed: fork a world and watch both branches tick.
 
+*2026-08-19 (Phase D):* **3,376 unit tests / 504 suites, 0 failures.** The return ritual.
+LIVING_WORLD joined the finding-type registry (appended — notification ids are 1100+ordinal),
+and LivingWorldReporter now hands its report to ProactiveNotifier after the in-app card is
+recorded, never before; the category defaults to EARNED, so it stays silent until the ledger
+sees engagement, with the Home card as the always-on surface. Opening Home or the Living tab
+nudges a world two or more ticks behind through the existing REPLACE-unique catch-up (one
+tick behind is hourly steady state — LivingWorldCatchUp is the pure policy). The Living tab
+gained "Since you left": a per-open snapshot of the moments missed past a per-world lastSeen
+marker (worldId=tick CSV in preferences), top five by notability, then the marker moves.
+Narration stayed inside its caps throughout. Device look owed: one EARNED-to-ALWAYS
+notification and the since-you-left card after a real absence.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

@@ -52,6 +52,7 @@ internal fun normalizeModelId(model: String): String = model.trim()
 internal val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
 internal val KEY_FIRST_RUN_COMPLETE = booleanPreferencesKey("first_run_complete")
 internal val KEY_LAST_SEEN_PROACTIVE_AT = longPreferencesKey("last_seen_proactive_at")
+internal val KEY_LIVING_WORLD_LAST_SEEN = stringPreferencesKey("living_world_last_seen")
 /**
  * Proactive worker gates. Both default to true so a fresh install
  * gets the morning brief + calendar monitor out of the box. The
@@ -170,6 +171,46 @@ class UserPreferences @Inject constructor(
      */
     val lastSeenProactiveAt: Flow<Long> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_LAST_SEEN_PROACTIVE_AT] ?: 0L
+    }
+
+    /**
+     * The last tick the user saw, per world — `worldId=tick` CSV, the
+     * [interruptionPolicies] codec. Read by the Living tab's "Since you left"
+     * block; written when the tab is opened. Absent means 0: on a first visit
+     * everything is news, which is the right first impression.
+     */
+    val livingWorldLastSeen: Flow<Map<String, Long>> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_LIVING_WORLD_LAST_SEEN].orEmpty()
+            .split(',')
+            .mapNotNull { entry ->
+                val parts = entry.split('=')
+                if (parts.size == 2 && parts[0].isNotBlank()) {
+                    parts[1].toLongOrNull()?.let { parts[0] to it }
+                } else {
+                    null
+                }
+            }
+            .toMap()
+    }
+
+    suspend fun setLivingWorldLastSeen(worldId: String, tick: Long) {
+        context.auraPrefs.edit { prefs ->
+            val current = prefs[KEY_LIVING_WORLD_LAST_SEEN].orEmpty()
+                .split(',')
+                .mapNotNull { entry ->
+                    val parts = entry.split('=')
+                    if (parts.size == 2 && parts[0].isNotBlank()) {
+                        parts[1].toLongOrNull()?.let { parts[0] to it }
+                    } else {
+                        null
+                    }
+                }
+                .toMap()
+                .toMutableMap()
+            current[worldId] = tick
+            prefs[KEY_LIVING_WORLD_LAST_SEEN] =
+                current.entries.joinToString(",") { "${it.key}=${it.value}" }
+        }
     }
 
     /**

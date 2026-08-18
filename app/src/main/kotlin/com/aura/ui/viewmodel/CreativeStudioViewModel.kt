@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import android.util.Log
@@ -101,6 +102,9 @@ data class LivingWorldUi(
     /** The drama filter: the most notable moments, loaded on toggle. */
     val notableMoments: List<LivingEventUi> = emptyList(),
     val showNotable: Boolean = false,
+    /** What happened past the last tick the user saw; snapshot per tab open. */
+    val sinceYouLeft: List<LivingEventUi> = emptyList(),
+    val daysAway: Long = 0L,
 )
 
 data class WorldBranchUi(val branchId: String, val name: String, val selected: Boolean)
@@ -132,6 +136,7 @@ data class LivingEventUi(
 private const val EVENT_PAGE = 200
 private const val DIVERGENCE_PAGE = 400
 private const val NOTABLE_PAGE = 12
+private const val SINCE_YOU_LEFT_PAGE = 5
 private const val TAG = "CreativeStudioVM"
 
 /**
@@ -258,6 +263,8 @@ class CreativeStudioViewModel @Inject constructor(
     private val creativeAnalysisStore: com.aura.creative.CreativeAnalysisStore,
     private val canonFactDao: com.aura.creative.CanonFactDao,
     private val continuityIssueDao: com.aura.creative.ContinuityIssueDao,
+    // Appended, not inserted — and nullable: tests build this by name.
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -662,6 +669,8 @@ class CreativeStudioViewModel @Inject constructor(
                         divergence = if (previous?.worldId == world.id) previous.divergence else emptyList(),
                         notableMoments = if (previous?.worldId == world.id) previous.notableMoments else emptyList(),
                         showNotable = if (previous?.worldId == world.id) previous.showNotable else false,
+                        sinceYouLeft = if (previous?.worldId == world.id) previous.sinceYouLeft else emptyList(),
+                        daysAway = if (previous?.worldId == world.id) previous.daysAway else 0L,
                     )
                     _state.update { it.copy(livingWorld = ui) }
                 }
@@ -812,6 +821,37 @@ class CreativeStudioViewModel @Inject constructor(
                     state.copy(livingWorld = state.livingWorld?.copy(divergence = lines))
                 }
             }.onFailure { Log.w(TAG, "compare failed: ${it.message}", it) }
+        }
+    }
+
+    /**
+     * The tab-open ritual: snapshot what was missed, then move the marker.
+     *
+     * A snapshot rather than a live filter on purpose — the block shows what
+     * was news at the moment of opening and stays put until the next open,
+     * instead of shrinking as the marker advances underneath the reader.
+     */
+    fun onLivingTabOpened() {
+        viewModelScope.launch {
+            runCatching {
+                val shown = _state.value.livingWorld ?: return@launch
+                val world = selectedWorldEntity() ?: return@launch
+                val prefs = userPreferences ?: return@launch
+                val lastSeen = prefs.livingWorldLastSeen.first()[world.id] ?: 0L
+                val missed = shown.events
+                    .filter { it.tick > lastSeen }
+                    .sortedByDescending { it.notability }
+                    .take(SINCE_YOU_LEFT_PAGE)
+                _state.update {
+                    it.copy(
+                        livingWorld = it.livingWorld?.copy(
+                            sinceYouLeft = missed,
+                            daysAway = (world.currentTick - lastSeen).coerceAtLeast(0L),
+                        ),
+                    )
+                }
+                prefs.setLivingWorldLastSeen(world.id, world.currentTick)
+            }.onFailure { Log.w(TAG, "since-you-left failed: ${it.message}", it) }
         }
     }
 

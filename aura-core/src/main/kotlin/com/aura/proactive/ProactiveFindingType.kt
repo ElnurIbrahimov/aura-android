@@ -40,6 +40,14 @@ enum class ProactiveFindingType(val wire: String, val action: ProactiveAction) {
      * interruption ledger as everything else and starts silent.
      */
     OPEN_QUESTION("open_question", ProactiveAction.OpenChat()),
+
+    /**
+     * The living world has news. Quotes the world's own narration; tapping
+     * lands on Creative. Appended, not inserted — the per-category
+     * notification ids are 1100 + ordinal, and reordering would swap which
+     * notification replaces which.
+     */
+    LIVING_WORLD("living_world", ProactiveAction.Navigate("creative")),
     ;
 
     companion object {
