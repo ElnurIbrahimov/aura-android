@@ -167,7 +167,10 @@ fun InAppBrowserSheet(
                                     view: WebView?,
                                     request: android.webkit.WebResourceRequest?,
                                 ): Boolean {
-                                    return false
+                                    // The entry URL was vetted; every later
+                                    // navigation is the page's choice. Consume
+                                    // anything that is not plain web traffic.
+                                    return !allowedInPageScheme(request?.url?.scheme)
                                 }
                             }
                             loadUrl(initialUrl)
@@ -200,3 +203,11 @@ internal fun normalizeUrl(input: String): String {
     if (trimmed.startsWith("file://") || trimmed.startsWith("content://")) return ""
     return "https://$trimmed"
 }
+
+/**
+ * In-sheet navigation policy: only http(s) may load. intent://, javascript:,
+ * file: and friends are consumed by the WebViewClient and reach neither the
+ * WebView nor another app.
+ */
+internal fun allowedInPageScheme(scheme: String?): Boolean =
+    scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)

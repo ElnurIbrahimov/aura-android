@@ -55,21 +55,6 @@ class AskAuraWidget : AppWidgetProvider() {
         refreshWidgets(context, appWidgetManager, appWidgetIds)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        // Listen for the broadcast the [ProactiveBootstrap] sends on
-        // cold start so the widget body stays current even if the
-        // system hasn't ticked over 30 minutes yet.
-        if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
-            val mgr = AppWidgetManager.getInstance(context)
-            val component = ComponentName(context, AskAuraWidget::class.java)
-            val ids = mgr.getAppWidgetIds(component)
-            if (ids.isNotEmpty()) {
-                refreshWidgets(context, mgr, ids)
-            }
-        }
-    }
-
     private fun refreshWidgets(
         context: Context,
         appWidgetManager: AppWidgetManager,

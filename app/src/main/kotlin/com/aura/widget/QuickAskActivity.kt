@@ -3,6 +3,8 @@ package com.aura.widget
 import androidx.compose.ui.res.stringResource
 import android.app.PendingIntent
 import kotlinx.coroutines.flow.first
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
@@ -142,15 +144,21 @@ class QuickAskActivity : androidx.fragment.app.FragmentActivity() {
      * is on the screen in front of them, and in the conversation.
      */
     private fun updateWidgetWithResponse(query: String, response: String) {
-        val locked = runCatching {
-            kotlinx.coroutines.runBlocking { userPreferences.appLockEnabled.first() }
-        }.getOrDefault(true)
-
-        if (locked) {
-            AskAuraWidget.requestRefresh(this)
-            return
+        lifecycleScope.launch {
+            // The lock read was runBlocking on the main thread -- the same
+            // cold-start ANR window WidgetConfigActivity removed. A failed
+            // read still fails closed.
+            val locked = runCatching { userPreferences.appLockEnabled.first() }
+                .getOrDefault(true)
+            if (locked) {
+                AskAuraWidget.requestRefresh(this@QuickAskActivity)
+            } else {
+                echoAnswerToWidget(query, response)
+            }
         }
+    }
 
+    private fun echoAnswerToWidget(query: String, response: String) {
         val manager = AppWidgetManager.getInstance(this)
         val ids = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             intArrayOf(appWidgetId)

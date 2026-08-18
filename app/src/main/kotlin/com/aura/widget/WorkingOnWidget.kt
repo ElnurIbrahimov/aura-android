@@ -82,19 +82,6 @@ class WorkingOnWidget : AppWidgetProvider() {
         refreshWidgets(context, appWidgetManager, appWidgetIds)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        // The same broadcast AskAuraWidget listens for. updatePeriodMillis is
-        // clamped to 30 minutes by the system, which is far too slow for a line
-        // claiming to say what Aura is doing *now*; the push is what makes the
-        // claim true between ticks.
-        if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
-            val mgr = AppWidgetManager.getInstance(context)
-            val ids = mgr.getAppWidgetIds(ComponentName(context, WorkingOnWidget::class.java))
-            if (ids.isNotEmpty()) refreshWidgets(context, mgr, ids)
-        }
-    }
-
     private fun refreshWidgets(
         context: Context,
         appWidgetManager: AppWidgetManager,
