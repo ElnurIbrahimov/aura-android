@@ -283,7 +283,10 @@ private fun EventRow(event: LivingEventUi, narrating: Boolean, viewModel: Creati
             Text(
                 event.summary,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (event.kind == WorldEngine.KIND_CLAIM_WON) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (
+                    event.kind == WorldEngine.KIND_CLAIM_WON ||
+                    event.kind == WorldEngine.KIND_BELIEF_REVEAL
+                ) FontWeight.SemiBold else FontWeight.Normal,
             )
             if (event.narration.isNotBlank()) {
                 Text(

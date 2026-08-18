@@ -18,12 +18,12 @@ import kotlin.math.abs
  * never narrated. Only a change that is large *relative to what is at stake*,
  * *in something finite*, and *not the fifth of its kind this month* survives.
  *
- * Two of the five factors the design calls for are deliberately absent rather
- * than faked. **Reach** (how many factions witnessed it) and **surprise** (how
- * many of them already expected it) both require the belief layer, which does
- * not exist yet. Inventing plausible stand-ins would produce a number that
- * looks like five factors and is really three, and there would be no way to
- * tell later which part was measuring anything.
+ * All five factors the design calls for are measured now. **Reach** (how far
+ * the news travelled) and **surprise** (how wrong the audience was) arrive on
+ * the event itself in permille, computed by the engine's belief step from the
+ * deviation table as it stood *before* the event applied — exact pre-event
+ * truths, not end-of-slice approximations. Both are neutral at zero, so a
+ * world without beliefs scores exactly as it always did.
  */
 object NotabilityScorer {
 
@@ -34,11 +34,24 @@ object NotabilityScorer {
     fun score(event: WorldEvent, state: WorldState, recentSimilar: Int): Double {
         if (event.kind == WorldEngine.KIND_QUIET_INTERVAL) return QUIET_INTERVAL_SCORE
 
+        val reach = event.reachPermille.coerceIn(0L, 1_000L) / 1_000.0
+        val surprise = event.surprisePermille.coerceIn(0L, 1_000L) / 1_000.0
+
+        // A discovery has no magnitude of its own — nothing real moved. It is
+        // scored by what it overturned and who saw it land: a long-standing
+        // big lie collapsing in front of everyone is narrated, a trivial
+        // correction stays under the floor.
+        if (event.kind == WorldEngine.KIND_BELIEF_REVEAL) {
+            return (surprise * (0.5 + 0.5 * reach) + REVEAL_BASE).coerceIn(0.0, 1.0)
+        }
+
         val magnitude = magnitude(event, state)
         val scarcity = scarcity(event, state)
         val novelty = 1.0 / (1.0 + recentSimilar.coerceAtLeast(0))
 
         var score = magnitude * scarcity * novelty
+        // Neutral at zero: a belief-free world scores exactly as it always did.
+        score *= 1.0 + REACH_WEIGHT * reach + SURPRISE_WEIGHT * surprise
         // The map changing hands is the one event that is always worth a
         // mention: it is the only thing in the world that cannot be undone by
         // the losing side simply waiting.
@@ -107,6 +120,11 @@ object NotabilityScorer {
     private const val QUIET_INTERVAL_SCORE = 0.40
 
     private const val CLAIM_BONUS = 0.25
+    private const val REACH_WEIGHT = 0.5
+    private const val SURPRISE_WEIGHT = 0.5
+
+    /** A discovery is at least worth this much: somebody's world just changed shape. */
+    private const val REVEAL_BASE = 0.15
     private const val SCARCITY_CONSERVED = 1.0
     private const val SCARCITY_RENEWABLE = 0.4
     private const val SCARCITY_ABSTRACT = 0.2

@@ -115,4 +115,49 @@ class NotabilityScorerTest {
         val score = NotabilityScorer.score(absurd, state, 0)
         assertTrue(score in 0.0..1.0, "score escaped its range: $score")
     }
+
+    @Test
+    fun `surprise raises a claim's score`() {
+        val quiet = NotabilityScorer.score(claim(), state, recentSimilar = 0)
+        val shocking = NotabilityScorer.score(claim().copy(surprisePermille = 1_000), state, recentSimilar = 0)
+        assertTrue(shocking > quiet, "an event the world was wrong about did not score higher")
+    }
+
+    @Test
+    fun `reach raises a claim's score`() {
+        val unseen = NotabilityScorer.score(claim(), state, recentSimilar = 0)
+        val public = NotabilityScorer.score(claim().copy(reachPermille = 1_000), state, recentSimilar = 0)
+        assertTrue(public > unseen, "an event everyone came to know did not score higher")
+    }
+
+    @Test
+    fun `a large public discovery clears the floor and a trivial one does not`() {
+        fun reveal(surprise: Long, reach: Long) = WorldEvent(
+            tick = 10, seq = 0, kind = WorldEngine.KIND_BELIEF_REVEAL, actorId = "a", targetId = "b",
+            magnitudeMilli = 5_000, stockKey = WorldEngine.STOCK_MIGHT,
+            reachPermille = reach, surprisePermille = surprise, summary = "discovered",
+        )
+        val collapse = NotabilityScorer.score(reveal(surprise = 800, reach = 1_000), state, 0)
+        val correction = NotabilityScorer.score(reveal(surprise = 100, reach = 0), state, 0)
+        assertTrue(
+            collapse >= NotabilityScorer.DEFAULT_FLOOR,
+            "a big lie collapsing in public scored $collapse, below the floor — it would never be narrated",
+        )
+        assertTrue(
+            correction < NotabilityScorer.DEFAULT_FLOOR,
+            "a trivial correction scored $correction, above the floor — noise would be narrated",
+        )
+    }
+
+    @Test
+    fun `reach and surprise leave a zeroed event exactly where it was`() {
+        // Every event elsewhere in this file carries the zero defaults, so the
+        // whole existing suite is the regression pin; this makes the neutrality
+        // explicit for the reader.
+        val base = NotabilityScorer.score(claim(), state, recentSimilar = 0)
+        val zeroed = NotabilityScorer.score(
+            claim().copy(reachPermille = 0, surprisePermille = 0), state, recentSimilar = 0,
+        )
+        assertTrue(base == zeroed, "zero reach and surprise must not move a score")
+    }
 }
