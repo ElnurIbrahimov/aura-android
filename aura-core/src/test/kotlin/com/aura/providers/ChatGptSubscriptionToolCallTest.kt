@@ -15,6 +15,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Catalog behaviour for the ChatGPT subscription provider.
@@ -26,6 +29,10 @@ import kotlin.test.assertTrue
  * captured off the live stream.
  */
 class ChatGptSubscriptionToolCallTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: ChatGptSubscriptionProvider

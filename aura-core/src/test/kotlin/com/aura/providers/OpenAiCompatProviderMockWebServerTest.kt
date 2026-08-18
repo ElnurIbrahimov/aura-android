@@ -12,12 +12,19 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Additional MockWebServer tests for [OpenAiCompatProvider.listModels] that
  * verify the structured exception contract: no secret/error body leakage.
  */
 class OpenAiCompatProviderMockWebServerTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: OpenAiCompatProvider

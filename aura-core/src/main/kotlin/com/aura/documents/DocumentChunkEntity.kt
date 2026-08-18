@@ -35,7 +35,21 @@ data class DocumentChunkEntity(
     val documentId: kotlin.String,
     /** 0-based position within the document. */
     val ordinal: Int,
-    /** Character offset in the original text. */
+    /**
+     * Character range in the **normalised** text, not the original.
+     *
+     * `DocumentChunker` collapses CRLF, trailing whitespace and runs of blank
+     * lines before it splits, and it is that string these offsets index. The
+     * normalised text is not persisted anywhere, so today this range cannot be
+     * resolved back to anything a user can see — which is why
+     * `SearchDocumentsTool` does not print it. It is kept because it is the
+     * only record of where a chunk sat, and persisting the normalised text
+     * would make it resolvable.
+     *
+     * This KDoc said "offset in the original text", which was a direct
+     * contradiction of `DocumentChunker`'s own docs one file over. Two
+     * statements, both confident, one wrong.
+     */
     val charStart: Int,
     val charEnd: Int,
     /** Page number if extracted from a paginated source (PDF), else 0. */

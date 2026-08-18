@@ -12,6 +12,9 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Gemini's catalog is not a list of chat models.
@@ -23,6 +26,10 @@ import kotlin.test.assertTrue
  * nothing ever came back.
  */
 class GeminiChatCapableCatalogTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: GeminiProvider

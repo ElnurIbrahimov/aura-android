@@ -95,6 +95,9 @@ import com.aura.ui.components.ProjectPickerSheet
 import com.aura.ui.voice.VoiceCallScreen
 import com.aura.ui.voice.VoiceOverlay
 import com.aura.ui.voice.ContinuousVoiceOverlay
+import com.aura.ui.voice.LiveCallSheet
+import com.aura.ui.voice.LiveCallStatus
+import com.aura.ui.voice.LiveCallViewModel
 import com.aura.ui.voice.ContinuousVoiceViewModel
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -163,6 +166,7 @@ internal data class MicPermissionOutcome(
 internal fun findSourceTurnIndex(turnTimestamps: List<Long>, targetTimestamp: Long): Int =
     turnTimestamps.indexOf(targetTimestamp)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatRoute(
     navController: androidx.navigation.NavHostController,
@@ -268,6 +272,10 @@ fun ChatRoute(
     var voiceCallDurationMs by remember { mutableStateOf(0L) }
     var voiceCallStartTime by remember { mutableStateOf(0L) }
     val continuousVoiceViewModel: ContinuousVoiceViewModel = hiltViewModel()
+    // The live-call stack's first caller. Until this line RealtimeCallController,
+    // RealtimeVoiceService and LiveCallSheet were reachable only from tests.
+    var showLiveCallSheet by remember { mutableStateOf(false) }
+    val liveCallViewModel: LiveCallViewModel = hiltViewModel()
     var showStopStreamConfirm by remember { mutableStateOf(false) }
 
     // Intercept back press during streaming — the user gets a chance to
@@ -474,8 +482,12 @@ fun ChatRoute(
                 },
                 onVoiceCall = {
                     if (hasMicPermission) {
-                        showContinuousVoice = true
-                        voiceCallMode = true
+                        // Offer the choice rather than assuming. This used to go
+                        // straight to the push-to-talk loop, which is why the
+                        // realtime stack had no caller: there was no moment in
+                        // the app where a user could ask for a live call.
+                        liveCallViewModel.refresh(state.effectiveModel)
+                        showLiveCallSheet = true
                     } else {
                         micPermissionState = micPermissionState.request(ChatVoiceMode.Continuous)
                         micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -554,6 +566,45 @@ fun ChatRoute(
         SourcesSheet(
             citations = sources,
             onDismiss = { showSources = false },
+        )
+    }
+
+    // Voice: live call or push-to-talk. Both are always offered, and the live
+    // one is disabled with its reason visible when it is not possible — see
+    // LiveCallSheet's KDoc for why hiding it would be the wrong call.
+    if (showLiveCallSheet) {
+        val liveAvailability by liveCallViewModel.availabilityState.collectAsStateWithLifecycle()
+        ModalBottomSheet(
+            onDismissRequest = { showLiveCallSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+        ) {
+            LiveCallSheet(
+                availability = liveAvailability,
+                onStartLiveCall = { model ->
+                    showLiveCallSheet = false
+                    liveCallViewModel.startCall(model, state.conversation.id)
+                },
+                onStartPushToTalk = {
+                    showLiveCallSheet = false
+                    showContinuousVoice = true
+                    voiceCallMode = true
+                },
+            )
+        }
+    }
+
+    // The live call itself. Rendered outside the sheet because the sheet is
+    // dismissed the moment a call starts — a bottom sheet is how you choose,
+    // not somewhere to hold a conversation.
+    val liveCall by liveCallViewModel.callState.collectAsStateWithLifecycle()
+    if (liveCall.phase != com.aura.realtime.RealtimeCallController.Phase.IDLE &&
+        liveCall.phase != com.aura.realtime.RealtimeCallController.Phase.ENDED
+    ) {
+        LiveCallStatus(
+            phase = liveCall.phase.name.lowercase().replaceFirstChar { it.uppercase() },
+            modelName = state.effectiveModel.substringAfter(':'),
+            remainingSeconds = liveCall.remainingMs / 1000,
+            echoCancellation = liveCall.echoCancellation,
         )
     }
 

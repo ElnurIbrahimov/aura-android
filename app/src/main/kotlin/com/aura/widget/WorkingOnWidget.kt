@@ -82,19 +82,6 @@ class WorkingOnWidget : AppWidgetProvider() {
         refreshWidgets(context, appWidgetManager, appWidgetIds)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        // The same broadcast AskAuraWidget listens for. updatePeriodMillis is
-        // clamped to 30 minutes by the system, which is far too slow for a line
-        // claiming to say what Aura is doing *now*; the push is what makes the
-        // claim true between ticks.
-        if (intent.action == com.aura.proactive.ProactiveBootstrap.ACTION_REFRESH_WIDGET) {
-            val mgr = AppWidgetManager.getInstance(context)
-            val ids = mgr.getAppWidgetIds(ComponentName(context, WorkingOnWidget::class.java))
-            if (ids.isNotEmpty()) refreshWidgets(context, mgr, ids)
-        }
-    }
-
     private fun refreshWidgets(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -133,8 +120,10 @@ class WorkingOnWidget : AppWidgetProvider() {
         val open = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_IMMUTABLE else 0
+        // Unconditional: FLAG_IMMUTABLE exists from API 23 and minSdk is 26, so
+        // the version guard only ever handed a mutable PendingIntent to devices
+        // below Android 12 rather than protecting anything.
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         views.setOnClickPendingIntent(
             R.id.working_on_root,
             PendingIntent.getActivity(context, 0, open, flags),

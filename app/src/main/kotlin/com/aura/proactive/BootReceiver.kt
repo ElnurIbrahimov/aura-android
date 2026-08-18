@@ -3,91 +3,64 @@ package com.aura.proactive
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
 
 /**
  * Reschedules proactive workers after device reboot.
  *
- * WorkManager persists work across reboots by default, but some OEMs
- * clear WorkManager state on cold boot. This receiver re-enqueues the
- * decay, daemon, and calendar-check workers directly (they don't need
- * DI — just WorkManager scheduling). Exact preferences are corrected
- * by ProactiveBootstrap on the next app launch.
+ * WorkManager persists work across reboots by default, but some OEMs clear
+ * WorkManager state on cold boot — which is the entire reason this receiver
+ * exists, and the reason the set it covers has to be the complete one.
+ *
+ * It was not. It re-enqueued seven of the eleven periodic workers and silently
+ * omitted `BackupWorker`, `PlaceLogWorker` and `ProjectLedgerWorker`. On exactly
+ * the phones this class is written for, the weekly automatic backup stopped at
+ * the first reboot and did not resume until the app was next opened —
+ * `allowBackup="false"` is correct, so that backup is the only copy of the
+ * memory store that exists off the device, and losing it silently is the one
+ * unrecoverable failure mode in the app. Nothing noticed, because a worker that
+ * is not scheduled produces no run record to be missing.
+ *
+ * `LivingWorldTickWorker` is deliberately still absent: `WorldClock` derives the
+ * due tick from wall time, so a world loses nothing by not being ticked, and the
+ * catch-up path folds the gap in closed form on the next launch.
+ *
+ * **Every schedule here delegates to the same scheduler the app uses.** The old
+ * version rebuilt six of the requests inline, and they had already drifted: the
+ * dream request lost `setInitialDelay(2h)`, so a reboot could fire a full
+ * consolidation pass while the phone was still settling, and several lost their
+ * tags. Duplicating a `PeriodicWorkRequest` with `UPDATE` policy silently
+ * replaces the real one with the weaker copy — the hazard the daemon comment
+ * below already called out, applied to one worker and missed on the rest.
+ *
+ * Exact preferences (the brief's hour, the daemon's interval) are corrected by
+ * `ProactiveBootstrap` on the next app launch. Every worker below either
+ * self-gates on its own preference — `BackupWorker` on `autoBackupEnabled`,
+ * `PlaceLog.sample` returning `Disabled` before it reads any location — or is
+ * deliberately not user-switchable, so scheduling them unconditionally starts
+ * nothing the user has switched off.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        val wm = WorkManager.getInstance(context)
-        // Re-enqueue decay worker (every 6h, idempotent UPDATE policy)
-        val decayRequest = PeriodicWorkRequestBuilder<DecayWorker>(6, TimeUnit.HOURS).build()
-        wm.enqueueUniquePeriodicWork(
-            DecayWorker.UNIQUE_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            decayRequest,
-        )
+        val app = context.applicationContext
+
+        // Both schedulers take nothing but a Context. Constructing them here
+        // rather than injecting keeps this receiver Hilt-free while still using
+        // the one definition of each request, constraints and all.
+        val scheduler = com.aura.proactive.ProactiveScheduler(app)
+        scheduler.scheduleDecay()
+        scheduler.scheduleCalendarChecks()
+        scheduler.scheduleMorningBrief()
+        scheduler.scheduleDream()
+        scheduler.scheduleBackup()
+        scheduler.schedulePlaceLog()
+        scheduler.scheduleProjectLedger()
+
         // Re-enqueue the daemon through its scheduler so its constraints
-        // (network + battery-not-low) survive reboot — an inline
-        // unconstrained request here with UPDATE policy would silently
-        // strip them. The default interval is corrected to the user's
-        // setting by ProactiveBootstrap on next app launch.
-        DaemonScheduler.schedule(context)
-        // Re-enqueue the calendar check worker (15 min). The worker
-        // no-ops if the calendar monitor preference is off, so this
-        // unconditional re-enqueue is safe — same pattern as decay.
-        val calendarRequest = PeriodicWorkRequestBuilder<CalendarCheckWorker>(
-            CalendarCheckWorker.INTERVAL_MINUTES, TimeUnit.MINUTES,
-        ).build()
-        wm.enqueueUniquePeriodicWork(
-            CalendarCheckWorker.UNIQUE_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            calendarRequest,
-        )
-        // Re-enqueue morning brief and dream workers. Their exact timing
-        // preferences are read inside the workers, so using defaults here
-        // is safe until the next ProactiveBootstrap run. This keeps the
-        // headline proactive features alive across reboots on OEMs that
-        // clear WorkManager state.
-        val morningRequest = PeriodicWorkRequestBuilder<MorningBriefWorker>(1, TimeUnit.DAYS).build()
-        wm.enqueueUniquePeriodicWork(
-            MorningBriefWorker.UNIQUE_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            morningRequest,
-        )
-        val dreamRequest = PeriodicWorkRequestBuilder<com.aura.dream.DreamWorker>(1, TimeUnit.DAYS)
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiresBatteryNotLow(true)
-                    .setRequiresCharging(true)
-                    .build()
-            )
-            .build()
-        wm.enqueueUniquePeriodicWork(
-            com.aura.dream.DreamWorker.UNIQUE_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            dreamRequest,
-        )
-        // Re-enqueue evolution worker (default 24h, network + battery-not-low).
-        // The worker itself no-ops if evolution is disabled, so this is safe.
-        val evolutionRequest = PeriodicWorkRequestBuilder<com.aura.evolution.EvolutionWorker>(24, TimeUnit.HOURS)
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .setRequiresBatteryNotLow(true)
-                    .build()
-            )
-            .build()
-        wm.enqueueUniquePeriodicWork(
-            com.aura.evolution.EvolutionWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            evolutionRequest,
-        )
-        // Re-enqueue trigger worker (15 min). The worker itself no-ops if
-        // triggers are disabled, so this is safe — same pattern as evolution.
-        com.aura.triggers.TriggerWorker.schedule(context)
+        // (network + battery-not-low) survive reboot — an inline unconstrained
+        // request here with UPDATE policy would silently strip them.
+        DaemonScheduler.schedule(app)
+        com.aura.evolution.EvolutionScheduler(app).schedule()
+        com.aura.triggers.TriggerWorker.schedule(app)
     }
 }

@@ -115,6 +115,23 @@ class ChatSendController(
     /** Buffer for the assistant's streamed text, used by TTS at end. */
     private var responseBuffer: StringBuilder = StringBuilder()
 
+    /** Wall-clock of the last streaming publication, for the throttle. */
+    private var lastStreamPublishMs: Long = 0L
+
+    /**
+     * Push [responseBuffer]'s current contents onto the open turn.
+     *
+     * The whole buffer rather than the latest delta, so a skipped publication
+     * loses nothing — the next one carries everything since.
+     */
+    private fun publishStreamingText() {
+        val text = responseBuffer.toString()
+        state.update { old ->
+            val last = old.conversation.turns.lastOrNull() ?: return@update old
+            old.copy(conversation = old.conversation.replaceLastTurn(last.copy(assistant = text)))
+        }
+    }
+
     /** Count of consecutive streaming failures; triggers MoA escalation at 3. */
     var consecutiveFailures: Int = 0
         private set
@@ -218,6 +235,9 @@ class ChatSendController(
             )
         }
         responseBuffer = StringBuilder()
+        // Zero, not `now`: the first token of a run should appear immediately
+        // rather than waiting out an interval that started before it existed.
+        lastStreamPublishMs = 0L
 
         onSaveConversation()  // Save user message immediately
 
@@ -313,10 +333,14 @@ class ChatSendController(
                 // Falls back to the existing maxSteps heuristic when the
                 // bandit is disabled or unavailable.
                 category = ProblemCategory.classify(text, resolvedSpecialist)
-                strategy = if (strategyBandit != null) {
-                    runCatching { strategyBandit.selectStrategy(category!!) }
-                        .onFailure { Log.w("ChatSendController", "runCatching failed: ${it.message}", it) }.getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
-                } else null
+                // `strategyBandit` is a non-null constructor dependency, so the
+                // null check this used to carry was always true and the `else
+                // null` branch was unreachable — which made the "bandit is
+                // disabled or unavailable" fallback the comment above describes
+                // something the code could not actually do.
+                strategy = runCatching { strategyBandit.selectStrategy(category!!) }
+                    .onFailure { Log.w("ChatSendController", "runCatching failed: ${it.message}", it) }
+                    .getOrDefault(ReasoningStrategy.MULTI_STEP_REFLECT)
 
                 val maxSteps = strategy?.maxSteps ?: when (resolvedSpecialist?.name) {
                     "researcher" -> 20
@@ -361,6 +385,29 @@ class ChatSendController(
         strategy: ReasoningStrategy?,
         category: ProblemCategory?,
     ) {
+            // Whether this run failed, latched from the event stream and read
+            // exactly once, in Done.
+            //
+            // The bandit used to record from two places and got all three
+            // failure shapes wrong:
+            //
+            //  - `max_steps_exceeded` recorded a failure here and then a
+            //    success in Done, because Error is not terminal for the stream
+            //    — the loop emits it and falls through to Result and Done. Both
+            //    alpha and beta incremented, which leaves the Beta mean alone
+            //    but shrinks its variance, so a failed run made the arm *more*
+            //    confident.
+            //  - A provider error set `finished = true` in the loop, so the
+            //    old failure branch's `code == "max_steps_exceeded"` test
+            //    missed it and Done recorded a clean success.
+            //  - `empty_response` did the same.
+            //
+            // Error is always terminal — the one non-terminal provider failure
+            // emits Warning and fails over (MemoryAugmentedAgenticLoop:1220) —
+            // so latching it here is sound, and Done is always last.
+            // StrategyBanditStore.recordOutcome is unconditionally additive
+            // with no idempotency key, so recording twice is never harmless.
+            var runFailed = false
             try {
                 events.collect { event ->
                     when (event) {
@@ -386,16 +433,23 @@ class ChatSendController(
                             }
                         }
                         is AgentEvent.TextDelta -> {
+                            // Every delta is kept; only the *publication* is
+                            // throttled. Conflating the event stream itself
+                            // would drop characters — these are increments, not
+                            // snapshots — so the buffer is always appended to
+                            // and the UI is refreshed at a bounded rate.
+                            //
+                            // Each publication re-parses the whole cumulative
+                            // message (see StreamingText), so the cost of a
+                            // stream was quadratic in its length and paid once
+                            // per token. Bounding publications makes it
+                            // quadratic in *elapsed time* instead, which stops
+                            // a fast model from being the expensive case.
                             responseBuffer.append(event.text)
-                            state.update { old ->
-                                val turns = old.conversation.turns
-                                val last = turns.lastOrNull()
-                                val updatedConversation = if (last != null) {
-                                    old.conversation.replaceLastTurn(
-                                        last.copy(assistant = (last.assistant ?: "") + event.text)
-                                    )
-                                } else old.conversation
-                                old.copy(conversation = updatedConversation)
+                            val now = System.currentTimeMillis()
+                            if (now - lastStreamPublishMs >= STREAM_PUBLISH_INTERVAL_MS) {
+                                lastStreamPublishMs = now
+                                publishStreamingText()
                             }
                         }
                         is AgentEvent.ToolCallStart -> {
@@ -498,10 +552,9 @@ class ChatSendController(
                         }
                         is AgentEvent.Error -> {
                             consecutiveFailures++
-                            // Record strategy bandit outcome: failure on max_steps_exceeded
-                            if (strategy != null && category != null && event.code == "max_steps_exceeded") {
-                                runCatching { strategyBandit.recordOutcome(category, strategy, success = false) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
-                            }
+                            // Latch only. Every Error ends the run, and Done
+                            // always follows, so the outcome is recorded there.
+                            runFailed = true
                             val typed = event.typedError
                             val display = typed?.formatUserMessage() ?: "${event.code}: ${event.message}"
                             setErrorWithAutoDismiss(display, event.retryable, typed)
@@ -526,11 +579,21 @@ class ChatSendController(
                             }
                         }
                         is AgentEvent.Done -> {
-                            // Reset failure counter on successful completion.
-                            consecutiveFailures = 0
-                            // Record strategy bandit outcome: success
+                            // Reset the failure counter only on an actual
+                            // success. The same Error-then-Done shape that
+                            // corrupted the bandit also made this counter
+                            // unable to count: Error incremented it and the
+                            // Done that always follows reset it to zero, so it
+                            // could never reach 2, and the `>= 3` Deep Mode
+                            // escalation at runSend was unreachable for every
+                            // failure it was written to catch.
+                            if (!runFailed) consecutiveFailures = 0
+                            // The single outcome for this run, whichever shape
+                            // it took. Null strategy/category means a resumed
+                            // run, whose outcome belongs to the send path that
+                            // chose the strategy.
                             if (strategy != null && category != null) {
-                                runCatching { strategyBandit.recordOutcome(category, strategy, success = true) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
+                                runCatching { strategyBandit.recordOutcome(category, strategy, success = !runFailed) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             // Record wall-clock duration for the response footer.
                             if (runStartTimeMs > 0) {
@@ -568,6 +631,12 @@ class ChatSendController(
             } catch (e: Exception) {
                 onError(e.message ?: "unknown error")
             } finally {
+                // Flush whatever the throttle held back. `AgentEvent.Result`
+                // normally overwrites the conversation with the final text, but
+                // a cancelled run never reaches it — and without this the last
+                // partial answer would be up to one interval stale at the exact
+                // moment it gets persisted.
+                if (responseBuffer.isNotEmpty()) publishStreamingText()
                 state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
             }
     }
@@ -615,5 +684,18 @@ class ChatSendController(
         // Clear in-flight badges and any unanswered gate — the stream
         // is being torn down.
         state.update { it.copy(streaming = false, inFlightToolCalls = emptyList(), pendingGate = null) }
+    }
+
+    companion object {
+        /**
+         * Shortest gap between two streaming UI updates.
+         *
+         * 50 ms — twenty refreshes a second, which is above the rate at which
+         * text reads as smooth and below any token rate a provider achieves.
+         * The point is not to save the state copy; it is that every publication
+         * re-parses the entire message so far, so the number of publications is
+         * the term that decides whether a long answer stays responsive.
+         */
+        const val STREAM_PUBLISH_INTERVAL_MS = 50L
     }
 }

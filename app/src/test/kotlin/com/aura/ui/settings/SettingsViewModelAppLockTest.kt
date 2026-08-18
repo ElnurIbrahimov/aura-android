@@ -215,6 +215,67 @@ class SettingsViewModelAppLockTest {
     }
 
     @Test
+    fun `a reload landing mid-typing does not erase the draft`() = runTest {
+        // reload() replaces the whole SettingsUiState rather than patching it,
+        // and re-seeds every key field from disk. It is launched from init and
+        // from three user actions, and it does ~80 sequential DataStore reads
+        // before it publishes — so on a real device it routinely lands after
+        // the user has started typing. Reproduced on an emulator: the same
+        // instrumented flow passed once and failed once, differing only in
+        // whether reload published before or after the keystroke.
+        every { providerKeys.keyFor("ollama") } returns null
+        val vm = newViewModel()
+
+        vm.updateCredentialDraft("ollama", "half-typed-key")
+        vm.reload()
+
+        assertEquals("half-typed-key", vm.state.value.keyDrafts["ollama"])
+    }
+
+    @Test
+    fun `a reload does not empty the model pickers`() = runTest {
+        // reload() builds a fresh SettingsUiState, and the catalog-derived
+        // lists are not among the fields it sets — so they fell back to their
+        // empty defaults. Nothing refilled them: applyCatalog runs off a
+        // StateFlow subscription, and a StateFlow does not re-emit because a
+        // consumer threw its last value away. Every picker in Settings read
+        // "No verified models available" until another screen forced a
+        // refresh.
+        val models = listOf(
+            ModelDescriptor("ollama:model-a", "model-a", "ollama"),
+            ModelDescriptor("ollama:model-b", "model-b", "ollama"),
+        )
+        catalogFlow.value = ModelCatalog(
+            providers = mapOf("ollama" to ProviderModelList("ollama", ProviderStatus.Ready, models)),
+            allModels = models,
+        )
+        val vm = newViewModel()
+        assertEquals(listOf("ollama:model-a", "ollama:model-b"), vm.state.value.availableModels)
+
+        vm.reload()
+
+        assertEquals(listOf("ollama:model-a", "ollama:model-b"), vm.state.value.availableModels)
+    }
+
+    @Test
+    fun `a reload after saving goes back to reading the stored key`() = runTest {
+        // The other half: preserving drafts must not mean the field stops
+        // reflecting disk. Once the value is written the draft is no longer
+        // unsaved work, so reload owns it again — otherwise a key changed
+        // anywhere else would show stale until the screen was recreated.
+        coEvery { providerKeys.set("ollama", "typed-key") } answers {
+            every { providerKeys.keyFor("ollama") } returns "stored-key"
+        }
+        val vm = newViewModel()
+
+        vm.updateCredentialDraft("ollama", "typed-key")
+        vm.saveAndTestProvider("ollama")
+        vm.reload()
+
+        assertEquals("stored-key", vm.state.value.keyDrafts["ollama"])
+    }
+
+    @Test
     fun `save and test persists then verifies from catalog`() = runTest {
         coEvery { providerKeys.set("ollama", "draft-key") } answers {
             credentialFlow.value = credentialFlow.value +

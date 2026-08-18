@@ -29,6 +29,7 @@ class DecayWorker @AssistedInject constructor(
     private val placeLog: com.aura.place.PlaceLog? = null,
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
     private val verdictSweep: com.aura.calibration.BeliefVerdictSweep? = null,
+    private val evidenceRecorder: com.aura.evolution.EvolutionEvidenceRecorder? = null,
 ) : CoroutineWorker(appContext, params) {
 
     private var lastOutcome: com.aura.health.WorkerRunRecorder.Result =
@@ -98,6 +99,14 @@ class DecayWorker @AssistedInject constructor(
             runCatching { retrievalLabels?.prune() }
                 .onFailure { android.util.Log.w("DecayWorker", "retrieval label prune failed: ${it.message}", it) }
 
+            // Fifth sweep, same placement, same reason — and the fourth time a
+            // retention window has turned out to have no caller. This table is
+            // the worst of them: five indices per row, written once per stored
+            // memory and once per *recalled* memory, for a feature that is off
+            // by default.
+            runCatching { evidenceRecorder?.prune() }
+                .onFailure { android.util.Log.w("DecayWorker", "evidence prune failed: ${it.message}", it) }
+
             if (!userPreferences.decayEnabled.first()) {
                 // Skipped, not ok — but note the three sweeps above still ran.
                 // The preference means "do not let my memories fade", and the
@@ -125,6 +134,10 @@ class DecayWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             android.util.Log.w("DecayWorker", "decay pass failed: ${e.message}", e)
+            // Third worker found with this shape: logged, but `lastOutcome` was
+            // left holding `ok("")`, so the run log recorded a healthy decay
+            // pass over one that threw. See WorkerRunRecorder.Result.failed.
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.failed(e)
             Result.retry()
         }
     }

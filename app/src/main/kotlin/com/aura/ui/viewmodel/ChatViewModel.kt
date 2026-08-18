@@ -155,7 +155,20 @@ internal suspend fun recordTasteSignalFromReaction(
         weight = if (reaction == Reaction.Up) 1.0f else -1.0f,
         agentScope = if (agentId != null) "agent:$agentId" else "general",
     )
-    tasteEngine.recomputeProfile(if (agentId != null) "agent:$agentId" else "")
+    // Scope and project are different columns on `preference_signals`, and this
+    // passed the scope into the parameter that means project. The signal above
+    // is written with the default `projectId = ""`, so `forProject("agent:x")`
+    // matched nothing, `recomputeProfile` returned at its `signals.isEmpty()`
+    // guard, and every thumbs-up or thumbs-down given inside an agent
+    // conversation was a silent no-op — only reactions in the general chat ever
+    // reached a profile.
+    //
+    // Recomputing the global profile is correct for both cases: these signals
+    // are the user's taste, not a project's, and `global()` selects exactly the
+    // `projectId = ''` rows this records. `agentScope` is still written on the
+    // signal, so a future per-agent aggregation has the data it needs; there is
+    // no scoped *writer* yet, which is why passing one here did nothing.
+    tasteEngine.recomputeProfile("")
 }
 
 sealed interface ModelSelectionState {

@@ -14,6 +14,21 @@ class DocumentRepository @Inject constructor(
     // documents exactly as it did before.
     private val studier: DocumentStudier? = null,
     private val cheapModelResolver: com.aura.providers.CheapModelResolver? = null,
+    /**
+     * Where chunks belong, and where they now also go.
+     *
+     * Import has always written its chunks as undifferentiated `memories` rows,
+     * which is what [DocumentChunkEntity]'s own KDoc says it exists to replace.
+     * The reader side is a larger change than the writer — every retrieval
+     * consumer is typed on `MemoryEntity`, and chunks carry no `scope`,
+     * `decayScore`, `accessCount`, `importance` or `retiredAt` — so this writes
+     * both and keeps recall reading `memories`. Switching the reader and then
+     * dropping the double write are separate steps, in that order, because the
+     * reverse takes document recall dark in between.
+     *
+     * Appended and defaulted for the reason the two above it are.
+     */
+    private val documentChunkDao: DocumentChunkDao? = null,
 ) {
     fun observeAll(): Flow<List<DocumentEntity>> = documentDao.observeAll()
 
@@ -29,7 +44,8 @@ class DocumentRepository @Inject constructor(
             "The document is too large after extraction (maximum ${MAX_TEXT_CHARS / 1_000_000}M characters)."
         }
         val safeName = name.trim().take(240).ifBlank { "Untitled document" }
-        val chunks = DocumentChunker.chunk(text)
+        val chunked = DocumentChunker.chunkWithOffsets(text)
+        val chunks = chunked.chunks.map { it.text }
         require(chunks.isNotEmpty()) { "The document contains no extractable text." }
         val source = sourceFor(id)
         val stemTag = safeName.substringBeforeLast('.')
@@ -62,12 +78,58 @@ class DocumentRepository @Inject constructor(
                 chunkCount = chunks.size,
             )
             documentDao.insert(document)
+            // After the document row, never before: `document_chunks` carries a
+            // CASCADE foreign key into `documents` and Room runs with
+            // `PRAGMA foreign_keys = ON`, so the reverse order rejects every
+            // chunk. BackupManager already had to learn this twice, for
+            // project notes and for claim resolutions.
+            writeChunks(id, chunked)
             val outlined = writeOutline(safeName, chunks, source, stemTag)
             return DocumentImportResult(document, chunks.size, outlined)
         } catch (failure: Throwable) {
             memoryStore.deleteBySource(source)
+            // Was a no-op before chunks were written here, because the document
+            // row was only inserted once the memory loop had finished. It is
+            // load-bearing now: a chunk insert that throws leaves both the
+            // document row and a partial chunk set behind, and deleting the
+            // parent cascades the children.
+            runCatching { documentDao.deleteById(id) }
+                .onFailure { android.util.Log.w("DocumentRepository", "rollback of '$id' failed", it) }
             throw failure
         }
+    }
+
+    /**
+     * Write the chunks as chunks: addressable by document, ordinal and character
+     * range, and de-duplicable by content hash.
+     *
+     * No embedding is computed here. `embedding` is nullable and
+     * `DocumentChunkDao.allWithoutEmbeddings` exists precisely so a later pass
+     * can fill them, and doing it inline would put a per-chunk network call on
+     * the import path — which is half of what makes importing a large document
+     * slow today.
+     *
+     * Ids are deterministic (`documentId:ordinal`) so re-importing the same
+     * document replaces its chunks rather than accumulating a second copy;
+     * `insertAll` is REPLACE. Stale rows past the new end are cleared first, or
+     * a re-import of a shortened document would leave its tail behind.
+     */
+    private suspend fun writeChunks(documentId: String, chunked: DocumentChunker.ChunkedText) {
+        val dao = documentChunkDao ?: return
+        dao.deleteForDocument(documentId)
+        dao.insertAll(
+            chunked.chunks.mapIndexed { ordinal, chunk ->
+                DocumentChunkEntity(
+                    id = "$documentId:$ordinal",
+                    documentId = documentId,
+                    ordinal = ordinal,
+                    charStart = chunk.charStart,
+                    charEnd = chunk.charEnd,
+                    text = chunk.text,
+                    contentHash = sha256(chunk.text),
+                )
+            }
+        )
     }
 
     /**
@@ -115,10 +177,32 @@ class DocumentRepository @Inject constructor(
 
     suspend fun delete(id: String) {
         memoryStore.deleteBySource(sourceFor(id))
+        // The CASCADE below would take these anyway, triggers included. Kept
+        // explicit so the chunk lifetime is visible at the call site rather
+        // than resting on a foreign key declared in another file — and so this
+        // still holds if the chunk table is ever detached from `documents`.
+        documentChunkDao?.deleteForDocument(id)
         documentDao.deleteById(id)
     }
 
+    private fun sha256(text: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(text.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
     suspend fun get(id: String): DocumentEntity? = documentDao.getById(id)
+
+    /**
+     * Which imported documents `search_documents` cannot see.
+     *
+     * Empty on any install where every document was imported after chunks got
+     * a writer. See [DocumentDao.idsWithoutChunks] for why these exist and why
+     * the answer is to say so rather than to backfill.
+     */
+    suspend fun idsMissingChunks(): Set<String> =
+        runCatching { documentDao.idsWithoutChunks().toSet() }
+            .onFailure { android.util.Log.w("DocumentRepository", "chunk coverage check failed: ${it.message}", it) }
+            .getOrDefault(emptySet())
 
     companion object {
         const val MAX_TEXT_CHARS = 2_000_000

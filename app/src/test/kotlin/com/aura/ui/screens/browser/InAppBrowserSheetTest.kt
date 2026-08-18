@@ -1,6 +1,7 @@
 package com.aura.ui.screens.browser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +29,23 @@ class InAppBrowserSheetTest {
     fun `normalizeUrl returns empty for blank input`() {
         assertEquals("", normalizeUrl(""))
         assertEquals("", normalizeUrl("   "))
+    }
+
+    @Test
+    fun `in-page navigation allows only http and https`() {
+        assertTrue(allowedInPageScheme("https"))
+        assertTrue(allowedInPageScheme("http"))
+        assertTrue(allowedInPageScheme("HTTPS"))
+    }
+
+    @Test
+    fun `in-page navigation blocks every other scheme`() {
+        assertFalse(allowedInPageScheme("intent"))
+        assertFalse(allowedInPageScheme("javascript"))
+        assertFalse(allowedInPageScheme("file"))
+        assertFalse(allowedInPageScheme("content"))
+        assertFalse(allowedInPageScheme("about"))
+        assertFalse(allowedInPageScheme(null))
     }
 
     // The three tests that were here re-declared the marker regex locally and

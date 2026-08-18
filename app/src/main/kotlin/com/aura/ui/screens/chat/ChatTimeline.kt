@@ -65,7 +65,15 @@ fun ChatTimeline(
                 index < state.conversation.turns.size - 1
             }
             val visible = remember { mutableStateOf(alreadyShown) }
-            LaunchedEffect(turn, state.streaming) {
+            // Keyed on the turn's identity, not the turn.
+            //
+            // `Turn` is a data class and streaming rewrites `assistant` on every
+            // token, so `LaunchedEffect(turn, …)` saw a different key on every
+            // delta and cancelled and relaunched this coroutine each time — for
+            // the one item the user is actually reading. The effect only exists
+            // to fade a newly-arrived row in once; its identity is the row, and
+            // the row is what the list key already uses.
+            LaunchedEffect(turn.timestamp, index) {
                 if (!visible.value) {
                     delay(20L)
                     visible.value = true

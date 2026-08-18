@@ -16,6 +16,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * MCP Streamable HTTP protocol-compliance tests for [McpConnection]:
@@ -34,6 +37,10 @@ import org.junit.Test
  * every follow-up call failed.
  */
 class McpConnectionProtocolTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

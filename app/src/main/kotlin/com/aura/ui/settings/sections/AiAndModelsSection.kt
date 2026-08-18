@@ -212,7 +212,20 @@ fun AiAndModelsSection(
         // itself as overrides *of* the default — the default is not one of its
         // own overrides.
         RoleModelRow("Chat default", state.defaultModel) { activeModelRole = "chat" }
-        RoleModelRow("Embedding", state.embeddingModel) { activeModelRole = "embedding" }
+        // Blank here does not mean "auto", the way it does for the capability
+        // rows below — it means recall is running on keywords alone.
+        // `ProviderKeys.embeddingModel` defaults to "", which falls through to
+        // `LocalEmbedder`: a 384-dimension hash-and-project sketch its own KDoc
+        // calls a pseudo-embedding. It produces vectors of the right shape that
+        // carry no meaning, so "I love Kotlin" does not recall for "programming
+        // languages I enjoy".
+        //
+        // That was invisible. The row rendered an empty value, and an empty
+        // value reads as a default someone chose. Saying it plainly is the
+        // whole fix — the setting has worked all along.
+        RoleModelRow("Embedding", state.embeddingModel.ifBlank { EMBEDDING_UNSET_LABEL }) {
+            activeModelRole = "embedding"
+        }
         RoleModelRow("Vision", state.visionModel) { activeModelRole = "vision" }
 
         // Capability models. These lists come from the same catalogs as the
@@ -369,3 +382,14 @@ fun AiAndModelsSection(
 
 /** Shown when a capability model is unset — it still works, via discovery. */
 private const val AUTO_LABEL = "Automatic"
+
+/**
+ * Shown when no embedding model is set.
+ *
+ * Deliberately *not* [AUTO_LABEL]. The capability rows fall back to a real
+ * discovered backend and genuinely are automatic; this one falls back to
+ * `LocalEmbedder`, which returns a hash sketch rather than an embedding. Recall
+ * still works — FTS4 and BM25 do the lexical half — but nothing semantic
+ * happens, and a row reading "Automatic" would say the opposite.
+ */
+private const val EMBEDDING_UNSET_LABEL = "Not set — recall is keyword-only"

@@ -37,7 +37,7 @@ import com.aura.data.UserPreferences
 import com.aura.security.BiometricActivityHolder
 import com.aura.security.ScreenCaptureHolder
 import com.aura.tools.BiometricAuthHandler
-import com.aura.ui.components.AuraAppLockContent
+import com.aura.ui.components.AppLockGate
 import com.aura.ui.components.AuraStartupState
 import com.aura.ui.nav.NavGraph
 import com.aura.ui.screens.onboarding.OnboardingRoute
@@ -66,6 +66,7 @@ interface FirstRunGateEntryPoint {
 interface MainActivityEntryPoint {
     fun userPreferences(): UserPreferences
     fun biometricActivityHolder(): BiometricActivityHolder
+    fun appLockState(): com.aura.security.AppLockState
     fun oauthFlow(): com.aura.integrations.OAuthFlow
     fun integrationTokenStore(): com.aura.integrations.IntegrationTokenStore
 }
@@ -193,7 +194,6 @@ fun AuraRoot() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val mainActivity = ctx as? MainActivity
     var firstRunComplete by remember { mutableStateOf<Boolean?>(null) }
-    var unlocked by remember { mutableStateOf(false) }
 
     val mainEntry = remember {
         EntryPointAccessors.fromApplication(
@@ -247,32 +247,16 @@ fun AuraRoot() {
         firstRunComplete = entry.firstRunGate().isFirstRunComplete()
     }
 
-    // When appLockEnabled transitions (unknown → known, or the user
-    // flips it in Settings), reset to locked. When the value is false
-    // the render branch below ignores `unlocked`, so this only bites
-    // when the lock is actually on — including re-enabling it after a
-    // disable, which must start locked again.
+    // Flipping the switch in Settings must relock the running session — turning
+    // the lock on with the app already open should not leave it open.
+    //
+    // Relocking on *background* now lives in AppLockState, driven by an
+    // activity-started count in AuraApp rather than this composition's own
+    // ON_STOP. That distinction is the fix: this observer fired whenever
+    // MainActivity stopped, including when MainActivity itself launched
+    // QuickAskActivity, and it only ever governed this one screen.
     LaunchedEffect(appLockEnabled) {
-        if (appLockEnabled != null) unlocked = false
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        // Relock when the app goes to BACKGROUND (ON_STOP), not on
-        // ON_RESUME. The device-credential unlock launches a separate
-        // system activity; when it finishes, MainActivity resumes and
-        // an ON_RESUME relock raced the asynchronous success callback
-        // (observer could fire after the callback set unlocked = true,
-        // re-locking a just-unlocked app). With ON_STOP the order is
-        // deterministic: the credential activity covering us locks
-        // (no-op — we're already locked), and the success callback is
-        // always the last writer.
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && appLockEnabled == true) {
-                unlocked = false
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        if (appLockEnabled != null) mainEntry.appLockState().lock()
     }
 
     AuraTheme(themeMode = themeMode) {
@@ -281,107 +265,22 @@ fun AuraRoot() {
             color = AuraThemeTokens.colors.background,
         ) {
             when {
-                // Render nothing but the startup surface until BOTH the
-                // first-run flag and the app-lock flag are known — a
-                // locked app must never flash NavGraph on cold start.
-                firstRunComplete == null || appLockEnabled == null -> AuraStartupState()
+                // Render nothing but the startup surface until the first-run
+                // flag is known — AppLockGate owns the same guard for the lock
+                // flag, so a locked app never flashes NavGraph on cold start.
+                firstRunComplete == null -> AuraStartupState()
 
                 firstRunComplete == false -> OnboardingRoute(
                     onComplete = { firstRunComplete = true },
                 )
 
-                appLockEnabled == true && !unlocked -> AppLockScreen(
-                    onUnlocked = { unlocked = true },
-                )
-
-                else -> NavGraph(
-                    launchRequest = mainActivity?.launchRequest ?: AuraLaunchRequest(),
-                )
+                else -> AppLockGate {
+                    NavGraph(
+                        launchRequest = mainActivity?.launchRequest ?: AuraLaunchRequest(),
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun AppLockScreen(onUnlocked: () -> Unit) {
-    val ctx = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val mainEntry = remember {
-        EntryPointAccessors.fromApplication(
-            ctx.applicationContext,
-            MainActivityEntryPoint::class.java,
-        )
-    }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-
-    AuraAppLockContent(
-        statusMessage = statusMessage,
-        onUnlock = {
-            promptForUnlock(ctx, mainEntry, lifecycleOwner, onUnlocked) { message ->
-                statusMessage = message
-            }
-        },
-    )
-}
-
-private fun promptForUnlock(
-    ctx: android.content.Context,
-    entry: MainActivityEntryPoint,
-    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
-    onUnlocked: () -> Unit,
-    onStatus: (String) -> Unit,
-) {
-    val activity = entry.biometricActivityHolder().activity ?: run {
-        onStatus("Activity not ready — try again")
-        return
-    }
-
-    val mgr = BiometricManager.from(ctx)
-    val canAuth = mgr.canAuthenticate(
-        BiometricManager.Authenticators.BIOMETRIC_STRONG or
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-    )
-    if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-        onStatus("No biometric or device PIN set up — open Settings to add one")
-        return
-    }
-
-    val handler = BiometricAuthHandler()
-    val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
-
-    activity.runOnUiThread {
-        val callback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                handler.onAuthenticated()
-            }
-
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                handler.onError(errorCode, errString.toString())
-            }
-        }
-        val prompt = BiometricPrompt(activity, executor, callback)
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock Aura")
-            .setSubtitle("Authenticate to open your conversations")
-            .setAllowedAuthenticators(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            )
-            .build()
-        prompt.authenticate(promptInfo)
-    }
-
-    lifecycleOwner.lifecycleScope.launch {
-        val result = handler.result.await()
-        executor.shutdownNow()
-        if (result.success) {
-            onUnlocked()
-        } else if (result.errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-            result.errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
-        ) {
-            onStatus("Cancelled — tap Unlock to try again")
-        } else {
-            onStatus(result.errorMessage ?: "Authentication failed")
-        }
-    }
-}

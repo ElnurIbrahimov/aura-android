@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.AgentStore
 import com.aura.agent.Brain
 import com.aura.agent.BrainChunk
@@ -73,12 +74,13 @@ class DelegateToAgentTool @Inject constructor(
                 val result = delegate(agentName, task, context, ctx)
                 ToolResult.Ok(result)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                ToolResult.Error("Agent delegation timed out after 30s", "timeout")
+                ToolResult.Error("Agent delegation timed out after ${DELEGATION_TIMEOUT_MS / 1000}s", "timeout")
             } catch (e: Exception) {
                 ToolResult.Error("Delegation failed: ${e.message}", "delegation_error")
             }
         },
         category = "agents",
+        timeoutMs = DELEGATION_TIMEOUT_MS + TIMEOUT_HEADROOM_MS,
     )
 
     suspend fun delegate(

@@ -21,6 +21,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Request-body regression tests for tool-history serialization — the
@@ -34,6 +37,10 @@ import kotlin.test.assertTrue
  * the JSON body the provider actually put on the wire.
  */
 class ProviderToolHistorySerializationTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

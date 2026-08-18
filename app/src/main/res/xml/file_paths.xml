@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shareable roots for `androidx.core.content.FileProvider`.
+
+  Cache only, and deliberately. Every one of the five `getUriForFile` call sites
+  in the app resolves a file under `cacheDir`: the backup export and
+  `TextExport` write to its root, crash logs to `cacheDir/crash_logs`, shared
+  images to `cacheDir/shared_images`, and the diagnostics export via
+  `crashLogger.exportTo(context.cacheDir)`.
+
+  `<files-path path="."/>` used to sit here too, exposing the whole internal
+  files directory — which is where the encrypted DataStore lives, along with
+  `NarrativeSelf`, `IntrinsicMotivation` and `TheoryOfMind`'s persisted JSON.
+  Nothing ever shared from there. The provider is `exported="false"` and grants
+  URIs one at a time, so it was not exploitable on its own; it was the kind of
+  broad root that turns a single filename-handling bug into a key leak, for no
+  capability in return. `<external-files-path>` went for the same reason and was
+  equally unused.
+
+  Adding a root back is a real decision: prefer moving the file into `cacheDir`.
+-->
 <paths>
     <cache-path name="cache" path="." />
-    <files-path name="files" path="." />
-    <external-files-path name="external_files" path="." />
 </paths>

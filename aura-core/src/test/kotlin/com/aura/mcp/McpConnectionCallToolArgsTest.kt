@@ -14,6 +14,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Regression tests for the callTool argument serialization fix.
@@ -26,6 +29,10 @@ import org.junit.Test
  * assert the JSON-RPC request body that actually leaves the device.
  */
 class McpConnectionCallToolArgsTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

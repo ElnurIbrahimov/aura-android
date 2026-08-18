@@ -122,6 +122,24 @@ internal fun DocumentLibraryDialog(
                                             style = MaterialTheme.typography.labelSmall,
                                             color = AuraThemeTokens.colors.textPrimary,
                                         )
+                                        // A chunk count for content that
+                                        // document search reports as absent is
+                                        // the app contradicting itself. This
+                                        // says which of the two is true.
+                                        //
+                                        // Every document imported before the
+                                        // chunk table had a writer is here.
+                                        // Their text is still in `memories`, so
+                                        // ordinary recall still finds them —
+                                        // only `search_documents` and its
+                                        // citations are missing.
+                                        if (document.id in state.unindexedDocumentIds) {
+                                            Text(
+                                                "Not indexed for document search — re-import to enable citations",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = AuraThemeTokens.colors.warning,
+                                            )
+                                        }
                                     }
                                     IconButton(onClick = { onOpen(document) }) {
                                         Icon(Icons.Filled.FileOpen, contentDescription = "Open document")

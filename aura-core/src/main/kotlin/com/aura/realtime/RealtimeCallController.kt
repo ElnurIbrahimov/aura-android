@@ -9,6 +9,14 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+// kotlinx's `update`, which retries on compareAndSet. This file used to declare
+// a private extension of the same name doing `value = block(value)` — a plain
+// read-modify-write that silently shadowed the atomic one at all nine call
+// sites. Three coroutines mutate this state concurrently (the event collector,
+// the mic pump and the end job), so a barge-in landing while a transcript line
+// was being appended could drop either. Harmless only for as long as the
+// feature had no caller.
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -228,10 +236,6 @@ class RealtimeCallController @Inject constructor(
 
     /** The finished transcript, for persisting as a conversation. */
     fun transcript(): List<Line> = _state.value.transcript
-
-    private inline fun MutableStateFlow<State>.update(block: (State) -> State) {
-        value = block(value)
-    }
 
     private companion object {
         const val TAG = "RealtimeCall"

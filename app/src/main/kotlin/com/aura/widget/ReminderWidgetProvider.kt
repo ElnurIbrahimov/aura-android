@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.first
 import com.aura.MainActivity
 import com.aura.R
 import com.aura.tasks.ReminderDao
@@ -24,6 +25,7 @@ import android.util.Log
 @InstallIn(SingletonComponent::class)
 interface ReminderWidgetEntryPoint {
     fun reminderDao(): ReminderDao
+    fun userPreferences(): com.aura.data.UserPreferences
 }
 
 class ReminderWidgetProvider : AppWidgetProvider() {
@@ -52,20 +54,32 @@ class ReminderWidgetProvider : AppWidgetProvider() {
         // keeps the process alive until the Room read and RemoteViews
         // push complete, so the update isn't dropped on process death.
         goAsync {
-            val dao = runCatching {
+            val entry = runCatching {
                 EntryPointAccessors.fromApplication(
                     context,
                     ReminderWidgetEntryPoint::class.java,
-                ).reminderDao()
+                )
             }.onFailure { Log.w("ReminderWidgetProvider", "runCatching failed: ${it.message}", it) }.getOrNull() ?: return@goAsync
 
-            val reminders = dao.allForBackup()
-                .filter { it.triggerAt > System.currentTimeMillis() }
-                .sortedBy { it.triggerAt }
-                .take(3)
+            // Reminder bodies are user-authored text — "call the clinic about
+            // the results" is exactly the sort of thing app lock is for, and
+            // this widget painted three of them onto the home screen with no
+            // check. Fail closed: an unreadable preference is not consent.
+            val locked = runCatching { entry.userPreferences().appLockEnabled.first() }
+                .onFailure { Log.w("ReminderWidgetProvider", "lock read failed: ${it.message}", it) }
+                .getOrDefault(true)
+
+            val reminders = if (locked) {
+                emptyList()
+            } else {
+                entry.reminderDao().allForBackup()
+                    .filter { it.triggerAt > System.currentTimeMillis() }
+                    .sortedBy { it.triggerAt }
+                    .take(3)
+            }
 
             for (id in appWidgetIds) {
-                val views = buildViews(context, reminders)
+                val views = buildViews(context, reminders, locked)
                 appWidgetManager.updateAppWidget(id, views)
             }
         }
@@ -74,14 +88,21 @@ class ReminderWidgetProvider : AppWidgetProvider() {
     private fun buildViews(
         context: Context,
         reminders: List<ReminderEntity>,
+        locked: Boolean = false,
     ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_reminders)
         val df = DateFormat.getTimeInstance(DateFormat.SHORT)
 
-        // Title
+        // Title. States that it is hidden rather than claiming there is
+        // nothing — "No upcoming reminders" to someone who set three would be
+        // a lie, and the distinction matters most to the person it lies to.
         views.setTextViewText(
             R.id.widget_title,
-            if (reminders.isEmpty()) "No upcoming reminders" else "Upcoming reminders",
+            when {
+                locked -> "Hidden while Aura is locked"
+                reminders.isEmpty() -> "No upcoming reminders"
+                else -> "Upcoming reminders"
+            },
         )
 
         // Fill up to 3 reminder rows

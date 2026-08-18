@@ -1,6 +1,10 @@
 package com.aura.widget
 
 import androidx.compose.ui.res.stringResource
+import android.app.PendingIntent
+import kotlinx.coroutines.flow.first
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
@@ -70,11 +74,25 @@ internal fun latestQuickAskResponse(turns: List<Turn>): String =
  * tools, specialists, KG/profile extraction, persistence, and provider failover.
  */
 @AndroidEntryPoint
-class QuickAskActivity : ComponentActivity() {
+class QuickAskActivity : androidx.fragment.app.FragmentActivity() {
     private var appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
+
+    /**
+     * The app-lock prompt needs a `FragmentActivity` and needs to find one here.
+     *
+     * This class was a `ComponentActivity` and never published itself, which is
+     * half of why the lock could not cover it — the other half being that
+     * `unlocked` lived inside `MainActivity`'s composition. Both are why a
+     * screen running the full agentic pipeline with memory recall opened
+     * straight onto the user's conversations from the home screen.
+     */
+    @javax.inject.Inject lateinit var biometricHolder: com.aura.security.BiometricActivityHolder
+
+    @javax.inject.Inject lateinit var userPreferences: com.aura.data.UserPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        biometricHolder.activity = this
         appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
@@ -86,24 +104,61 @@ class QuickAskActivity : ComponentActivity() {
 
         setContent {
             AuraTheme {
-                val viewModel: ChatViewModel = hiltViewModel()
-                QuickAskContent(
-                    viewModel = viewModel,
-                    appWidgetId = appWidgetId,
-                    widgetPrefix = WidgetConfig.prefixFor(this, appWidgetId),
-                    configuredWidgetModel = WidgetConfig.modelFor(this, appWidgetId, ""),
-                    onCompleted = ::updateWidgetWithResponse,
-                    onOpenFullChat = {
-                        startActivity(Intent(this, MainActivity::class.java))
-                        finish()
-                    },
-                    onDismiss = ::finish,
-                )
+                com.aura.ui.components.AppLockGate {
+                    val viewModel: ChatViewModel = hiltViewModel()
+                    QuickAskContent(
+                        viewModel = viewModel,
+                        appWidgetId = appWidgetId,
+                        widgetPrefix = WidgetConfig.prefixFor(this, appWidgetId),
+                        configuredWidgetModel = WidgetConfig.modelFor(this, appWidgetId, ""),
+                        onCompleted = ::updateWidgetWithResponse,
+                        onOpenFullChat = {
+                            startActivity(Intent(this, MainActivity::class.java))
+                            finish()
+                        },
+                        onDismiss = ::finish,
+                    )
+                }
             }
         }
     }
 
+    /**
+     * Echo the answer onto the widget — unless the app can lock.
+     *
+     * Two defects, both invisible:
+     *
+     * 1. **The answer outlived the unlock.** Ask something while unlocked, put
+     *    the phone down, and "Q: … A: …" stayed painted on the home screen
+     *    through every subsequent lock. Gating the activity does not help: the
+     *    text is already out, in the launcher's process.
+     * 2. **It dropped the widget's click handlers.** This built a fresh
+     *    `RemoteViews` with only the text set, and `updateAppWidget` replaces
+     *    the whole view tree — so the body and Ask button stopped responding
+     *    until the next 30-minute refresh reinstated them. Delegating to
+     *    `AskAuraWidget.requestRefresh` rebuilds the views the one way that
+     *    installs the intents.
+     *
+     * When the lock is on, the answer is simply not echoed and the widget
+     * refreshes to its normal locked state. The user still has the answer — it
+     * is on the screen in front of them, and in the conversation.
+     */
     private fun updateWidgetWithResponse(query: String, response: String) {
+        lifecycleScope.launch {
+            // The lock read was runBlocking on the main thread -- the same
+            // cold-start ANR window WidgetConfigActivity removed. A failed
+            // read still fails closed.
+            val locked = runCatching { userPreferences.appLockEnabled.first() }
+                .getOrDefault(true)
+            if (locked) {
+                AskAuraWidget.requestRefresh(this@QuickAskActivity)
+            } else {
+                echoAnswerToWidget(query, response)
+            }
+        }
+    }
+
+    private fun echoAnswerToWidget(query: String, response: String) {
         val manager = AppWidgetManager.getInstance(this)
         val ids = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             intArrayOf(appWidgetId)
@@ -116,8 +171,29 @@ class QuickAskActivity : ComponentActivity() {
                 R.id.widget_memory_text,
                 "Q: ${query.take(100)}\nA: ${response.take(150)}",
             )
+            // Reinstall both tap targets. Without these the widget renders the
+            // answer and stops being a button.
+            val openIntent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            views.setOnClickPendingIntent(
+                R.id.widget_root,
+                PendingIntent.getActivity(this, 0, openIntent, WIDGET_PENDING_FLAGS),
+            )
+            val askIntent = Intent(this, QuickAskActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            views.setOnClickPendingIntent(
+                R.id.widget_ask_button,
+                PendingIntent.getActivity(this, 1, askIntent, WIDGET_PENDING_FLAGS),
+            )
             manager.updateAppWidget(id, views)
         }
+    }
+
+    private companion object {
+        val WIDGET_PENDING_FLAGS =
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     }
 }
 

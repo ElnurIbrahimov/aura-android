@@ -211,5 +211,63 @@ class HandsViewModelTest {
         assertEquals("disabled", vm.state.value.statusFilter)
     }
 
+    @Test
+    fun `status filter actually filters the list the screen renders`() = runTest {
+        // The test above sets a field and reads it back on the next line, so it
+        // passes against a filter that is never applied — which is what shipped:
+        // `filteredHands` was correct and had no consumer anywhere in the repo,
+        // while HandsScreen recomputed the list from the search box alone. The
+        // chips highlighted and changed nothing.
+        //
+        // Collected, because `filteredHands` is `stateIn(WhileSubscribed)` and
+        // `.value` never leaves its `emptyList()` initial value without a
+        // subscriber — the EvolutionBadgeViewModel defect, which produced two
+        // vacuous tests including the one that looked real.
+        coEvery { repository.getAll() } returns listOf(
+            Hand("h1", "Morning", enabled = true),
+            Hand("h2", "Evening", enabled = false),
+        )
+        every { repository.observeRecentRuns(100) } returns flowOf(emptyList())
+        val vm = viewModel()
+        val seen = mutableListOf<List<Hand>>()
+        val job = launch { vm.filteredHands.toList(seen) }
+        advanceUntilIdle()
+
+        vm.setStatusFilter("enabled")
+        advanceUntilIdle()
+        assertEquals(listOf("Morning"), seen.last().map { it.name })
+
+        vm.setStatusFilter("disabled")
+        advanceUntilIdle()
+        assertEquals(listOf("Evening"), seen.last().map { it.name })
+
+        vm.setStatusFilter("all")
+        advanceUntilIdle()
+        assertEquals(listOf("Morning", "Evening"), seen.last().map { it.name })
+
+        job.cancel()
+    }
+
+    @Test
+    fun `status filter and search apply together`() = runTest {
+        coEvery { repository.getAll() } returns listOf(
+            Hand("h1", "Morning brief", enabled = true),
+            Hand("h2", "Morning walk", enabled = false),
+            Hand("h3", "Evening wind-down", enabled = true),
+        )
+        every { repository.observeRecentRuns(100) } returns flowOf(emptyList())
+        val vm = viewModel()
+        val seen = mutableListOf<List<Hand>>()
+        val job = launch { vm.filteredHands.toList(seen) }
+        advanceUntilIdle()
+
+        vm.setStatusFilter("enabled")
+        vm.setSearchQuery("morning")
+        advanceUntilIdle()
+
+        assertEquals(listOf("Morning brief"), seen.last().map { it.name })
+        job.cancel()
+    }
+
     private fun viewModel() = HandsViewModel(repository, executor, registry, scheduler)
 }

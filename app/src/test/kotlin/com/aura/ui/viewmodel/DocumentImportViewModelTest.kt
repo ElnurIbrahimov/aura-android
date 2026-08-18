@@ -26,7 +26,11 @@ import kotlin.test.assertNull
 
 class DocumentImportViewModelTest {
     private val extractor = mockk<DocumentTextExtractor>()
-    private val repository = mockk<DocumentRepository>()
+    private val repository = mockk<DocumentRepository>().also {
+        // The library now asks which documents predate the chunk table,
+        // so the notice can be shown per row. A strict mock has to answer.
+        io.mockk.coEvery { it.idsMissingChunks() } returns emptySet()
+    }
 
     @Before
     fun setUp() {

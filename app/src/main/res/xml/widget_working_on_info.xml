@@ -4,9 +4,8 @@
 
   updatePeriodMillis is the system minimum of 30 minutes and is the *floor*,
   not the mechanism — a line claiming to say what Aura is doing now cannot wait
-  half an hour to say it. WorkingOnWidget also listens for
-  ProactiveBootstrap.ACTION_REFRESH_WIDGET, which is what actually keeps it
-  current between ticks.
+  half an hour to say it. WidgetRefresher pushes an APPWIDGET_UPDATE from
+  inside the process, which is what actually keeps it current between ticks.
 
   No configure activity: there is nothing to configure. A widget that shows one
   line and offers a settings screen is admitting it does more than one thing.

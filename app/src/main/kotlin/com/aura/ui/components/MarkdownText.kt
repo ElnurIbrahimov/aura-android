@@ -157,11 +157,22 @@ data class MarkdownColors(
  * it in.
  */
 @Composable
-fun rememberMarkdownColors(): MarkdownColors = MarkdownColors(
-    link = AuraThemeTokens.colors.actionPrimary,
-    linkDim = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.5f),
-    codeBackground = AuraThemeTokens.colors.surface2,
-)
+fun rememberMarkdownColors(): MarkdownColors {
+    // Actually remembered. Despite the name this allocated a fresh
+    // MarkdownColors on every composition — which during streaming is once per
+    // token, plus a `.copy(alpha = …)` each time. `MarkdownColors` is a data
+    // class, so structural equality kept downstream `remember(text, colors)`
+    // keys working; the cost was allocation and a name that told the reader
+    // something untrue about it.
+    val theme = AuraThemeTokens.colors
+    return remember(theme) {
+        MarkdownColors(
+            link = theme.actionPrimary,
+            linkDim = theme.textPrimary.copy(alpha = 0.5f),
+            codeBackground = theme.surface2,
+        )
+    }
+}
 
 /**
  * Parse markdown into an AnnotatedString for inline text rendering.

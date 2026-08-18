@@ -1,5 +1,6 @@
 package com.aura.evolution
 
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -7,11 +8,84 @@ import javax.inject.Singleton
  * Thin facade that the agentic loop, skill store, and proactive workers call
  * to leave evolution evidence. This keeps evolution concerns decoupled from
  * the calling modules.
+ *
+ * **Gated on `evolutionEnabled`, which defaults to off.** Nothing here consulted
+ * any preference before, so a feature nobody had switched on was writing a
+ * five-index row for every memory stored *and every memory returned by every
+ * recall* — `MemoryStore` calls [onMemoryRecalled] once per result, from both
+ * recall branches. At five results over fifty turns a day that is tens of
+ * thousands of indexed rows a year, written on the user's critical path, into a
+ * table whose only readers are detectors that never run.
+ *
+ * The flag is cached rather than read per call: [onMemoryRecalled] fires inside
+ * a loop, and a DataStore read per result would cost more than the row it
+ * prevents. [GATE_TTL_MS] bounds how long a toggle takes to take effect, which
+ * for background telemetry is the right trade — evidence is not a setting the
+ * user watches for a response.
  */
 @Singleton
 class EvolutionHooks @Inject constructor(
     private val recorder: EvolutionEvidenceRecorder,
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) {
+    @Volatile
+    private var gateCachedAt: Long = 0L
+
+    @Volatile
+    private var gateOpen: Boolean = false
+
+    /**
+     * Whether evidence should be recorded at all.
+     *
+     * Fails **closed** when the preference cannot be read, and open only when
+     * no [userPreferences] was supplied — the shape every manual construction
+     * in tests uses, which must keep recording so their assertions still mean
+     * something.
+     */
+    private suspend fun enabled(): Boolean {
+        val prefs = userPreferences ?: return true
+        val now = System.currentTimeMillis()
+        if (now - gateCachedAt < GATE_TTL_MS) return gateOpen
+        val value = runCatching { prefs.evolutionEnabled.first() }
+            .onFailure { android.util.Log.w("EvolutionHooks", "evolution gate read failed", it) }
+            .getOrDefault(false)
+        gateOpen = value
+        gateCachedAt = now
+        return value
+    }
+
+    /**
+     * The one place evidence reaches the recorder, so the gate cannot be
+     * forgotten by a hook added later. Mirrors
+     * [EvolutionEvidenceRecorder.record] exactly.
+     */
+    private suspend fun record(
+        domain: EvolutionDomain,
+        kind: kotlin.String,
+        sourceEntityId: kotlin.String,
+        runId: kotlin.String? = null,
+        conversationId: kotlin.String? = null,
+        turnTimestamp: kotlin.Long? = null,
+        summary: kotlin.String = "",
+        payload: Map<kotlin.String, kotlin.String> = emptyMap(),
+        beforeCiphertext: kotlin.String? = null,
+        afterCiphertext: kotlin.String? = null,
+    ) {
+        if (!enabled()) return
+        recorder.record(
+            domain = domain,
+            kind = kind,
+            sourceEntityId = sourceEntityId,
+            runId = runId,
+            conversationId = conversationId,
+            turnTimestamp = turnTimestamp,
+            summary = summary,
+            payload = payload,
+            beforeCiphertext = beforeCiphertext,
+            afterCiphertext = afterCiphertext,
+        )
+    }
+
     // --- Skill signals ---
 
     suspend fun onSkillInvoked(
@@ -19,7 +93,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_invoked",
         sourceEntityId = skillId,
@@ -34,7 +108,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_failed",
         sourceEntityId = skillId,
@@ -64,7 +138,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_lookup_missed",
         sourceEntityId = requestedName,
@@ -79,7 +153,7 @@ class EvolutionHooks @Inject constructor(
         skillId: kotlin.String,
         beforeCiphertext: kotlin.String? = null,
         afterCiphertext: kotlin.String? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_edited",
         sourceEntityId = skillId,
@@ -88,13 +162,13 @@ class EvolutionHooks @Inject constructor(
         afterCiphertext = afterCiphertext,
     )
 
-    suspend fun onSkillAdded(skillId: kotlin.String) = recorder.record(
+    suspend fun onSkillAdded(skillId: kotlin.String) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_added",
         sourceEntityId = skillId,
     )
 
-    suspend fun onSkillRemoved(skillId: kotlin.String) = recorder.record(
+    suspend fun onSkillRemoved(skillId: kotlin.String) = record(
         domain = EvolutionDomain.SKILL,
         kind = "skill_removed",
         sourceEntityId = skillId,
@@ -105,7 +179,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.PROACTIVE,
         kind = "proactive_snoozed",
         sourceEntityId = eventId,
@@ -123,7 +197,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.MEMORY,
         kind = "memory_stored",
         sourceEntityId = memoryId,
@@ -140,7 +214,7 @@ class EvolutionHooks @Inject constructor(
         runId: kotlin.String? = null,
         conversationId: kotlin.String? = null,
         turnTimestamp: kotlin.Long? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.MEMORY,
         kind = "memory_recalled",
         sourceEntityId = memoryId,
@@ -155,7 +229,7 @@ class EvolutionHooks @Inject constructor(
         memoryId: kotlin.String,
         helpful: Boolean,
         note: kotlin.String? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.MEMORY,
         kind = if (helpful) "memory_helpful" else "memory_not_helpful",
         sourceEntityId = memoryId,
@@ -165,7 +239,7 @@ class EvolutionHooks @Inject constructor(
         },
     )
 
-    suspend fun onMemoryForgotten(memoryId: kotlin.String) = recorder.record(
+    suspend fun onMemoryForgotten(memoryId: kotlin.String) = record(
         domain = EvolutionDomain.MEMORY,
         kind = "memory_forgotten",
         sourceEntityId = memoryId,
@@ -178,7 +252,7 @@ class EvolutionHooks @Inject constructor(
         eventId: kotlin.String,
         eventType: kotlin.String,
         runId: kotlin.String? = null,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.PROACTIVE,
         kind = "proactive_delivered",
         sourceEntityId = eventId,
@@ -189,7 +263,7 @@ class EvolutionHooks @Inject constructor(
     suspend fun onProactiveOpened(
         eventId: kotlin.String,
         eventType: kotlin.String,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.PROACTIVE,
         kind = "proactive_opened",
         sourceEntityId = eventId,
@@ -199,7 +273,7 @@ class EvolutionHooks @Inject constructor(
     suspend fun onProactiveActionTaken(
         eventId: kotlin.String,
         action: kotlin.String,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.PROACTIVE,
         kind = "proactive_action_taken",
         sourceEntityId = eventId,
@@ -209,10 +283,21 @@ class EvolutionHooks @Inject constructor(
     suspend fun onProactiveDismissed(
         eventId: kotlin.String,
         dismissalKind: kotlin.String,
-    ) = recorder.record(
+    ) = record(
         domain = EvolutionDomain.PROACTIVE,
         kind = "proactive_dismissed",
         sourceEntityId = eventId,
         payload = mapOf("kind" to dismissalKind),
     )
+
+    companion object {
+        /**
+         * How long a cached `evolutionEnabled` read stays good.
+         *
+         * A minute, because the cost of being wrong is one minute of evidence
+         * either recorded or skipped, and the cost of not caching is a DataStore
+         * read inside the recall loop.
+         */
+        const val GATE_TTL_MS: Long = 60_000L
+    }
 }

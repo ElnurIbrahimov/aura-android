@@ -32,7 +32,47 @@ data class Tool(
      * [com.aura.tools.ToolCategories]. Empty string = "other".
      */
     val category: String = "",
+    /**
+     * How long this tool needs before [ToolExecutor] cancels it, when the
+     * caller states no budget of its own ([ToolContext.timeout]).
+     *
+     * Declared here rather than left to the caller because the caller does not
+     * know: `MemoryAugmentedAgenticLoop` builds one [ToolContext] for every
+     * tool in a step, so a single number there is either too tight for
+     * `deep_research` or too loose for everything else. It was too tight —
+     * `deep_research` budgets 120s internally and was being killed at 30s,
+     * mid-pipeline, after paying for the searches, on every single call.
+     *
+     * `ProductionPipelineEngine` found and fixed this same defect on the
+     * agent-run path, where its KDoc records that "the generative stages of
+     * these pipelines have never completed". The chat loop never got the fix.
+     * [ToolTimeoutConsistencyTest] now pins the invariant that was violated:
+     * no tool's own internal budget may exceed the budget it declares here.
+     *
+     * Appended last, after [category], so the 76 existing `Tool(` sites
+     * compile untouched.
+     */
+    val timeoutMs: Long = DEFAULT_TOOL_TIMEOUT_MS,
 )
+
+/**
+ * Budget a tool gets when neither it nor its caller asks for more.
+ *
+ * 30s is the historical value that [ToolContext.timeout] defaulted to, kept so
+ * that making timeouts explicit changed no tool's behaviour except the ones
+ * that were provably being truncated.
+ */
+const val DEFAULT_TOOL_TIMEOUT_MS: Long = 30_000L
+
+/**
+ * Margin between a tool's own internal budget and the executor budget it declares.
+ *
+ * The two timeouts must not be equal. `DelegateToAgentTool` and `KnowledgeGraphTool`
+ * both budget exactly 30s internally against the old 30s executor default, and the
+ * executor's clock always started first — so the tool's own timeout, and the useful
+ * message it would have returned, were unreachable. The inner one has to win.
+ */
+const val TIMEOUT_HEADROOM_MS: Long = 15_000L
 
 data class ToolCall(val id: String, val name: String, val arguments: Map<String, Any?>)
 
@@ -66,7 +106,21 @@ data class ToolContext(
     /** Latest user-authored message for tools that require explicit consent. */
     val userMessage: String = "",
     val permissions: Set<String> = emptySet(),
-    val timeout: Long = 30_000L,
+    /**
+     * Caller-imposed budget for every tool in this context, or null to let each
+     * tool use its own [Tool.timeoutMs].
+     *
+     * Nullable rather than defaulted, because "the caller did not say" and "the
+     * caller said 30s" are different facts and the old `= 30_000L` made them
+     * indistinguishable. Every construction site that omitted this was silently
+     * asserting a 30s ceiling it had never considered, which is how
+     * `deep_research` came to be unable to finish.
+     *
+     * Callers that genuinely own the budget still set it — `RunHandWorker`
+     * (120s), `AgentRunExecutorWorker` (per-run snapshot), and the timeout tests
+     * — and an explicit value always wins over the tool's own.
+     */
+    val timeout: Long? = null,
     /**
      * Tool names explicitly approved by a first-party UI action. This is
      * narrower than a boolean: approval for one metered tool cannot authorize

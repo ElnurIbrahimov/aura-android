@@ -50,6 +50,10 @@ class CalendarCheckWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             android.util.Log.w("CalendarCheckWorker", "calendar check failed: ${e.message}", e)
+            // This logged but never set `lastOutcome`, so `record` wrote the
+            // `ok("")` initialiser and BackgroundHealth showed a green calendar
+            // check over a worker that had thrown on every run.
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.failed(e)
             Result.retry()
         }
     }

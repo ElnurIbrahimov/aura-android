@@ -71,6 +71,7 @@ class ProactiveBootstrap @Inject constructor(
     private val backupManager: javax.inject.Provider<com.aura.backup.BackupManager>? = null,
     // Appended, not inserted — this constructor's own KDoc records why.
     private val skillsStore: com.aura.skills.SkillsStore? = null,
+    private val widgetRefresher: WidgetRefresher? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -319,12 +320,12 @@ class ProactiveBootstrap @Inject constructor(
     private fun reconcile(gates: ProactiveGates) {
         applyGates(gates.morningBriefOn, gates.calendarMonitorOn, gates.briefHour)
         try {
-            val refresh = Intent(ACTION_REFRESH_WIDGET).apply {
-                setPackage(appContext.packageName)
-            }
-            appContext.sendBroadcast(refresh)
+            // An in-process call, not a broadcast. The old package-scoped
+            // REFRESH_WIDGET action had to sit in exported receivers' filters,
+            // where any app on the device could send it.
+            widgetRefresher?.refreshAll()
         } catch (e: Throwable) {
-            android.util.Log.w("ProactiveBootstrap", "widget refresh broadcast failed: ${e.message}")
+            android.util.Log.w("ProactiveBootstrap", "widget refresh failed: ${e.message}")
         }
     }
 
@@ -487,10 +488,5 @@ class ProactiveBootstrap @Inject constructor(
         val evolutionOn: Boolean,
         val evolutionIntervalHours: Int,
     )
-
-    companion object {
-        /** Custom broadcast action the [com.aura.widget.AskAuraWidget] listens for. */
-        const val ACTION_REFRESH_WIDGET = "com.aura.action.REFRESH_WIDGET"
-    }
 
 }

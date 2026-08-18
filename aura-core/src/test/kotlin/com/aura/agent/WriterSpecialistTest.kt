@@ -15,16 +15,7 @@ class WriterSpecialistTest {
         assertTrue(writer in Specialist.ALL)
     }
 
-    @Test
-    fun `router selects writer for fiction and worldbuilding`() {
-        assertEquals(Specialist.Writer, SpecialistRouter.pickSpecialist("Help me write the next chapter of my novel"))
-        assertEquals(Specialist.Writer, SpecialistRouter.pickSpecialist("Worldbuild a magic system with strict costs"))
-        assertEquals(Specialist.Writer, SpecialistRouter.pickSpecialist("Run a what-if scenario for my protagonist"))
-    }
-
-    @Test
-    fun `writer does not steal coding or visual art requests`() {
-        assertEquals(Specialist.Coder, SpecialistRouter.pickSpecialist("Write Kotlin code for a parser"))
-        assertEquals(Specialist.Creative, SpecialistRouter.pickSpecialist("Draw a fantasy poster"))
-    }
+    // The two routing tests that were here went with SpecialistRouter. They
+    // asserted which specialist a phrase selected, and nothing selects one from
+    // a phrase any more — the user picks an agent.
 }

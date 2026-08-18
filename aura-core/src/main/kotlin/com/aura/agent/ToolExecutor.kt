@@ -127,8 +127,13 @@ class ToolExecutor @Inject constructor(
         }
 
         val call = ToolCall(id = "", name = name, arguments = args)
+        // An explicit caller budget wins; otherwise the tool's own declared
+        // need applies. Before this, every caller that simply omitted
+        // ToolContext.timeout imposed a 30s ceiling it had never chosen, and
+        // deep_research — which budgets 120s internally — could not once finish.
+        val budgetMs = ctx.timeout ?: tool.timeoutMs
         val result = try {
-            withTimeout(ctx.timeout) {
+            withTimeout(budgetMs) {
                 // Tools are suspend functions that may internally do
                 // blocking I/O (Thread.sleep, OkHttp, file reads).
                 // runInterruptible runs the lambda on Dispatchers.IO
@@ -142,7 +147,7 @@ class ToolExecutor @Inject constructor(
             }
         } catch (e: TimeoutCancellationException) {
             ToolResult.Error(
-                message = "Tool '$name' timed out after ${ctx.timeout / 1000}s",
+                message = "Tool '$name' timed out after ${budgetMs / 1000}s",
                 code = "tool_timeout",
             )
         } catch (e: CancellationException) {

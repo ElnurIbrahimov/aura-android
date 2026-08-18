@@ -56,7 +56,19 @@ class EvolutionWorker @AssistedInject constructor(
                 },
             )
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Rethrow before the generic catch: `catch (e: Exception)` swallows
+            // structured cancellation, which every other worker rethrows.
+            throw e
         } catch (e: Exception) {
+            // All three of these were missing. `lastOutcome` kept its `ok("")`
+            // initialiser, so `record` wrote OUTCOME_OK over a pass that had
+            // just thrown, and BackgroundHealth reported the evolution pipeline
+            // green through three consecutive failures. Nothing was logged
+            // either — the only catch block in the package with no log line —
+            // so the failure left no trace anywhere at all.
+            android.util.Log.w("EvolutionWorker", "evolution pass failed: ${e.message}", e)
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.failed(e)
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }

@@ -14,6 +14,9 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * PROVIDERS_AUDIT B1: auth errors must not trigger failover.
@@ -45,6 +48,10 @@ import kotlin.test.assertNotNull
  * It is indifferent to how the classification is written.
  */
 class NonRetryableStatusCodesTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

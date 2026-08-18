@@ -19,7 +19,10 @@ import javax.inject.Singleton
 @Singleton
 class CapabilityRouter @Inject constructor(
     private val registry: CapabilityRegistry,
-    private val providerKeys: ProviderKeys,
+    // `providerKeys` was injected here and never read — routing asks the
+    // registry which providers are configured, and the registry is the thing
+    // that consults the keys. An unused dependency is not free: it widens the
+    // Hilt graph and reads as though this class makes key decisions it does not.
 ) {
     /**
      * Resolve a provider for [kind]. Returns null if no provider is

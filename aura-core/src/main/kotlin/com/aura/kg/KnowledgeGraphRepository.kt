@@ -80,6 +80,15 @@ class KnowledgeGraphRepository @Inject constructor(
         // `lastReinforced > createdAt` is never true, so `BeliefPromoter` never
         // promotes anything.
         val edgesToInsert = resolution.edgesToInsert + resolution.edgesToReinforce
+        // One read for the whole extraction rather than one per row. These
+        // loops did twenty to sixty individual round trips per turn; the
+        // read-back is still required, only not one query at a time.
+        val nodeIds = nodesToInsert.map { it.id.ifBlank { KgId.node(it.type, it.label) } }
+        val storedNodes = if (nodeIds.isEmpty()) emptyMap() else
+            dao.nodesByIds(nodeIds).associateBy { it.id }
+        val pendingNodes = mutableListOf<NodeEntity>()
+        val pendingEdges = mutableListOf<EdgeEntity>()
+
         for (node in nodesToInsert) {
             val id = node.id.ifBlank { KgId.node(node.type, node.label) }
             // `@Upsert` overwrites every column of the entity handed to it, and
@@ -88,22 +97,20 @@ class KnowledgeGraphRepository @Inject constructor(
             // node's first-seen date to now and discard its read counter, which
             // `searchNodes` ranks by. Same shape as the edge loop below, and
             // the same reason: the extractor supplies content, not history.
-            val existing = dao.getNode(id)
-            dao.insertNode(
-                node.copy(
-                    id = id,
-                    sourceTurnId = stableTurnId,
-                    sourceConversationId = provenance.conversationId,
-                    sourceTurnTimestamp = provenance.turnTimestamp,
-                    updatedAt = now,
-                ).toEntity().let { fresh ->
-                    if (existing == null) fresh else fresh.copy(
-                        createdAt = existing.createdAt,
-                        accessCount = existing.accessCount,
-                        lastAccessed = existing.lastAccessed,
-                    )
-                }
-            )
+            val existing = storedNodes[id]
+            pendingNodes += node.copy(
+                id = id,
+                sourceTurnId = stableTurnId,
+                sourceConversationId = provenance.conversationId,
+                sourceTurnTimestamp = provenance.turnTimestamp,
+                updatedAt = now,
+            ).toEntity().let { fresh ->
+                if (existing == null) fresh else fresh.copy(
+                    createdAt = existing.createdAt,
+                    accessCount = existing.accessCount,
+                    lastAccessed = existing.lastAccessed,
+                )
+            }
         }
         // Re-mentioned nodes. The extractor produced no new *content* for these
         // — the resolver matched them to rows that already hold the label, type
@@ -113,15 +120,22 @@ class KnowledgeGraphRepository @Inject constructor(
         // node's `sourceTurnId` off the turn that actually introduced it every
         // time it came up again. `updatedAt` still has to move, because
         // `recentNodesSince` is what the morning brief reads.
+        val touchIds = resolution.nodesToTouch.map { it.id }
+        val storedTouched = if (touchIds.isEmpty()) emptyMap() else
+            dao.nodesByIds(touchIds).associateBy { it.id }
         for (touched in resolution.nodesToTouch) {
-            val stored = dao.getNode(touched.id) ?: continue
-            dao.insertNode(
-                stored.copy(
-                    confidence = maxOf(stored.confidence, touched.confidence),
-                    updatedAt = now,
-                )
+            val stored = storedTouched[touched.id] ?: continue
+            pendingNodes += stored.copy(
+                confidence = maxOf(stored.confidence, touched.confidence),
+                updatedAt = now,
             )
         }
+
+        val edgeIds = edgesToInsert.map {
+            it.id.ifBlank { KgId.edge(it.type, it.sourceId, it.targetId) }
+        }
+        val storedEdges = if (edgeIds.isEmpty()) emptyMap() else
+            dao.edgesByIds(edgeIds).associateBy { it.id }
         for (edge in edgesToInsert) {
             val id = edge.id.ifBlank { KgId.edge(edge.type, edge.sourceId, edge.targetId) }
             // REPLACE overwrites the whole row, so without this the original
@@ -130,18 +144,21 @@ class KnowledgeGraphRepository @Inject constructor(
             // BeliefPromoter — would be true even on first sighting, because
             // KgEdge.createdAt defaults at parse time and `now` is captured
             // later in this function.
-            val firstSeen = dao.getEdge(id)?.createdAt ?: now
-            dao.insertEdge(
-                edge.copy(
-                    id = id,
-                    sourceTurnId = stableTurnId,
-                    sourceConversationId = provenance.conversationId,
-                    sourceTurnTimestamp = provenance.turnTimestamp,
-                    createdAt = firstSeen,
-                    lastReinforced = now,
-                ).toEntity()
-            )
+            val firstSeen = storedEdges[id]?.createdAt ?: now
+            pendingEdges += edge.copy(
+                id = id,
+                sourceTurnId = stableTurnId,
+                sourceConversationId = provenance.conversationId,
+                sourceTurnTimestamp = provenance.turnTimestamp,
+                createdAt = firstSeen,
+                lastReinforced = now,
+            ).toEntity()
         }
+
+        // One commit. Written in loops with no transaction before, so a crash
+        // partway through left nodes stored and their edges missing — a graph
+        // that is structurally wrong with nothing recording that it is.
+        dao.writeGraph(pendingNodes, pendingEdges)
         // Structural belief conflicts are cheap enough to resolve inline — a
         // single indexed lookup per predicate, no model call. Best-effort:
         // never fail a KG save because revision had a problem.

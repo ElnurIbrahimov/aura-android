@@ -17,6 +17,12 @@ import android.util.Log
 
 data class DocumentImportUiState(
     val documents: List<DocumentEntity> = emptyList(),
+    /**
+     * Documents the library lists but document search cannot find, because
+     * they were imported before chunks had a writer. Shown as a per-row notice
+     * so the count and the search result stop contradicting each other.
+     */
+    val unindexedDocumentIds: Set<String> = emptySet(),
     val importing: Boolean = false,
     val stage: String? = null,
     val message: String? = null,
@@ -34,7 +40,11 @@ class DocumentImportViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.observeAll().collect { documents ->
-                _state.update { it.copy(documents = documents) }
+                // Recomputed per emission rather than once: an import adds
+                // chunks, and a document that has just been re-imported must
+                // stop carrying the notice immediately.
+                val missing = repository.idsMissingChunks()
+                _state.update { it.copy(documents = documents, unindexedDocumentIds = missing) }
             }
         }
     }

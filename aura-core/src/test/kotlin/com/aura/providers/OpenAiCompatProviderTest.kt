@@ -14,6 +14,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * MockWebServer tests for [OpenAiCompatProvider.listModels].
@@ -21,6 +24,10 @@ import kotlin.test.assertTrue
  * Every test uses a local MockWebServer so no real network calls are made.
  */
 class OpenAiCompatProviderTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: OpenAiCompatProvider

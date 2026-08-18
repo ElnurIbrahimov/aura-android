@@ -4,6 +4,27 @@
 # codegen, Compose) on its own; only genuinely reflective entry points get
 # narrow, documented keep rules.
 
+# --- Informational logging is removed from release builds ---
+# 36 Log.d/Log.i sites shipped live, and some interpolate content rather than
+# state: DaemonWorker logged `"posted insight: ${insight.take(80)}"`, and
+# ConversationStore, MemoryAugmentedAgenticLoop and CreativeStudioViewModel all
+# interpolate too. On a rooted device or one with ADB attached that is assistant
+# output and user data in logcat, readable by anything holding READ_LOGS.
+#
+# Only v/d/i. Log.w (695 sites) and Log.e (8) are how every handled failure in
+# this codebase reports itself — `lint-logging.sh` exists to make sure they carry
+# their throwable — and stripping them would leave a release build that fails
+# silently, which is the defect this whole pass has been removing.
+#
+# This removes the *call*. R8 may still evaluate the argument expressions where
+# it cannot prove them pure, so treat it as a privacy fix rather than a
+# performance one: the string may be built, but nothing reaches logcat.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
 # --- kotlinx.serialization (targeted; @Serializable classes in com.aura) ---
 -keepclassmembers class * {
     @kotlinx.serialization.Serializable <fields>;

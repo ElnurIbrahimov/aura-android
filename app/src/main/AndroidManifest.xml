@@ -257,7 +257,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.aura.action.REFRESH_WIDGET" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -276,10 +275,12 @@
         </receiver>
 
         <!--
-          The periphery line. Listens for REFRESH_WIDGET alongside
-          APPWIDGET_UPDATE for the same reason AskAuraWidget does: the system's
-          updatePeriodMillis floor is 30 minutes, and a line that claims to say
-          what Aura is doing now cannot wait that long to say it.
+          The periphery line. The system's updatePeriodMillis floor is 30
+          minutes, far too slow for a line that claims to say what Aura is
+          doing now, so WidgetRefresher pushes APPWIDGET_UPDATE from inside
+          the process between ticks. The filter stays free of custom actions:
+          these receivers are exported, so anything custom here would be
+          callable by every app on the device.
         -->
         <receiver
             android:name=".widget.WorkingOnWidget"
@@ -287,7 +288,6 @@
             android:label="@string/widget_working_on_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.aura.action.REFRESH_WIDGET" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

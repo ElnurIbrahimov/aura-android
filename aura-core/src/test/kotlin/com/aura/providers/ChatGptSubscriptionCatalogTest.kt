@@ -14,6 +14,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * The ChatGPT Subscription catalog is fetched live.
@@ -29,6 +32,10 @@ import kotlin.test.assertTrue
  * These tests pin the live path so nobody re-freezes the list.
  */
 class ChatGptSubscriptionCatalogTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

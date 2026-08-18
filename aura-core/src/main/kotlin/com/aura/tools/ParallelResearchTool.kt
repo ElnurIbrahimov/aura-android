@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.Brain
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
@@ -85,6 +86,10 @@ class ParallelResearchTool @Inject constructor(
             }
         },
         category = "web",
+        // Angles run to ANGLE_BUDGET_MS, then synthesis runs to
+        // SYNTHESIS_BUDGET_MS after them — sequential, so the tool's real
+        // worst case is their sum, which was 2.5x the executor's old ceiling.
+        timeoutMs = ANGLE_BUDGET_MS + SYNTHESIS_BUDGET_MS + TIMEOUT_HEADROOM_MS,
     )
 
     /** Split a question into [MAX_ANGLES] research angles via cheap model, with keyword fallback. */

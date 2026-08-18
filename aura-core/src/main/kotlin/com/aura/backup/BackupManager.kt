@@ -520,8 +520,17 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // rethrow skipped the purge).
         val counts = try {
             withContext(kotlinx.coroutines.NonCancellable) {
-                if (mode == RestoreMode.REPLACE) purgeAll()
                 try {
+                    // Inside the guard, not before it. The purge was the one
+                    // statement between taking the snapshot and the catch that
+                    // restores from it — so a failure *during the wipe* left the
+                    // tables emptied and skipped the rollback entirely, which is
+                    // precisely the outcome the KDoc above says this design
+                    // exists to prevent ("purging is not [recoverable]").
+                    //
+                    // Running purgeAll twice is harmless: it is ~60
+                    // unconditional DELETEs with no reads between them.
+                    if (mode == RestoreMode.REPLACE) purgeAll()
                     writeEverything(backup)
                 } catch (e: Throwable) {
                     // Throwable (not just Exception) so OOM / StackOverflow

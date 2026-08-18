@@ -45,6 +45,19 @@ class KgEntityResolverReinforcementTest {
         }
         coEvery { dao.getNode(any()) } answers { nodes[firstArg<String>()] }
         coEvery { dao.allNodes() } answers { nodes.values.toList() }
+        // The batched read and single commit that replaced the per-row
+        // getNode/insertNode pairs. Routed into the same maps, so what these
+        // tests assert — what is stored afterwards — is unchanged.
+        coEvery { dao.nodesByIds(any()) } answers {
+            firstArg<List<String>>().mapNotNull { nodes[it] }
+        }
+        coEvery { dao.edgesByIds(any()) } answers {
+            firstArg<List<String>>().mapNotNull { edges[it] }
+        }
+        coEvery { dao.writeGraph(any(), any()) } answers {
+            firstArg<List<NodeEntity>>().forEach { nodes[it.id] = it }
+            secondArg<List<EdgeEntity>>().forEach { edges[it.id] = it }
+        }
         // Resolution reads candidates rather than the whole graph — it used to
         // load every node and every edge on every extraction, which is roughly
         // every turn. This fake mirrors the three queries that replaced it.

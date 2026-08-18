@@ -20,7 +20,6 @@ class ToolsModuleSanityTest {
     fun `legacy and capability tools are both registrable`() {
         val router = CapabilityRouter(
             CapabilityRegistry(emptyMap(), mockk(relaxed = true)),
-            mockk(relaxed = true),
         )
         val registry = ToolRegistry()
         registry.register(ImageGenCapabilityTool(router).tool)
@@ -37,7 +36,6 @@ class ToolsModuleSanityTest {
     fun `capability tools report correct risks`() {
         val router = CapabilityRouter(
             CapabilityRegistry(emptyMap(), mockk(relaxed = true)),
-            mockk(relaxed = true),
         )
         val imageGen = ImageGenCapabilityTool(router).tool
         val webSearch = WebSearchCapabilityTool(router, okhttp3.OkHttpClient()).tool
@@ -50,7 +48,6 @@ class ToolsModuleSanityTest {
     fun `capability tools expose parameters`() {
         val router = CapabilityRouter(
             CapabilityRegistry(emptyMap(), mockk(relaxed = true)),
-            mockk(relaxed = true),
         )
         val imageGen = ImageGenCapabilityTool(router).tool
         val webSearch = WebSearchCapabilityTool(router, okhttp3.OkHttpClient()).tool

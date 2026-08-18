@@ -15,12 +15,19 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * P0 regression: hitting [Provider.cancel] must actually abort the SSE
  * connection, even if the call races with the creation of the EventSource.
  */
 class OpenAiCompatCancelRaceTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: OpenAiCompatProvider

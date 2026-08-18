@@ -113,6 +113,15 @@ kotlin {
 dependencies {
     implementation(project(":aura-core"))
 
+    constraints {
+        // pdfbox-android requests the bc*-jdk15to18 trio at 1.72 (Sept 2022),
+        // where CVE-2023-33202 (ASN.1 OID parsing -> OOM) is plausibly
+        // reachable through PDF import.
+        implementation("org.bouncycastle:bcprov-jdk15to18:1.80")
+        implementation("org.bouncycastle:bcpkix-jdk15to18:1.80")
+        implementation("org.bouncycastle:bcutil-jdk15to18:1.80")
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

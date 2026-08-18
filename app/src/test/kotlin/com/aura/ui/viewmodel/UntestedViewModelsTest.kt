@@ -17,12 +17,15 @@ import com.aura.tasks.TaskDao
 import com.aura.tasks.TaskScheduler
 import com.aura.usage.UsageTracker
 import com.aura.usage.UsageSnapshot
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -55,19 +58,33 @@ class UntestedViewModelsTest {
     // ── EvolutionBadgeViewModel ──
 
     @Test
-    fun `EvolutionBadgeViewModel exposes pending count from DAO`() {
+    fun `EvolutionBadgeViewModel exposes pending count from DAO`() = runTest(testDispatcher) {
         val dao = mockk<EvolutionProposalDao>(relaxed = true)
         every { dao.observePendingCount() } returns flowOf(3)
         val vm = com.aura.ui.evolution.EvolutionBadgeViewModel(dao)
-        // StateFlow value may be 0 initially before the flow emits
-        // The important thing is the VM doesn't crash and exposes the flow
-        assertTrue(vm.pendingCount.value >= 0)
+
+        // `pendingCount` is `stateIn(started = WhileSubscribed(5s))`, so the
+        // upstream DAO flow is not collected at all until something subscribes
+        // — `.value` sits on `initialValue = 0` forever otherwise, no matter how
+        // far the dispatcher is advanced.
+        //
+        // That is why the original assertion was `>= 0` and why its sibling
+        // asserting `0` also passed: neither was reading the DAO. Both would
+        // have passed against a ViewModel wired to nothing.
+        val subscriber = launch { vm.pendingCount.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(3, vm.pendingCount.value)
+        subscriber.cancel()
     }
 
     @Test
-    fun `EvolutionBadgeViewModel shows zero when no pending proposals`() {
+    fun `EvolutionBadgeViewModel shows no badge until something subscribes`() {
+        // Renamed to what it actually pins, which is worth pinning: the badge
+        // reads 0 before collection starts, so the bottom nav never flashes a
+        // count carried over from a previous process.
         val dao = mockk<EvolutionProposalDao>(relaxed = true)
-        every { dao.observePendingCount() } returns flowOf(0)
+        every { dao.observePendingCount() } returns flowOf(7)
         val vm = com.aura.ui.evolution.EvolutionBadgeViewModel(dao)
         assertEquals(0, vm.pendingCount.value)
     }
@@ -88,24 +105,38 @@ class UntestedViewModelsTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
         )
-        assertTrue(vm.proposals.value.size >= 0)
+        // `size >= 0` was here, which is true of every list that exists.
+        assertEquals(emptyList<Any?>(), vm.proposals.value)
     }
 
     @Test
-    fun `EvolutionInboxViewModel dismissOnboarding does not crash`() = runTest {
+    fun `EvolutionInboxViewModel dismissOnboarding persists the dismissal`() = runTest {
         val dao = mockk<EvolutionProposalDao>(relaxed = true)
         every { dao.observeOpen() } returns flowOf(emptyList())
         every { dao.observePendingCount() } returns flowOf(0)
         val settingsDao = mockk<EvolutionSettingsDao>(relaxed = true)
+        val userPreferences = mockk<com.aura.data.UserPreferences>(relaxed = true)
         val vm = com.aura.ui.evolution.EvolutionInboxViewModel(
             dao,
             mockk(relaxed = true),
             settingsDao,
             mockk(relaxed = true),
-            mockk(relaxed = true),
+            userPreferences,
             mockk(relaxed = true),
         )
+
         vm.dismissOnboarding()
+        // The dismissal happens in `viewModelScope.launch`, so on
+        // StandardTestDispatcher nothing runs until this line. The old version
+        // asserted nothing, so it never had to notice.
+        advanceUntilIdle()
+
+        // Was `vm.dismissOnboarding()` with no assertion at all — named "does
+        // not crash", and that is all it could detect. A dismissal that is not
+        // written down brings the card back on the next launch, which is the
+        // failure a user would actually meet.
+        coVerify { userPreferences.setEvolutionOnboardingShown(true) }
+        assertEquals(false, vm.showOnboarding.value)
     }
 
     // ── UsageViewModel ──
@@ -254,8 +285,10 @@ class UntestedViewModelsTest {
         every { taskDao.observeAll() } returns flowOf(emptyList())
         every { reminderDao.observeUpcoming(any()) } returns flowOf(emptyList())
         val vm = ScheduleViewModel(taskDao, reminderDao, scheduler)
-        assertTrue(vm.uiState.value.tasks.size >= 0)
-        assertTrue(vm.uiState.value.reminders.size >= 0)
+        // Both were `size >= 0`, true of any list. The test is named "initial
+        // state has empty lists" — asserting emptiness is what it always meant.
+        assertEquals(emptyList<Any?>(), vm.uiState.value.tasks)
+        assertEquals(emptyList<Any?>(), vm.uiState.value.reminders)
     }
 
     // ── SkillsViewModel ──

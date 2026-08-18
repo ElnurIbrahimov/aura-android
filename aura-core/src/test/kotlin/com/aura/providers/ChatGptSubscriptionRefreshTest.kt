@@ -19,6 +19,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * End-to-end for the thing this work exists to fix: a ChatGPT session that
@@ -34,6 +37,10 @@ import kotlin.test.assertTrue
  * only that I called the method I wrote.
  */
 class ChatGptSubscriptionRefreshTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private val values = mutableMapOf<String, String>()
