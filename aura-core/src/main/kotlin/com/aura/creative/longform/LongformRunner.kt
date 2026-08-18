@@ -330,6 +330,7 @@ class LongformRunner @Inject constructor(
                 revisionId = revisionId,
                 sceneText = body,
                 sceneModel = model,
+                declaredEffects = beat.effects,
             )
         }.onFailure { Log.w(TAG, "could not record scene ${index + 1}: ${it.message}", it) }
         return true
