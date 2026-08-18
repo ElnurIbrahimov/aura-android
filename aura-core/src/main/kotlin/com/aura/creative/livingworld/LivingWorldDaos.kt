@@ -32,6 +32,9 @@ interface LivingWorldDao {
     @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
     fun observeForProjectAndBranch(projectId: String, branchId: String): Flow<LivingWorldEntity?>
 
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
+    suspend fun forProjectAndBranch(projectId: String, branchId: String): LivingWorldEntity?
+
     /** Every world a tick worker should advance. */
     @Query("SELECT * FROM living_worlds WHERE status = 'running' ORDER BY id ASC")
     suspend fun running(): List<LivingWorldEntity>

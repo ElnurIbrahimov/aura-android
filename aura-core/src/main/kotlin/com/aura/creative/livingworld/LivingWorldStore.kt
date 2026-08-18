@@ -63,6 +63,9 @@ class LivingWorldStore @Inject constructor(
     fun observeAllForProject(projectId: String): Flow<List<LivingWorldEntity>> =
         worldDao.observeAllForProject(projectId)
 
+    suspend fun forProjectAndBranch(projectId: String, branchId: String): LivingWorldEntity? =
+        worldDao.forProjectAndBranch(projectId, branchId)
+
     /**
      * Fork at the present: a sibling world sharing every tick up to now and
      * free to diverge from the next draw on. Same rootSeed — the pre-fork past

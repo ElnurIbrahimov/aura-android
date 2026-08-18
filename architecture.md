@@ -138,7 +138,7 @@ aura-android-clean/
 - AgentRunDB v1, StrategyBanditDB v1
 - Backup SCHEMA_VERSION 29 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
 
-### Tools (80)
+### Tools (81)
 - Web search (7: DDG HTML, DDG instant answer, Brave, Tavily, SearXNG, Wikipedia search/read, plus capability-backed)
 - Research: deep_research (parallel fetch, gap detection), parallel_research
 - Vision, image gen (2), code interpreter (JS sandbox), transcribe, translate
@@ -190,8 +190,8 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,368 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
-- 80 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
+- 3,371 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 81 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
   `ChatGptSubscriptionProvider` and `CustomOpenAiCompatProvider`), 7 builtin agents
