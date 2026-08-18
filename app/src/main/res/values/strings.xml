@@ -450,4 +450,8 @@
     <string name="voice_mode">Voice mode</string>
     <string name="start">Start</string>
     <string name="built_in">Built-in</string>
+    <string name="pin_story_here">Pin story to today</string>
+    <string name="story_unpinned">Story not pinned to the world</string>
+    <string name="story_pinned_here">Story pinned to today — drafting sees the world</string>
+    <string name="story_pin_stale">The world has moved on since the pin — re-pin to draft against today</string>
 </resources>

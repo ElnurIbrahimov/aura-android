@@ -699,6 +699,26 @@ class CreativeStudioViewModel @Inject constructor(
             .onFailure { Log.w(TAG, "catch-up enqueue failed: ${it.message}", it) }
     }
 
+    /**
+     * Pin the manuscript to the world's current tick. Drafting injects the
+     * world's standings only while the pin matches the present exactly — the
+     * world moves on within the hour, and a stale pin goes silent rather than
+     * serving yesterday as today.
+     */
+    fun pinStoryCursor() {
+        val project = _state.value.selectedProject ?: return
+        viewModelScope.launch {
+            runCatching {
+                val world = livingWorldStore.forProject(project.id) ?: return@runCatching
+                val updated = store.updateWorld(
+                    project.id,
+                    project.world.copy(storyCursorTick = world.currentTick),
+                )
+                _state.update { it.copy(selectedProject = updated ?: it.selectedProject) }
+            }.onFailure { Log.w(TAG, "story pin failed: ${it.message}", it) }
+        }
+    }
+
     fun generate(mode: CreativeMode, prompt: String, perspective: String = "") {
         val project = _state.value.selectedProject ?: return
         val thinkingBudget = if (_state.value.thinkingEnabled) _state.value.thinkingBudget else 0

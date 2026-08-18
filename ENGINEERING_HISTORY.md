@@ -472,6 +472,21 @@ walks those), trimBefore becomes the emergency valve it never had a caller for, 
 as DecayWorker's sixth sweep above the decayEnabled gate. Device look owed: reveal rows on
 the Living tab.
 
+*2026-08-19 (Phase B):* **3,356 unit tests / 500 suites, 0 failures.** Scenes became
+transactions, without a migration and without ever endangering paid text. A StoryBeat now
+declares REQUIRES and EFFECT assertions (subject @ predicate = value, parsed skip-never-guess);
+declared effects land as authored canon in a declared| id namespace at confidence 1.0, prior
+single-valued facts they contradict are superseded silently — declaring the change is the
+ruling — and the extractor disagreeing with the declaration files a severity-error issue that
+carries its machine-readable remedy (suggestedPatchJson's first writer; advisory, no applier).
+Continuity issues gained deterministic pair-derived ids and stopped re-opening pairs the author
+ruled intentional. Canon now enters drafting: a capped CANON section (facts for the beat's POV,
+setting and assertion subjects; a disagreeing precondition renders as one informational note)
+and a THE WORLD RIGHT NOW section rendering WorldStateBrief's standings, injected only while
+the new WorldBible.storyCursorTick pins the Living World's present exactly — the Living tab
+grew the pin button. Both reads are best-effort: a throwing canon DAO still commits its scene.
+Device look owed: the pin flow and a CANON-fed draft.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

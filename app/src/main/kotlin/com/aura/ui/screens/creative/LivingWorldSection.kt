@@ -66,7 +66,13 @@ internal fun LazyListScope.livingWorldSection(
     }
 
     item(key = "living-now") {
-        WorldNowCard(world.currentTick, world.worldEpochMs, world.live, viewModel)
+        WorldNowCard(
+            world.currentTick,
+            world.worldEpochMs,
+            world.live,
+            project.world.storyCursorTick,
+            viewModel,
+        )
     }
 
     item(key = "living-factions") {
@@ -118,6 +124,7 @@ private fun WorldNowCard(
     currentTick: Long,
     worldEpochMs: Long,
     live: LivingLiveUi?,
+    storyCursorTick: Long,
     viewModel: CreativeStudioViewModel,
 ) {
     // Read the clock at composition rather than taking a precomputed value from
@@ -159,6 +166,28 @@ private fun WorldNowCard(
         ) {
             OutlinedButton(onClick = viewModel::catchUpLivingWorld, enabled = live == null) {
                 Text(if (behind > 0L) "Catch up now" else "Advance now")
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                when {
+                    storyCursorTick < 0L -> stringResource(R.string.story_unpinned)
+                    storyCursorTick == currentTick -> stringResource(R.string.story_pinned_here)
+                    else -> stringResource(R.string.story_pin_stale)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = viewModel::pinStoryCursor,
+                enabled = storyCursorTick != currentTick,
+            ) {
+                Text(stringResource(R.string.pin_story_here))
             }
         }
     }
