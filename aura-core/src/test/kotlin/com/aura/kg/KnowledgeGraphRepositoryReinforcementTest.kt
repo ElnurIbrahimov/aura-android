@@ -36,6 +36,16 @@ class KnowledgeGraphRepositoryReinforcementTest {
         coEvery { dao.getEdge(any()) } answers {
             store[firstArg<String>()]
         }
+        // saveGraph now reads its whole extraction in one query and commits it
+        // in one transaction, instead of a getEdge/insertEdge pair per row. The
+        // fake stands in for both so every assertion below still measures what
+        // it did: what ends up stored, not how many statements got it there.
+        coEvery { dao.edgesByIds(any()) } answers {
+            firstArg<List<String>>().mapNotNull { store[it] }
+        }
+        coEvery { dao.writeGraph(any(), any()) } answers {
+            secondArg<List<EdgeEntity>>().forEach { store[it.id] = it }
+        }
     }
 
     @Test

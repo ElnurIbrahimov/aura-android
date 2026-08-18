@@ -24,6 +24,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Wire-format tests for Gemini's `functionDeclarations[].parameters`.
@@ -40,6 +43,10 @@ import kotlin.test.assertTrue
  * keywords stripped, unknown types coerced) survive with it.
  */
 class GeminiToolSchemaTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

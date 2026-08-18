@@ -133,8 +133,10 @@ class WorkingOnWidget : AppWidgetProvider() {
         val open = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_IMMUTABLE else 0
+        // Unconditional: FLAG_IMMUTABLE exists from API 23 and minSdk is 26, so
+        // the version guard only ever handed a mutable PendingIntent to devices
+        // below Android 12 rather than protecting anything.
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         views.setOnClickPendingIntent(
             R.id.working_on_root,
             PendingIntent.getActivity(context, 0, open, flags),

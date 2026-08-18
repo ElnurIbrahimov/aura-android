@@ -58,15 +58,7 @@ data class SubagentResult(
     val toolCalls: Int = 0,
 )
 
-/**
- * A bundle of immutable context passed to a subagent. Contains
- * artifact revisions, canon facts, and relevant text — never
- * mutable conversation history.
- */
-@Serializable
-data class ContextBundle(
-    val artifactContents: Map<kotlin.String, kotlin.String> = emptyMap(),
-    val canonFacts: List<kotlin.String> = emptyList(),
-    val systemPrompt: kotlin.String = "",
-    val userMessage: kotlin.String = "",
-)
+// `ContextBundle` stood here: a @Serializable record of the immutable context a
+// subagent would be handed. Nothing ever constructed one. `SubagentManager`
+// passes a system prompt and a user message directly, and the artifact/canon
+// halves the type promised were never assembled by anything.

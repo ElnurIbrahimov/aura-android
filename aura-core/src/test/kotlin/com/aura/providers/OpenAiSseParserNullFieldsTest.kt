@@ -4,6 +4,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Regression tests for JSON-null handling in [OpenAiSseParser].
@@ -29,6 +32,10 @@ import kotlin.test.assertTrue
  * ever send populated fields.
  */
 class OpenAiSseParserNullFieldsTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     @Test
     fun `explicit null content is not emitted as the text "null"`() {

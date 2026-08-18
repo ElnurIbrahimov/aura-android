@@ -249,6 +249,39 @@ interface MemoryDao {
     suspend fun updateDecayScore(id: String, decayScore: Float)
 
     /**
+     * Every non-retired memory, as the four columns a decay pass reads.
+     *
+     * A projection rather than `recent(10_000)` because `MemoryEntity` carries
+     * its embedding, and the decay pass loaded all of them: ten thousand
+     * 384-float BLOBs materialised in a background worker's heap to compute a
+     * number from three integers. The cap existed to bound that, and bounded
+     * the wrong thing — past ten thousand memories the tail simply stopped
+     * decaying, silently, which is the one behaviour FadeMem exists to provide.
+     *
+     * Unbounded on purpose now. The row is four scalars, so a hundred thousand
+     * memories is a few megabytes, and a cap that quietly stops working is
+     * worse than a pass that takes a moment longer on a schedule nobody watches.
+     */
+    @Query("SELECT id, createdAt, accessedAt, decayScore FROM memories WHERE retiredAt IS NULL")
+    suspend fun decayCandidates(): List<DecayCandidate>
+
+    /**
+     * Write back only `decayScore`, one narrow statement per row, in one
+     * transaction.
+     *
+     * Not `updateAll`. Room's `@Update` emits `UPDATE … SET` over every column
+     * of the entity, so a decay pass rewrote each row's content, tags, metadata
+     * and embedding BLOB to change one float — and, because `content` appears
+     * in the SET list even unchanged, fired the FTS trigger and re-tokenised
+     * every row it touched. Scoping the trigger to `OF content` does not help
+     * here for exactly that reason; only a narrow statement does.
+     */
+    @Transaction
+    suspend fun updateDecayScores(scores: List<DecayCandidate>) {
+        scores.forEach { updateDecayScore(it.id, it.decayScore) }
+    }
+
+    /**
      * Tags-only update. Unlike the user-edit path this preserves the
      * embedding, accessedAt, and audit trail — for background
      * bookkeeping (dream consolidation) that must not look like a user
@@ -378,3 +411,18 @@ interface MemoryFeedbackDao {
     @Query("DELETE FROM memory_feedback")
     suspend fun deleteAll()
 }
+
+/**
+ * The four columns a decay pass needs, and none of the ones it does not.
+ *
+ * A query projection, not an `@Entity` — it adds no table, no migration and no
+ * schema export. Its whole purpose is to keep the embedding BLOB out of the
+ * decay pass's heap, which is what forced the 10,000-row cap that stopped the
+ * tail of a large store from ever fading.
+ */
+data class DecayCandidate(
+    val id: String,
+    val createdAt: Long,
+    val accessedAt: Long,
+    val decayScore: Float,
+)

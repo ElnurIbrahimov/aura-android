@@ -66,6 +66,22 @@ internal object MemoryFtsSchema {
      *
      * The update trigger keys on `old.rowid` instead, because an in-place
      * UPDATE keeps the rowid.
+     *
+     * It is also scoped `AFTER UPDATE OF content`, and that word is load-bearing.
+     * Unscoped, it fired on every column: `touch` — one narrow UPDATE of
+     * `accessedAt`, `accessCount` and `decayScore` — runs **once per returned
+     * memory on every recall**, so a ten-hit query performed ten FTS
+     * delete-and-reindex cycles that changed not one indexed byte. The same was
+     * true of `updateDecayScore`, `updateTags`, `retire`, `unretire` and
+     * `applyDecay`, none of which touch content.
+     *
+     * The scoping is *not* enough on its own for Room's `@Update` methods.
+     * Room generates `UPDATE … SET` over every column of the entity, so
+     * `content` appears in the SET list even when its value is unchanged and the
+     * trigger still fires. That is what keeps `MemoryStore.update` and the
+     * dedup merge correct — both go through `@Update` and must reindex — and it
+     * is also why `runDecayPass`, which uses `@Update updateAll`, is *not* fixed
+     * by this scoping and is handled separately.
      */
     val TRIGGERS = listOf(
         """
@@ -80,7 +96,7 @@ internal object MemoryFtsSchema {
         END
         """.trimIndent(),
         """
-        CREATE TRIGGER IF NOT EXISTS memories_fts_after_update AFTER UPDATE ON memories BEGIN
+        CREATE TRIGGER IF NOT EXISTS memories_fts_after_update AFTER UPDATE OF content ON memories BEGIN
             DELETE FROM `memories_fts` WHERE docid = old.rowid;
             INSERT INTO `memories_fts`(docid, `memoryId`, `content`) VALUES (new.rowid, new.id, new.content);
         END
@@ -111,6 +127,27 @@ internal object MemoryFtsSchema {
     fun createAndBackfill(db: SupportSQLiteDatabase) {
         db.execSQL(CREATE_TABLE)
         db.execSQL(BACKFILL)
+        installTriggers(db)
+    }
+
+    /**
+     * Replace the triggers on a database that already has them.
+     *
+     * [installTriggers] alone cannot do this: every statement in [TRIGGERS] is
+     * `CREATE TRIGGER IF NOT EXISTS`, so on an installed device it is a silent
+     * no-op and the old definition survives forever. Editing the SQL above
+     * therefore reaches fresh installs only — which would leave upgraded devices
+     * and new ones running different index behaviour, the hardest kind of
+     * divergence to notice because both look correct in isolation.
+     *
+     * Dropping by name and re-running the whole list keeps one definition of
+     * each trigger. The insert and delete statements are unchanged and simply
+     * re-create identically.
+     */
+    fun reinstallTriggers(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TRIGGER IF EXISTS memories_fts_after_insert")
+        db.execSQL("DROP TRIGGER IF EXISTS memories_fts_after_delete")
+        db.execSQL("DROP TRIGGER IF EXISTS memories_fts_after_update")
         installTriggers(db)
     }
 }

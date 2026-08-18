@@ -20,6 +20,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Wire-format regression tests for TOOL SCHEMAS (as opposed to
@@ -39,6 +42,10 @@ import kotlin.test.assertTrue
  * outright on any strict provider (DeepSeek, api.openai.com).
  */
 class ToolSchemaSerializationTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

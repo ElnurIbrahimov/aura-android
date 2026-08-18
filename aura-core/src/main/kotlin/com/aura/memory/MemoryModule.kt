@@ -915,6 +915,30 @@ object MemoryModule {
         }
     }
 
+    /**
+     * Scope the FTS update trigger to the only column the index contains.
+     *
+     * No schema change — `27.json` is `26.json` with a different version number
+     * and the same identity hash, because Room's schema export does not record
+     * hand-written triggers. The migration exists because the trigger SQL alone
+     * cannot reach an installed device: every statement in
+     * `MemoryFtsSchema.TRIGGERS` is `CREATE TRIGGER IF NOT EXISTS`, so editing
+     * it changes fresh installs and silently leaves every upgraded device on the
+     * old definition.
+     *
+     * What the old definition cost: `AFTER UPDATE ON memories` fired on every
+     * column, and `MemoryDao.touch` — which bumps `accessedAt`, `accessCount`
+     * and `decayScore` — runs once per returned memory on *every recall*. A
+     * ten-hit query therefore did ten FTS delete-and-reindex cycles over text
+     * that had not changed, on the critical path of the feature this index
+     * exists to make fast.
+     */
+    val MIGRATION_26_27 = object : Migration(26, 27) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            MemoryFtsSchema.reinstallTriggers(db)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -922,7 +946,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is

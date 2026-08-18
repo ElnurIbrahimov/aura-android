@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
@@ -108,6 +109,13 @@ class DeepResearchTool @Inject constructor(
             }
         },
         category = "web",
+        // RESEARCH_TIMEOUT_MS is 120s and the executor's default was 30s, so
+        // every call died a quarter of the way in — after paying for the
+        // searches — and the gap-detection second iteration never ran once.
+        // Declared above the internal budget on purpose: the inner withTimeout
+        // should fire first and return a real message, rather than the executor
+        // killing the coroutine and reporting a bare tool_timeout.
+        timeoutMs = RESEARCH_TIMEOUT_MS + TIMEOUT_HEADROOM_MS,
     )
 
     // ------------------------------------------------------------------

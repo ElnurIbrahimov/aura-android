@@ -19,6 +19,9 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Wire-level regression tests for the ChatOptions null-means-unset
@@ -27,6 +30,10 @@ import kotlin.test.assertNotNull
  * the wire, while explicit values pass through verbatim.
  */
 class ProviderSamplingDefaultsTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

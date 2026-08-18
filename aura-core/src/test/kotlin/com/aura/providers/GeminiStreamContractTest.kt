@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Gemini's streaming contract, which had three independent defects that each
@@ -31,6 +34,10 @@ import kotlin.test.assertTrue
  * calling one tool collided on a single id.
  */
 class GeminiStreamContractTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: GeminiProvider

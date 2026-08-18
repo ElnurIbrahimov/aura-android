@@ -60,7 +60,28 @@ class CaptureViewModel @Inject constructor(
 
     private val gate = WriteGate()
 
-    fun capture(raw: String) {
+    /**
+     * Where the text came from, which decides how far it is trusted.
+     *
+     * The class KDoc's reasoning — "the user selected the text and tapped a
+     * button called Aura; there is nothing left to infer" — is true of text the
+     * user typed or selected, and false of text that arrived in an intent.
+     * `CaptureActivity` is `exported="true"` (it must be: `ACTION_PROCESS_TEXT`
+     * throws otherwise, and the launcher shortcut targets it by action), and it
+     * auto-captures incoming text from a `LaunchedEffect` before any tap. Any
+     * co-installed app could therefore write rows into permanent memory with
+     * `source = "user"` and the write gate skipped — the same trust level as a
+     * sentence the user typed, later recalled into the system prompt.
+     */
+    enum class Origin {
+        /** Typed into the sheet, or selected and sent through the OS toolbar. */
+        USER,
+
+        /** Delivered by an intent. A gesture may have caused it; nothing proves that. */
+        RECEIVED,
+    }
+
+    fun capture(raw: String, origin: Origin = Origin.USER) {
         val text = raw.trim()
         if (text.isEmpty()) return
         viewModelScope.launch {
@@ -68,13 +89,22 @@ class CaptureViewModel @Inject constructor(
                 // The heuristic categoriser, without its verdict. evaluate()
                 // returns category = "fact" on any rejection, which is exactly
                 // the fallback we would have chosen anyway.
-                val category = gate.evaluate(text, SOURCE).category
+                val verdict = gate.evaluate(text, SOURCE)
+                // Received text gets the gate's verdict *applied*, not just its
+                // category read. The bypass is what makes a deliberate capture
+                // reliable; there is nothing deliberate to protect when the
+                // sender is an intent.
+                if (origin == Origin.RECEIVED && !verdict.shouldStore) {
+                    return@runCatching null
+                }
                 memoryStore.storeIfAbsent(
                     content = text,
-                    source = SOURCE,
-                    category = category,
-                    importance = IMPORTANCE,
-                    tags = listOf("capture"),
+                    // A distinct source so recall and the memory screen can tell
+                    // "Elnur said this" from "something handed this to Aura".
+                    source = if (origin == Origin.USER) SOURCE else SOURCE_RECEIVED,
+                    category = verdict.category,
+                    importance = if (origin == Origin.USER) IMPORTANCE else IMPORTANCE_RECEIVED,
+                    tags = if (origin == Origin.USER) listOf("capture") else listOf("capture", "received"),
                 )
             }.onSuccess { id ->
                 // storeIfAbsent returns null when an identical memory already
@@ -111,5 +141,19 @@ class CaptureViewModel @Inject constructor(
 
         /** Same as `RememberTool` — the user asked for this to be kept. */
         const val IMPORTANCE = 0.7f
+
+        /**
+         * Text handed to Aura by an intent rather than typed or selected.
+         *
+         * A separate source, not a tag, because scope filters and the
+         * correction flow both key on source — and the point is that this text
+         * must never be indistinguishable from something the user said. Any
+         * app on the device can reach `CaptureActivity`; none of them can make
+         * their text read as the user's.
+         */
+        const val SOURCE_RECEIVED = "shared"
+
+        /** Lower than a deliberate capture: nobody has vouched for this yet. */
+        const val IMPORTANCE_RECEIVED = 0.4f
     }
 }

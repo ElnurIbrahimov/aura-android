@@ -16,6 +16,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -83,16 +84,38 @@ class AskAuraWidget : AppWidgetProvider() {
             WidgetEntryPoint::class.java,
         )
         val memoryStore = entry.memoryStore()
+        val userPreferences = entry.userPreferences()
 
         goAsync {
-            val recent = try {
-                memoryStore.recent(1).firstOrNull()
+            // The lock check the widget never made. This surface renders the
+            // most recent memory *verbatim* on the home screen, refreshed every
+            // 30 minutes, where it is readable by anyone holding the phone —
+            // including over a lock screen, which is exactly the state app lock
+            // exists for. `userPreferences` was already wired into this entry
+            // point and never called.
+            //
+            // The memory is not read at all when locked, rather than read and
+            // hidden: nothing that cannot be displayed should be in the
+            // RemoteViews bundle, which crosses into the launcher's process.
+            val locked = try {
+                userPreferences.appLockEnabled.first()
             } catch (e: Exception) {
+                // Fail closed. An unreadable preference is not permission to
+                // paint someone's memories onto their home screen.
+                true
+            }
+            val recent = if (locked) {
                 null
+            } else {
+                try {
+                    memoryStore.recent(1).firstOrNull()
+                } catch (e: Exception) {
+                    null
+                }
             }
             withContext(Dispatchers.Main) {
                 for (id in appWidgetIds) {
-                    updateOne(context, appWidgetManager, id, recent?.content)
+                    updateOne(context, appWidgetManager, id, recent?.content, locked)
                 }
             }
         }
@@ -103,13 +126,19 @@ class AskAuraWidget : AppWidgetProvider() {
         mgr: AppWidgetManager,
         widgetId: Int,
         memoryContent: String?,
+        locked: Boolean = false,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_ask_aura)
 
-        val bodyText = if (memoryContent.isNullOrBlank()) {
-            "No memories yet — start a chat to teach Aura about you."
-        } else {
-            memoryContent.take(180)
+        val bodyText = when {
+            // Says it is hidden rather than pretending there is nothing. "No
+            // memories yet" would be a lie to the one user who knows better,
+            // and the widget still works — tapping it opens the app, which
+            // asks for the fingerprint.
+            locked -> "Hidden while Aura is locked."
+            memoryContent.isNullOrBlank() ->
+                "No memories yet — start a chat to teach Aura about you."
+            else -> memoryContent.take(180)
         }
         views.setTextViewText(R.id.widget_memory_text, bodyText)
 
@@ -138,17 +167,14 @@ class AskAuraWidget : AppWidgetProvider() {
         mgr.updateAppWidget(widgetId, views)
     }
 
-    private fun pendingFlags(): Int {
-        // FLAG_IMMUTABLE is required on Android 12+; FLAG_UPDATE_CURRENT
-        // is recommended so the extras on the intent get refreshed on
-        // every update.
-        val base = PendingIntent.FLAG_UPDATE_CURRENT
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            base or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            base
-        }
-    }
+    private fun pendingFlags(): Int =
+        // FLAG_IMMUTABLE unconditionally. It is *required* from API 31 and has
+        // existed since API 23, and `minSdk` here is 26 — so the version guard
+        // this used to carry only ever did one thing: hand a mutable
+        // PendingIntent to every device below Android 12, which is the half of
+        // the range where it matters most. Six other call sites in the app set
+        // it unconditionally already; these two widgets were the outliers.
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
     companion object {
         /**

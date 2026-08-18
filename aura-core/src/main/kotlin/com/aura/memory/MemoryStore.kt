@@ -1233,17 +1233,26 @@ class MemoryStore @Inject constructor(
      */
     suspend fun runDecayPass(): Int {
         val now = System.currentTimeMillis()
-        val all = dao.recent(10_000)  // hard cap; raise if needed
-        val toUpdate = mutableListOf<MemoryEntity>()
+        // A four-column projection, not whole entities. `recent(10_000)` loaded
+        // every memory's embedding BLOB into a background worker's heap to read
+        // three integers off it, and the cap that bounded that also meant a
+        // store past ten thousand memories simply stopped fading past the ten
+        // thousandth — the tail, which is exactly the part decay is for.
+        val all = dao.decayCandidates()
+        val toUpdate = mutableListOf<DecayCandidate>()
         for (mem in all) {
             val newScore = FadeMem.compute(mem.createdAt, mem.accessedAt, now)
             if (kotlin.math.abs(newScore - mem.decayScore) > 0.05f) {
                 toUpdate.add(mem.copy(decayScore = newScore))
             }
         }
-        // Batch in chunks of 50 to keep each transaction small.
+        // Narrow UPDATEs in chunked transactions. `updateAll` was a Room
+        // `@Update`, which names every column in the SET list — so each pass
+        // rewrote content, tags, metadata and the embedding to move one float,
+        // and re-tokenised every touched row in the FTS index because `content`
+        // was named even though its value never changed.
         toUpdate.chunked(50).forEach { batch ->
-            dao.updateAll(batch)
+            dao.updateDecayScores(batch)
         }
         return toUpdate.size
     }

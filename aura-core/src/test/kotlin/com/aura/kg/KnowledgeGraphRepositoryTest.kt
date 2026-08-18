@@ -22,18 +22,22 @@ class KnowledgeGraphRepositoryTest {
     fun `saveGraph inserts nodes and edges with exact provenance`() = runTest {
         val node = KgNode(id = "", label = "Kotlin", type = NodeType.SKILL)
         val edge = KgEdge(id = "", type = EdgeType.LEARNED_FROM, sourceId = "a", targetId = "b")
-        val capturedNode = slot<NodeEntity>()
-        val capturedEdge = slot<EdgeEntity>()
-        coEvery { dao.insertNode(capture(capturedNode)) } returns Unit
-        coEvery { dao.insertEdge(capture(capturedEdge)) } returns Unit
+        // saveGraph commits the whole extraction through writeGraph now, in one
+        // transaction, rather than one insert per row. Capturing there asserts
+        // the same thing: the exact entities that get written.
+        val capturedNodes = slot<List<NodeEntity>>()
+        val capturedEdges = slot<List<EdgeEntity>>()
+        coEvery { dao.writeGraph(capture(capturedNodes), capture(capturedEdges)) } returns Unit
         val provenance = com.aura.provenance.ConversationProvenance("conv-1", 123L)
 
         repo.saveGraph(listOf(node), listOf(edge), provenance)
 
-        assertEquals("conv-1", capturedNode.captured.sourceConversationId)
-        assertEquals(123L, capturedNode.captured.sourceTurnTimestamp)
-        assertEquals("conv-1", capturedEdge.captured.sourceConversationId)
-        assertEquals(123L, capturedEdge.captured.sourceTurnTimestamp)
+        assertEquals(1, capturedNodes.captured.size)
+        assertEquals(1, capturedEdges.captured.size)
+        assertEquals("conv-1", capturedNodes.captured.single().sourceConversationId)
+        assertEquals(123L, capturedNodes.captured.single().sourceTurnTimestamp)
+        assertEquals("conv-1", capturedEdges.captured.single().sourceConversationId)
+        assertEquals(123L, capturedEdges.captured.single().sourceTurnTimestamp)
     }
 
     @Test

@@ -145,7 +145,7 @@ class CapabilityRegistryPrecedenceTest {
             providerKeys = mockk(relaxed = true),
             discovered = discovery(v20, v21),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
 
         // Settings writes `provider:model`; backends identify as
         // `provider/model`. The router normalises rather than leaking that.
@@ -160,7 +160,6 @@ class CapabilityRegistryPrecedenceTest {
         val v21 = declared("agnes/agnes-image-2.1-flash", CapabilityKind.ImageGeneration)
         val router = CapabilityRouter(
             CapabilityRegistry(emptyMap(), mockk(relaxed = true), discovery(v20, v21)),
-            mockk(relaxed = true),
         )
 
         assertEquals("agnes/agnes-image-2.0-flash", router.resolvePreferred(CapabilityKind.ImageGeneration, null)?.prefix)
@@ -175,7 +174,6 @@ class CapabilityRegistryPrecedenceTest {
         val v20 = declared("agnes/agnes-image-2.0-flash", CapabilityKind.ImageGeneration)
         val router = CapabilityRouter(
             CapabilityRegistry(emptyMap(), mockk(relaxed = true), discovery(v20)),
-            mockk(relaxed = true),
         )
 
         val chosen = router.resolvePreferred(CapabilityKind.ImageGeneration, "agnes:model-that-is-gone")

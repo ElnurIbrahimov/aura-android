@@ -24,6 +24,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Prompt-cache markers on the wire.
@@ -34,6 +37,10 @@ import kotlin.test.assertTrue
  * present cannot tell you that.
  */
 class PromptCacheWireTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

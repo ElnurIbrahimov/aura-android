@@ -44,6 +44,19 @@ interface KnowledgeGraphDao {
     @Query("SELECT * FROM kg_nodes WHERE id = :id")
     suspend fun getNode(id: String): NodeEntity?
 
+    /**
+     * The stored rows for a whole extraction, in one query.
+     *
+     * `saveGraph` read them one at a time inside its loops — twenty to sixty
+     * round trips per conversation turn, on a path that already holds a mutex.
+     * The read-back itself is not optional: `@Upsert` overwrites every column,
+     * so without the stored `createdAt` and `accessCount` a re-mention would
+     * reset a node's first-seen date and discard the counter `searchNodes`
+     * ranks by.
+     */
+    @Query("SELECT * FROM kg_nodes WHERE id IN (:ids)")
+    suspend fun nodesByIds(ids: List<String>): List<NodeEntity>
+
     @Query("SELECT * FROM kg_nodes WHERE label = :label LIMIT 1")
     suspend fun getNodeByLabel(label: String): NodeEntity?
 
@@ -82,6 +95,26 @@ interface KnowledgeGraphDao {
 
     @Query("SELECT * FROM kg_edges WHERE id = :id")
     suspend fun getEdge(id: String): EdgeEntity?
+
+    /** Edge counterpart of [nodesByIds] — one query instead of one per edge. */
+    @Query("SELECT * FROM kg_edges WHERE id IN (:ids)")
+    suspend fun edgesByIds(ids: List<String>): List<EdgeEntity>
+
+    /**
+     * Commit a whole extraction, or none of it.
+     *
+     * `saveGraph` wrote its nodes and edges in bare loops with no transaction,
+     * so a crash or process death partway through left nodes present and their
+     * edges missing — a structurally invalid graph with no marker saying so,
+     * which `BeliefPromoter` and the gap-node queries would then read as fact.
+     * The mutex around the save prevents concurrent corruption; it does nothing
+     * about a partial commit.
+     */
+    @Transaction
+    suspend fun writeGraph(nodes: List<NodeEntity>, edges: List<EdgeEntity>) {
+        nodes.forEach { insertNode(it) }
+        edges.forEach { insertEdge(it) }
+    }
 
     @Query("SELECT * FROM kg_edges WHERE targetId = :targetId")
     suspend fun edgesTo(targetId: String): List<EdgeEntity>

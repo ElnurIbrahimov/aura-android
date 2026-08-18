@@ -1,67 +1,36 @@
 package com.aura.architecture
 
-import com.aura.agent.Tool
-import com.aura.agent.ToolRegistry
-import com.aura.agent.ToolRisk
 import com.aura.capabilities.CapabilityKind
 import com.aura.capabilities.CapabilityProvider
 import com.aura.capabilities.CapabilityRegistry
-import com.aura.providers.ProviderKeys
-import com.aura.tools.ToolsModule
 import io.mockk.every
 import io.mockk.mockk
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Architecture baseline contract test — locks the properties that the
- * beyond-SOTA plan depends on. If any of these break, the plan's
- * assumptions are stale and must be reconciled before continuing.
+ * Structural invariants of the capability layer.
  *
- * This test does NOT size-pin exact tool/specialist/provider counts
- * (those grow as we add features). It asserts structural invariants:
- * unique tool names, every tool has category/risk/schema, capability
- * kinds are comprehensive, and the tool registry floor is met.
+ * Two tests were removed from this class because they asserted nothing:
+ *
+ * - `tool_names_are_unique_when_registered` carried the comment *"Register two
+ *   tools with the same name — second should overwrite"* and registered **one**,
+ *   then asserted the registry held one. It would have passed against a registry
+ *   with no de-duplication at all, which is the only thing it claimed to check.
+ * - `every_tool_has_a_known_risk_level` mapped `ToolRisk.entries` to their own
+ *   names and asserted those names were present. No `Tool` was ever constructed.
+ *   `ToolRiskOrdinalAuditTest` already pins the real invariant — the declaration
+ *   *order*, which four `>=` comparisons depend on — and says of this one that
+ *   it "passes under every permutation".
+ *
+ * A private `registry()` helper went with them, whose own comment conceded it
+ * used "an empty registry to verify the assertions compile and pass trivially".
+ * Nothing called it.
+ *
+ * What remains constructs real objects and can fail.
  */
 class BeyondSotaBaselineTest {
-
-    private fun registry(): ToolRegistry = ToolRegistry().also { reg ->
-        // ToolsModule.registerAll(reg) — we can't call Hilt, but we can
-        // verify the structural invariants of whatever tools are registered
-        // by the production code. For this test we use an empty registry
-        // to verify the assertions compile and pass trivially; the real
-        // verification happens via the full Hilt integration test.
-    }
-
-    @Test
-    fun tool_names_are_unique_when_registered() {
-        val reg = ToolRegistry()
-        // Register two tools with the same name — second should overwrite
-        val tool = Tool(
-            name = "test_tool",
-            description = "A test tool",
-            risk = ToolRisk.READ_ONLY,
-            execute = { _, _ -> com.aura.agent.ToolResult.Ok("ok") },
-            category = "test",
-        )
-        reg.register(tool)
-        assertEquals(1, reg.all().size)
-        assertEquals("test_tool", reg.all().first().name)
-    }
-
-    @Test
-    fun every_tool_has_a_known_risk_level() {
-        val riskNames = ToolRisk.entries.map { it.name }.toSet()
-        assertTrue("READ_ONLY must exist", "READ_ONLY" in riskNames)
-        assertTrue("REMOTE_COST must exist", "REMOTE_COST" in riskNames)
-        assertTrue("WRITE_LOCAL must exist", "WRITE_LOCAL" in riskNames)
-        assertTrue("WRITE_REMOTE must exist", "WRITE_REMOTE" in riskNames)
-        assertTrue("PRIVACY must exist", "PRIVACY" in riskNames)
-        assertTrue("DESTRUCTIVE must exist", "DESTRUCTIVE" in riskNames)
-    }
 
     @Test
     fun capability_kinds_are_comprehensive() {
@@ -114,9 +83,5 @@ class BeyondSotaBaselineTest {
             "forKind should return null when the only provider is not configured",
             registry.forKind(CapabilityKind.WebSearch),
         )
-    }
-
-    private fun assertNull(message: String, value: Any?) {
-        assertTrue(message, value == null)
     }
 }

@@ -179,7 +179,7 @@ port, and 33 MB. Gate B decides whether it is worth any of that, for the cost of
 one Python script.
 
 ```bash
-pip install sentence-transformers
+pip install sentence-transformers einops
 python scripts/gen_eval_vectors.py
 ./gradlew :aura-core:testDebugUnitTest --tests '*RetrievalEvalTest*'
 cat aura-core/build/reports/retrieval-eval/scorecard.md
@@ -216,6 +216,46 @@ Two ways to get a wrong answer here:
 When no vector file is present the report says **"Not run"** in words. It does not
 omit the section: a decision this size should not be made against evidence that
 is merely absent rather than visibly absent.
+
+## Verified end to end on 2026-08-18 (scaffold)
+
+The whole Gate B path was run once against the scaffold, so that a real run costs
+data-gathering time and nothing else. What it established:
+
+- `pip install sentence-transformers` **is not sufficient** — see above. The
+  failure lands two models in, after two vector files already exist, so the run
+  looks half-done for a reason three frames deep in transformers.
+- All three models download, encode and write. The suite reads them.
+- **The scaffold guard works, and it works against numbers that would otherwise
+  read as a clear "proceed".** The scaffold run reported synonym-only at 20% of
+  the query set and a best gain of **+0.2039** nDCG@10 over the hash floor —
+  clearing both the ≥15% and ≥0.15 bars — and the report still returned
+  *inconclusive* because `EvalFixtures.isScaffold()` fired. That is the exact
+  failure the harness was built to refuse, refused.
+
+So a real verdict needs only step 1 of *Making it real*: a backup export. Nothing
+in the tooling is unproven any more.
+
+## Why no embedding model is seeded by default
+
+The obvious "fix" for lexical-only recall is to ship a default Ollama Cloud
+embedding model. It is deliberately not done:
+
+- It spends money on **every memory store**, silently, on an account the user has
+  connected for chat.
+- It makes `ReembedWorker` re-embed the entire existing store on first run — the
+  largest unattended job in the app, triggered by an upgrade nobody asked for.
+- The benefit is precisely what Gate B measures, and Gate B is *inconclusive*
+  until a real corpus exists. Enabling it first would be choosing by preference
+  and then never measuring, which is what `RetrievalConfig` exists to prevent.
+- Hardcoding a `provider:model` is a defect this repo has already shipped once:
+  `ollama:deepseek-v4-pro` was baked into `KnowledgeGraphTool` and crashed every
+  user without an Ollama key.
+
+What *was* wrong was the silence. Settings rendered an empty Embedding row, and
+an empty row reads as a chosen default. It now reads **"Not set — recall is
+keyword-only"**, which is the true statement, and the picker beside it has always
+worked.
 
 ## Known limitation: `expect-empty` needs a real embedder
 

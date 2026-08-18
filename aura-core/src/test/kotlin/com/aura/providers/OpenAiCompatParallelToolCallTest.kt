@@ -15,6 +15,9 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Regression test for parallel tool-call index→id resolution in
@@ -33,6 +36,10 @@ import kotlin.test.assertTrue
  * resolved id on every delta.
  */
 class OpenAiCompatParallelToolCallTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
     private lateinit var provider: OpenAiCompatProvider

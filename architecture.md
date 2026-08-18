@@ -124,13 +124,16 @@ aura-android-clean/
 - No auto-reconnect: a dropped socket loses server-side state, so a silent retry yields an assistant with amnesia mid-sentence
 - Tool ceiling is WRITE_LOCAL; screen control excluded by name as well as risk. Gates are made impossible rather than handled
 - `RealtimeVoiceService` (typed `microphone` FGS) keeps a call alive backgrounded; its End action closes the socket, not just the service
+- **Entry point:** `ChatRoute`'s mic button opens `LiveCallSheet` (live call or push-to-talk), and `LiveCallViewModel` starts the service before the controller — a call opened before the FGS exists is one the system may kill mid-sentence. Everything above this line was true and unreachable until 2026-08-18: nothing constructed `RealtimeCallController`, and `LiveCallSheet` had no caller. `ProjectSpineIsWiredTest` gates the path now
+- `seedContext` is deliberately empty. A realtime session is a different model with no access to the conversation's memory, and the sheet says so before the user taps; seeding it partially would make that warning false rather than the call better
+- `RealtimeCallController`'s state is mutated by three concurrent coroutines (event collector, mic pump, end job). It carried a private `update` extension doing `value = block(value)` that shadowed kotlinx's atomic one at all nine call sites — a lost-update race that was harmless only while nothing could reach it
 
 ### Screen Capture
 - `ScreenCaptureService`: MediaProjection foreground service (type `mediaProjection`), async first frame via ImageReader on a dedicated HandlerThread, row-stride-corrected bitmap, watchdog teardown
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
 ### Room Databases (11)
-- MemoryDB v26, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
+- MemoryDB v27, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
 - Backup SCHEMA_VERSION 28 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
@@ -154,6 +157,25 @@ aura-android-clean/
 - OkHttpClient: redirects disabled (SSRF prevention)
 - SecureDataStore: AES-256-GCM for credentials, SMTP passwords, MCP auth tokens
 - BiometricPrompt: BIOMETRIC_STRONG for app lock and sensitive tools
+- **App lock is process-scoped** (`AppLockState`, `@Singleton`), reached through the shared
+  `AppLockGate` composable. It relocks when the *app* backgrounds — a started-activity count fed
+  from `AuraApp` — not when an individual activity stops, because `MainActivity` launching
+  `QuickAskActivity` stops `MainActivity` and a per-activity relock would demand a fingerprint
+  mid-navigation. Deliberately not persisted: process death must leave it locked
+- The lock previously covered `NavGraph` alone, because "unlocked" lived in `MainActivity`'s
+  composition. `QuickAskActivity` (a full `ChatViewModel` with recall and tools), `AskAuraWidget`
+  (most recent memory, verbatim, every 30 min), `ReminderWidgetProvider` (three reminder bodies)
+  and the quick-ask answer echoed onto the widget all rendered content with no check. Widgets
+  now read nothing while locked rather than reading and hiding — a `RemoteViews` bundle crosses
+  into the launcher's process. `AppLockCoversEveryDoorTest` gates all four
+- `CaptureActivity` is `exported="true"` and must be (`ACTION_PROCESS_TEXT` throws otherwise, and
+  the launcher shortcut targets it by action). Text arriving in an intent is captured as
+  `source = "shared"` with the `WriteGate` verdict **applied**, rather than `source = "user"` with
+  it bypassed — so a co-installed app can no longer write rows that read as the user's own words.
+  Capture-while-locked stays deliberate: `CaptureTileService` documents why, and refusing the
+  write would break it. Refusing to *believe* it does not
+- Release builds strip `Log.v/d/i` via `-assumenosideeffects`. `Log.w` (695 sites) and `Log.e`
+  stay: they are how every handled failure reports itself
 - ToolExecutor: withTimeout per tool, bounded tool parallelism (8), typed confirmation/approval gates via PolicyEngine
 - PolicyEngine: risk-based defaults + per-tool user policy with confirmation grants. `ToolRisk` is READ_ONLY, REMOTE_COST, WRITE_LOCAL, WRITE_REMOTE, PRIVACY, DESTRUCTIVE — **in that order**, which four `>= WRITE_LOCAL` ordinal comparisons depend on (incognito gate, its ToolExecutor fallback, world-event recording, `ToolRegistry.byRisk`); held by `ToolRiskOrdinalAuditTest`
 - Screen capture: per-capture consent, visible FGS notification during capture
@@ -168,7 +190,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,256 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,272 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 79 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -215,6 +237,31 @@ aura-android-clean/
 - Builtins are editable and resettable, never deletable: `SkillsStore.remove` refuses them, so the
   guarantee holds for every caller including the evolution system's `RETIRE_SKILL`
 
+### Streaming render
+
+- The markdown parse in `StreamingText` is memoized on `(text, colors)`. It previously ran on
+  every recomposition — and the cursor blink is an infinite transition, so the whole cumulative
+  message was re-parsed on **every animation frame**, not merely every token. The cursor is
+  appended in a second, cheap `remember`; its keyframes are steps rather than a fade, so that one
+  rebuilds about four times a second instead of sixty
+- `ChatSendController` throttles *publication*, never the event stream.
+  `AgentEvent.TextDelta` carries an increment, so conflating the flow would drop characters;
+  instead `responseBuffer` takes every delta and the UI refreshes at most every
+  `STREAM_PUBLISH_INTERVAL_MS` (50 ms). A `finally` flush covers the cancelled run, which never
+  reaches the `Result` that would otherwise carry the final text
+- `parseMarkdownClickable` is still O(line × markup) per call and the message still grows, so a
+  publication is inherently more expensive the longer the answer. Bounding publications makes the
+  total quadratic in *elapsed time* rather than in token count — a fast model is no longer the
+  expensive case. Genuinely fixing the asymptotics needs incremental parsing, which is not built
+- `ChatTimeline` keys its reveal effect on `turn.timestamp`, not the `Turn`. `Turn` is a data
+  class rewritten on every token, so the old key cancelled and relaunched a coroutine per delta
+  for the one row the user is reading
+- **Not done, and reassessed rather than deferred:** holding the streaming answer in its own
+  `ChatUiState` field, the way `streamingThinking` already is. Once the parse is memoized
+  per-item, an untouched turn recomposes into a memo hit, so the expensive work is already
+  confined to the streaming row. The restructure would buy little and cannot be checked without
+  a device
+
 ## Prompt assembly
 
 The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order matters:
@@ -233,7 +280,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 `MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
 `k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
 
-- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v26), kept current by SQL
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v27), kept current by SQL
   triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
   and forced a full table scan.
 - **BM25** takes its corpus size and per-term document frequency from the index rather than from

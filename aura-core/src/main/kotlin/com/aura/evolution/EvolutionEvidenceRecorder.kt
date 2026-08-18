@@ -45,4 +45,36 @@ class EvolutionEvidenceRecorder @Inject constructor(
             ),
         )
     }
+
+    /**
+     * Drop evidence past the retention window.
+     *
+     * `EvolutionEvidenceDao.deleteOlderThan` shipped with the table and had no
+     * production caller, so `evolution_evidence` — five indices per row, written
+     * once per stored memory and once per *recalled* memory — grew without any
+     * bound at all. ENGINEERING_HISTORY records "a retention window with no
+     * caller" three times in three days as a recurring finding; this is the
+     * fourth instance and the same fix.
+     *
+     * Called from `DecayWorker` above its `decayEnabled` gate, beside the
+     * worker-run, place and retrieval-label prunes: retention is not a feature
+     * the user opted into, and must run whether or not decay is switched on.
+     *
+     * A constant rather than `EvolutionSettingsEntity.evidenceRetentionDays`,
+     * which is still unread: that field is per-domain and this sweep is global,
+     * so wiring it here would make it look live while answering a different
+     * question. It stays in the dead-field register until something needs
+     * per-domain retention.
+     */
+    suspend fun prune(now: kotlin.Long = System.currentTimeMillis()): Int =
+        runCatching { dao.deleteOlderThan(now - RETENTION_MS) }
+            .onFailure { android.util.Log.w(TAG, "evidence prune failed: ${it.message}", it) }
+            .getOrDefault(0)
+
+    companion object {
+        private const val TAG = "EvolutionEvidence"
+
+        /** Thirty days, matching the worker-run and retrieval-label windows. */
+        const val RETENTION_MS: kotlin.Long = 30L * 24 * 60 * 60 * 1000
+    }
 }

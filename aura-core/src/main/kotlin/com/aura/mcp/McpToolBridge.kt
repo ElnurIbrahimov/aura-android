@@ -1,5 +1,6 @@
 package com.aura.mcp
 
+import com.aura.agent.DEFAULT_TOOL_TIMEOUT_MS
 import com.aura.agent.Tool
 import com.aura.agent.ToolCall
 import com.aura.agent.ToolContext
@@ -133,7 +134,11 @@ class McpToolBridge @Inject constructor(
                             serverId = config.id,
                             toolName = mcpTool.name,
                             arguments = call.arguments,
-                            timeoutMs = ctx.timeout,
+                            // Same rule as ToolExecutor: an explicit caller
+                            // budget wins, otherwise the default. A remote MCP
+                            // server declares no budget of its own, so there is
+                            // no per-tool value to fall back to here.
+                            timeoutMs = ctx.timeout ?: DEFAULT_TOOL_TIMEOUT_MS,
                         )
                         when (result) {
                             is McpToolResult.Success -> {
@@ -160,78 +165,6 @@ class McpToolBridge @Inject constructor(
         }
     }
 
-    /**
-     * Register MCP tools with their base name (no prefix) when the user
-     * wants them to replace or act as a native tool. This is useful when
-     * the user connects a Tavily MCP server and wants `tavily_search`
-     * to route through MCP instead of the native tool.
-     *
-     * Only call this for tools whose base name does NOT collide with
-     * an existing native tool, or when you intentionally want to override.
-     */
-    suspend fun syncToolsUnprefixed(servers: List<McpServerConfig>) {
-        // Unregister stale tools: any currently registered bare-name tool that
-        // was registered by this bridge and whose server is now disconnected or
-        // removed must be removed before we re-register the live set. Without
-        // this, disconnecting an MCP server leaves its tools callable in the
-        // registry until process death.
-        val currentServerIds = servers.map { it.id }.toSet()
-        val connectedServerIds = mcpClientManager.connectedServerIds()
-        val staleNames = registeredNames.filter { name ->
-            // Bare-name registrations have no parseable server id, so we use
-            // the ownership map populated below.
-            registeredNameToServerId[name]?.let { serverId ->
-                serverId !in currentServerIds || serverId !in connectedServerIds
-            } ?: false
-        }
-        for (name in staleNames) {
-            toolRegistry.unregister(name)
-            registeredNames.remove(name)
-            registeredNameToServerId.remove(name)
-        }
-
-        for (config in servers) {
-            if (!config.enabled) continue
-            if (config.id !in connectedServerIds) continue
-
-            val tools = mcpClientManager.listTools(config.id)
-            for (mcpTool in tools) {
-                val tool = Tool(
-                    name = mcpTool.name,
-                    description = mcpTool.description.ifBlank { "MCP tool: ${mcpTool.name} (${config.name})" },
-                    risk = mcpToolRisk(mcpTool.readOnlyHint, mcpTool.destructiveHint),
-                    parameters = parseSchema(mcpTool.inputSchemaJson),
-                    execute = { call, ctx ->
-                        val result = mcpClientManager.callTool(
-                            serverId = config.id,
-                            toolName = mcpTool.name,
-                            arguments = call.arguments,
-                            timeoutMs = ctx.timeout,
-                        )
-                        when (result) {
-                            is McpToolResult.Success -> {
-                                if (result.isError) {
-                                    ToolResult.Error(result.output, "mcp_tool_error")
-                                } else {
-                                    ToolResult.Ok(result.output)
-                                }
-                            }
-                            is McpToolResult.Failure -> {
-                                ToolResult.Error(result.message, result.code)
-                            }
-                            is McpToolResult.Timeout -> {
-                                ToolResult.Error("MCP server ${result.serverName} timed out", "mcp_timeout")
-                            }
-                        }
-                    },
-                    category = "mcp",
-                )
-                toolRegistry.register(tool)
-                registeredNames.add(mcpTool.name)
-                registeredNameToServerId[mcpTool.name] = config.id
-            }
-        }
-    }
 
     /** Remove all MCP-registered tools from the registry. */
     fun unregisterAll() {

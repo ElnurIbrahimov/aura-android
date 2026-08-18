@@ -21,6 +21,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Anthropic's extended-thinking replay contract.
@@ -36,6 +39,10 @@ import kotlin.test.assertTrue
  * place the shape of the outgoing body can be checked.
  */
 class AnthropicThinkingReplayTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

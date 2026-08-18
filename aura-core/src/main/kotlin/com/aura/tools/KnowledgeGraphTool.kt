@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
@@ -76,7 +77,8 @@ class KnowledgeGraphTool @Inject constructor(
                 ToolResult.Error("Knowledge graph extraction failed: ${e.message}", "extraction_error")
             }
         },
-    category = "knowledge")
+    category = "knowledge",
+    timeoutMs = EXTRACTION_TIMEOUT_MS + TIMEOUT_HEADROOM_MS)
     suspend fun extract(text: String): Pair<List<KgNode>, List<KgEdge>> {
         val response = callLlm(text)
         return parseResponse(response) ?: Pair(emptyList(), emptyList())

@@ -28,6 +28,22 @@ class WorkerRunRecorder @Inject constructor(
 
             /** Ran, did nothing, and here is the precondition that was missing. */
             fun skipped(reason: String) = Result(WorkerRunEntity.OUTCOME_SKIPPED, reason)
+
+            /**
+             * Tried and failed, with what went wrong.
+             *
+             * Added because its absence was load-bearing. `ok` and `skipped`
+             * were the only two factories, so a worker's catch block had to
+             * hand-build `Result(OUTCOME_FAILED, …)` — and two of them simply
+             * did not. `EvolutionWorker` caught, swallowed and returned with
+             * `lastOutcome` still holding its `ok("")` initialiser, so three
+             * consecutive dead pipeline runs read as healthy in BackgroundHealth;
+             * `CalendarCheckWorker` had the same shape. A missing factory is a
+             * question every catch block has to answer from scratch, and two of
+             * them answered it wrong.
+             */
+            fun failed(cause: Throwable) =
+                Result(WorkerRunEntity.OUTCOME_FAILED, cause.message ?: cause::class.java.simpleName)
         }
     }
 

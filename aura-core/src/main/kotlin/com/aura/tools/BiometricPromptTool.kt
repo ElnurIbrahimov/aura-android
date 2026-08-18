@@ -3,6 +3,7 @@ package com.aura.tools
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
+import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
 import com.aura.agent.ToolResult
@@ -95,7 +96,7 @@ class BiometricPromptTool @Inject constructor(
 
             // --- Await the result (with 60 s timeout) --------------------------
             val authResult = try {
-                withTimeout(60_000L) { handler.result.await() }
+                withTimeout(PROMPT_TIMEOUT_MS) { handler.result.await() }
             } catch (e: TimeoutCancellationException) {
                 executor.shutdownNow()
                 return@Tool ToolResult.Error("timeout", "auth_timeout")
@@ -113,5 +114,11 @@ class BiometricPromptTool @Inject constructor(
                 )
             }
         },
-    category = "device")
+    category = "device",
+    // Waits on a human: the prompt's own withTimeout is 60s, and a user
+    // reaching for a fingerprint reader must not race the executor's clock.
+    timeoutMs = PROMPT_TIMEOUT_MS + TIMEOUT_HEADROOM_MS)
 }
+
+/** How long the prompt waits for a human before giving up. */
+private const val PROMPT_TIMEOUT_MS: Long = 60_000L

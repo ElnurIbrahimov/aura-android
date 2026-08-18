@@ -129,13 +129,36 @@ fun StreamingText(
     } else {
         resolvedCursorColor
     }
-    val annotated = buildStreamingAnnotatedString(
-        text = text,
-        cursorColor = effectiveCursor,
-        isStreaming = isStreaming,
-        colors = colors,
-        state = state,
-    )
+    // The markdown parse, memoized on the only two things it depends on.
+    //
+    // This used to run on every recomposition, and during streaming that is not
+    // once per token — the cursor blink is an infinite transition, so the whole
+    // cumulative message was re-parsed on every animation frame. Inside,
+    // `appendInlineMarkdownClickable` copies the remaining substring and runs
+    // six regexes across it per markup match, so the cost of rendering an
+    // answer grew with the square of its length while a 60 Hz animation drove
+    // the outer loop. Long answers are what this app is for.
+    //
+    // `StreamingMarkdownState` holds no fields, so `render` is a pure function
+    // of (text, colors) and safe to cache on them.
+    val rendered = remember(text, colors) {
+        state.render(text, colors, clickable = true)
+    }
+
+    // The cursor is appended separately. `effectiveCursor` changes as the blink
+    // animates, but the keyframes are steps rather than a fade — alpha is only
+    // ever 1f or 0f — so this rebuilds about four times a second instead of
+    // sixty, and each rebuild is an append rather than a parse.
+    val annotated = remember(rendered, effectiveCursor, isStreaming) {
+        buildAnnotatedString {
+            append(rendered)
+            if (isStreaming) {
+                withStyle(SpanStyle(color = effectiveCursor)) {
+                    append(" ▍")
+                }
+            }
+        }
+    }
 
     // Track elapsed time during streaming. We use a remember'd
     // startTime so the elapsed counter begins the moment the

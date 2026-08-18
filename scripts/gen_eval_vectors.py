@@ -10,8 +10,15 @@ possibly work and a semantic model must. If that class is a small share of real
 queries, or if it barely moves from local-hash-v2 to gte-small, the ONNX phase
 is buying very little and should not be built.
 
-    pip install sentence-transformers
+    pip install sentence-transformers einops
     python scripts/gen_eval_vectors.py
+
+`einops` is not optional and is not pulled in by sentence-transformers. It is
+required by `nomic-embed-text-v1.5`'s remote modeling code, which loads under
+`trust_remote_code=True` — so the failure arrives two models in, *after*
+gte-small and bge-small have already written their files, as an ImportError from
+inside transformers rather than anything this script can see coming. The run
+looks half-finished and the cause is three stack frames deep in a dependency.
 
 Writes aura-core/src/test/resources/retrieval-eval/vectors-<model>.jsonl, then:
 

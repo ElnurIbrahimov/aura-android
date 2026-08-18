@@ -25,7 +25,8 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Creative Council (10-role multi-agent review: Director, Writer, Story Editor, Continuity Editor, World Simulator, Researcher, Art Director, Cinematographer, Sound Designer, Audience Critic)
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign — stage-specific prompts)
 - Skills (installable skill cards, skill-backed tool dispatch)
-- Memory stack (Room + cloud embeddings + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + LLM relevance rescoring (a prompt scorer, not a cross-encoder model — up to 5 extra model calls per recall) + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
+- Memory stack (Room + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + LLM relevance rescoring (a prompt scorer, not a cross-encoder model — up to 5 extra model calls per recall) + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
+  - **Retrieval is lexical unless you set an embedding model.** This line said "cloud embeddings" and a default install has none: `ProviderKeys.embeddingModel` defaults to `""`, which falls through to `LocalEmbedder` — a 384-dim hash-and-project sketch whose own KDoc calls it a pseudo-embedding. `RetrievalConfig.vectorPoolSize` is also 0, measured: the vector arm scored 0.4837 against 0.7976 without it, because a hash sketch injects near-noise. Set an embedding model in Settings → AI & Models (Ollama Cloud) and `ReembedWorker` backfills. Whether the vector arm should then come back on is Gate B in ENGINEERING_HISTORY §3, and is a measurement, not an opinion.
 - Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
 - Tasks + Reminders (Room-backed, manageable in-app and via tool)
@@ -39,7 +40,8 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts, and all five are in the backup schema as of v18 (`AuraBackupSchema18.kt`) — this line said "none are in the backup schema yet" for three days after they went in, and the line 30 rows below it said the opposite.
 - 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 27 secondary routes (History, Hands, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, Mind, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Rollback, Agent Editor)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, sentence-boundary streaming TTS in continuous voice mode, voice call UI)
-- Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Push-to-talk remains the default and works with every provider.
+- Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Reached from the mic button in chat, which now opens a sheet offering the live call or push-to-talk; push-to-talk remains the default and works with every provider.
+  - **Reachable since 2026-08-18, and this line claimed it for weeks before that.** `RealtimeCallController` had no production caller and `LiveCallSheet` had no caller either, so the whole stack — 1,476 lines and ~60 tests — was reachable only from its own test suite. `ProjectSpineIsWiredTest` named it as the repo's standing example of exactly this defect and gated four *other* paths. It now gates this one. **Not yet exercised on a device:** the manual table in `docs/ANDROID_TEST_PLAN.md` has still never been run, and this is a beta protocol over a real socket.
 - Screen control (accessibility-tree read + tap/type/scroll/swipe in any app, off by default; 5min/25-action sessions bound to one package, non-overridable denylist including Aura itself, semantic tripwire on irreversible labels, refusal while a password field is visible)
 - Proactive suggestions are **actionable and self-measuring**. Every finding type now maps to a real `ProactiveAction` (navigate / open chat / hand off to the calendar app), dispatched from one place — two of the old route strings pointed at nothing (`"graph"` when the route is `"knowledge_graph"`, and `"calendar"` which has no screen) and were latent crashes that stayed harmless only because nothing ever navigated. `OpportunityEntity.suggestedActionJson` gained its first reader since it was written. Tapping a suggestion records `tapped`/`acted` — the first positive signals this system has ever produced
 - Three proactive gates were pinned shut by one bug: `"dismissed"` was the only interaction anything recorded, so the salience filter's negative ratio hit 1.0 on the **first** dismissal, dropping every finding's best possible score under the threshold permanently; the motivation threshold sat at its ceiling; and `AdaptiveTimingEngine` scored every hour at zero against a 0.4 bar, so `isGoodTime()` could never return true. Fixed with an appetite sample floor, a neutral-centred timing scale where no evidence means 0.5 rather than 0, and local-hour bucketing (it bucketed in UTC and read local). `DaemonWorker` also published via the `replay = 0` bus at five sites, so background insights were dropped before ever reaching Room
@@ -53,7 +55,7 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - User profile (learned from conversations via regex + LLM fallback, editable in Settings)
 - Specialist and persona identity customization (Settings)
 - Onboarding wizard (paste API key + verify connectivity)
-- Biometric gate for sensitive tools and app lock (BIOMETRIC_STRONG)
+- Biometric gate for sensitive tools and app lock (BIOMETRIC_STRONG). App lock now covers **every** door, not just the main screen: `AppLockState` is process-scoped and relocks when the whole app backgrounds (a started-activity count, so navigating from chat into Quick Ask does not demand a fingerprint mid-tap). Until 2026-08-18 "unlocked" was `remember`-scoped inside `MainActivity`'s composition, so `QuickAskActivity` — the same `ChatViewModel` with memory recall — opened straight from the home screen with no check, and the widgets painted memories and reminder bodies onto the home screen regardless. Both now show "Hidden while Aura is locked" and read nothing while locked.
 - MCP client (connect external tool servers, auto-registers discovered tools into ToolRegistry, persists server configs, auth token support via SecureDataStore)
 - Evolution system (LLM-authored patches over 4 action types — PATCH_SKILL, RETIRE_SKILL, PROMOTE_TO_HAND, CONSOLIDATE_MEMORIES; detector → author → validate → propose → apply → outcome pipeline, approve/reject from inbox, typed rollback snapshots, enforced safety guard — skills never auto-apply, deterministic evidence-based outcome scoring)
 - Agent runs (durable, resumable, DAG-resolved step execution via WorkManager, checkpoint/resume, approval flow)
@@ -69,7 +71,8 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v28, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - Craft guidance is **data, not constants**. The genre and mode prompts in `GenreCraftPrompts` are seeded into `SkillsStore` as builtin skills on first run (`CraftSkills`), so the author can read and rewrite them, `use_skill("craft-novel")` returns them, and the evolution system's `PATCH_SKILL` action finally has real targets. The constants stay as the seed source *and* the fallback: a deleted, blank or unreadable skill drafts with the craft that shipped rather than with none. Builtins are editable and resettable, never deletable.
 - **A manuscript can leave the phone.** Export in the Manuscript tab compiles the drafted outline into one Markdown document and hands it to the share sheet — Drive, Obsidian, email, anywhere. Until now the only outbound paths in the app were images and URLs, so prose, the thing Creative Studio exists to produce, terminated in a Room table. Gaps are stated rather than hidden: a beat with no scene reads `*[not yet written]*`, one whose text cannot be recovered reads `*[scene text unavailable]*`, and scenes orphaned by a re-planned outline are counted in a footer instead of vanishing. Reads through `CreativeArtifactStore.currentRevision` rather than `currentContent`, whose `previewText` fallback would place 200-character stubs mid-novel that read like finished scenes.
-- 3,256 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 3,272 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+  - **Down 45, on purpose.** Deleting `SpecialistRouter`, `com.aura.pipeline.ProductionPipeline` and `AgentTextAccumulator` took their tests with them — all of it thorough coverage of code that had no production caller. ENGINEERING_HISTORY §4 records test count becoming the quality metric while screens went untested; a number that can only go up is the mechanism by which that happens.
 - 75 instrumented test methods (30 Room migration-chain methods in :aura-core, 43 in :app — 38 Compose rendering, 5 device smoke). The :aura-core migration suites now **execute** in CI on an emulator (the `migrations` job); :app's are still **compiled** only, and run via `connectedAndroidTest` on a device
 - 5 device smoke checks (`scripts/smoke.sh`) asserting outcomes against a real model and a real database: a stated preference becomes a categorised memory, a pleasantry becomes none, an imported document is retrievable and outlined, a fired worker leaves a non-empty run detail, the screenshot path answers rather than going silent. These are the only tests in the repo that exercise the real provider graph.
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
@@ -120,7 +123,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +--------------------------------------------+
 | :app  (Compose UI, 5 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   31 nav destinations + 40 ViewModels      |
+|   31 nav destinations + 41 ViewModels      |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+
@@ -332,7 +335,9 @@ MoA ships with no built-in presets (`moa_presets.json` is empty). Configure a cu
 
 ## Specialists (7)
 
-Keyword-routed (see `SpecialistRouter`). Each has a system prompt and an allowed tool set.
+Each has a system prompt and an allowed tool set, and `AgentStore` seeds the seven builtin agents from `Specialist.ALL`.
+
+**Selected by the user, not automatically.** This line used to read "keyword-routed (see `SpecialistRouter`)". `SpecialistRouter` existed, had 167 lines and a full test suite, and had **no production caller** — nothing anywhere selected a specialist from the text of a message. It was superseded by the agent picker and has been deleted; the presets it chose between are live and always were.
 
 The allowlist is **prompt filtering, not execution enforcement**. `MemoryAugmentedAgenticLoop` narrows `ToolRegistry.definitions()` to `Specialist.toolsAllowed` before the request goes out, and resolves MCP base names so an MCP server cannot smuggle a tool past it — so the model is never *offered* a tool outside the set. Nothing checks the set again at dispatch: `ToolExecutor.execute` is never told which specialist is active, so a name the model produces anyway — replayed from tool history, hallucinated, or injected through retrieved context — still runs. The one place a call is refused for being off-allowlist is `DelegateToAgentTool.kt` (lines 240-253), which compares the requested name against the child agent's tool list and writes a synthetic "not in your allowed tool set" result instead of dispatching.
 
@@ -361,7 +366,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v26 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
+| MemoryDatabase | v27 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v7 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
@@ -374,7 +379,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-26, all committed — migration tests cover
+schema exports span versions 1-27, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -429,7 +434,7 @@ aura-android/
 │       ├── MainActivity, AuraApp, ShareReceiverActivity, FirstRunGate
 ├── aura-core/            # :aura-core library — all logic (no Compose deps)
 │   └── src/main/kotlin/com/aura/
-│       ├── agent/        # Brain, MemoryAugmentedAgenticLoop, Conversation, ToolRegistry, ToolExecutor, Specialist, SpecialistRouter, PolicyEngine, ToolPolicy, TraceSink
+│       ├── agent/        # Brain, MemoryAugmentedAgenticLoop, Conversation, ToolRegistry, ToolExecutor, Specialist, PolicyEngine, ToolPolicy, TraceSink
 │       ├── agents/       # SubagentManager, SubagentContracts
 │       ├── agentrun/     # AgentRunDatabase, DagResolver, AgentRunExecutorWorker, AgentRunStore
 │       ├── providers/    # 17 providers + MoA + ProviderKeys + ProviderRegistry + ModelRoleRouter + ModelCatalogRepository
@@ -464,7 +469,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 67 entities, 50 migrations, schema export)
+- Room 2.8.4 (11 databases, 67 entities, 51 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

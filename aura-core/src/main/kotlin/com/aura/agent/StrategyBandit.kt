@@ -34,8 +34,13 @@ enum class ReasoningStrategy {
 
 /**
  * Problem categories for strategy routing. Classified by keyword matching
- * on the user's message — same style as [SpecialistRouter]. Must be instant
- * (no LLM call) because it runs before every message.
+ * on the user's message. Must be instant (no LLM call) because it runs before
+ * every message.
+ *
+ * This is now the only keyword classifier in the agent package. `SpecialistRouter`
+ * used the same approach to pick a specialist automatically and was deleted
+ * unused — the user picks an agent — so the comparison it was described by is
+ * gone. The distinction worth keeping: this one *does* run, on every send.
  */
 enum class ProblemCategory {
     MATH,
@@ -51,9 +56,8 @@ enum class ProblemCategory {
         /**
          * Classify the user's message into a problem category.
          *
-         * Uses keyword matching — same approach as [SpecialistRouter].
-         * Returns [CONVERSATION] as the default fallback for messages
-         * that don't match any specific category.
+         * Uses keyword matching. Returns [CONVERSATION] as the default
+         * fallback for messages that don't match any specific category.
          */
         fun classify(userMessage: kotlin.String, specialist: Specialist?): ProblemCategory {
             val lower = userMessage.lowercase()

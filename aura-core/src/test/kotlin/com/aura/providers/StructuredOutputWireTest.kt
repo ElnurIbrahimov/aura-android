@@ -24,6 +24,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.aura.testing.networkTestTimeout
+import org.junit.Rule
+import org.junit.rules.Timeout
 
 /**
  * Wire-format tests for [ChatOptions.responseSchema] and [ChatOptions.responseFormat].
@@ -39,6 +42,10 @@ import kotlin.test.assertTrue
  * idiom as `AnthropicThinkingBudgetContractTest`'s omission assertions.
  */
 class StructuredOutputWireTest {
+
+    /** See [networkTestTimeout] — uniform, not judged per class. */
+    @get:Rule
+    val globalTimeout: Timeout = networkTestTimeout()
 
     private lateinit var server: MockWebServer
 

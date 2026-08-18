@@ -442,6 +442,171 @@ Both lint tasks clean of errors — 70 warnings, of which the three `TrustAllX50
 security findings are all inside BouncyCastle 1.72 rather than app code, corroborating the
 dependency item below. `assembleRelease` succeeds, 12.29 MB. All three gate scripts pass.
 
+*2026-08-18:* **3,272 unit tests / 491 suites, 0 failures** after the remediation below.
+All four gate scripts pass. `assembleRelease` succeeds under real R8, 12.50 MB. MemoryDB is
+at v27. The count moved 3,256 → 3,290 → **3,245** → 3,272 across the pass: the dip is 45
+tests deleted with the dead code they covered, and it is recorded here because a figure that
+only ever rises is the mechanism §4 describes.
+
+### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
+
+Prompted by a four-reviewer read of the whole repo. Its finding was not a list of
+bugs but a shape: **the code is right and the seams are wrong.** Of the eight
+headline defects, not one was a logic error — every one was two correct pieces
+wired together incorrectly, and 3,300 unit tests at 0.03 s apiece could not see
+any of them. `DeviceSmokeTest`'s KDoc had already said this; the pass confirmed it
+held for a different eight defects than the thirteen it named.
+
+What that means for the next pass is in §4, and it did not change: this one found
+real things, and it found them by reading, and reading is still not the cheapest
+way to find them.
+
+**Closed.**
+
+- **`deep_research` and `parallel_research` could never complete.** `ToolContext`
+  was built without a timeout and took the 30 s default, which `ToolExecutor`
+  enforces; `DeepResearchTool` budgets 120 s internally. Every call died a quarter
+  of the way in, after paying for the searches, and returned a generic
+  `tool_timeout` indistinguishable from a slow network. `delegate_to_agent` and
+  `knowledge_graph_extract` sat at *exactly* 30 s, a tie the executor always won,
+  so their own timeout messages were unreachable code. `Tool.timeoutMs` now
+  carries a per-tool budget and `ToolTimeoutConsistencyTest` refuses a tool whose
+  internal budget exceeds what it declares. `ProductionPipelineEngine` had already
+  found and fixed this same defect on the agent-run path; the chat loop never got
+  it.
+- **The strategy bandit was being taught that failure is success**, in three
+  distinct ways. `AgentEvent.Error` does not end the stream — the loop emits it
+  and falls through to the unconditional `Done` — so `max_steps_exceeded`
+  recorded a failure *and* a success (both α and β, which leaves the Beta mean
+  alone and halves its variance, so a failed run made the arm more confident);
+  and a provider error or an empty response set `finished = true`, missing the
+  failure branch's code check entirely and recording a clean win. One latch, read
+  once in `Done`. The same Error-then-Done shape had also made
+  `consecutiveFailures` unable to reach 2, so the `>= 3` Deep Mode escalation was
+  unreachable for every failure it was written to catch.
+- **Every thumbs-up inside an agent conversation was a silent no-op.** Scope and
+  project are different columns on `preference_signals`; the reaction was written
+  with `projectId = ""` and then `recomputeProfile("agent:<id>")` was called,
+  whose only parameter is the project id. Zero rows, early return. Only reactions
+  in the general chat had ever reached a profile.
+- **`BootReceiver` re-registered 7 of 11 periodic workers**, omitting
+  `BackupWorker` — on precisely the OEMs that clear WorkManager state, which is
+  the only reason that receiver exists. The weekly backup stopped at the first
+  reboot and stayed stopped until the app was next opened, leaving no run record
+  to be conspicuously absent. It now delegates to `ProactiveScheduler` rather than
+  rebuilding requests: the inline copies had already drifted, and the dream
+  request had lost its two-hour initial delay.
+- **Three workers recorded failures as healthy runs.** `WorkerRunRecorder.record`
+  takes the worker's own verdict, and `lastOutcome` initialises to `ok("")`, so a
+  catch block that handles the throw and returns reports success over a failed
+  run. `EvolutionWorker` (which also logged nothing at all),
+  `CalendarCheckWorker` and `DecayWorker`. `Result.failed(cause)` now exists —
+  its absence was load-bearing, because every catch block had to construct the
+  failure by hand and two did not — and `WorkerFailureIsRecordedTest` scans for
+  the shape.
+- **The FTS update trigger fired on every column.** `MemoryDao.touch` runs once
+  per returned memory on every recall, so a ten-hit query performed ten
+  delete-and-reindex cycles over text that had not changed. `MIGRATION_26_27`
+  scopes it to `AFTER UPDATE OF content`. The migration is not optional: every
+  statement in `MemoryFtsSchema.TRIGGERS` is `CREATE TRIGGER IF NOT EXISTS`, so
+  editing the SQL reaches fresh installs and silently leaves upgraded devices on
+  the old definition — the hardest divergence to notice, because both look
+  correct alone.
+- **`AFTER UPDATE OF content` does not fix the decay pass**, and the trigger fix
+  looks like it does. Room's `@Update` names every column in the SET list, so
+  `updateAll` fires the trigger even when content is byte-identical.
+  `runDecayPass` now reads a four-column projection and writes narrow updates —
+  which also removed the `recent(10_000)` cap that had quietly stopped the tail
+  of a large store from fading at all, and stopped ten thousand embedding BLOBs
+  being materialised in a background worker to compute a number from three
+  integers.
+- **`evolution_evidence` grew without bound for a feature that is off.**
+  `EvolutionHooks` consulted no preference, and `MemoryStore` calls
+  `onMemoryRecalled` once per result from both recall branches — a five-index row
+  per hit, on the user's critical path, into a table whose only readers are
+  detectors `EvolutionWorker` never schedules. Gated inside the hooks with a
+  cached read that fails closed, and `deleteOlderThan` finally has a caller.
+  `EveryPruneHasACallerTest` is derived from the sources rather than a list,
+  because this was the **fourth** time a retention window turned out to have none.
+- **`saveGraph` was N+1 and non-transactional** — twenty to sixty round trips per
+  turn, and a crash partway through left nodes stored with their edges missing,
+  which `BeliefPromoter` would then read as fact.
+- **The live-voice stack is reachable.** 1,476 lines and ~60 tests behind
+  `RealtimeCallController`, which had no production caller, through
+  `LiveCallSheet`, which had none either. `ProjectSpineIsWiredTest` was written
+  *about* this stack, gated four other paths, and left this one dead for another
+  two weeks — a gate protects what it asserts and nothing else. It asserts this
+  one now. The non-atomic `update` extension shadowing kotlinx's at all nine call
+  sites was fixed first, since wiring made the race reachable.
+- **App lock covered one door of five.** "Unlocked" was `remember`-scoped inside
+  `MainActivity`'s composition, so `QuickAskActivity` — the same `ChatViewModel`
+  with memory recall — opened straight from the home screen with no check, and
+  both widgets painted memories and reminder bodies onto the home screen
+  regardless. `AppLockState` is process-scoped and relocks on a started-activity
+  count reaching zero, *not* on one activity stopping: `MainActivity` launching
+  `QuickAskActivity` stops `MainActivity`, and a per-activity relock demands a
+  fingerprint mid-navigation.
+- **`CaptureActivity` let any app write rows that read as the user's own words.**
+  It is `exported="true"` and must be, and it auto-captured incoming text with
+  `source = "user"` and the write gate deliberately skipped. Intent-delivered text
+  is now `source = "shared"` with the gate's verdict applied. Not gated behind the
+  lock, because `CaptureTileService` documents why capture-while-locked is
+  deliberate — refusing the write would break the feature; refusing to *believe*
+  it does not.
+- **The streaming render was quadratic, and worse than the review thought.** The
+  parse ran on every recomposition, and the cursor blink is an infinite
+  transition — so the entire cumulative message was re-parsed on every *animation
+  frame*, not every token. Memoized on `(text, colors)`, cursor split into a
+  second cheap `remember`, publication throttled to 50 ms while every delta is
+  still consumed. The asymptotics are not fixed and architecture.md says so:
+  bounding publications makes the cost quadratic in elapsed time rather than in
+  token count, and true O(n) needs incremental parsing.
+- **Dead code removed:** `SpecialistRouter` (167 lines, no caller — the README
+  claimed keyword routing that did not exist), `com.aura.pipeline.ProductionPipeline`
+  (a duplicate of the live `creative.ProductionPipelineEngine`),
+  `AgentTextAccumulator`, `ContextBundle`, `McpToolBridge.syncToolsUnprefixed`,
+  `CapabilityRouter.providerKeys`.
+- **`mapping.txt` is archived by CI for 90 days.** Every release crash before this
+  was unreadable: R8 renames everything, the mapping lived in gitignored `build/`,
+  and there is no Crashlytics — `CrashLogger` writing an obfuscated trace to a
+  local file is the whole of what a user can report.
+
+**Found while fixing, and worth naming because none were in the review.**
+
+- `QuickAskActivity.updateWidgetWithResponse` rebuilt `RemoteViews` with only the
+  text set, and `updateAppWidget` replaces the whole view tree — so after every
+  Quick Ask the widget's body and Ask button stopped responding until the next
+  30-minute refresh.
+- Both `EvolutionBadgeViewModel` tests were vacuous, *including the one that
+  looked real*. `pendingCount` is `stateIn(WhileSubscribed)`, so `.value` never
+  leaves `initialValue = 0` without a subscriber; the sibling asserting `0` was
+  reading the initial value, not the DAO. Both would have passed against a
+  ViewModel wired to nothing.
+- The first real `UserPreferences` test caught its own harness: the DataStore file
+  persists across Robolectric test *methods*, so a mutating test made the defaults
+  test read a written value and report it as the shipped default.
+- `pip install sentence-transformers` is insufficient for Gate B —
+  `nomic-embed-text-v1.5` needs `einops` through `trust_remote_code`, and the
+  failure lands two models in, after two vector files already exist.
+
+**A correction to the review itself**, recorded because the same mistake is easy
+to repeat: one agent reported `Specialist.ALL` and its presets as dead. They are
+not — `AgentStore` seeds the seven builtin agents from them, and `SpecialistRouter`
+was merely their only *other* reader. Deleting the file wholesale, as proposed,
+would have removed live coverage. The same held for `BeyondSotaBaselineTest`
+(2 vacuous tests of 5) and the four `cancel does not throw` tests (not no-ops: an
+exception fails them, and cancel-when-idle is exactly where
+`RealtimeCallController` had a self-join deadlock). **Verify a deletion target
+yourself before removing it.**
+
+**Method note.** Every fix carries a regression test shown to fail against the
+unfixed code — reverted, watched go red, restored — rather than merely to pass
+against the fixed one. That is not ceremony: it caught one FTS test that could
+never have demonstrated the old behaviour, because `MIGRATION_16_17` shares the
+trigger source with the fix. The OAuth CSRF tests were verified by mutation
+(`pendingFlows.values.firstOrNull()`, the realistic bug), and the scaffold guard
+in the Gate B report was verified to fire *against numbers that clear both bars*.
+
 ### The missing guarantees (2026-08-13 →)
 
 A separate pass asked what is *absent* rather than what is broken. The answer was
@@ -922,7 +1087,7 @@ and building past them would mean choosing a design by preference instead of by 
 | Item | What it needs |
 |------|---------------|
 | **Prompt-cache effectiveness (Gate A)** | A week of ordinary use, then read **Settings → Usage**, which since 2026-08-10 shows the cache hit rate over the models that report it. The caching ships and defaults on; the hit rate decides whether dynamic tool-schema selection is worth building or already discounted to noise. The reasoning against building it is recorded at the tool-assembly site in `MemoryAugmentedAgenticLoop`, where someone would otherwise reinvent it. Still unconfirmed on a device: that a real Anthropic turn returns non-zero `cache_read_input_tokens`. |
-| **The embedding business case (Gate B)** | Export a backup, `python scripts/build_eval_corpus.py <backup>`, judge the queries, then `pip install sentence-transformers`, `python scripts/gen_eval_vectors.py`, re-run the eval suite. The harness side is built and tested: `PrecomputedEmbedder` serves desktop-computed vectors by exact text lookup, the scorecard always carries a Gate B section, and it computes the verdict against bars set before any number existed. What was missing was the judgments. That was recorded here as "the one input nothing but a person can supply", and the 2026-08-16 harvest shows it was half right. The *queries* now come from questions actually asked, in their real class distribution — which is the half no fixture author could have supplied honestly, since the share of synonym-only queries is a fact about how the user asks things and is half of the Gate B bar. Grades arrive from the two signals Aura can infer per (question, memory) — the consult pass and explicit "not for this question" corrections — and `scripts/pool_eval_queries.py` pools the rest and judges the union, because grading only what the shipped ranker returned would score the very documents Gate B is about as 0 by omission and print "Do not proceed" from a corpus incapable of showing otherwise. What still needs a person is the decision to trust the result: model judging is advisory, and `synonym-only` labels are verified mechanically rather than believed. |
+| **The embedding business case (Gate B)** | Export a backup, `python scripts/build_eval_corpus.py <backup>`, judge the queries, then `pip install sentence-transformers`, `python scripts/gen_eval_vectors.py`, re-run the eval suite. The harness side is built and tested: `PrecomputedEmbedder` serves desktop-computed vectors by exact text lookup, the scorecard always carries a Gate B section, and it computes the verdict against bars set before any number existed. What was missing was the judgments. That was recorded here as "the one input nothing but a person can supply", and the 2026-08-16 harvest shows it was half right. The *queries* now come from questions actually asked, in their real class distribution — which is the half no fixture author could have supplied honestly, since the share of synonym-only queries is a fact about how the user asks things and is half of the Gate B bar. Grades arrive from the two signals Aura can infer per (question, memory) — the consult pass and explicit "not for this question" corrections — and `scripts/pool_eval_queries.py` pools the rest and judges the union, because grading only what the shipped ranker returned would score the very documents Gate B is about as 0 by omission and print "Do not proceed" from a corpus incapable of showing otherwise. What still needs a person is the decision to trust the result: model judging is advisory, and `synonym-only` labels are verified mechanically rather than believed. **2026-08-18: the tooling is no longer unproven.** The whole path was run once against the scaffold — `einops` added to the install line, all three models encode, the suite reads the vectors — and the scaffold guard was shown to fire *against numbers that clear both bars* (synonym-only 20% of queries, best gain +0.2039 nDCG@10). That is the exact false positive `EvalFixtures.isScaffold()` exists to refuse, refused. **Only step 1 remains: a backup export.** Also settled and recorded in `docs/RETRIEVAL_EVAL.md`: no default embedding model is seeded, because doing so spends money on every store, re-embeds the whole corpus on first run, hardcodes a `provider:model` this repo has already shipped a crash from, and pre-empts the measurement it is meant to follow. The defect was the *silence* — Settings rendered a blank Embedding row, which reads as a chosen default, and now reads "Not set — recall is keyword-only". |
 | **ONNX on-device embeddings** | Gate B clearing its bar (synonym-only ≥15% of real queries and ≥0.15 nDCG@10 gain). The tokenizer is the real cost — a WordPiece port needs a `transformers`-generated fixture as a CI test, because an off-by-one in `##` handling degrades every embedding a few percent, silently, forever. |
 | **ONNX cross-encoder rerank** | The above, plus a p95 measurement. It is 200–500 ms per recall on the critical path, and four *tool* callers recall several times per turn. |
 
@@ -973,6 +1138,9 @@ and inflated the document frequencies BM25 had just started depending on.
 
 | Item | Detail |
 |------|--------|
+| Nothing prunes the primary tables, and that may be correct | `memories`, `kg_nodes`, `kg_edges`, `world_events`, `preference_signals`, `routing_outcomes` and `memory_feedback` have no time-based delete at all — not a missing caller this time, but a missing query. Deliberately **not** added on 2026-08-18: `MemoryEntity`'s own KDoc states "nothing here is ever destroyed", and `retire` is a soft-hide by design, so adding retention to the memory store is a product decision rather than a defect fix. The two unbounded `GROUP BY`s over full tables are the sharper end of it — `netDownvotedMemoryIds` runs on the recall path, and `statsForRole` means a model that was good two years ago never stops voting. |
+| `existsByContent` is a full table scan on every insert | `content` is not indexed and `SELECT COUNT(*) … WHERE content = :content` runs per stored memory *and per imported document chunk*. Indexing `content` directly would roughly double the store's on-disk size — a B-tree over its largest TEXT column, rewritten on every insert. The right shape is a `contentHash` column plus index, which `DocumentChunkEntity` already does, but that is a v27→v28 migration with backup mappers and was queued rather than slipped into an unrelated pass. |
+| Document import writes chunks as memories | `DocumentRepository.import()` writes ~1,235 memory rows for a large file, each paying a cloud embed, this unindexed scan, and a 200-row cosine dedup under one mutex — while `document_chunks`, with a full 13-method DAO, its indices and backup mappers, has never held a row. Routing to it is a *retrieval-architecture* change, not wiring: the stack has one candidate source (`memories` + `memories_fts`) and one result type (`MemoryEntity`), and every consumer — RRF, the reranker, correction demotion, `touch`, the evolution hooks, the label harvest — is typed on it. Chunks carry no `scope`, `decayScore`, `accessCount`, `importance` or `retiredAt`, and nothing embeds them. Doing it in one step takes document recall dark mid-flight; the staged version (write both, read from `memories`, build chunk retrieval behind `RetrievalConfig`, then stop double-writing) is the only one that does not. Awaiting a decision. |
 | `ToolExecutor` pins an IO thread per tool | `runInterruptible(Dispatchers.IO) { runBlocking { … } }` occupies an IO thread for the tool's whole duration, including for purely-suspending tools that would otherwise release it. Bounded to 8 via `limitedParallelism`. **Cancellation itself is correct** — see `ToolExecutorCancellationProbeTest`. |
 | `recentTopics` keyword quality | Now filters through the shared `StopWords` list, but the heuristic is fundamentally a word-frequency counter over titles + summaries. Expect low-signal keywords to still appear. |
 | Per-step data assertions for MemoryDatabase hops 7–10 | Schema exports 1–17 are all committed and the chain test now runs 6→17 (it stopped at 14 until 2026-08-08, leaving `MIGRATION_14_15` and `MIGRATION_15_16` with no coverage at all), but individual hops inside 6..10 still have no per-step data assertion. |
@@ -989,7 +1157,7 @@ and inflated the document frequencies BM25 had just started depending on.
 | BouncyCastle 1.72 ships in the release APK | `com.tom-roush:pdfbox-android:2.0.27.0` pulls `bcprov`/`bcpkix`/`bcutil-jdk15to18:1.72` (Sept 2022). CVE-2023-33201 (LDAP `X509LDAPCertStoreSpi`) is unreachable — nothing configures an LDAP cert store. CVE-2023-33202 (ASN.1 OID parsing → OOM) is *plausibly* reachable, since PDFBox parses signed/encrypted PDF structures through BC. Not verified either way. Fix is a `dependencies { constraints { … } }` bump on the three `bc*-jdk15to18` artifacts, which needs a networked build to resolve and re-run PDF extraction tests against. |
 | The version catalog does not describe what ships | `libs.versions.toml` declares `lifecycle 2.8.7` and `coreKtx 1.13.1`; the app actually resolves `2.11.0` and `1.16.0`, because the Compose BOM's constraints win. Anyone reading the catalog gets the wrong answer, and a future BOM change would silently drop the app back two years. `activity`/`activity-compose` really are pinned at `1.9.3` (Oct 2024) against Compose BOM `2026.06.01`. Align the declared versions with the resolved ones. |
 | `targetSdk 35` against `compileSdk 37` | Two platform releases behind, so Android 16/17 compatibility modes apply; `lint` flags it as `OldTargetApi`. No Play deadline applies — this is a sideloaded personal build — so it is a behavioural-currency item, not a compliance one. Raising it needs a device pass over the permission, notification, and foreground-service paths. |
-| `AskAuraWidget` is an exported receiver with an unprotected custom action | `exported="true"` is required for `APPWIDGET_UPDATE`, but the same filter also accepts `com.aura.action.REFRESH_WIDGET` from any app on the device. Worst case is a forced `MemoryStore.recent(1)` read plus a widget redraw — battery, not disclosure. Sending the refresh as an explicit `Intent` and dropping the action from the filter would close it; it needs a device to verify widget refresh still works. |
+| `AskAuraWidget` is an exported receiver with an unprotected custom action | `exported="true"` is required for `APPWIDGET_UPDATE`, but the same filter also accepts `com.aura.action.REFRESH_WIDGET` from any app on the device. Worst case is a forced `MemoryStore.recent(1)` read plus a widget redraw — battery, not disclosure. Sending the refresh as an explicit `Intent` and dropping the action from the filter would close it; it needs a device to verify widget refresh still works. **Narrowed 2026-08-18, not closed:** the widget now reads nothing at all while app lock is on, so a forced refresh cannot surface memory text — but the unprotected action remains, and with the lock off the disclosure is the same as it ever was. |
 | `unitTests.isReturnDefaultValues = true` in both modules | Deliberate, and documented in `aura-core/build.gradle.kts` for `android.util.Log`. The cost is that *any* unmocked Android framework call returns 0/null/false instead of throwing, so a test can pass over a framework call the production path depends on. It also leaked into production once: 17 `Log.w` calls were wrapped in `catch (_: RuntimeException) {}` "because Log is unavailable in pure JVM tests", which made a deliberately-silent catch indistinguishable from an accidental one. Removed 2026-08-08. |
 | `releases/` is an untracked local artifact directory | Gitignored, so it never bloated history — but nothing prunes it either, and it had reached 69 APKs / 2.5 GB before 2026-08-08. Now holds the current build plus two. It will grow again. |
 
@@ -1007,14 +1175,25 @@ and inflated the document frequencies BM25 had just started depending on.
   must have an `.onFailure`/`.getOr*`/`.fold` handler within scan range; 1 allowlisted
   exception). Silent-but-handled fallbacks (`.getOrNull()` without logging) still exist,
   mostly JSON-parse sentinels where that is the correct behavior.
-- Instrumented coverage (64 device test methods: migration chains + smoke tests) runs
-  only on a connected device — not in CI.
+- Instrumented coverage: `:aura-core`'s migration chains have run in CI on an emulator
+  since 2026-08-14. **`:app`'s 43 methods now have a job too** (`app-instrumented`,
+  2026-08-18) — every `createComposeRule` test, the bottom-nav and onboarding tests, and
+  `ModelSelectionFlowTest`, the only true end-to-end flow in the repo. They had been
+  compiled and never executed, which is not a distinction the count made:
+  `HomeContentTest`'s own comment records a version asserting strings that exist nowhere
+  in the app, counting toward the instrumented total for months. `DeviceSmokeTest` is
+  excluded by name — its KDoc is explicit that `connectedAndroidTest` destroys the
+  Keystore entries the encrypted credentials depend on.
+  **That job has never executed.** Its first CI run is diagnostic, and red would confirm
+  the finding rather than refute it.
 - Screen control and live voice each have a 12-row manual table in
-  `docs/ANDROID_TEST_PLAN.md`, and **neither has been run**. The unit tests cover the
-  decisions — what is refused, what is redacted, what is truncated, what order barge-in
-  happens in. A device covers whether the platform behaves as documented, which is a
-  different question and the one that matters for two subsystems built on beta protocols
-  and OEM-modified accessibility stacks.
+  `docs/ANDROID_TEST_PLAN.md`, and **neither has been run**. Live voice is now reachable
+  from the chat mic button, which makes this more pressing rather than less: it is a beta
+  protocol over a real socket, and until 2026-08-18 nothing could reach it, so "untested
+  on a device" and "unreachable" were the same fact. They are now different facts.
+  The unit tests cover the decisions — what is refused, what is redacted, what is
+  truncated, what order barge-in happens in. A device covers whether the platform behaves
+  as documented, which is a different question and the one that matters here.
 
 ### Architecture
 

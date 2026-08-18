@@ -146,7 +146,10 @@ private fun CaptureSheet(
     LaunchedEffect(incoming) {
         if (!incoming.isNullOrBlank() && !submitted) {
             submitted = true
-            viewModel.capture(incoming)
+            // RECEIVED: arrived in an intent. A gesture may have produced it — a
+            // share, a text selection — but nothing here proves that, and this
+            // activity is reachable by every app on the device.
+            viewModel.capture(incoming, CaptureViewModel.Origin.RECEIVED)
         }
     }
 

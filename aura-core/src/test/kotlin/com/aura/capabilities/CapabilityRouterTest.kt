@@ -48,7 +48,7 @@ class CapabilityRouterTest {
             providers = emptyMap(),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         assertNull(router.resolve(CapabilityKind.WebSearch))
     }
 
@@ -63,7 +63,7 @@ class CapabilityRouterTest {
             providers = mapOf("exa" to unconfigured),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         assertNull(router.resolve(CapabilityKind.WebSearch))
     }
 
@@ -78,7 +78,7 @@ class CapabilityRouterTest {
             providers = mapOf("stability" to configured),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         val result = router.resolve(CapabilityKind.ImageGeneration)
         assertNotNull(result)
         assertEquals("stability", result?.prefix)
@@ -104,7 +104,7 @@ class CapabilityRouterTest {
             providers = mapOf("stability" to withGenerate, "dalle" to withEdit),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         val result = router.resolve(CapabilityKind.ImageGeneration, "edit")
         assertNotNull(result)
         assertEquals("dalle", result?.prefix)
@@ -121,7 +121,7 @@ class CapabilityRouterTest {
             providers = mapOf("exa" to configured),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         val result = router.resolve(CapabilityKind.WebSearch, "unrealistic_operation")
         // Falls back to first configured since the provider doesn't implement OperationAwareProvider
         assertNotNull(result)
@@ -139,7 +139,7 @@ class CapabilityRouterTest {
             providers = mapOf("elevenlabs" to configured),
             providerKeys = mockk(relaxed = true),
         )
-        val router = CapabilityRouter(registry, mockk(relaxed = true))
+        val router = CapabilityRouter(registry)
         assertTrue(router.isAvailable(CapabilityKind.TextToSpeech))
         assertTrue(!router.isAvailable(CapabilityKind.VideoGeneration))
     }

@@ -8,12 +8,17 @@ import kotlin.test.assertTrue
  * Every part of the project spine is reachable from something a user can do.
  *
  * This repo's most expensive recurring defect is a subsystem that is built,
- * tested, documented and connected to nothing that runs. The live-voice stack is
- * the standing example: 1,476 lines of production code and 60 tests behind
- * `RealtimeCallController.start`, which has no production caller, reached only
- * through `LiveCallSheet`, which has no caller either. Every gate in the repo
+ * tested, documented and connected to nothing that runs. The live-voice stack
+ * was the standing example: 1,476 lines of production code and 60 tests behind
+ * `RealtimeCallController.start`, which had no production caller, reached only
+ * through `LiveCallSheet`, which had no caller either. Every gate in the repo
  * passed the whole time, because each one asserts a wire between two points in
  * the code and none asserts a path from a user's thumb.
+ *
+ * It is wired now, and the first test below holds it that way. Worth recording
+ * that naming the defect here did not fix it: this file was written *about* the
+ * live-voice stack, gated four other paths, and left that one dead for another
+ * two weeks. A gate only protects what it actually asserts.
  *
  * So this file checks the path, not the parts:
  *
@@ -81,6 +86,39 @@ class ProjectSpineIsWiredTest {
                 .also { check(it.isFile) { "expected ${it.absolutePath} to exist" } }
                 .readText(),
         )
+
+    @Test
+    fun `the live-call stack is reachable from the chat screen`() {
+        // The standing example this file was written about, closed. The KDoc
+        // above described 1,476 lines and ~60 tests behind an entry point
+        // nothing reached, and it stayed that way after the gate was written
+        // for four other paths — the defect being named is not the same as the
+        // defect being fixed.
+        //
+        // The path is: mic button → onVoiceCall → LiveCallSheet → startCall →
+        // RealtimeCallController. Each link is asserted, because any one of
+        // them missing restores the original condition exactly.
+        val route = app("ui/screens/chat/ChatRoute.kt")
+        assertTrue(
+            route.contains("LiveCallSheet("),
+            "ChatRoute does not render LiveCallSheet, so no user action can reach a live call.",
+        )
+        assertTrue(
+            route.contains("liveCallViewModel.startCall("),
+            "ChatRoute never calls startCall, so the sheet's Call button does nothing.",
+        )
+        val vm = app("ui/voice/LiveCallViewModel.kt")
+        assertTrue(
+            vm.contains("controller.start("),
+            "LiveCallViewModel does not start RealtimeCallController — the 1,476 lines behind it " +
+                "are unreachable again, which is the exact state this file exists to prevent.",
+        )
+        assertTrue(
+            vm.contains("RealtimeVoiceService.start("),
+            "LiveCallViewModel does not start the foreground service. Without it the call dies " +
+                "when the user leaves the screen, which is the only place a call is worth having.",
+        )
+    }
 
     @Test
     fun `the ledger sweep is scheduled at startup`() {
