@@ -53,6 +53,14 @@ data class LivingWorldEntity(
     /** How far the stored state has caught up. Always `<= WorldClock.dueTick`. */
     val currentTick: Long = 0L,
     val stateJson: String,
+    /**
+     * The exact canonical tick-0 state, written once at creation and never
+     * updated. Fork-at-past replays from here; "" on worlds created before
+     * v29, for which that door stays closed — re-seeding cannot reconstruct
+     * genesis once the author has edited the bible.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "")
+    val genesisJson: String = "",
     val status: String = STATUS_RUNNING,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = createdAt,

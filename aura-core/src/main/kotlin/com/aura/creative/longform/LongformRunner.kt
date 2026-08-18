@@ -60,6 +60,11 @@ class LongformRunner @Inject constructor(
     private val sceneLedger: SceneLedger,
     // Appended, not inserted — same rule as sceneLedger above.
     private val craftResolver: com.aura.creative.CraftResolver,
+    // Appended, not inserted — and nullable: canon and the living world are
+    // additive context, and a runner built without them must draft exactly as
+    // it always has.
+    private val canonFactDao: com.aura.creative.CanonFactDao? = null,
+    private val livingWorldStore: com.aura.creative.livingworld.LivingWorldStore? = null,
 ) {
 
     /**
@@ -223,6 +228,15 @@ class LongformRunner @Inject constructor(
     ): Boolean {
         val beat = beats[index]
         val previousTail = previousSceneTail(beats, index)
+        // Canon and the pinned world slice enter the prompt here, best-effort
+        // by design: a bookkeeping read must never block a paid draft, so a
+        // failure collapses to an absent section rather than an error.
+        val canonFacts = runCatching { canonSlice(project, jobId, beat) }
+            .onFailure { Log.w(TAG, "canon fetch failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+        val worldNow = runCatching { worldSlice(project) }
+            .onFailure { Log.w(TAG, "world slice failed: ${it.message}", it) }
+            .getOrDefault("")
         val context = contextBuilder.build(
             project = project,
             beats = beats,
@@ -235,9 +249,11 @@ class LongformRunner @Inject constructor(
             // The author's craft guidance, if they have edited it. Resolved here
             // rather than inside the builder, which stays pure and database-free.
             // Falls back inside CraftResolver to the shipped constant.
-            craft = runCatching { craftResolver.forTemplate(project.templateId) }
+            craft = runCatching { craftResolver.forTemplate(project.templateId, project.id) }
                 .onFailure { Log.w(TAG, "craft resolution failed: ${it.message}", it) }
                 .getOrNull(),
+            canonFacts = canonFacts,
+            worldNow = worldNow,
         )
 
         progressBus.beginScene(jobId, index, beats.size, beat.title)
@@ -330,6 +346,7 @@ class LongformRunner @Inject constructor(
                 revisionId = revisionId,
                 sceneText = body,
                 sceneModel = model,
+                declaredEffects = beat.effects,
             )
         }.onFailure { Log.w(TAG, "could not record scene ${index + 1}: ${it.message}", it) }
         return true
@@ -369,6 +386,47 @@ class LongformRunner @Inject constructor(
         thinkingBudget = SCENE_THINKING_BUDGET,
     )
 
+    /**
+     * Active canon for the subjects this beat names: its POV, its setting, and
+     * every declared assertion. Exact-name matching is the v1 contract — the
+     * bible's names are the ids the ledger writes.
+     */
+    private suspend fun canonSlice(
+        project: CreativeProject,
+        jobId: String,
+        beat: StoryBeat,
+    ): List<com.aura.creative.CanonFactEntity> {
+        val dao = canonFactDao ?: return emptyList()
+        val branchId = beatBranch(jobId)
+        val subjects = buildList {
+            if (beat.pov.isNotBlank()) add("character" to beat.pov)
+            if (beat.setting.isNotBlank()) add("location" to beat.setting)
+            for (assertion in beat.preconditions + beat.effects) {
+                add(assertion.subjectType to assertion.subjectId)
+            }
+        }.distinct().take(MAX_CANON_SUBJECTS)
+        val facts = mutableListOf<com.aura.creative.CanonFactEntity>()
+        for ((type, name) in subjects) {
+            facts += dao.forSubject(project.id, branchId, type, name)
+                .filter { it.status == "active" }
+        }
+        return facts
+    }
+
+    /**
+     * The Living World's standings, only when the story cursor pins the present
+     * exactly. A stale pin drops the section rather than serving yesterday as
+     * today; historical slices need genesis replay, which is later work.
+     */
+    private suspend fun worldSlice(project: CreativeProject): String {
+        val store = livingWorldStore ?: return ""
+        val cursor = project.world.storyCursorTick
+        if (cursor < 0L) return ""
+        val world = store.forProject(project.id) ?: return ""
+        if (world.currentTick != cursor) return ""
+        return com.aura.creative.livingworld.WorldStateBrief.render(store.decode(world.stateJson))
+    }
+
     private suspend fun resolveModel(): String? =
         modelRoleRouter?.explicit(ModelRole.CREATIVE_DRAFT)
             ?: modelRoleRouter?.resolve(ModelRole.CONVERSATION)
@@ -404,6 +462,8 @@ class LongformRunner @Inject constructor(
          * ever misbehaves, and keeps any single slice's cost knowable. Twenty
          * scenes is far more than seven minutes can produce.
          */
+        const val MAX_CANON_SUBJECTS = 8
+
         const val MAX_SCENES_PER_SLICE = 20
 
         /**

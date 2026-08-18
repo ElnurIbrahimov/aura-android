@@ -101,6 +101,7 @@ class ProactiveHistoryViewModel @Inject constructor(
         com.aura.proactive.ProactiveFindingType.PATTERN_ALERT -> "Conversation patterns"
         com.aura.proactive.ProactiveFindingType.PRIORITY_SHIFT -> "Priority pile-ups"
         com.aura.proactive.ProactiveFindingType.OPEN_QUESTION -> "Aura's questions"
+        com.aura.proactive.ProactiveFindingType.LIVING_WORLD -> "World news"
     }
 
     /**

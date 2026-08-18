@@ -82,7 +82,10 @@ class LivingWorldWiringTest {
      */
     @Test
     fun `the engine has no Android or network dependencies`() {
-        val pure = listOf("WorldEngine.kt", "WorldClock.kt", "WorldRng.kt", "WorldModel.kt", "WorldSeeder.kt")
+        val pure = listOf(
+            "WorldEngine.kt", "WorldClock.kt", "WorldRng.kt", "WorldModel.kt", "WorldSeeder.kt",
+            "WorldReplayer.kt", "TimelineDiff.kt",
+        )
         val dir = sourceDir("src/main/kotlin/com/aura/creative/livingworld")
         val files = pure.map { name ->
             dir.resolve(name).also { check(it.isFile) { "expected engine file $name is missing" } }

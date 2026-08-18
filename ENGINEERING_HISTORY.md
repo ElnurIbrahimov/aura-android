@@ -460,6 +460,77 @@ browser's WebViewClient consumed nothing, so an in-page redirect could reach `in
 or `javascript:`; `allowedInPageScheme` now restricts navigation to http(s), tested.
 Widget push-refresh verification stays on the device pass.
 
+*2026-08-19:* **3,337 unit tests / 499 suites, 0 failures.** The Living World gained its
+belief layer (four commits on feat/world-author): deviations-from-truth inside WorldState —
+no row means accurate common knowledge — with witness/rumor/stale mechanics and discoveries
+as capped belief_reveal events; contested claims weighted by rival-believed might, with
+Effect.SpreadLie as the lie and bluster_when_weak seeded into new worlds; the scorer's two
+documented-absent factors (reach, surprise) measured on the event itself, neutral at zero so
+belief-free worlds score byte-identically; and living_events compaction finally wired —
+trimNoiseBefore keeps the notable spine, paid narration and every quiet_interval (replay
+walks those), trimBefore becomes the emergency valve it never had a caller for, and both run
+as DecayWorker's sixth sweep above the decayEnabled gate. Device look owed: reveal rows on
+the Living tab.
+
+*2026-08-19 (Phase B):* **3,356 unit tests / 500 suites, 0 failures.** Scenes became
+transactions, without a migration and without ever endangering paid text. A StoryBeat now
+declares REQUIRES and EFFECT assertions (subject @ predicate = value, parsed skip-never-guess);
+declared effects land as authored canon in a declared| id namespace at confidence 1.0, prior
+single-valued facts they contradict are superseded silently — declaring the change is the
+ruling — and the extractor disagreeing with the declaration files a severity-error issue that
+carries its machine-readable remedy (suggestedPatchJson's first writer; advisory, no applier).
+Continuity issues gained deterministic pair-derived ids and stopped re-opening pairs the author
+ruled intentional. Canon now enters drafting: a capped CANON section (facts for the beat's POV,
+setting and assertion subjects; a disagreeing precondition renders as one informational note)
+and a THE WORLD RIGHT NOW section rendering WorldStateBrief's standings, injected only while
+the new WorldBible.storyCursorTick pins the Living World's present exactly — the Living tab
+grew the pin button. Both reads are best-effort: a throwing canon DAO still commits its scene.
+Device look owed: the pin flow and a CANON-fed draft.
+
+*2026-08-19 (Phase C):* **3,371 unit tests / 503 suites, 0 failures.** Timelines fork.
+The one migration the spine needs landed first: living_worlds.genesisJson (MemoryDatabase v29,
+backup schema 29, replay hop + instrumented migrate28To29, every doc literal in the same
+commit) — chosen over re-seeding because a bible edit or a template retune would silently
+reconstruct a different genesis. Fork-at-present copies the moment and derives its salt
+(deterministic: a fork is a ref, not a dice roll; same name + same moment = same world).
+Fork-at-past replays genesis through the *recorded* fold spans — quiet_interval rows are the
+fold record, A4's compaction preserves them by construction — with the tripwire stated: any
+future god-edit must be event-sourced or fork-at-past breaks silently. Pre-v29 worlds are
+honestly refused. observeEventsDeep gives a fork its inheritance (ancestor pages bounded at
+the fork tick); TimelineDiff names the first field-wise parting; living_world_query (81st
+tool, READ_ONLY) ranks drama by the notability already paid for and diffs branches
+page-honestly; the Living tab grew branch chips, fork buttons (present and from-any-event
+where genesis allows), the comparison card, and a Biggest-moments filter running on the same
+DAO as the tool. Device look owed: fork a world and watch both branches tick.
+
+*2026-08-19 (Phase D):* **3,376 unit tests / 504 suites, 0 failures.** The return ritual.
+LIVING_WORLD joined the finding-type registry (appended — notification ids are 1100+ordinal),
+and LivingWorldReporter now hands its report to ProactiveNotifier after the in-app card is
+recorded, never before; the category defaults to EARNED, so it stays silent until the ledger
+sees engagement, with the Home card as the always-on surface. Opening Home or the Living tab
+nudges a world two or more ticks behind through the existing REPLACE-unique catch-up (one
+tick behind is hourly steady state — LivingWorldCatchUp is the pure policy). The Living tab
+gained "Since you left": a per-open snapshot of the moments missed past a per-world lastSeen
+marker (worldId=tick CSV in preferences), top five by notability, then the marker moves.
+Narration stayed inside its caps throughout. Device look owed: one EARNED-to-ALWAYS
+notification and the since-you-left card after a real absence.
+
+*2026-08-19 (Phase E — the spine closes):* **3,387 unit tests / 508 suites, 0 failures.**
+The taste loop. Drafted beats are tappable; the editor dialog is deliberately plain — the
+goal is the revision chain and the signal — and its save is CreativeArtifactStore.revise's
+first production caller: an identical save writes no revision and records mild approval
+(+0.5), a change lands as an authorKind="edit" child of the generation revision (the beat
+keeps pointing at what the extractor read; the artifact's current revision moves to the
+author's text), and EditDistanceLite's keep-ratio picks the tier — touch-up −0.25, the
+designed recordEdit −0.5 finally called, rewrite −1.0. Every signal recomputes the project
+profile and the global one. Rewrites alone file skill_failed evidence against the craft
+skill's id ("author_rewrote"), touching none of evolution's gates. Taste reaches drafting at
+the resolver, capped at 600 chars — with no profile the resolve is byte-identical, pinned.
+Found and fixed along the way: the interruption-policy writer had shipped its own template
+escape (every explicit ALWAYS/NEVER fell back to EARNED on read) — codec extracted, round
+trip tested. All five phases of the world-author spine are code-complete; what remains is
+the device pass this file has asked for since §4 was written.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

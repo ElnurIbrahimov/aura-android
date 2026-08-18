@@ -244,6 +244,16 @@ class TasteEngine @Inject constructor(
      */
     suspend fun getTasteContext(scopes: List<kotlin.String> = listOf("general")): kotlin.String {
         val profile = getProfileForScopes(scopes) ?: return ""
+        return renderContext(profile)
+    }
+
+    /** The project's learned profile rendered for a prompt; global fallback. */
+    suspend fun getTasteContextForProject(projectId: kotlin.String): kotlin.String {
+        val profile = getProfile(projectId) ?: return ""
+        return renderContext(profile)
+    }
+
+    private fun renderContext(profile: StyleProfileEntity): kotlin.String {
         val attrs = runCatching {
             json.decodeFromString<Map<kotlin.String, Map<kotlin.String, Float>>>(profile.attributesJson)
         }.onFailure { Log.w("TasteEngine", "runCatching failed: ${it.message}", it) }.getOrDefault(emptyMap())

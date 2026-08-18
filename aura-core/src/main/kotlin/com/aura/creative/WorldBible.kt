@@ -15,6 +15,13 @@ data class WorldBible(
     val simulations: List<SimulationRecord> = emptyList(),
     val continuityNotes: List<ContinuityIssue> = emptyList(),
     val notes: String = "",
+    /**
+     * The Living World tick the manuscript is pinned to; -1 means unpinned.
+     * Only an exact match with the world's current tick injects a world slice
+     * into drafting — a stale pin drops the section rather than serving
+     * yesterday as today. Historical slices need genesis replay, later work.
+     */
+    val storyCursorTick: Long = -1L,
 )
 
 @Serializable
@@ -107,6 +114,36 @@ data class StoryBeat(
      * same as "this scene changed nothing".
      */
     val synopsis: String = "",
+    /**
+     * What must hold entering this scene. Fetched canon for these subjects is
+     * read into the drafting prompt; a disagreement with recorded canon is
+     * surfaced there as information, never as a rejection.
+     */
+    val preconditions: List<BeatAssertion> = emptyList(),
+    /**
+     * What this scene commits. Written to canon as authored facts when the
+     * scene lands, and diffed against what the ledger extracts — a mismatch
+     * is a continuity error carrying both facts as evidence.
+     */
+    val effects: List<BeatAssertion> = emptyList(),
+)
+
+/**
+ * One declared claim about world state — a beat's precondition or effect.
+ *
+ * The shape `CreativeSimulationEntity.stateDeltaJson` already documents, with
+ * old/new collapsed to one value: a beat declares a target state, not a diff —
+ * "old" is whatever canon holds at draft time.
+ */
+@Serializable
+data class BeatAssertion(
+    /** One of SceneLedger's subject types; the common case is the default. */
+    val subjectType: String = "character",
+    /** The bible name, verbatim — matching is by exact name. */
+    val subjectId: String,
+    /** Lowercased on parse; the single-valued ones are machine-verifiable. */
+    val predicate: String,
+    val value: String,
 )
 
 @Serializable

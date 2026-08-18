@@ -185,6 +185,15 @@ object RuleTemplates {
             cooldownTicks = 30,
         ),
         Rule(
+            id = "bluster_when_weak",
+            name = "Bluster when weak",
+            subjectKind = WorldSeeder.KIND_FACTION,
+            priority = 2,
+            condition = Cond.StockBelow(WorldEngine.STOCK_MIGHT, setup.startingMightMilli / 2),
+            effects = listOf(Effect.SpreadLie(WorldEngine.STOCK_MIGHT, setup.startingMightMilli / 2)),
+            cooldownTicks = 45,
+        ),
+        Rule(
             id = "grudges_harden",
             name = "Grudges harden",
             subjectKind = WorldSeeder.KIND_FACTION,

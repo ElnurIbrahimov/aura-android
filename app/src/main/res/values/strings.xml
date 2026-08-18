@@ -450,4 +450,24 @@
     <string name="voice_mode">Voice mode</string>
     <string name="start">Start</string>
     <string name="built_in">Built-in</string>
+    <string name="pin_story_here">Pin story to today</string>
+    <string name="story_unpinned">Story not pinned to the world</string>
+    <string name="story_pinned_here">Story pinned to today — drafting sees the world</string>
+    <string name="story_pin_stale">The world has moved on since the pin — re-pin to draft against today</string>
+    <string name="fork_timeline">Fork timeline</string>
+    <string name="fork_from_here">Fork from here</string>
+    <string name="fork_name_hint">Name this timeline</string>
+    <string name="fork_confirm">Fork</string>
+    <string name="cancel_edit">Cancel</string>
+    <string name="fork_created">Timeline \'%1$s\' created — it ticks on its own from here</string>
+    <string name="fork_needs_genesis">This world predates genesis records — fork its present instead</string>
+    <string name="compare_with_main">Compare with main</string>
+    <string name="timelines_compared">Where the timelines part</string>
+    <string name="timelines_identical">Identical so far — the scan is page-bounded, later divergence may exist</string>
+    <string name="timelines_part_at">The timelines part at %1$s:</string>
+    <string name="biggest_moments">Biggest moments</string>
+    <string name="since_you_left">Since you left</string>
+    <string name="since_you_left_summary">%1$d world days passed · %2$d moments worth telling</string>
+    <string name="save_scene">Save</string>
+    <string name="scene_saved">Scene saved — Aura will learn from your changes</string>
 </resources>

@@ -165,7 +165,7 @@ data class AuraBackup(
          * matching the constant to the filename the plan was recorded under is
          * less confusing than a file and a version that disagree.
          */
-        const val SCHEMA_VERSION = 28
+        const val SCHEMA_VERSION = 29
     }
 }
 
@@ -727,6 +727,9 @@ data class LivingWorldBackup(
     val worldEpochMs: Long,
     val currentTick: Long = 0L,
     val stateJson: String,
+    // Schema v29: the tick-0 state fork-at-past replays from. Defaulted so a
+    // v28 export restores with genesis absent, which is what it had.
+    val genesisJson: String = "",
     val status: String = "running",
     val createdAt: Long,
     val updatedAt: Long,

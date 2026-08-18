@@ -738,4 +738,151 @@ class SceneLedgerTest {
         assertEquals(SceneLedger.MAX_BACKFILL_PER_SLICE, filled, "the orphan must not eat a healable beat's turn")
         coVerify(exactly = 0) { canonFactDao.upsertAll(match { facts -> facts.any { it.sourceRevisionId.isNullOrBlank() } }) }
     }
+
+    @Test
+    fun `the same disagreeing pair files one issue under one deterministic id`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        val issues = mutableListOf<com.aura.creative.ContinuityIssueEntity>()
+        coVerify(exactly = 2) { continuityIssueDao.upsert(capture(issues)) }
+        assertEquals(issues[0].id, issues[1].id, "the same pair must file into the same row")
+        val newFactId = factSlot.captured.first().id
+        assertEquals(
+            java.util.UUID.nameUUIDFromBytes("issue|old1|$newFactId".toByteArray()).toString(),
+            issues[0].id,
+            "the id must derive from the disagreeing pair",
+        )
+    }
+
+    @Test
+    fun `a pair the author ruled intentional is not re-opened`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+        coEvery { continuityIssueDao.byId(any()) } returns com.aura.creative.ContinuityIssueEntity(
+            id = "ruled",
+            projectId = "p1",
+            branchId = "main",
+            artifactId = "art2",
+            category = "location",
+            severity = "warning",
+            message = "ruled on",
+            status = "intentional_exception",
+        )
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+        coVerify(exactly = 1) { canonFactDao.updateStatus("old1", "superseded", any()) }
+    }
+
+    @Test
+    fun `the issue carries its remedy, machine-readable`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        val issueSlot = slot<com.aura.creative.ContinuityIssueEntity>()
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+        coEvery { continuityIssueDao.upsert(capture(issueSlot)) } returns Unit
+
+        ledger().record(project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o")
+
+        val patchJson = issueSlot.captured.suggestedPatchJson
+        val newFactId = factSlot.captured.first().id
+        assertTrue(patchJson.contains("canon_fact_change"), "patch kind missing")
+        assertTrue(patchJson.contains("\"supersedeFactId\":\"old1\""), "patch must name the fact to retire")
+        assertTrue(patchJson.contains(newFactId), "patch must name the fact to keep")
+        assertTrue(patchJson.contains("\"predicate\":\"location\""), "patch must carry the predicate")
+    }
+
+    private fun declaredLocation(value: String) = com.aura.creative.BeatAssertion(
+        subjectType = "character", subjectId = "Mira", predicate = "location", value = value,
+    )
+
+    @Test
+    fun `a declared effect lands as authored canon in its own id namespace`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        val factSlot = slot<List<CanonFactEntity>>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.upsertAll(capture(factSlot)) } returns Unit
+
+        ledger().record(
+            project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o",
+            declaredEffects = listOf(declaredLocation("Kesh")),
+        )
+
+        val expectedId = java.util.UUID.nameUUIDFromBytes(
+            "declared|rev2|character|Mira|location".toByteArray(),
+        ).toString()
+        assertTrue(
+            factSlot.captured.any { it.id == expectedId && it.confidence == 1.0f },
+            "declared effect must land under the declared| namespace at confidence 1.0",
+        )
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+    }
+
+    @Test
+    fun `the scene disagreeing with its beat's declaration is an error carrying the remedy`() = runTest {
+        stubModel(replyWith("location", "Varn"))
+        val issueSlot = slot<com.aura.creative.ContinuityIssueEntity>()
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { continuityIssueDao.upsert(capture(issueSlot)) } returns Unit
+
+        ledger().record(
+            project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o",
+            declaredEffects = listOf(declaredLocation("Kesh")),
+        )
+
+        val issue = issueSlot.captured
+        assertEquals("error", issue.severity)
+        assertTrue(issue.message.contains("declares"), "the message must say what the beat promised")
+        val declaredId = java.util.UUID.nameUUIDFromBytes(
+            "declared|rev2|character|Mira|location".toByteArray(),
+        ).toString()
+        assertTrue(issue.suggestedPatchJson.contains(declaredId), "the declared fact must be the keeper")
+        val extractedId = java.util.UUID.nameUUIDFromBytes(
+            "rev2|character|Mira|location".toByteArray(),
+        ).toString()
+        coVerify(exactly = 1) { canonFactDao.updateStatus(extractedId, "superseded", any()) }
+    }
+
+    @Test
+    fun `a declaration matching the scene writes no issue at all`() = runTest {
+        stubModel(replyWith("location", "Kesh"))
+        coEvery { projectStore.get("p1") } returns project()
+
+        ledger().record(
+            project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o",
+            declaredEffects = listOf(declaredLocation("Kesh")),
+        )
+
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+    }
+
+    @Test
+    fun `a declaration silently supersedes prior canon, no flag filed`() = runTest {
+        stubModel(replyWith("traits", "brave"))
+        coEvery { projectStore.get("p1") } returns project()
+        coEvery { canonFactDao.forSubject("p1", "main", "character", "Mira") } returns
+            listOf(existingFact("location", "Varn"))
+
+        ledger().record(
+            project(), "main", 1, "art2", "rev2", "x".repeat(600), "openai:gpt-4o",
+            declaredEffects = listOf(declaredLocation("Kesh")),
+        )
+
+        coVerify(exactly = 1) { canonFactDao.updateStatus("old1", "superseded", any()) }
+        coVerify(exactly = 0) { continuityIssueDao.upsert(any()) }
+    }
 }

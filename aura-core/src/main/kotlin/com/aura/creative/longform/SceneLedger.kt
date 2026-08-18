@@ -83,6 +83,7 @@ class SceneLedger @Inject constructor(
         revisionId: String,
         sceneText: String,
         sceneModel: String,
+        declaredEffects: List<com.aura.creative.BeatAssertion> = emptyList(),
     ): Boolean {
         // revisionId is the identity every fact id is derived from. Blank makes
         // the deterministic id degenerate to "|type|subject|predicate", which
@@ -116,8 +117,15 @@ class SceneLedger @Inject constructor(
             .filter { it.subjectType in SUBJECT_TYPES && it.subjectId.isNotBlank() && it.predicate.isNotBlank() && it.value.isNotBlank() }
             .map { it.toEntity(project.id, branchId, revisionId) }
 
-        if (facts.isNotEmpty()) {
-            val written = runCatching { reconcile(project.id, branchId, artifactId, facts) }
+        val declared = declaredEffects
+            .filter {
+                it.subjectType in SUBJECT_TYPES && it.subjectId.isNotBlank() &&
+                    it.predicate.isNotBlank() && it.value.isNotBlank()
+            }
+            .map { it.toDeclaredEntity(project.id, branchId, revisionId) }
+
+        if (facts.isNotEmpty() || declared.isNotEmpty()) {
+            val written = runCatching { reconcile(project.id, branchId, artifactId, facts, declared) }
                 .onFailure { Log.w(TAG, "could not reconcile canon facts: ${it.message}", it) }
                 .isSuccess
             // The synopsis is back-fill's only sentinel: a beat with one is never
@@ -204,6 +212,7 @@ class SceneLedger @Inject constructor(
                 revisionId = rev,
                 sceneText = text,
                 sceneModel = sceneModel,
+                declaredEffects = beat.effects,
             )
             // A beat whose extraction deterministically fails blocks every later
             // beat from ever being back-filled, on this and all future slices —
@@ -341,6 +350,28 @@ class SceneLedger @Inject constructor(
                 .getOrNull()
         }
 
+    private fun com.aura.creative.BeatAssertion.toDeclaredEntity(
+        projectId: String,
+        branchId: String,
+        revisionId: String,
+    ) = CanonFactEntity(
+        // "declared|" namespaces the id away from the extractor's, so a beat's
+        // declaration and the scene's reading coexist as distinct rows with
+        // deterministic identities — re-recording replaces, never duplicates.
+        id = UUID.nameUUIDFromBytes(
+            "declared|$revisionId|$subjectType|${subjectId.trim()}|${predicate.trim().lowercase()}".toByteArray(),
+        ).toString(),
+        projectId = projectId,
+        branchId = branchId,
+        subjectType = subjectType,
+        subjectId = subjectId.trim(),
+        predicate = predicate.trim().lowercase(),
+        valueJson = JsonPrimitive(value.trim()).toString(),
+        confidence = 1.0f,
+        sourceRevisionId = revisionId,
+        status = "active",
+    )
+
     private fun ExtractedFact.toEntity(projectId: String, branchId: String, revisionId: String) =
         CanonFactEntity(
             // Deterministic, not random: a re-extraction of the same revision must
@@ -376,6 +407,7 @@ class SceneLedger @Inject constructor(
         branchId: String,
         artifactId: String,
         facts: List<CanonFactEntity>,
+        declared: List<CanonFactEntity> = emptyList(),
     ) {
         // New facts first, supersession second — deliberately not the other way
         // round, and deliberately not one transaction.
@@ -387,7 +419,7 @@ class SceneLedger @Inject constructor(
         // against, detect no conflict, and lose the continuity issue for good.
         // This order fails toward two active facts instead: visible, re-detected
         // next pass, and repaired. Absence cannot be recovered; duplication can.
-        canonFactDao.upsertAll(facts)
+        canonFactDao.upsertAll(facts + declared)
 
         for (fact in facts) {
             if (fact.predicate !in SINGLE_VALUED) continue
@@ -396,25 +428,113 @@ class SceneLedger @Inject constructor(
                 .filter { it.predicate == fact.predicate && it.status == "active" && it.id != fact.id }
             for (old in existing) {
                 if (old.valueJson == fact.valueJson) continue
+                // One issue per disagreeing pair, forever. Fact ids are already
+                // deterministic per revision, so the pair id is too — a re-run
+                // files the same complaint into the same row instead of a fresh
+                // UUID every pass. And a pair the author has ruled on stays
+                // ruled on: re-opening a dismissal on every back-fill is how a
+                // flag teaches the user to stop reading it. Supersession still
+                // applies either way — canon keeps meaning "the latest".
+                val issueId = UUID.nameUUIDFromBytes("issue|${old.id}|${fact.id}".toByteArray()).toString()
+                val prior = continuityIssueDao.byId(issueId)
+                val ruled = prior != null &&
+                    (prior.status == "intentional_exception" || prior.status == "dismissed")
+                if (!ruled) {
+                    continuityIssueDao.upsert(
+                        com.aura.creative.ContinuityIssueEntity(
+                            id = issueId,
+                            projectId = projectId,
+                            branchId = branchId,
+                            artifactId = artifactId,
+                            category = PREDICATE_CATEGORY[fact.predicate] ?: "identity",
+                            severity = "warning",
+                            message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
+                                "and this scene says ${fact.valueJson}.",
+                            evidenceFactIdsJson = json.encodeToString(
+                                kotlinx.serialization.builtins.ListSerializer(String.serializer()),
+                                listOf(old.id, fact.id),
+                            ),
+                            suggestedPatchJson = json.encodeToString(
+                                SuggestedPatch.serializer(),
+                                SuggestedPatch(
+                                    kind = "canon_fact_change",
+                                    subjectType = fact.subjectType,
+                                    subjectId = fact.subjectId,
+                                    predicate = fact.predicate,
+                                    keepFactId = fact.id,
+                                    supersedeFactId = old.id,
+                                    note = "Keep the newer scene's ${fact.predicate}; supersede the older fact.",
+                                ),
+                            ),
+                            status = "open",
+                        ),
+                    )
+                }
+                canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
+            }
+        }
+
+        // The author's declared effects are canon by fiat. Prior facts that
+        // disagree on a single-valued predicate are superseded without a flag —
+        // declaring the change IS the ruling — and the only thing worth an
+        // error is the extractor reading the scene differently from what its
+        // beat promised: the scene may not deliver its own outline.
+        val extractedIds = facts.map { it.id }.toSet()
+        for (fact in declared) {
+            if (fact.predicate in SINGLE_VALUED) {
+                val priorActives = canonFactDao
+                    .forSubject(projectId, branchId, fact.subjectType, fact.subjectId)
+                    .filter {
+                        it.predicate == fact.predicate && it.status == "active" &&
+                            it.id != fact.id && it.id !in extractedIds
+                    }
+                for (old in priorActives) {
+                    if (old.valueJson == fact.valueJson) continue
+                    canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
+                }
+            }
+            val extractedTwin = facts.firstOrNull {
+                it.subjectType == fact.subjectType && it.subjectId == fact.subjectId &&
+                    it.predicate == fact.predicate
+            } ?: continue
+            if (extractedTwin.valueJson == fact.valueJson) continue
+            val issueId =
+                UUID.nameUUIDFromBytes("issue|${extractedTwin.id}|${fact.id}".toByteArray()).toString()
+            val prior = continuityIssueDao.byId(issueId)
+            val ruled = prior != null &&
+                (prior.status == "intentional_exception" || prior.status == "dismissed")
+            if (!ruled) {
                 continuityIssueDao.upsert(
                     com.aura.creative.ContinuityIssueEntity(
-                        id = UUID.randomUUID().toString(),
+                        id = issueId,
                         projectId = projectId,
                         branchId = branchId,
                         artifactId = artifactId,
-                        category = PREDICATE_CATEGORY[fact.predicate] ?: "identity",
-                        severity = "warning",
-                        message = "${fact.subjectId}: ${fact.predicate} was ${old.valueJson} " +
-                            "and this scene says ${fact.valueJson}.",
+                        category = PREDICATE_CATEGORY[fact.predicate] ?: "rule",
+                        severity = "error",
+                        message = "${fact.subjectId}: the beat declares ${fact.predicate} = " +
+                            "${fact.valueJson} but the scene reads as ${extractedTwin.valueJson}.",
                         evidenceFactIdsJson = json.encodeToString(
                             kotlinx.serialization.builtins.ListSerializer(String.serializer()),
-                            listOf(old.id, fact.id),
+                            listOf(extractedTwin.id, fact.id),
+                        ),
+                        suggestedPatchJson = json.encodeToString(
+                            SuggestedPatch.serializer(),
+                            SuggestedPatch(
+                                kind = "canon_fact_change",
+                                subjectType = fact.subjectType,
+                                subjectId = fact.subjectId,
+                                predicate = fact.predicate,
+                                keepFactId = fact.id,
+                                supersedeFactId = extractedTwin.id,
+                                note = "The beat's declared effect wins; supersede what the scene implied.",
+                            ),
                         ),
                         status = "open",
                     ),
                 )
-                canonFactDao.updateStatus(old.id, "superseded", System.currentTimeMillis())
             }
+            canonFactDao.updateStatus(extractedTwin.id, "superseded", System.currentTimeMillis())
         }
     }
 
@@ -559,4 +679,26 @@ internal data class ExtractedFact(
     val predicate: String = "",
     val value: String = "",
     val confidence: Float = 1.0f,
+)
+
+/**
+ * The machine-readable half of a continuity issue — the first writer
+ * `continuity_issues.suggestedPatchJson` has ever had.
+ *
+ * **Advisory only; nothing applies it yet.** It exists so the flag carries its
+ * remedy rather than only its complaint, and so a one-tap applier can exist
+ * later without a schema change. A reader must not trust it further than that.
+ */
+@Serializable
+internal data class SuggestedPatch(
+    /** Always "canon_fact_change" today; explicit so the JSON always carries it. */
+    val kind: String,
+    val subjectType: String,
+    val subjectId: String,
+    val predicate: String,
+    /** The fact to keep active. */
+    val keepFactId: String,
+    /** The fact to mark superseded. */
+    val supersedeFactId: String,
+    val note: String = "",
 )

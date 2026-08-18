@@ -84,6 +84,7 @@ object ToolsModule {
         creativeAddWorldItem: CreativeAddWorldItemTool,
         creativeEngine: CreativeEngineTool,
         canonQuery: CanonQueryTool,
+        livingWorldQuery: LivingWorldQueryTool,
         indexDocument: IndexDocumentTool,
         searchDocuments: SearchDocumentsTool,
         queryWorldModel: QueryWorldModelTool,
@@ -173,6 +174,7 @@ object ToolsModule {
         registry.register(creativeAddWorldItem.tool)
         registry.register(creativeEngine.tool)
         registry.register(canonQuery.tool)
+        registry.register(livingWorldQuery.tool)
         registry.register(indexDocument.tool)
         registry.register(searchDocuments.tool)
         registry.register(queryWorldModel.tool)

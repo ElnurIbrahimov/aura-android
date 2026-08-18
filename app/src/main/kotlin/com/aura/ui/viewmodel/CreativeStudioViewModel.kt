@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import android.util.Log
@@ -66,6 +67,8 @@ data class CreativeStudioUiState(
     val planningOutline: Boolean = false,
     /** Null until the project has a living world. */
     val livingWorld: LivingWorldUi? = null,
+    /** The scene under the author's hands; null when the editor is closed. */
+    val sceneEditor: SceneEditorUi? = null,
     /** Facts `SceneLedger` has recorded for the open project's active branch. */
     val canonFactCount: Int = 0,
     /** Contradictions the ledger flagged and nobody has judged yet. */
@@ -91,6 +94,28 @@ data class LivingWorldUi(
     val live: LivingLiveUi? = null,
     /** Event id currently being narrated on demand. */
     val narrating: String = "",
+    /** This timeline's name, and every timeline the project has. */
+    val branchName: String = "main",
+    val branches: List<WorldBranchUi> = emptyList(),
+    /** Fork-at-past needs genesis; pre-v29 worlds have none and are told no. */
+    val hasGenesis: Boolean = false,
+    /** Rendered comparison against main; empty until asked for. */
+    val divergence: List<String> = emptyList(),
+    /** The drama filter: the most notable moments, loaded on toggle. */
+    val notableMoments: List<LivingEventUi> = emptyList(),
+    val showNotable: Boolean = false,
+    /** What happened past the last tick the user saw; snapshot per tab open. */
+    val sinceYouLeft: List<LivingEventUi> = emptyList(),
+    val daysAway: Long = 0L,
+)
+
+data class WorldBranchUi(val branchId: String, val name: String, val selected: Boolean)
+
+data class SceneEditorUi(
+    val beatIndex: Int,
+    val artifactId: String,
+    val title: String,
+    val text: String,
 )
 
 data class LivingLiveUi(val currentTick: Long, val targetTick: Long, val phase: String) {
@@ -118,6 +143,9 @@ data class LivingEventUi(
 )
 
 private const val EVENT_PAGE = 200
+private const val DIVERGENCE_PAGE = 400
+private const val NOTABLE_PAGE = 12
+private const val SINCE_YOU_LEFT_PAGE = 5
 private const val TAG = "CreativeStudioVM"
 
 /**
@@ -244,6 +272,9 @@ class CreativeStudioViewModel @Inject constructor(
     private val creativeAnalysisStore: com.aura.creative.CreativeAnalysisStore,
     private val canonFactDao: com.aura.creative.CanonFactDao,
     private val continuityIssueDao: com.aura.creative.ContinuityIssueDao,
+    // Appended, not inserted — and nullable: tests build this by name.
+    private val userPreferences: com.aura.data.UserPreferences? = null,
+    private val sceneEditSignals: com.aura.creative.SceneEditSignals? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -598,19 +629,25 @@ class CreativeStudioViewModel @Inject constructor(
     private fun observeLivingWorld(projectId: String) {
         livingWorldJob?.cancel()
         livingWorldJob = viewModelScope.launch {
-            livingWorldStore.observeForProject(projectId)
-                .flatMapLatest { world ->
+            kotlinx.coroutines.flow.combine(
+                livingWorldStore.observeAllForProject(projectId),
+                selectedWorldBranch,
+            ) { worlds, selected ->
+                worlds to (worlds.firstOrNull { it.branchId == selected } ?: worlds.firstOrNull())
+            }
+                .flatMapLatest { (worlds, world) ->
                     if (world == null) {
                         kotlinx.coroutines.flow.flowOf(LivingSnapshot(null, emptyList(), null))
                     } else {
                         // Durable half and live half, joined here. Room carries
                         // what happened — including ticks committed while this
                         // screen was closed — and the bus carries what a worker
-                        // is doing right now.
+                        // is doing right now. Deep, not shallow: a fork's page
+                        // starts with its inheritance.
                         kotlinx.coroutines.flow.combine(
-                            livingWorldStore.observeEvents(world.id, EVENT_PAGE),
+                            livingWorldStore.observeEventsDeep(world, EVENT_PAGE),
                             worldTickBus.live(world.id),
-                        ) { events, live -> LivingSnapshot(world, events, live) }
+                        ) { events, live -> LivingSnapshot(world, events, live, worlds) }
                     }
                 }
                 .collect { snapshot ->
@@ -619,12 +656,31 @@ class CreativeStudioViewModel @Inject constructor(
                         _state.update { it.copy(livingWorld = null) }
                         return@collect
                     }
+                    latestWorlds = snapshot.all
+                    val branchNames = runCatching {
+                        branchStore.forProject(world.projectId).associateBy({ it.id }, { it.name })
+                    }.getOrDefault(emptyMap())
+                    val previous = _state.value.livingWorld
                     val worldState = livingWorldStore.decode(world.stateJson)
                     val ui = worldState.toUi(world, snapshot.events).copy(
                         live = snapshot.live?.let {
                             LivingLiveUi(it.currentTick, it.targetTick, it.phase)
                         },
-                        narrating = _state.value.livingWorld?.narrating.orEmpty(),
+                        narrating = previous?.narrating.orEmpty(),
+                        branchName = branchNames[world.branchId] ?: "main",
+                        branches = snapshot.all.map { entry ->
+                            WorldBranchUi(
+                                branchId = entry.branchId,
+                                name = branchNames[entry.branchId] ?: "main",
+                                selected = entry.id == world.id,
+                            )
+                        },
+                        hasGenesis = world.genesisJson.isNotBlank(),
+                        divergence = if (previous?.worldId == world.id) previous.divergence else emptyList(),
+                        notableMoments = if (previous?.worldId == world.id) previous.notableMoments else emptyList(),
+                        showNotable = if (previous?.worldId == world.id) previous.showNotable else false,
+                        sinceYouLeft = if (previous?.worldId == world.id) previous.sinceYouLeft else emptyList(),
+                        daysAway = if (previous?.worldId == world.id) previous.daysAway else 0L,
                     )
                     _state.update { it.copy(livingWorld = ui) }
                 }
@@ -668,6 +724,7 @@ class CreativeStudioViewModel @Inject constructor(
         val world: com.aura.creative.livingworld.LivingWorldEntity?,
         val events: List<com.aura.creative.livingworld.LivingEventEntity>,
         val live: com.aura.creative.livingworld.LiveTick?,
+        val all: List<com.aura.creative.livingworld.LivingWorldEntity> = emptyList(),
     )
 
     /**
@@ -694,9 +751,232 @@ class CreativeStudioViewModel @Inject constructor(
     }
 
     /** Ask for a slice now rather than at the next periodic window. */
+    /** Which timeline the Living tab is looking at; null = the root world. */
+    private val selectedWorldBranch = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    /** The worlds behind the chips, refreshed by every living-world emission. */
+    private var latestWorlds: List<com.aura.creative.livingworld.LivingWorldEntity> = emptyList()
+
+    private suspend fun selectedWorldEntity(): com.aura.creative.livingworld.LivingWorldEntity? {
+        val shown = _state.value.livingWorld?.worldId ?: return null
+        return latestWorlds.firstOrNull { it.id == shown } ?: livingWorldStore.byId(shown)
+    }
+
+    /** Fork the shown timeline at its present tick, under a new branch name. */
+    fun forkLivingWorldNow(name: String) {
+        val project = _state.value.selectedProject ?: return
+        val trimmed = name.trim().ifBlank { return }
+        viewModelScope.launch {
+            runCatching {
+                val parent = selectedWorldEntity() ?: return@launch
+                val branch = branchStore.branchFrom(project.id, null, trimmed)
+                livingWorldStore.fork(parent, branch.id, trimmed)
+                selectWorldBranch(branch.id)
+                _state.update { it.copy(message = appContext.getString(com.aura.R.string.fork_created, trimmed)) }
+            }.onFailure { Log.w(TAG, "fork failed: ${it.message}", it) }
+        }
+    }
+
+    /** Fork the shown timeline at a past tick — genesis required, honestly refused without. */
+    fun forkLivingWorldAt(tick: Long, name: String) {
+        val project = _state.value.selectedProject ?: return
+        val trimmed = name.trim().ifBlank { return }
+        viewModelScope.launch {
+            runCatching {
+                val parent = selectedWorldEntity() ?: return@launch
+                val branch = branchStore.branchFrom(project.id, null, trimmed)
+                val forked = livingWorldStore.forkAt(parent, tick, branch.id, trimmed)
+                if (forked == null) {
+                    _state.update { it.copy(error = appContext.getString(com.aura.R.string.fork_needs_genesis)) }
+                } else {
+                    selectWorldBranch(branch.id)
+                    _state.update { it.copy(message = appContext.getString(com.aura.R.string.fork_created, trimmed)) }
+                }
+            }.onFailure { Log.w(TAG, "fork-at failed: ${it.message}", it) }
+        }
+    }
+
+    /** Name the first event where the shown timeline parts from the root, and the standings now. */
+    fun compareWithRoot() {
+        viewModelScope.launch {
+            runCatching {
+                val shown = selectedWorldEntity() ?: return@launch
+                val root = latestWorlds.firstOrNull { it.parentWorldId.isBlank() } ?: return@launch
+                if (shown.id == root.id) return@launch
+                val base = shown.forkedAtTick
+                val ours = livingWorldStore.ascAfter(shown.id, base, DIVERGENCE_PAGE)
+                val theirs = livingWorldStore.ascAfter(root.id, base, DIVERGENCE_PAGE)
+                val parting = com.aura.creative.livingworld.TimelineDiff.firstDivergence(ours, theirs)
+                val standings = com.aura.creative.livingworld.TimelineDiff.standingsDiff(
+                    livingWorldStore.decode(shown.stateJson),
+                    livingWorldStore.decode(root.stateJson),
+                ).take(3)
+                val lines = buildList {
+                    if (parting == null) {
+                        add(appContext.getString(com.aura.R.string.timelines_identical))
+                    } else {
+                        val moment = parting.a ?: parting.b
+                        add(
+                            appContext.getString(
+                                com.aura.R.string.timelines_part_at,
+                                com.aura.creative.livingworld.WorldClock.label(moment?.tickIndex ?: base),
+                            ),
+                        )
+                        parting.a?.let { add("• ${it.summary}") }
+                        parting.b?.let { add("• ${it.summary}") }
+                    }
+                    addAll(standings)
+                }
+                _state.update { state ->
+                    state.copy(livingWorld = state.livingWorld?.copy(divergence = lines))
+                }
+            }.onFailure { Log.w(TAG, "compare failed: ${it.message}", it) }
+        }
+    }
+
+    /** Open a drafted scene for the author's hands. */
+    fun openSceneEditor(beatIndex: Int, artifactId: String, title: String) {
+        if (artifactId.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                val text = artifactStore.currentContent(artifactId).orEmpty()
+                _state.update {
+                    it.copy(sceneEditor = SceneEditorUi(beatIndex, artifactId, title, text))
+                }
+            }.onFailure { Log.w(TAG, "scene open failed: ${it.message}", it) }
+        }
+    }
+
+    fun dismissSceneEditor() {
+        _state.update { it.copy(sceneEditor = null) }
+    }
+
+    /**
+     * Save the author's edit — CreativeArtifactStore.revise's first production
+     * caller. An identical save writes no revision and records mild approval;
+     * a change lands as an authorKind="edit" child of the generation revision,
+     * and the keep-ratio decides what the taste profile hears. The beat keeps
+     * pointing at the generation revision: canon provenance stays with what
+     * the extractor read, while the artifact's current revision — the tail,
+     * the export, the tension diff — moves to the author's text.
+     */
+    fun saveSceneEdit(newText: String) {
+        val editor = _state.value.sceneEditor ?: return
+        val project = _state.value.selectedProject ?: return
+        viewModelScope.launch {
+            runCatching {
+                val generation = artifactStore.currentRevision(editor.artifactId) ?: return@launch
+                val before = generation.contentText.orEmpty()
+                if (newText == before) {
+                    sceneEditSignals?.onSceneKept(project.id, editor.artifactId)
+                } else {
+                    artifactStore.revise(editor.artifactId, newText, authorKind = "edit")
+                    sceneEditSignals?.onSceneEdited(
+                        projectId = project.id,
+                        templateId = project.templateId,
+                        artifactId = editor.artifactId,
+                        beforeText = before,
+                        afterText = newText,
+                    )
+                }
+                _state.update {
+                    it.copy(
+                        sceneEditor = null,
+                        message = appContext.getString(com.aura.R.string.scene_saved),
+                    )
+                }
+            }.onFailure { Log.w(TAG, "scene save failed: ${it.message}", it) }
+        }
+    }
+
+    /**
+     * The tab-open ritual: snapshot what was missed, then move the marker.
+     *
+     * A snapshot rather than a live filter on purpose — the block shows what
+     * was news at the moment of opening and stays put until the next open,
+     * instead of shrinking as the marker advances underneath the reader.
+     */
+    fun onLivingTabOpened() {
+        viewModelScope.launch {
+            runCatching {
+                val shown = _state.value.livingWorld ?: return@launch
+                val world = selectedWorldEntity() ?: return@launch
+                val prefs = userPreferences ?: return@launch
+                val lastSeen = prefs.livingWorldLastSeen.first()[world.id] ?: 0L
+                val missed = shown.events
+                    .filter { it.tick > lastSeen }
+                    .sortedByDescending { it.notability }
+                    .take(SINCE_YOU_LEFT_PAGE)
+                _state.update {
+                    it.copy(
+                        livingWorld = it.livingWorld?.copy(
+                            sinceYouLeft = missed,
+                            daysAway = (world.currentTick - lastSeen).coerceAtLeast(0L),
+                        ),
+                    )
+                }
+                prefs.setLivingWorldLastSeen(world.id, world.currentTick)
+            }.onFailure { Log.w(TAG, "since-you-left failed: ${it.message}", it) }
+        }
+    }
+
+    /** Toggle the drama filter: the most notable discoveries, lies and conquests. */
+    fun toggleNotableMoments() {
+        viewModelScope.launch {
+            runCatching {
+                val shown = _state.value.livingWorld ?: return@launch
+                if (shown.showNotable) {
+                    _state.update { it.copy(livingWorld = it.livingWorld?.copy(showNotable = false)) }
+                    return@launch
+                }
+                val moments = livingWorldStore.topNotableOfKinds(
+                    shown.worldId,
+                    listOf(
+                        com.aura.creative.livingworld.WorldEngine.KIND_BELIEF_REVEAL,
+                        com.aura.creative.livingworld.WorldEngine.KIND_LIE_TOLD,
+                        com.aura.creative.livingworld.WorldEngine.KIND_CLAIM_WON,
+                    ),
+                    NOTABLE_PAGE,
+                ).map {
+                    LivingEventUi(
+                        id = it.id, tick = it.tickIndex, kind = it.kind,
+                        summary = it.summary, narration = it.narration, notability = it.notability,
+                    )
+                }
+                _state.update {
+                    it.copy(livingWorld = it.livingWorld?.copy(notableMoments = moments, showNotable = true))
+                }
+            }.onFailure { Log.w(TAG, "notable filter failed: ${it.message}", it) }
+        }
+    }
+
+    fun selectWorldBranch(branchId: String?) {
+        selectedWorldBranch.value = branchId
+    }
+
     fun catchUpLivingWorld() {
         runCatching { com.aura.creative.livingworld.LivingWorldScheduler.catchUpNow(appContext) }
             .onFailure { Log.w(TAG, "catch-up enqueue failed: ${it.message}", it) }
+    }
+
+    /**
+     * Pin the manuscript to the world's current tick. Drafting injects the
+     * world's standings only while the pin matches the present exactly — the
+     * world moves on within the hour, and a stale pin goes silent rather than
+     * serving yesterday as today.
+     */
+    fun pinStoryCursor() {
+        val project = _state.value.selectedProject ?: return
+        viewModelScope.launch {
+            runCatching {
+                val world = livingWorldStore.forProject(project.id) ?: return@runCatching
+                val updated = store.updateWorld(
+                    project.id,
+                    project.world.copy(storyCursorTick = world.currentTick),
+                )
+                _state.update { it.copy(selectedProject = updated ?: it.selectedProject) }
+            }.onFailure { Log.w(TAG, "story pin failed: ${it.message}", it) }
+        }
     }
 
     fun generate(mode: CreativeMode, prompt: String, perspective: String = "") {

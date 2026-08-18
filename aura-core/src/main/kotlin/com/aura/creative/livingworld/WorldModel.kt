@@ -22,6 +22,7 @@ data class WorldState(
     val stocks: List<Stock> = emptyList(),
     val relations: List<Relation> = emptyList(),
     val rules: List<Rule> = emptyList(),
+    val beliefs: List<Belief> = emptyList(),
 ) {
     /** Re-sorts every collection into canonical order. Cheap, and the only way in. */
     fun canonical(): WorldState = WorldState(
@@ -29,6 +30,7 @@ data class WorldState(
         stocks = stocks.sortedWith(compareBy({ it.entityId }, { it.key })),
         relations = relations.sortedWith(compareBy({ it.fromId }, { it.toId }, { it.kind })),
         rules = rules.sortedWith(compareBy({ -it.priority }, { it.id })),
+        beliefs = beliefs.sortedWith(compareBy({ it.observerId }, { it.subjectId }, { it.key })),
     )
 
     fun living(): List<SimEntity> = entities.filter { it.diedAtTick == 0L }
@@ -93,6 +95,36 @@ data class Relation(
     /** Pulled toward zero by this much per tick. Grudges fade unless fed. */
     val decayPerTickMilli: Long = 0L,
 )
+
+/**
+ * One observer's error about one stock.
+ *
+ * **No row means accurate common knowledge.** The observer believes the truth;
+ * a row exists only while somebody is wrong, so storage is proportional to
+ * secrets and errors, never to entities x facts. `believed = actual +
+ * deviationMilli`, and the engine drops rows whose deviation reaches zero.
+ */
+@Serializable
+data class Belief(
+    val observerId: String,
+    val subjectId: String,
+    /** Which stock the error is about ("might", "grain", "territory"). */
+    val key: String,
+    val deviationMilli: Long,
+    /** Why the deviation exists: [PROVENANCE_STALE] or [PROVENANCE_LIED_TO]. */
+    val provenance: String = PROVENANCE_STALE,
+    /** Who planted it, for lied_to. Blank for stale. */
+    val sourceId: String = "",
+    /** Tick the error last formed or grew, so a reveal can say how long it stood. */
+    val sinceTick: Long = 0L,
+    /** Linear pull toward zero per tick: truth outs. Folds like relation decay. */
+    val decayPerTickMilli: Long = 2L,
+) {
+    companion object {
+        const val PROVENANCE_STALE = "stale"
+        const val PROVENANCE_LIED_TO = "lied_to"
+    }
+}
 
 /**
  * One executable law of the world.
@@ -175,12 +207,24 @@ sealed class Effect {
      *
      * Claims are the only way a pooled stock moves, and every claim is a
      * transfer, so the pool total cannot change. Contested claims are resolved
-     * by a seeded draw weighted by real stocks — reality arbitrates, even
-     * though the claimants act on belief.
+     * by a seeded draw weighted by what the *rival claimants believe* each
+     * contender could bring to bear — belief arbitrates the draw, while the
+     * transfer itself stays strictly real. Bluffed might wins ground until a
+     * reveal snaps the audience accurate.
      */
     @Serializable
     @SerialName("claim_pool")
     data class ClaimPool(val poolId: String, val key: String, val amountMilli: Long) : Effect()
+
+    /**
+     * Propaganda: shift every other faction's belief about the subject's own
+     * [key] by [deltaMilli]. Nothing real moves — only the deviation tables of
+     * everyone listening, sourced to the subject, until truth outs by decay or
+     * an event snaps the audience accurate.
+     */
+    @Serializable
+    @SerialName("spread_lie")
+    data class SpreadLie(val key: String, val deltaMilli: Long) : Effect()
 }
 
 /**
@@ -194,7 +238,7 @@ sealed class Effect {
 data class WorldEvent(
     val tick: Long,
     val seq: Int,
-    /** `stock_shift`, `relation_shift`, `claim_won`, `claim_lost`, `quiet_interval`. */
+    /** `stock_shift`, `relation_shift`, `claim_won`, `claim_lost`, `quiet_interval`, `belief_reveal`. */
     val kind: String,
     val actorId: String,
     val targetId: String = "",
@@ -206,6 +250,14 @@ data class WorldEvent(
      * denominator — a number is only large or small relative to something.
      */
     val stockKey: String = "",
+    /**
+     * How far the news travelled and how wrong the world was about it, in
+     * permille. The belief step computes both from the deviation table as it
+     * stood *before* the event applied, so they are pre-event truths; they
+     * feed notability and are folded into the persisted score.
+     */
+    val reachPermille: Long = 0L,
+    val surprisePermille: Long = 0L,
     val summary: String,
 ) {
     /**
@@ -220,3 +272,33 @@ data class TickResult(
     val state: WorldState,
     val events: List<WorldEvent>,
 )
+
+/**
+ * A compact, deterministic rendering of the world's standings for a prompt.
+ *
+ * Pure — no model, no I/O, no clock — and small by construction: one line per
+ * living faction. The caller's section cap is the budget; this stays well
+ * under it at bible scale.
+ */
+object WorldStateBrief {
+    fun render(state: WorldState): String = buildString {
+        val living = state.living().filter { it.kind == "faction" }
+        val byId = living.associateBy { it.id }
+        for (faction in living) {
+            val stocks = state.stocks
+                .filter { it.entityId == faction.id }
+                .joinToString(", ") { "${it.key} ${it.amountMilli / 1_000}" }
+            if (stocks.isEmpty()) continue
+            append("- ${faction.name}: ")
+            append(stocks)
+            val resented = state.relations
+                .filter { it.fromId == faction.id && it.kind == "grievance" && it.magnitudeMilli > 0L }
+                .sortedWith(compareByDescending<Relation> { it.magnitudeMilli }.thenBy { it.toId })
+                .firstOrNull()
+            if (resented != null) {
+                append("; resents ${byId[resented.toId]?.name ?: resented.toId}")
+            }
+            appendLine()
+        }
+    }
+}

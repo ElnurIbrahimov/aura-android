@@ -73,11 +73,31 @@ object CraftSkills {
 @Singleton
 class CraftResolver @Inject constructor(
     private val skillsStore: SkillsStore,
+    // Appended, not inserted — and nullable: craft resolves without taste.
+    private val tasteEngine: com.aura.taste.TasteEngine? = null,
+    private val tasteEnhancer: com.aura.taste.TastePromptEnhancer? = null,
 ) {
     /** Genre craft for [templateId], or null when the template has none — as before. */
     suspend fun forTemplate(templateId: String): String? {
         val shipped = GenreCraftPrompts.forTemplate(templateId) ?: return null
         return stored(CraftSkills.templateSkillName(templateId)) ?: shipped
+    }
+
+    /**
+     * Genre craft with the author's learned taste appended — at the resolver,
+     * never inside the pure SceneContextBuilder. Capped so taste seasons the
+     * craft rather than replacing it; with no profile the output is
+     * byte-identical to [forTemplate], which is the regression pin.
+     */
+    suspend fun forTemplate(templateId: String, projectId: String): String? {
+        val base = forTemplate(templateId) ?: return null
+        val engine = tasteEngine ?: return base
+        val enhancer = tasteEnhancer ?: return base
+        val taste = runCatching { engine.getTasteContextForProject(projectId) }
+            .getOrDefault("")
+            .take(TASTE_CAP)
+        if (taste.isBlank()) return base
+        return enhancer.enhance(base, taste)
     }
 
     /** Mode craft for [mode]. Never null; every mode ships with guidance. */
@@ -87,5 +107,10 @@ class CraftResolver @Inject constructor(
     private suspend fun stored(name: String): String? {
         skillsStore.awaitLoaded()
         return skillsStore.findByName(name)?.body?.takeIf { it.isNotBlank() }
+    }
+
+    private companion object {
+        /** Taste seasons the craft; it does not replace it. */
+        const val TASTE_CAP = 600
     }
 }

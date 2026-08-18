@@ -189,4 +189,74 @@ class SceneContextBuilderTest {
             "SUMMARY_CAP is ${SceneContextBuilder.SUMMARY_CAP}; 30 synopses at 400 chars need 8,000",
         )
     }
+
+    private fun canonFact(predicate: String, value: String) = com.aura.creative.CanonFactEntity(
+        id = "cf-$predicate",
+        projectId = "p1",
+        branchId = "main",
+        subjectType = "character",
+        subjectId = "Mira",
+        predicate = predicate,
+        valueJson = "\"$value\"",
+    )
+
+    @Test
+    fun `canon renders capped and a met precondition stays silent`() {
+        val withRequirement = beats(3).mapIndexed { i, beat ->
+            if (i == 1) beat.copy(
+                preconditions = listOf(
+                    com.aura.creative.BeatAssertion(
+                        subjectType = "character", subjectId = "Mira",
+                        predicate = "location", value = "Kesh",
+                    ),
+                ),
+            ) else beat
+        }
+        val huge = (1..500).map { canonFact("fact$it", "v".repeat(50)) }
+        val ctx = builder.build(
+            project(withRequirement), withRequirement, beatIndex = 1,
+            canonFacts = listOf(canonFact("location", "Kesh")) + huge,
+        )
+        val canonBlock = ctx.systemPrompt.substringAfter("== CANON ==").substringBefore("==")
+        assertTrue(canonBlock.trim().length <= SceneContextBuilder.CANON_CAP, "canon must respect its cap")
+        assertTrue(canonBlock.contains("Mira — location: Kesh"))
+        assertTrue(!canonBlock.contains("outline expects"), "a met precondition must not nag")
+    }
+
+    @Test
+    fun `a precondition disagreeing with canon renders as one informational note`() {
+        val withRequirement = beats(3).mapIndexed { i, beat ->
+            if (i == 1) beat.copy(
+                preconditions = listOf(
+                    com.aura.creative.BeatAssertion(
+                        subjectType = "character", subjectId = "Mira",
+                        predicate = "location", value = "the lighthouse",
+                    ),
+                ),
+            ) else beat
+        }
+        val ctx = builder.build(
+            project(withRequirement), withRequirement, beatIndex = 1,
+            canonFacts = listOf(canonFact("location", "Kesh")),
+        )
+        assertTrue(
+            ctx.systemPrompt.contains(
+                "Note: the outline expects Mira's location to be the lighthouse; the record says Kesh.",
+            ),
+            "the disagreement must inform, in one line",
+        )
+    }
+
+    @Test
+    fun `the world-now section is capped and absent when empty`() {
+        val empty = builder.build(project(beats(3)), beats(3), beatIndex = 1)
+        assertTrue(!empty.systemPrompt.contains("THE WORLD RIGHT NOW"), "no world slice, no section")
+
+        val long = builder.build(
+            project(beats(3)), beats(3), beatIndex = 1,
+            worldNow = "x".repeat(50_000),
+        )
+        val block = long.systemPrompt.substringAfter("== THE WORLD RIGHT NOW ==").substringBefore("==")
+        assertTrue(block.trim().length <= SceneContextBuilder.WORLD_NOW_CAP, "world-now must respect its cap")
+    }
 }

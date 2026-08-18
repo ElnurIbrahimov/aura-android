@@ -52,6 +52,7 @@ internal fun normalizeModelId(model: String): String = model.trim()
 internal val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
 internal val KEY_FIRST_RUN_COMPLETE = booleanPreferencesKey("first_run_complete")
 internal val KEY_LAST_SEEN_PROACTIVE_AT = longPreferencesKey("last_seen_proactive_at")
+internal val KEY_LIVING_WORLD_LAST_SEEN = stringPreferencesKey("living_world_last_seen")
 /**
  * Proactive worker gates. Both default to true so a fresh install
  * gets the morning brief + calendar monitor out of the box. The
@@ -170,6 +171,46 @@ class UserPreferences @Inject constructor(
      */
     val lastSeenProactiveAt: Flow<Long> = context.auraPrefs.data.map { prefs ->
         prefs[KEY_LAST_SEEN_PROACTIVE_AT] ?: 0L
+    }
+
+    /**
+     * The last tick the user saw, per world — `worldId=tick` CSV, the
+     * [interruptionPolicies] codec. Read by the Living tab's "Since you left"
+     * block; written when the tab is opened. Absent means 0: on a first visit
+     * everything is news, which is the right first impression.
+     */
+    val livingWorldLastSeen: Flow<Map<String, Long>> = context.auraPrefs.data.map { prefs ->
+        prefs[KEY_LIVING_WORLD_LAST_SEEN].orEmpty()
+            .split(',')
+            .mapNotNull { entry ->
+                val parts = entry.split('=')
+                if (parts.size == 2 && parts[0].isNotBlank()) {
+                    parts[1].toLongOrNull()?.let { parts[0] to it }
+                } else {
+                    null
+                }
+            }
+            .toMap()
+    }
+
+    suspend fun setLivingWorldLastSeen(worldId: String, tick: Long) {
+        context.auraPrefs.edit { prefs ->
+            val current = prefs[KEY_LIVING_WORLD_LAST_SEEN].orEmpty()
+                .split(',')
+                .mapNotNull { entry ->
+                    val parts = entry.split('=')
+                    if (parts.size == 2 && parts[0].isNotBlank()) {
+                        parts[1].toLongOrNull()?.let { parts[0] to it }
+                    } else {
+                        null
+                    }
+                }
+                .toMap()
+                .toMutableMap()
+            current[worldId] = tick
+            prefs[KEY_LIVING_WORLD_LAST_SEEN] =
+                current.entries.joinToString(",") { "${it.key}=${it.value}" }
+        }
     }
 
     /**
@@ -526,13 +567,7 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
      * needs no new preference key.
      */
     val interruptionPolicies: Flow<Map<String, String>> = context.auraPrefs.data.map { prefs ->
-        prefs[KEY_INTERRUPTION_POLICIES].orEmpty()
-            .split(',')
-            .mapNotNull { entry ->
-                val parts = entry.split('=')
-                if (parts.size == 2 && parts[0].isNotBlank()) parts[0] to parts[1] else null
-            }
-            .toMap()
+        decodePolicyMap(prefs[KEY_INTERRUPTION_POLICIES].orEmpty())
     }
 
     suspend fun setInterruptionPolicy(type: String, policy: String) {
@@ -548,9 +583,10 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
             // EARNED is the default, so it is stored as absence rather than as a
             // value — the map only ever holds deliberate overrides.
             if (policy == "EARNED") current.remove(type) else current[type] = policy
-            prefs[KEY_INTERRUPTION_POLICIES] = current.entries.joinToString(",") { "${'$'}{it.key}=${'$'}{it.value}" }
+            prefs[KEY_INTERRUPTION_POLICIES] = encodePolicyMap(current)
         }
     }
+
 
     /**
      * Record the result of a successful dream cycle. Called by
@@ -948,6 +984,27 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     }
 
     companion object {
+        /**
+         * The `key=value,key=value` codec [interruptionPolicies] parses.
+         *
+         * Extracted because the inline writer shipped rendering a literal
+         * `${'$'}{it.key}` — the template escape leaked into the string — so
+         * every save stored one junk entry and every explicit ALWAYS/NEVER
+         * choice quietly fell back to EARNED on the next read. A codec that
+         * cannot be called from a plain test is a codec whose round trip is
+         * never checked.
+         */
+        internal fun encodePolicyMap(policies: Map<kotlin.String, kotlin.String>): kotlin.String =
+            policies.entries.joinToString(",") { entry -> entry.key + "=" + entry.value }
+
+        internal fun decodePolicyMap(stored: kotlin.String): Map<kotlin.String, kotlin.String> =
+            stored.split(',')
+                .mapNotNull { entry ->
+                    val parts = entry.split('=')
+                    if (parts.size == 2 && parts[0].isNotBlank()) parts[0] to parts[1] else null
+                }
+                .toMap()
+
         const val DEFAULT_DAEMON_INTERVAL_MINUTES = 60
 
         /** One line for the Settings row, not a stack trace. */

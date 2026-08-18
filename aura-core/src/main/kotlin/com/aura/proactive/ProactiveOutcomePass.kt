@@ -265,6 +265,10 @@ class ProactiveOutcomePass @Inject constructor(
             // its own — any drop inside a horizon is the decay function, not the
             // suggestion. pattern_alert describes a state and proposes no
             // resolution, which is why it is the one check with no action.
+            // living_world narrates fiction; its subjects are factions in a
+            // simulation, and the world advancing is the world working, not an
+            // outcome the suggestion caused.
+            ProactiveFindingType.LIVING_WORLD,
             ProactiveFindingType.DEADLINE_APPROACHING,
             ProactiveFindingType.STRESS_CORRELATION,
             ProactiveFindingType.PATTERN_ALERT,

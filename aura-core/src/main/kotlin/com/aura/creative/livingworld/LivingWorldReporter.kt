@@ -25,6 +25,10 @@ class LivingWorldReporter @Inject constructor(
     private val narrator: WorldNarrator,
     private val tickBus: WorldTickBus? = null,
     private val proactiveEvents: ProactiveEvents? = null,
+    // Appended, not inserted — and nullable: the in-app card is the always-on
+    // surface, and a reporter built without a notifier reports exactly as it
+    // always has.
+    private val proactiveNotifier: com.aura.proactive.ProactiveNotifier? = null,
 ) {
 
     /**
@@ -75,6 +79,23 @@ class LivingWorldReporter @Inject constructor(
                 ),
             )
         }.onFailure { Log.w(TAG, "recording world report failed: ${it.message}", it) }
+
+        // After the record, never before: the in-app card is the durable
+        // surface and must exist even if the notification path declines. The
+        // category defaults to EARNED, so this stays silent until the ledger
+        // has seen engagement or the user chose ALWAYS — the card carries the
+        // news either way.
+        runCatching {
+            proactiveNotifier?.maybeNotify(
+                com.aura.proactive.ProactiveAwarenessEngine.ProactiveFinding(
+                    type = "living_world",
+                    title = title,
+                    message = body,
+                    urgency = LIVING_WORLD_URGENCY,
+                ),
+                now = now,
+            )
+        }.onFailure { Log.w(TAG, "world notification failed: ${it.message}", it) }
         return true
     }
 
@@ -92,5 +113,8 @@ class LivingWorldReporter @Inject constructor(
         private const val RECENT_FOR_REPORT = 8
         private const val RECENT_WINDOW_MS = 60 * 60 * 1000L
         private const val MAX_BODY_CHARS = 400
+
+        /** Fiction news is never urgent; it queues politely behind real life. */
+        private const val LIVING_WORLD_URGENCY = 0.25f
     }
 }

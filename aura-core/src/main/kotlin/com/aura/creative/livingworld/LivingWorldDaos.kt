@@ -21,16 +21,27 @@ interface LivingWorldDao {
     suspend fun forProject(projectId: String): List<LivingWorldEntity>
 
     /**
-     * The durable half of the screen's state. Re-emits when a worker commits a
-     * tick, which is how progress made while the screen was closed — or in a
+     * The durable half of the screen's state, every timeline of it: oldest
+     * first, so the root world leads. Re-emits when a worker commits a tick,
+     * which is how progress made while the screen was closed — or in a
      * previous process — appears on return without polling.
      */
-    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId ORDER BY createdAt ASC LIMIT 1")
-    fun observeForProject(projectId: String): Flow<LivingWorldEntity?>
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId ORDER BY createdAt ASC, id ASC")
+    fun observeAllForProject(projectId: String): Flow<List<LivingWorldEntity>>
+
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
+    fun observeForProjectAndBranch(projectId: String, branchId: String): Flow<LivingWorldEntity?>
+
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
+    suspend fun forProjectAndBranch(projectId: String, branchId: String): LivingWorldEntity?
 
     /** Every world a tick worker should advance. */
     @Query("SELECT * FROM living_worlds WHERE status = 'running' ORDER BY id ASC")
     suspend fun running(): List<LivingWorldEntity>
+
+    /** Every world, whatever its status — compaction owes paused worlds too. */
+    @Query("SELECT * FROM living_worlds ORDER BY id ASC")
+    suspend fun all(): List<LivingWorldEntity>
 
     @Query("UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, updatedAt = :updatedAt WHERE id = :id")
     suspend fun commitTick(id: String, tick: Long, stateJson: String, updatedAt: Long)
@@ -66,6 +77,34 @@ interface LivingEventDao {
     @Query("SELECT * FROM living_events WHERE worldId = :worldId ORDER BY tickIndex DESC, seq DESC LIMIT :limit")
     suspend fun recent(worldId: String, limit: Int): List<LivingEventEntity>
 
+    /** An ancestor's page: its history at or before the fork boundary. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex <= :throughTick " +
+            "ORDER BY tickIndex DESC, seq DESC LIMIT :limit",
+    )
+    suspend fun recentUpTo(worldId: String, throughTick: Long, limit: Int): List<LivingEventEntity>
+
+    /** The divergence scan's page: ascending from the common fork tick. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex > :afterTick " +
+            "ORDER BY tickIndex ASC, seq ASC LIMIT :limit",
+    )
+    suspend fun ascAfter(worldId: String, afterTick: Long, limit: Int): List<LivingEventEntity>
+
+    /** The fold record, for replay: every row of one kind up to a tick, oldest first. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND kind = :kind AND tickIndex <= :throughTick " +
+            "ORDER BY tickIndex ASC, seq ASC",
+    )
+    suspend fun ofKindUpTo(worldId: String, kind: String, throughTick: Long): List<LivingEventEntity>
+
+    /** Plot mining: the most notable events of the dramatic kinds. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND kind IN (:kinds) " +
+            "ORDER BY notability DESC, tickIndex DESC LIMIT :limit",
+    )
+    suspend fun topNotableOfKinds(worldId: String, kinds: List<String>, limit: Int): List<LivingEventEntity>
+
     @Query(
         "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex BETWEEN :fromTick AND :toTick " +
             "ORDER BY tickIndex ASC, seq ASC",
@@ -96,6 +135,26 @@ interface LivingEventDao {
     @Query("SELECT COUNT(*) FROM living_events WHERE worldId = :worldId")
     suspend fun count(worldId: String): Int
 
+    /**
+     * Compaction's blade for the noise floor: sub-floor, never-narrated rows
+     * older than the horizon. What survives is the notable spine (the
+     * product), every paid narration, and every quiet_interval — replay-based
+     * forking walks those, so they are load-bearing, not sentiment.
+     */
+    @Query(
+        "DELETE FROM living_events WHERE worldId = :worldId AND tickIndex < :beforeTick " +
+            "AND notability < :floor AND narration = ''",
+    )
+    suspend fun trimNoiseBefore(worldId: String, beforeTick: Long, floor: Double)
+
+    /** The tick sitting :offset rows back from the newest, for the hard cap. */
+    @Query(
+        "SELECT tickIndex FROM living_events WHERE worldId = :worldId " +
+            "ORDER BY tickIndex DESC, seq DESC LIMIT 1 OFFSET :offset",
+    )
+    suspend fun tickAtOffset(worldId: String, offset: Int): Long?
+
+    /** The emergency valve: everything before the tick, notable or not. */
     @Query("DELETE FROM living_events WHERE worldId = :worldId AND tickIndex < :beforeTick")
     suspend fun trimBefore(worldId: String, beforeTick: Long)
 

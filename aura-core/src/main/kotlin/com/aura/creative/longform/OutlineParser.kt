@@ -39,10 +39,13 @@ object OutlineParser {
     val FORMAT_INSTRUCTION: String = """
         Output the outline as one line per beat, in exactly this format:
 
-        BEAT <n> | <title> | <one-sentence summary> | POV: <character> | SETTING: <place> | TARGET: <word count>
+        BEAT <n> | <title> | <one-sentence summary> | POV: <character> | SETTING: <place> | TARGET: <word count> | REQUIRES: <name> @ <fact> = <value> | EFFECT: <name> @ <fact> = <value>
 
-        Everything from POV onward is optional. Write nothing else — no preamble,
-        no numbering other than the BEAT prefix, no closing commentary.
+        Everything from POV onward is optional. REQUIRES names what must already
+        be true entering the scene and EFFECT what the scene makes true; both
+        may hold several clauses separated by ";". Write nothing else — no
+        preamble, no numbering other than the BEAT prefix, no closing
+        commentary.
     """.trimIndent()
 
     /** Terser retry, used once when the first attempt produced too few beats. */
@@ -66,7 +69,8 @@ object OutlineParser {
      * removes a whole class of half-parsed line.
      */
     private val BEAT_LINE = Regex("""^\s*BEAT\s*\d*\s*[|:.\-]\s*(.+)$""", RegexOption.IGNORE_CASE)
-    private val LABELLED = Regex("""^\s*(POV|SETTING|TARGET)\s*:\s*(.*)$""", RegexOption.IGNORE_CASE)
+    private val LABELLED =
+        Regex("""^\s*(POV|SETTING|TARGET|REQUIRES|EFFECT)\s*:\s*(.*)$""", RegexOption.IGNORE_CASE)
 
     /**
      * Parse [raw] into beats. Returns an empty list when nothing parsed, which
@@ -92,6 +96,8 @@ object OutlineParser {
         var pov = ""
         var setting = ""
         var targetWords = 0
+        val preconditions = mutableListOf<com.aura.creative.BeatAssertion>()
+        val effects = mutableListOf<com.aura.creative.BeatAssertion>()
 
         for (field in fields.drop(1).filter { it.isNotEmpty() }) {
             val labelled = LABELLED.find(field)
@@ -107,6 +113,8 @@ object OutlineParser {
                 "POV" -> pov = value
                 "SETTING" -> setting = value
                 "TARGET" -> targetWords = value.filter { it.isDigit() }.toIntOrNull() ?: 0
+                "REQUIRES" -> preconditions += parseAssertions(value)
+                "EFFECT" -> effects += parseAssertions(value)
             }
         }
 
@@ -117,8 +125,44 @@ object OutlineParser {
             pov = pov.take(MAX_FIELD_CHARS),
             setting = setting.take(MAX_FIELD_CHARS),
             targetWords = targetWords.coerceIn(0, MAX_TARGET_WORDS),
+            preconditions = preconditions.take(MAX_ASSERTIONS),
+            effects = effects.take(MAX_ASSERTIONS),
         )
     }
+
+    /**
+     * `name @ fact = value` clauses, ";"-separated, with an optional
+     * `type:` prefix on the name (one of [SUBJECT_TYPE_PREFIXES]). A clause
+     * missing its "@" or "=" is skipped, never guessed — the same law the
+     * beat line itself follows.
+     */
+    private fun parseAssertions(value: String): List<com.aura.creative.BeatAssertion> =
+        value.split(';').mapNotNull { clause ->
+            val at = clause.indexOf('@')
+            if (at < 0) return@mapNotNull null
+            val eq = clause.indexOf('=', startIndex = at + 1)
+            if (eq < 0) return@mapNotNull null
+            var subject = clause.substring(0, at).trim()
+            val predicate = clause.substring(at + 1, eq).trim().lowercase()
+            val assertionValue = clause.substring(eq + 1).trim()
+            if (predicate.isBlank() || assertionValue.isBlank()) return@mapNotNull null
+            var subjectType = "character"
+            val colon = subject.indexOf(':')
+            if (colon > 0) {
+                val maybeType = subject.substring(0, colon).trim().lowercase()
+                if (maybeType in SUBJECT_TYPE_PREFIXES) {
+                    subjectType = maybeType
+                    subject = subject.substring(colon + 1).trim()
+                }
+            }
+            if (subject.isBlank()) return@mapNotNull null
+            com.aura.creative.BeatAssertion(
+                subjectType = subjectType,
+                subjectId = subject.take(MAX_FIELD_CHARS),
+                predicate = predicate.take(MAX_FIELD_CHARS),
+                value = assertionValue.take(MAX_SUMMARY_CHARS),
+            )
+        }
 
     /**
      * Drop markdown code fences. Models wrap structured output in them without
@@ -128,6 +172,13 @@ object OutlineParser {
         raw.lineSequence()
             .filterNot { it.trimStart().startsWith("```") }
             .joinToString("\n")
+
+    /** Mirrors `SceneLedger.SUBJECT_TYPES`; kept literal so the parser stays pure. */
+    private val SUBJECT_TYPE_PREFIXES =
+        setOf("character", "location", "faction", "object", "rule", "timeline", "relationship")
+
+    /** Per label, per beat. A model that emits fifty clauses is not outlining. */
+    private const val MAX_ASSERTIONS = 8
 
     private const val MAX_TITLE_CHARS = 120
     private const val MAX_SUMMARY_CHARS = 400

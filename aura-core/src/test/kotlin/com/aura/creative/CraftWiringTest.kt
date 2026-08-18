@@ -106,4 +106,44 @@ class CraftWiringTest {
             assertTrue(found != null, "use_skill('${seed.name}') would return skill_not_found")
         }
     }
+
+    @Test
+    fun `with no taste profile the two-arg resolve is byte-identical to the one-arg`() = runTest {
+        val secure = mockk<com.aura.security.SecureDataStore>(relaxed = true)
+        coEvery { secure.getString(any()) } returns null
+        coEvery { secure.putString(any(), any()) } returns Unit
+        val store = SkillsStore(secure)
+        store.seedBuiltins(CraftSkills.seeds())
+        val engine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true)
+        io.mockk.coEvery { engine.getTasteContextForProject(any()) } returns ""
+        val enhancer = io.mockk.mockk<com.aura.taste.TastePromptEnhancer>(relaxed = true)
+        val resolver = CraftResolver(store, engine, enhancer)
+
+        kotlin.test.assertEquals(
+            resolver.forTemplate("novel"),
+            resolver.forTemplate("novel", "p1"),
+            "an empty profile must change nothing at all",
+        )
+        io.mockk.verify(exactly = 0) { enhancer.enhance(any(), any()) }
+    }
+
+    @Test
+    fun `a learned profile is appended at the resolver, capped`() = runTest {
+        val secure = mockk<com.aura.security.SecureDataStore>(relaxed = true)
+        coEvery { secure.getString(any()) } returns null
+        coEvery { secure.putString(any(), any()) } returns Unit
+        val store = SkillsStore(secure)
+        store.seedBuiltins(CraftSkills.seeds())
+        val engine = io.mockk.mockk<com.aura.taste.TasteEngine>(relaxed = true)
+        io.mockk.coEvery { engine.getTasteContextForProject("p1") } returns "x".repeat(5_000)
+        val enhancer = io.mockk.mockk<com.aura.taste.TastePromptEnhancer>(relaxed = true)
+        val tasteSlot = io.mockk.slot<String>()
+        io.mockk.every { enhancer.enhance(any(), capture(tasteSlot)) } answers { firstArg<String>() + "STYLE" }
+        val resolver = CraftResolver(store, engine, enhancer)
+
+        val enhanced = resolver.forTemplate("novel", "p1")
+
+        kotlin.test.assertTrue(enhanced!!.endsWith("STYLE"), "the enhancer's output must be what resolves")
+        kotlin.test.assertTrue(tasteSlot.captured.length <= 600, "taste seasons the craft; it does not replace it")
+    }
 }
