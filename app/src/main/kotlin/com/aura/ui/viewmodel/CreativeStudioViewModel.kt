@@ -67,6 +67,8 @@ data class CreativeStudioUiState(
     val planningOutline: Boolean = false,
     /** Null until the project has a living world. */
     val livingWorld: LivingWorldUi? = null,
+    /** The scene under the author's hands; null when the editor is closed. */
+    val sceneEditor: SceneEditorUi? = null,
     /** Facts `SceneLedger` has recorded for the open project's active branch. */
     val canonFactCount: Int = 0,
     /** Contradictions the ledger flagged and nobody has judged yet. */
@@ -108,6 +110,13 @@ data class LivingWorldUi(
 )
 
 data class WorldBranchUi(val branchId: String, val name: String, val selected: Boolean)
+
+data class SceneEditorUi(
+    val beatIndex: Int,
+    val artifactId: String,
+    val title: String,
+    val text: String,
+)
 
 data class LivingLiveUi(val currentTick: Long, val targetTick: Long, val phase: String) {
     val remaining: Long get() = (targetTick - currentTick).coerceAtLeast(0L)
@@ -265,6 +274,7 @@ class CreativeStudioViewModel @Inject constructor(
     private val continuityIssueDao: com.aura.creative.ContinuityIssueDao,
     // Appended, not inserted — and nullable: tests build this by name.
     private val userPreferences: com.aura.data.UserPreferences? = null,
+    private val sceneEditSignals: com.aura.creative.SceneEditSignals? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreativeStudioUiState())
     val state: StateFlow<CreativeStudioUiState> = _state.asStateFlow()
@@ -821,6 +831,61 @@ class CreativeStudioViewModel @Inject constructor(
                     state.copy(livingWorld = state.livingWorld?.copy(divergence = lines))
                 }
             }.onFailure { Log.w(TAG, "compare failed: ${it.message}", it) }
+        }
+    }
+
+    /** Open a drafted scene for the author's hands. */
+    fun openSceneEditor(beatIndex: Int, artifactId: String, title: String) {
+        if (artifactId.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                val text = artifactStore.currentContent(artifactId).orEmpty()
+                _state.update {
+                    it.copy(sceneEditor = SceneEditorUi(beatIndex, artifactId, title, text))
+                }
+            }.onFailure { Log.w(TAG, "scene open failed: ${it.message}", it) }
+        }
+    }
+
+    fun dismissSceneEditor() {
+        _state.update { it.copy(sceneEditor = null) }
+    }
+
+    /**
+     * Save the author's edit — CreativeArtifactStore.revise's first production
+     * caller. An identical save writes no revision and records mild approval;
+     * a change lands as an authorKind="edit" child of the generation revision,
+     * and the keep-ratio decides what the taste profile hears. The beat keeps
+     * pointing at the generation revision: canon provenance stays with what
+     * the extractor read, while the artifact's current revision — the tail,
+     * the export, the tension diff — moves to the author's text.
+     */
+    fun saveSceneEdit(newText: String) {
+        val editor = _state.value.sceneEditor ?: return
+        val project = _state.value.selectedProject ?: return
+        viewModelScope.launch {
+            runCatching {
+                val generation = artifactStore.currentRevision(editor.artifactId) ?: return@launch
+                val before = generation.contentText.orEmpty()
+                if (newText == before) {
+                    sceneEditSignals?.onSceneKept(project.id, editor.artifactId)
+                } else {
+                    artifactStore.revise(editor.artifactId, newText, authorKind = "edit")
+                    sceneEditSignals?.onSceneEdited(
+                        projectId = project.id,
+                        templateId = project.templateId,
+                        artifactId = editor.artifactId,
+                        beforeText = before,
+                        afterText = newText,
+                    )
+                }
+                _state.update {
+                    it.copy(
+                        sceneEditor = null,
+                        message = appContext.getString(com.aura.R.string.scene_saved),
+                    )
+                }
+            }.onFailure { Log.w(TAG, "scene save failed: ${it.message}", it) }
         }
     }
 

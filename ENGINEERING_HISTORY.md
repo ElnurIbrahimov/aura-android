@@ -515,6 +515,22 @@ marker (worldId=tick CSV in preferences), top five by notability, then the marke
 Narration stayed inside its caps throughout. Device look owed: one EARNED-to-ALWAYS
 notification and the since-you-left card after a real absence.
 
+*2026-08-19 (Phase E — the spine closes):* **3,387 unit tests / 508 suites, 0 failures.**
+The taste loop. Drafted beats are tappable; the editor dialog is deliberately plain — the
+goal is the revision chain and the signal — and its save is CreativeArtifactStore.revise's
+first production caller: an identical save writes no revision and records mild approval
+(+0.5), a change lands as an authorKind="edit" child of the generation revision (the beat
+keeps pointing at what the extractor read; the artifact's current revision moves to the
+author's text), and EditDistanceLite's keep-ratio picks the tier — touch-up −0.25, the
+designed recordEdit −0.5 finally called, rewrite −1.0. Every signal recomputes the project
+profile and the global one. Rewrites alone file skill_failed evidence against the craft
+skill's id ("author_rewrote"), touching none of evolution's gates. Taste reaches drafting at
+the resolver, capped at 600 chars — with no profile the resolve is byte-identical, pinned.
+Found and fixed along the way: the interruption-policy writer had shipped its own template
+escape (every explicit ALWAYS/NEVER fell back to EARNED on read) — codec extracted, round
+trip tested. All five phases of the world-author spine are code-complete; what remains is
+the device pass this file has asked for since §4 was written.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

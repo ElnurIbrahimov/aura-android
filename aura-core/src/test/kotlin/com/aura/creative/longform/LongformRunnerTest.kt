@@ -483,7 +483,7 @@ class LongformRunnerTest {
     fun `drafting a scene sends the author's craft, not the shipped constant`() = runTest {
         val messagesSlot = slot<List<com.aura.providers.ProviderMessage>>()
         setUpRun(beats(2, draftedUpTo = 1))
-        coEvery { craftResolver.forTemplate(any()) } returns "WRITE ONLY IN SECOND PERSON"
+        coEvery { craftResolver.forTemplate(any(), any()) } returns "WRITE ONLY IN SECOND PERSON"
         coEvery { brain.stream(any(), capture(messagesSlot), any(), any()) } returns
             flowOf(BrainChunk.Text("x".repeat(600)))
         coEvery { projectStore.updateWorld(any(), any()) } returns null

@@ -249,7 +249,7 @@ class LongformRunner @Inject constructor(
             // The author's craft guidance, if they have edited it. Resolved here
             // rather than inside the builder, which stays pure and database-free.
             // Falls back inside CraftResolver to the shipped constant.
-            craft = runCatching { craftResolver.forTemplate(project.templateId) }
+            craft = runCatching { craftResolver.forTemplate(project.templateId, project.id) }
                 .onFailure { Log.w(TAG, "craft resolution failed: ${it.message}", it) }
                 .getOrNull(),
             canonFacts = canonFacts,

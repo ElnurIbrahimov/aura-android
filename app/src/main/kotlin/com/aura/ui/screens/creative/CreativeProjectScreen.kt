@@ -2,11 +2,13 @@ package com.aura.ui.screens.creative
 
 import com.aura.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.ColumnScope
@@ -81,6 +83,14 @@ fun CreativeProjectScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val project = state.selectedProject
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    state.sceneEditor?.let { editor ->
+        SceneEditorDialog(
+            editor = editor,
+            onSave = viewModel::saveSceneEdit,
+            onDismiss = viewModel::dismissSceneEditor,
+        )
+    }
 
     // The tab-open ritual: snapshot what was missed, then move the marker.
     androidx.compose.runtime.LaunchedEffect(selectedTab) {
@@ -837,6 +847,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.manuscriptSection(
                 if (isCurrent) colors.actionPrimary.copy(alpha = 0.5f) else colors.borderSubtle,
             ),
             modifier = Modifier
+                .then(
+                    if (done) {
+                        Modifier.clickable {
+                            viewModel.openSceneEditor(index, beat.artifactId, beat.title)
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
                 .fillMaxWidth()
                 .padding(horizontal = AuraSpacing.xxl2),
         ) {
@@ -902,3 +921,37 @@ private const val DRAFTED = "drafted"
 
 /** How much of the in-flight scene to show. Enough to read, bounded so it cannot grow without limit. */
 private const val LIVE_TEXT_CHARS = 1_500
+
+/**
+ * A plain full-text editor, deliberately: the goal is the revision chain and
+ * the signal, and scope stays there. No diff view, no partial edits.
+ */
+@Composable
+private fun SceneEditorDialog(
+    editor: com.aura.ui.viewmodel.SceneEditorUi,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(editor.artifactId) { mutableStateOf(editor.text) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(editor.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 200.dp, max = 420.dp),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }, enabled = text.isNotBlank()) {
+                Text(stringResource(R.string.save_scene))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_edit)) }
+        },
+    )
+}

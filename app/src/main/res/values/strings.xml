@@ -468,4 +468,6 @@
     <string name="biggest_moments">Biggest moments</string>
     <string name="since_you_left">Since you left</string>
     <string name="since_you_left_summary">%1$d world days passed · %2$d moments worth telling</string>
+    <string name="save_scene">Save</string>
+    <string name="scene_saved">Scene saved — Aura will learn from your changes</string>
 </resources>
