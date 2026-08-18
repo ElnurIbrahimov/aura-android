@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.ui.components.AuraIconButton
+import com.aura.ui.theme.AuraDimensions
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.InterDisplay
 import com.aura.ui.util.agentDisplayName
@@ -116,7 +117,27 @@ fun ChatHeader(
             .height(56.dp)
             .testTag("chat-header"),
     ) {
-        val maxPillWidth = maxWidth * 0.55f
+        // What the two pills may occupy, after the controls that cannot shrink.
+        //
+        // `maxWidth * 0.55f` was the whole budget, applied to the model pill
+        // *and* the project chip — 110% of the header between them, which only
+        // ever fit because real model names are short. Given a long one the
+        // model pill claimed its full 176dp at 320dp wide, and the three
+        // fixed-width trailing buttons (history, new conversation, overflow)
+        // were pushed off the edge: present in the tree, unreachable by thumb.
+        //
+        // `ChatHeaderTest` was written to catch exactly this — its name says
+        // compact width keeps new-chat and overflow visible — and had never
+        // been executed until the `app-instrumented` CI job existed.
+        //
+        // Subtracting the trailing controls first makes the pills yield to
+        // them rather than the other way round. The 0.55 cap still applies on
+        // wide screens, where there is room and halving the pill would be a
+        // regression for no reason.
+        val trailingControls = AuraDimensions.minimumTouchTarget * 3
+        val headerChrome = AuraSpacing.xs * 2 + AuraSpacing.xxs * 5
+        val pillBudget = (maxWidth - trailingControls - headerChrome).coerceAtLeast(112.dp)
+        val maxPillWidth = minOf(maxWidth * 0.55f, pillBudget / 2)
         val maxLabelWidth = (maxPillWidth - 52.dp).coerceAtLeast(56.dp)
 
         Row(
