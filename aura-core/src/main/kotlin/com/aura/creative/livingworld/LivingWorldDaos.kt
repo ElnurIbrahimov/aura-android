@@ -74,6 +74,34 @@ interface LivingEventDao {
     @Query("SELECT * FROM living_events WHERE worldId = :worldId ORDER BY tickIndex DESC, seq DESC LIMIT :limit")
     suspend fun recent(worldId: String, limit: Int): List<LivingEventEntity>
 
+    /** An ancestor's page: its history at or before the fork boundary. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex <= :throughTick " +
+            "ORDER BY tickIndex DESC, seq DESC LIMIT :limit",
+    )
+    suspend fun recentUpTo(worldId: String, throughTick: Long, limit: Int): List<LivingEventEntity>
+
+    /** The divergence scan's page: ascending from the common fork tick. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex > :afterTick " +
+            "ORDER BY tickIndex ASC, seq ASC LIMIT :limit",
+    )
+    suspend fun ascAfter(worldId: String, afterTick: Long, limit: Int): List<LivingEventEntity>
+
+    /** The fold record, for replay: every row of one kind up to a tick, oldest first. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND kind = :kind AND tickIndex <= :throughTick " +
+            "ORDER BY tickIndex ASC, seq ASC",
+    )
+    suspend fun ofKindUpTo(worldId: String, kind: String, throughTick: Long): List<LivingEventEntity>
+
+    /** Plot mining: the most notable events of the dramatic kinds. */
+    @Query(
+        "SELECT * FROM living_events WHERE worldId = :worldId AND kind IN (:kinds) " +
+            "ORDER BY notability DESC, tickIndex DESC LIMIT :limit",
+    )
+    suspend fun topNotableOfKinds(worldId: String, kinds: List<String>, limit: Int): List<LivingEventEntity>
+
     @Query(
         "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex BETWEEN :fromTick AND :toTick " +
             "ORDER BY tickIndex ASC, seq ASC",

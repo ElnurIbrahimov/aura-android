@@ -1,6 +1,7 @@
 package com.aura.creative.livingworld
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.util.UUID
 import javax.inject.Inject
@@ -139,6 +140,113 @@ class LivingWorldStore @Inject constructor(
     suspend fun eventCount(worldId: String): Int = eventDao.count(worldId)
 
     suspend fun eventById(eventId: String): LivingEventEntity? = eventDao.byId(eventId)
+
+    /**
+     * The branch chain as replay segments, root first, loop-guarded. Each
+     * segment names whose salt governs its ticks; a fork-of-fork switches at
+     * every boundary its chain crossed.
+     */
+    suspend fun resolveSegments(world: LivingWorldEntity, throughTick: Long): List<WorldReplayer.Segment> {
+        val chain = mutableListOf<LivingWorldEntity>()
+        var cursor: LivingWorldEntity? = world
+        val seen = mutableSetOf<String>()
+        while (cursor != null && seen.add(cursor.id)) {
+            chain += cursor
+            cursor = cursor.parentWorldId.takeIf { it.isNotBlank() }?.let { worldDao.byId(it) }
+        }
+        chain.reverse()
+        return chain.mapIndexed { index, entry ->
+            WorldReplayer.Segment(
+                worldId = entry.id,
+                rootSeed = entry.rootSeed,
+                branchSalt = entry.branchSalt,
+                fromTick = if (index == 0) 0L else entry.forkedAtTick,
+                toTick = if (index == chain.lastIndex) throughTick else chain[index + 1].forkedAtTick,
+            )
+        }
+    }
+
+    /** The recorded folds along the chain, each read from the world that folded it. */
+    suspend fun resolveFoldSpans(
+        segments: List<WorldReplayer.Segment>,
+        throughTick: Long,
+    ): List<WorldReplayer.FoldSpan> {
+        val folds = mutableListOf<WorldReplayer.FoldSpan>()
+        for (segment in segments) {
+            folds += eventDao
+                .ofKindUpTo(segment.worldId, WorldEngine.KIND_QUIET_INTERVAL, minOf(segment.toTick, throughTick))
+                .filter { it.tickIndex > segment.fromTick }
+                .map { WorldReplayer.FoldSpan(atTick = it.tickIndex, ticks = it.magnitudeMilli) }
+        }
+        return folds.sortedBy { it.atTick }
+    }
+
+    /**
+     * Fork at a past tick, gated on genesis: pre-v29 worlds have none and are
+     * honestly told no. The child's state is replayed from genesis along the
+     * recorded fold spans, its clock anchor is shared, and its currentTick is
+     * the past — so it immediately owes the ticks since, and catches up along
+     * its own salt through the ordinary worker path. The counterfactual IS the
+     * catch-up.
+     */
+    suspend fun forkAt(
+        parent: LivingWorldEntity,
+        tick: Long,
+        branchId: String,
+        branchName: String,
+    ): LivingWorldEntity? {
+        if (parent.genesisJson.isBlank()) return null
+        if (tick < 0L || tick > parent.currentTick) return null
+        val genesis = decode(parent.genesisJson)
+        val segments = resolveSegments(parent, tick)
+        val folds = resolveFoldSpans(segments, tick)
+        val state = runCatching { WorldReplayer.stateAt(genesis, segments, folds, tick) }
+            .getOrElse { return null }
+        val world = LivingWorldEntity(
+            id = UUID.randomUUID().toString(),
+            projectId = parent.projectId,
+            branchId = branchId,
+            rootSeed = parent.rootSeed,
+            branchSalt = deriveBranchSalt(parent, tick, branchName),
+            parentWorldId = parent.id,
+            forkedAtTick = tick,
+            worldEpochMs = parent.worldEpochMs,
+            currentTick = tick,
+            stateJson = encode(state),
+            genesisJson = parent.genesisJson,
+        )
+        worldDao.upsert(world)
+        return world
+    }
+
+    /**
+     * The child's timeline with its inheritance: its own rows live, ancestors'
+     * pages appended read-once — an ancestor's past is immutable, so there is
+     * nothing to observe over there.
+     */
+    fun observeEventsDeep(
+        world: LivingWorldEntity,
+        limit: Int = DEFAULT_EVENT_PAGE,
+    ): Flow<List<LivingEventEntity>> =
+        eventDao.observeRecent(world.id, limit).map { own ->
+            if (world.parentWorldId.isBlank() || own.size >= limit) return@map own
+            val inherited = mutableListOf<LivingEventEntity>()
+            var boundary = world.forkedAtTick
+            var cursor = worldDao.byId(world.parentWorldId)
+            val seen = mutableSetOf(world.id)
+            while (cursor != null && seen.add(cursor.id) && own.size + inherited.size < limit) {
+                inherited += eventDao.recentUpTo(cursor.id, boundary, limit - own.size - inherited.size)
+                boundary = cursor.forkedAtTick
+                cursor = cursor.parentWorldId.takeIf { it.isNotBlank() }?.let { worldDao.byId(it) }
+            }
+            own + inherited
+        }
+
+    suspend fun topNotableOfKinds(worldId: String, kinds: List<String>, limit: Int): List<LivingEventEntity> =
+        eventDao.topNotableOfKinds(worldId, kinds, limit)
+
+    suspend fun ascAfter(worldId: String, afterTick: Long, limit: Int): List<LivingEventEntity> =
+        eventDao.ascAfter(worldId, afterTick, limit)
 
     /**
      * The sixth DecayWorker sweep, above the decayEnabled gate — retention is
