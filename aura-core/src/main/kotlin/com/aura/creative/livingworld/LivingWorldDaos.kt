@@ -21,12 +21,16 @@ interface LivingWorldDao {
     suspend fun forProject(projectId: String): List<LivingWorldEntity>
 
     /**
-     * The durable half of the screen's state. Re-emits when a worker commits a
-     * tick, which is how progress made while the screen was closed — or in a
+     * The durable half of the screen's state, every timeline of it: oldest
+     * first, so the root world leads. Re-emits when a worker commits a tick,
+     * which is how progress made while the screen was closed — or in a
      * previous process — appears on return without polling.
      */
-    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId ORDER BY createdAt ASC LIMIT 1")
-    fun observeForProject(projectId: String): Flow<LivingWorldEntity?>
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId ORDER BY createdAt ASC, id ASC")
+    fun observeAllForProject(projectId: String): Flow<List<LivingWorldEntity>>
+
+    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
+    fun observeForProjectAndBranch(projectId: String, branchId: String): Flow<LivingWorldEntity?>
 
     /** Every world a tick worker should advance. */
     @Query("SELECT * FROM living_worlds WHERE status = 'running' ORDER BY id ASC")

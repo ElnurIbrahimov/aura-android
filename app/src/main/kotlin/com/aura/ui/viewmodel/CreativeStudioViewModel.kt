@@ -598,7 +598,12 @@ class CreativeStudioViewModel @Inject constructor(
     private fun observeLivingWorld(projectId: String) {
         livingWorldJob?.cancel()
         livingWorldJob = viewModelScope.launch {
-            livingWorldStore.observeForProject(projectId)
+            kotlinx.coroutines.flow.combine(
+                livingWorldStore.observeAllForProject(projectId),
+                selectedWorldBranch,
+            ) { worlds, selected ->
+                worlds.firstOrNull { it.branchId == selected } ?: worlds.firstOrNull()
+            }
                 .flatMapLatest { world ->
                     if (world == null) {
                         kotlinx.coroutines.flow.flowOf(LivingSnapshot(null, emptyList(), null))
@@ -694,6 +699,13 @@ class CreativeStudioViewModel @Inject constructor(
     }
 
     /** Ask for a slice now rather than at the next periodic window. */
+    /** Which timeline the Living tab is looking at; null = the root world. */
+    private val selectedWorldBranch = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    fun selectWorldBranch(branchId: String?) {
+        selectedWorldBranch.value = branchId
+    }
+
     fun catchUpLivingWorld() {
         runCatching { com.aura.creative.livingworld.LivingWorldScheduler.catchUpNow(appContext) }
             .onFailure { Log.w(TAG, "catch-up enqueue failed: ${it.message}", it) }

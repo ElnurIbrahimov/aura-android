@@ -59,8 +59,37 @@ class LivingWorldStore @Inject constructor(
     suspend fun forProject(projectId: String): LivingWorldEntity? =
         worldDao.forProject(projectId).firstOrNull()
 
-    fun observeForProject(projectId: String): Flow<LivingWorldEntity?> =
-        worldDao.observeForProject(projectId)
+    fun observeAllForProject(projectId: String): Flow<List<LivingWorldEntity>> =
+        worldDao.observeAllForProject(projectId)
+
+    /**
+     * Fork at the present: a sibling world sharing every tick up to now and
+     * free to diverge from the next draw on. Same rootSeed — the pre-fork past
+     * is shared identity — and the same worldEpochMs, so tick N is due at the
+     * same wall time on every branch and WorldClock stays truthful. State and
+     * genesis are byte-copied; only the salt is new.
+     */
+    suspend fun fork(
+        parent: LivingWorldEntity,
+        branchId: String,
+        branchName: String,
+    ): LivingWorldEntity {
+        val world = LivingWorldEntity(
+            id = UUID.randomUUID().toString(),
+            projectId = parent.projectId,
+            branchId = branchId,
+            rootSeed = parent.rootSeed,
+            branchSalt = deriveBranchSalt(parent, parent.currentTick, branchName),
+            parentWorldId = parent.id,
+            forkedAtTick = parent.currentTick,
+            worldEpochMs = parent.worldEpochMs,
+            currentTick = parent.currentTick,
+            stateJson = parent.stateJson,
+            genesisJson = parent.genesisJson,
+        )
+        worldDao.upsert(world)
+        return world
+    }
 
     fun observeEvents(worldId: String, limit: Int = DEFAULT_EVENT_PAGE): Flow<List<LivingEventEntity>> =
         eventDao.observeRecent(worldId, limit)
@@ -135,6 +164,22 @@ class LivingWorldStore @Inject constructor(
 
     companion object {
         const val DEFAULT_EVENT_PAGE = 200
+
+        /**
+         * A fork is a ref, not a dice roll: the same-named fork of the same
+         * moment yields the same world, every time, on every device — which is
+         * what replay and backup already promise. Derived from the parent's
+         * salt so fork-of-fork chains stay distinct, and re-mixed if the
+         * derivation lands on the parent's own salt, because equal salts would
+         * make the child's future identical to the parent's.
+         */
+        fun deriveBranchSalt(parent: LivingWorldEntity, atTick: Long, branchName: String): Long {
+            var salt = WorldRng.mix64(
+                parent.branchSalt xor WorldRng.stableHash64("fork:${parent.id}:$atTick:$branchName"),
+            )
+            if (salt == parent.branchSalt) salt = WorldRng.mix64(salt)
+            return salt
+        }
 
         /** 30 real days of hourly ticks — the house retention window. */
         const val COMPACTION_HORIZON_TICKS = 720L
