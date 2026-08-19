@@ -171,6 +171,15 @@ class GeminiProviderTest {
 
     @Test
     fun `listModels throws NetworkException when server is unreachable`() = runBlocking<Unit> {
+        // Against a port that was listening and is not any more, which is a refused
+        // connection this machine can guarantee. Omitting baseUrl left this pointed at the
+        // real Google endpoint: every CI run made an outbound HTTPS request with a fake
+        // key, and the test's result depended on the network rather than on the provider.
+        // AnthropicProviderTest already does it this way.
+        val unavailable = MockWebServer()
+        unavailable.start()
+        val unavailableBaseUrl = unavailable.url("/").toString().removeSuffix("/")
+        unavailable.shutdown()
         val offline = GeminiProvider(
             providerKeys = mockk {
                 coEvery { keyForAwaiting("gemini") } returns "key"
@@ -179,6 +188,7 @@ class GeminiProviderTest {
             httpClient = OkHttpClient.Builder()
                 .connectTimeout(1, java.util.concurrent.TimeUnit.SECONDS)
                 .build(),
+            baseUrl = unavailableBaseUrl,
         )
         assertFailsWith<ProviderCatalogException.NetworkException> {
             offline.listModels()
