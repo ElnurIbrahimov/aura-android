@@ -432,6 +432,7 @@
     <string name="back_up_weekly">Back up weekly</string>
     <string name="back_up_now">Back up now</string>
     <string name="backup_passphrase">Backup passphrase</string>
+    <string name="backup_passphrase_field">Passphrase</string>
     <string name="google_workspace">Google Workspace</string>
     <string name="google_oauth_client_id">Google OAuth Client ID</string>
     <string name="microsoft_365">Microsoft 365</string>

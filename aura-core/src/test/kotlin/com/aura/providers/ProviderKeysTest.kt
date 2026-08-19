@@ -6,10 +6,13 @@ import com.aura.security.KeyManager
 import com.aura.security.SecureDataStore
 import io.mockk.coEvery
 import io.mockk.mockk
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.Timeout
@@ -82,7 +85,7 @@ class ProviderKeysTest {
     @Test
     fun `keyFor returns null when no key is set`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertNull(keys.keyForAwaiting("ollama"))
         assertNull(keys.keyForAwaiting("anthropic"))
     }
@@ -90,14 +93,14 @@ class ProviderKeysTest {
     @Test
     fun `keyFor returns null for blank keys`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertFalse(keys.isConfigured("ollama"))
     }
 
     @Test
     fun `isConfigured is false for unknown prefix`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertFalse(keys.isConfigured("nonexistent-provider"))
     }
 
@@ -127,7 +130,7 @@ class ProviderKeysTest {
     @Test
     fun `initial credential states are NotConfigured after load`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         for (prefix in ProviderKeys.PREFIXES) {
             assertEquals(
                 ProviderCredentialState.NotConfigured,
@@ -140,7 +143,7 @@ class ProviderKeysTest {
     @Test
     fun `initial state map is empty`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertTrue(keys.state.value.isEmpty())
     }
 
@@ -148,14 +151,14 @@ class ProviderKeysTest {
     fun `loaded is initially false and becomes true after init`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
         assertFalse(keys.loaded.value, "loaded should be false before init completes")
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertTrue(keys.loaded.value, "loaded should be true after init completes")
     }
 
     @Test
     fun `set stores key and returns it exactly`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         keys.set("ollama", "sk-test-123-abc")
         assertEquals("sk-test-123-abc", keys.keyForAwaiting("ollama"))
         assertTrue(keys.isConfigured("ollama"))
@@ -164,7 +167,7 @@ class ProviderKeysTest {
     @Test
     fun `set updates credential state to Saved`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         keys.set("ollama", "sk-ollama-key")
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
     }
@@ -172,7 +175,7 @@ class ProviderKeysTest {
     @Test
     fun `set with blank key clears credential`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         keys.set("ollama", "sk-ollama-key")
         assertTrue(keys.isConfigured("ollama"))
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
@@ -186,7 +189,7 @@ class ProviderKeysTest {
     @Test
     fun `set with whitespace-only key clears credential`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         keys.set("ollama", "sk-ollama-key")
         assertTrue(keys.isConfigured("ollama"))
 
@@ -199,7 +202,7 @@ class ProviderKeysTest {
     @Test
     fun `setting one provider does not affect others`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         keys.set("ollama", "sk-ollama-value")
         keys.set("anthropic", "sk-anthropic-value")
@@ -212,7 +215,7 @@ class ProviderKeysTest {
     @Test
     fun `overwriting a key returns the latest value`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         keys.set("ollama", "old-key")
         keys.set("ollama", "new-key")
         assertEquals("new-key", keys.keyForAwaiting("ollama"))
@@ -222,7 +225,7 @@ class ProviderKeysTest {
     @Test
     fun `credential state transitions NotConfigured to Saved to NotConfigured`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         // Initial
         assertEquals(ProviderCredentialState.NotConfigured, keys.credentialStates.value["ollama"])
@@ -239,7 +242,7 @@ class ProviderKeysTest {
     @Test
     fun `only target provider credential state changes on set`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         keys.set("ollama", "sk-ollama")
         assertEquals(ProviderCredentialState.Saved, keys.credentialStates.value["ollama"])
@@ -251,7 +254,7 @@ class ProviderKeysTest {
     @Test
     fun `state flow preserves backward compat`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         keys.set("ollama", "sk-ollama-val")
         keys.set("anthropic", "sk-anthro-val")
@@ -295,7 +298,7 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         assertEquals(ProviderCredentialState.StorageError, keys.credentialStates.value["ollama"])
         assertNull(keys.keyForAwaiting("ollama"))
@@ -331,7 +334,7 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         assertTrue(keys.loaded.value)
         // The providers themselves loaded cleanly; only the trailing read failed.
@@ -347,14 +350,14 @@ class ProviderKeysTest {
         coEvery { mockStore.putString(any(), any()) } returns Unit
 
         val keys = ProviderKeys(mockStore)
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
         assertTrue(keys.loaded.value, "loaded must become true even on decryption failures")
     }
 
     @Test
     fun `concurrent sets for different providers both succeed`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         // Simulate concurrent writes using async from the runTest scope
         val job1 = async {
@@ -373,7 +376,7 @@ class ProviderKeysTest {
     @Test
     fun `serial writes to same provider always reflect the latest`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         // Sequential writes to the same provider - only the last should win
         keys.set("ollama", "key-1")
@@ -386,7 +389,7 @@ class ProviderKeysTest {
     @Test
     fun `setEmbeddingModel preserves credential states`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         keys.set("ollama", "sk-ollama")
         keys.setEmbeddingModel("custom-model")
@@ -404,7 +407,7 @@ class ProviderKeysTest {
         // removes the key (no stale embedding model
         // value after user clears it).
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         keys.setEmbeddingModel("nomic-embed-text")
         assertEquals("nomic-embed-text", keys.embeddingModel)
@@ -419,7 +422,7 @@ class ProviderKeysTest {
     @Test
     fun `keyFor only returns keys for Saved providers`() = runTest(timeout = 60.seconds) {
         val keys = createProviderKeys()
-        withContext(Dispatchers.IO) { keys.awaitLoaded() }
+        keys.awaitLoaded()
 
         // Initially NotConfigured - should return null
         assertNull(keys.keyForAwaiting("openai"))
@@ -431,5 +434,109 @@ class ProviderKeysTest {
         // After clear - should return null
         keys.set("openai", "")
         assertNull(keys.keyForAwaiting("openai"))
+    }
+
+    @Test
+    fun `a load that fails with an Error still finishes rather than hanging every caller`() = runTest(timeout = 30.seconds) {
+        // The regression this test exists for. `_loaded` used to be assigned in a `finally`,
+        // which fires on every exit path. Narrowing that to `catch (e: Exception)` looked
+        // equivalent and is not: the per-provider catch inside the loop is also Exception, so
+        // an Error passes through both and leaves `_loaded` false with nothing remaining that
+        // could flip it. awaitLoaded() then suspends for the life of the process, which is the
+        // forty-minute CI hang the finally existed to prevent — and it came straight back,
+        // as a TestTimedOutException plus an UncaughtExceptionsBeforeTest landing on whichever
+        // test ran next.
+        val store = mockk<SecureDataStore>()
+        coEvery { store.getString(any()) } throws LoadError()
+        coEvery { store.removeString(any()) } returns Unit
+        coEvery { store.putString(any(), any()) } returns Unit
+
+        val keys = ProviderKeys(store)
+        keys.awaitLoaded()
+
+        assertTrue(keys.loaded.value)
+        val stuck = keys.credentialStates.value.filterValues { it == ProviderCredentialState.Loading }
+        assertTrue(stuck.isEmpty(), "loaded is true while ${stuck.keys.sorted()} still read Loading")
+    }
+
+    private class LoadError : Error("the keystore fell over")
+
+    /**
+     * A cancelled load must not announce that it finished.
+     *
+     * `_loaded` was assigned in a `finally`, and a `finally` runs while a
+     * CancellationException is on its way out. So a cancelled load set
+     * `loaded = true` having published nothing: `credentialStates` still read
+     * `Loading` for every provider and `_values` was empty. Anything waiting on
+     * `awaitLoaded()` woke up and read state that was never written.
+     *
+     * This fails against the `finally` and passes against the assignment inside
+     * the publish lock. It has to reach [ProviderKeys.loadOnce] directly,
+     * because the scope `init` launches on is never cancelled — which is why the
+     * bug was invisible for as long as it was.
+     */
+    @Test
+    fun `a cancelled load does not announce itself as loaded`() = runTest(timeout = 30.seconds) {
+        val gate = CompletableDeferred<Unit>()
+        val store = mockk<SecureDataStore>()
+        // Suspends forever, so the load is guaranteed to still be in flight when
+        // it is cancelled — no sleep, no timing assumption.
+        coEvery { store.getString(any()) } coAnswers { gate.await(); null }
+
+        val keys = ProviderKeys(store)
+        val job = launch(Dispatchers.Default) { keys.loadOnce() }
+        while (job.isActive && !gate.isCompleted) {
+            if (keys.credentialStates.value.isNotEmpty()) break
+            yield()
+        }
+        job.cancelAndJoin()
+
+        assertFalse(
+            keys.loaded.value,
+            "a cancelled load announced loaded = true, so awaitLoaded() would wake a caller " +
+                "into credentialStates that were never published",
+        )
+        gate.complete(Unit)
+    }
+
+    /**
+     * `loaded` must never be true over state nobody published.
+     *
+     * The flag used to be assigned in a `finally`, which runs while a
+     * CancellationException is on its way out — so a cancelled load announced
+     * that it had finished while `credentialStates` was still `Loading` for
+     * every provider. It is now written inside the same mutex as the state it
+     * announces, and last, so waking on it and reading the map is one
+     * consistent observation.
+     *
+     * This is the invariant rather than the mechanism: it holds for a clean
+     * load, for a load whose trailing embedding read throws, and for a load
+     * where a single provider entry is corrupt.
+     */
+    @Test
+    fun `loaded is never announced while a provider is still Loading`() = runTest(timeout = 30.seconds) {
+        val clean = mockk<SecureDataStore>()
+        coEvery { clean.getString(any()) } returns null
+
+        val throwingTail = mockk<SecureDataStore>()
+        coEvery { throwingTail.getString(any()) } returns null
+        coEvery { throwingTail.getString("embedding_model") } throws DecryptionFailedException("bad decrypt")
+
+        val corruptEntry = mockk<SecureDataStore>()
+        coEvery { corruptEntry.getString(any()) } returns null
+        coEvery { corruptEntry.getString("ollama_api_key") } throws DecryptionFailedException("bad decrypt")
+
+        for ((label, store) in listOf("clean" to clean, "throwing tail" to throwingTail, "corrupt entry" to corruptEntry)) {
+            val keys = ProviderKeys(store)
+            keys.awaitLoaded()
+
+            assertTrue(keys.loaded.value, "$label: awaitLoaded returned before loaded was set")
+            val stillLoading = keys.credentialStates.value.filterValues { it == ProviderCredentialState.Loading }
+            assertTrue(
+                stillLoading.isEmpty(),
+                "$label: loaded is true while ${stillLoading.keys.sorted()} still read Loading — a consumer " +
+                    "woken by the flag would read state that was never published",
+            )
+        }
     }
 }

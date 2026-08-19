@@ -49,6 +49,33 @@ interface BackupService {
 
     fun decodeFromJson(bytes: String): AuraBackup
 
+    /**
+     * True when [text] is a sealed envelope from [com.aura.security.BackupCrypto]
+     * rather than plain JSON — the shape [BackupWorker] writes every automatic
+     * backup in.
+     *
+     * Content, never filename: the SAF provider decides the final display name, so
+     * a `.json` suffix says nothing about what is inside.
+     */
+    fun isSealed(text: String): Boolean
+
+    /**
+     * Decrypt a sealed backup, returning the plaintext JSON for [decodeFromJson],
+     * or null if it could not be opened.
+     *
+     * Null covers a wrong passphrase, a truncated file, an unrecognised header and
+     * a corrupt payload alike, because the crypto refuses to distinguish them —
+     * see `BackupCrypto.open`. Callers must not invent a distinction it declines
+     * to make; say "wrong passphrase, or the file is damaged" and mean it.
+     *
+     * The counterpart of [BackupWorker]'s seal. It had none for the whole time
+     * automatic backups existed: `BackupCrypto.open` was written, tested and never
+     * called, so every weekly backup was an envelope no code in this project could
+     * open. Restore read the sealed bytes straight into `decodeFromJson` and
+     * reported "Unexpected JSON token at offset 0".
+     */
+    suspend fun unseal(text: String, passphrase: String): String?
+
     suspend fun restore(
         backup: AuraBackup,
         mode: BackupManager.RestoreMode = BackupManager.RestoreMode.MERGE,

@@ -16,8 +16,10 @@ import javax.inject.Singleton
  *
  * Schema policy: v2 added the routines, kg_edge_proposals, and
  * contradictions tables. The MIGRATION_1_2 below creates the three
- * new tables on upgrade; fresh installs at v2 get them directly from
- * the schema declaration.
+ * new tables **and their seven indices** on upgrade; fresh installs at
+ * v2 get both directly from the schema declaration. The migration has
+ * to state the indices itself — Room only generates them for a fresh
+ * install, and it validates them on every open.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -25,11 +27,26 @@ object DreamConsolidationModule {
 
     /**
      * v1 -> v2: create routines, kg_edge_proposals, contradictions.
-     * All three are new tables (not column additions), so a single
-     * CREATE TABLE per table does it. The unique indices are
-     * declared on the entities; CREATE INDEX statements here
-     * aren't needed because Room generates them from the @Index
-     * annotations when the schema is exported.
+     *
+     * Each table needs its CREATE TABLE **and** every CREATE INDEX the entity
+     * declares. This comment used to say the opposite — that Room generates the
+     * indices from the `@Index` annotations, so writing them here was unnecessary
+     * — and that sentence is what shipped the bug. Room generates indices in
+     * `createAllTables`, which runs only for a fresh install. A hand-written
+     * [Migration] gets nothing for free, and Room's `TableInfo` validation
+     * compares indices when the database is opened: a v1 install upgrading here
+     * landed on v2 with three correct tables, zero indices, and an
+     * `IllegalStateException: Migration didn't properly handle` on first touch.
+     *
+     * The two UNIQUE indices are load-bearing beyond query speed. They are the
+     * dedup mechanism the DAOs' `OnConflictStrategy.REPLACE` upserts rely on —
+     * without `index_routines_signature`, a routine is written again on every
+     * cycle instead of being replaced, and without
+     * `index_kg_edge_proposals_fromNodeId_toNodeId`, a proposal the user already
+     * dismissed comes back.
+     *
+     * The SQL below is copied from `schemas/…DreamConsolidationDatabase/2.json`,
+     * which is the only trustworthy source for it.
      */
     internal val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -81,6 +98,20 @@ object DreamConsolidationModule {
                     resolvedAt INTEGER
                 )
                 """.trimIndent(),
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_routines_occurrenceCount` ON `routines` (`occurrenceCount`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_routines_signature` ON `routines` (`signature`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_kg_edge_proposals_status` ON `kg_edge_proposals` (`status`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_kg_edge_proposals_similarity` ON `kg_edge_proposals` (`similarity`)")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_kg_edge_proposals_fromNodeId_toNodeId` " +
+                    "ON `kg_edge_proposals` (`fromNodeId`, `toNodeId`)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_contradictions_status` ON `contradictions` (`status`)")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                    "`index_contradictions_olderSummaryId_newerSummaryId` " +
+                    "ON `contradictions` (`olderSummaryId`, `newerSummaryId`)",
             )
         }
     }

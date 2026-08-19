@@ -300,6 +300,58 @@ class BackupManagerTest {
         assertEquals(12, parsed.conversations[0].summaryThroughTurn)
     }
 
+    /**
+     * The loop that was open for the whole life of automatic backup.
+     *
+     * `BackupWorker` sealed every weekly backup with `BackupCrypto.seal`, and
+     * `BackupCrypto.open` — correct, tested, and with a `null` return documented
+     * down to the reason it does not distinguish a wrong passphrase from a corrupt
+     * file — had no production caller. Restore fed the sealed envelope straight to
+     * [BackupManager.decodeFromJson] and reported "Unexpected JSON token at offset
+     * 0". Every backup on disk was an envelope nothing in this project could open.
+     *
+     * Nothing is mocked on the path under test: a real `BackupCrypto` seals, and
+     * the real manager detects, unseals and decodes. If the wire between them
+     * comes apart again, this is what fails.
+     */
+    @Test
+    fun `a sealed backup opens through the manager and decodes to what was sealed`() = runTest {
+        val original = AuraBackup(
+            schemaVersion = AuraBackup.SCHEMA_VERSION,
+            exportedAt = 1234L,
+            appVersionName = "sealed-round-trip",
+        )
+        val passphrase = "correct horse battery"
+        val sealed = com.aura.security.BackupCrypto().seal(manager.encodeToJson(original), passphrase)!!
+
+        assertTrue(manager.isSealed(sealed), "the worker's own envelope was not recognised as sealed")
+
+        val plaintext = manager.unseal(sealed, passphrase)
+        assertTrue(plaintext != null, "the passphrase that sealed it did not open it")
+
+        val restored = manager.decodeFromJson(plaintext!!)
+        assertEquals(original.exportedAt, restored.exportedAt)
+        assertEquals(original.appVersionName, restored.appVersionName)
+        assertEquals(original.schemaVersion, restored.schemaVersion)
+    }
+
+    @Test
+    fun `the wrong passphrase yields null rather than something decodeFromJson would try to parse`() = runTest {
+        val sealed = com.aura.security.BackupCrypto()
+            .seal(manager.encodeToJson(AuraBackup(exportedAt = 0L, appVersionName = "x")), "the real passphrase")!!
+
+        assertNull(manager.unseal(sealed, "not the passphrase"))
+        assertNull(manager.unseal("AURA-BACKUP-1.aaaa.210000.truncated", "the real passphrase"))
+    }
+
+    @Test
+    fun `a plaintext export is not mistaken for a sealed one`() = runTest {
+        // The manual "Export to JSON" path is unsealed and must keep working
+        // unchanged; isSealed is what routes between the two.
+        val plain = manager.encodeToJson(AuraBackup(exportedAt = 0L, appVersionName = "plain"))
+        assertTrue(!manager.isSealed(plain), "a plain JSON export was routed down the decrypt path")
+    }
+
     @Test
     fun `decode rejects backups from a newer schema version`() = runTest {
         val future = AuraBackup(

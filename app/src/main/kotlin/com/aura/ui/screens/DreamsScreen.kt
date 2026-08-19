@@ -32,9 +32,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aura.dream.ContradictionEntity
 import com.aura.dream.ContradictionDao
 import com.aura.dream.DreamConsolidationDao
@@ -113,7 +113,7 @@ class DreamsViewModel @Inject constructor(
 @Composable
 fun DreamsScreen(
     onBack: () -> Unit = {},
-    viewModel: DreamsViewModel = viewModel(),
+    viewModel: DreamsViewModel = hiltViewModel(),
 ) {
     val summaries by viewModel.summaries.collectAsStateWithLifecycle()
     val routines by viewModel.routines.collectAsStateWithLifecycle()

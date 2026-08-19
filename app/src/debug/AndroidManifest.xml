@@ -5,5 +5,13 @@
             android:name="com.aura.debug.UiCatalogActivity"
             android:exported="true"
             android:theme="@style/Theme.Aura" />
+        <!--
+            Hilt-enabled host for instrumented Compose tests. Not exported: nothing
+            outside the test process should be able to start it.
+        -->
+        <activity
+            android:name="com.aura.debug.HiltComposeTestActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Aura" />
     </application>
 </manifest>

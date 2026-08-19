@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aura.memory.CorrectionEntity
 import com.aura.ui.components.AuraScreenShell
 import com.aura.ui.evolution.beliefsSection
@@ -70,8 +69,8 @@ fun MindScreen(
     onOpenConsolidation: () -> Unit = {},
     onProactiveAction: (com.aura.proactive.ProactiveAction) -> Unit = {},
     beliefsViewModel: com.aura.ui.evolution.BeliefsViewModel = hiltViewModel(),
-    worldModelViewModel: WorldModelViewModel = viewModel(),
-    tasteViewModel: TasteProfileViewModel = viewModel(),
+    worldModelViewModel: WorldModelViewModel = hiltViewModel(),
+    tasteViewModel: TasteProfileViewModel = hiltViewModel(),
     mindViewModel: MindViewModel = hiltViewModel(),
 ) {
     AuraScreenShell(

@@ -107,8 +107,14 @@ class ScreenViewModelWiringTest {
                 val usesStateFlow = content.contains("collectAsState") ||
                     content.contains("StateFlow") ||
                     content.contains("state.")
+                // `viewModel(` is deliberately NOT accepted here. Every ViewModel in
+                // this module is @HiltViewModel with an @Inject constructor, so the bare
+                // Compose factory cannot construct one — it throws on navigation. This
+                // check used to list it as evidence of correct wiring, which is how
+                // MindScreen and DreamsScreen shipped uncomposable while a test named
+                // for screen/ViewModel wiring stayed green. HiltViewModelFactoryTest
+                // now fails on the call and the import; this stops blessing it.
                 val hasVm = content.contains("hiltViewModel") ||
-                    content.contains("viewModel(") ||
                     content.contains("ViewModel")
                 if (usesStateFlow && !hasVm) {
                     suspicious.add(file.name)

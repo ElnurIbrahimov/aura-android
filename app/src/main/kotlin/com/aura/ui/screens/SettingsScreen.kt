@@ -269,6 +269,8 @@ fun SettingsScreen(
             onStageImport = backupViewModel::stageImport,
             onConfirmImport = { replace -> backupViewModel.confirmImport(replace = replace) },
             onCancelImport = backupViewModel::cancelImport,
+            onSubmitImportPassphrase = backupViewModel::submitImportPassphrase,
+            onCancelPassphrasePrompt = backupViewModel::cancelPassphrasePrompt,
             onClearResult = backupViewModel::clearResult,
             onNavigateDiagnostics = onNavigateDiagnostics,
             onNavigateCrashLogs = onNavigateCrashLogs,

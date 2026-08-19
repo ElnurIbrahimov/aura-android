@@ -15,8 +15,10 @@ import androidx.room.RoomDatabase
  * Schema policy: v1 was the original 1-table release. v2 (2026-07-23)
  * added the routines, kg_edge_proposals, and contradictions tables
  * to back the v2 9-phase pipeline. The MIGRATION_1_2 in
- * [DreamConsolidationModule] creates the new tables on upgrade; fresh
- * installs at v2 get them directly from the schema declaration.
+ * [DreamConsolidationModule] creates the new tables and their indices
+ * on upgrade; fresh installs at v2 get both directly from the schema
+ * declaration. Upgrading installs got no indices at all until
+ * 2026-08-19, which Room rejects at open time.
  */
 @Database(
     entities = [

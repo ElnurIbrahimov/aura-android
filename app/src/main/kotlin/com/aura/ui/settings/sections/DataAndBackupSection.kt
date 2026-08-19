@@ -1,7 +1,7 @@
 package com.aura.ui.settings.sections
 
-import com.aura.R
-import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -22,18 +25,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.aura.R
 import com.aura.ui.settings.BackupUiState
 import com.aura.ui.settings.SettingsSection
-import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.Icons
+import com.aura.ui.theme.AuraThemeTokens
 
 @Composable
 fun DataAndBackupSection(
@@ -42,6 +45,8 @@ fun DataAndBackupSection(
     onStageImport: (android.net.Uri) -> Unit,
     onConfirmImport: (replace: Boolean) -> Unit,
     onCancelImport: () -> Unit,
+    onSubmitImportPassphrase: (String) -> Unit = {},
+    onCancelPassphrasePrompt: () -> Unit = {},
     onClearResult: () -> Unit,
     onNavigateDiagnostics: () -> Unit,
     onNavigateCrashLogs: () -> Unit = {},
@@ -163,7 +168,15 @@ fun DataAndBackupSection(
             }
         }
 
-        if (backupState.showImportConfirm) {
+        if (backupState.showPassphrasePrompt) {
+        RestorePassphraseDialog(
+            error = backupState.passphraseError,
+            onDismiss = onCancelPassphrasePrompt,
+            onConfirm = onSubmitImportPassphrase,
+        )
+    }
+
+    if (backupState.showImportConfirm) {
             AlertDialog(
                 onDismissRequest = onCancelImport,
                 title = { Text(stringResource(R.string.restore_from_backup)) },
@@ -294,6 +307,67 @@ private fun AutomaticBackupRows(
             },
         )
     }
+}
+
+/**
+ * Asked for every sealed restore, even when a passphrase is stored on this device.
+ *
+ * Distinct from [PassphraseDialog], which *sets* the passphrase: this one opens a
+ * file with it, so its failure text has to stay honest. `BackupCrypto.open` fails
+ * closed and returns null for a wrong passphrase, a truncated file and a corrupt
+ * payload alike; the message says both rather than guessing which.
+ *
+ * Reuses [MIN_PASSPHRASE] rather than declaring its own — `BackupPassphraseUiContractTest`
+ * regexes the first `const val MIN_PASSPHRASE` in this file, so a second one could
+ * pass while meaning something different.
+ */
+@Composable
+private fun RestorePassphraseDialog(
+    error: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var value by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.backup_passphrase)) },
+        text = {
+            Column {
+                Text(
+                    "This backup is encrypted. Enter the passphrase it was written with — " +
+                        "it is not stored in the file and cannot be recovered from it.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(AuraSpacing.xs))
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.backup_passphrase_field)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = error != null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (error != null) {
+                    Spacer(Modifier.height(AuraSpacing.xs))
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(value) },
+                enabled = value.length >= MIN_PASSPHRASE,
+            ) { Text(stringResource(R.string.restore_from_backup)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Composable
