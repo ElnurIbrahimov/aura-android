@@ -104,6 +104,32 @@ class HandRecorderTest {
     }
 
     @Test
+    fun `a recording binds to the first app the user actually opens`() = runTest {
+        // When Record is tapped the foreground app is Aura, because the user has not opened
+        // the app they mean to demonstrate in yet. Binding has to wait for them to get there.
+        val r = recorder(snap(1, el("Send", 100), el("Draft", 300)), snap(2, el("Draft", 300)))
+        r.start()
+
+        assertEquals("", r.state.value.boundPackage, "nothing to bind to yet")
+        r.onScreenChanged(pkg)
+
+        assertEquals(pkg, r.state.value.boundPackage, "the first app opened is the one being recorded")
+    }
+
+    @Test
+    fun `a recording never binds itself to Aura`() = runTest {
+        // Aura is on the non-overridable denylist for acting, and recording its own screens
+        // would capture the review UI the user is about to look at.
+        val r = recorder(snap(1, el("Send", 100)))
+        r.start()
+
+        com.aura.a11y.ScreenControlGuard.deniedPackages().forEach { r.onScreenChanged(it) }
+
+        assertEquals("", r.state.value.boundPackage, "a denied package must never become the target")
+        assertTrue(r.state.value.steps.isEmpty())
+    }
+
+    @Test
     fun `a recording that runs away stops itself at the cap`() = runTest {
         // Driven by a device-wide callback, so an unbounded recorder is a memory leak that
         // grows for as long as the user forgets it is on.

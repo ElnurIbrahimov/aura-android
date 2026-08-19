@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -95,6 +96,7 @@ import android.util.Log
 @Composable
 fun HandsScreen(
     onBack: () -> Unit = {},
+    onRecordHand: () -> Unit = {},
     viewModel: HandsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -140,6 +142,12 @@ fun HandsScreen(
                 title = "Hands",
                 subtitle = "Automations with explicit inputs, gates, and history",
             )
+            // The other way in: show Aura the task once instead of writing the steps out.
+            TextButton(onClick = onRecordHand) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                Spacer(Modifier.width(AuraSpacing.xs))
+                Text(stringResource(R.string.record_a_hand))
+            }
             // Search bar
             androidx.compose.material3.OutlinedTextField(
                 value = state.searchQuery,

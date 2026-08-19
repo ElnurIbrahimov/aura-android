@@ -38,6 +38,7 @@ import com.aura.ui.evolution.EvolutionRollbackScreen
 import com.aura.ui.screens.DiagnosticsScreen
 import com.aura.ui.screens.CapabilitiesScreen
 import com.aura.ui.screens.HandsScreen
+import com.aura.ui.screens.hands.RecordedHandReviewScreen
 import com.aura.ui.screens.HistoryScreen
 import com.aura.ui.screens.creative.CreativeProjectScreen
 import com.aura.ui.screens.creative.CreativeStudioScreen
@@ -279,7 +280,18 @@ fun NavGraph(
                     }
                 })
             }
-            composable(Route.Hands.path) { HandsScreen(onBack = { navController.popBackStack() }) }
+            composable(Route.Hands.path) {
+                HandsScreen(
+                    onBack = { navController.popBackStack() },
+                    onRecordHand = { navController.navigate(Route.RecordHand.path) },
+                )
+            }
+            composable(Route.RecordHand.path) {
+                RecordedHandReviewScreen(
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
             composable(Route.Tasks.path) { TasksScreen(onOpenSchedule = { navController.navigate(Route.Schedule.path) }) }
             composable(Route.Tools.path) { ToolsScreen(onBack = { navController.popBackStack() }) }
             composable(Route.Proactive.path) {

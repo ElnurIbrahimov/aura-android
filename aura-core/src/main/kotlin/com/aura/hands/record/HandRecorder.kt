@@ -1,6 +1,7 @@
 package com.aura.hands.record
 
 import com.aura.a11y.ScreenControlBridge
+import com.aura.a11y.ScreenControlGuard
 import com.aura.a11y.UiSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,14 @@ class HandRecorder @Inject constructor(
     /** The last reading, held to diff the next one against. */
     private var previous: UiSnapshot? = null
 
-    fun start(packageName: String) {
+    /**
+     * Begin recording, binding to an app the user has not opened yet.
+     *
+     * When Record is tapped the foreground app is Aura, so there is nothing to bind to. The
+     * first window that is not Aura's own — or any other package on the non-overridable
+     * denylist — becomes the target, and everything after it is ignored.
+     */
+    fun start(packageName: String = "") {
         previous = null
         _state.value = State(recording = true, boundPackage = packageName)
     }
@@ -53,8 +61,19 @@ class HandRecorder @Inject constructor(
 
     /** One window change in [packageName]. Reads the screen only if it is being recorded. */
     suspend fun onScreenChanged(packageName: String) {
-        val current = _state.value
-        if (!current.recording || packageName != current.boundPackage) return
+        var current = _state.value
+        if (!current.recording) return
+
+        if (current.boundPackage.isEmpty()) {
+            // Recording Aura's own screens would capture the review UI the user is about to
+            // read, and the rest of the denylist is denied here for the same reasons acting
+            // on it is.
+            if (packageName.isEmpty() || packageName in ScreenControlGuard.deniedPackages()) return
+            current = current.copy(boundPackage = packageName)
+            _state.value = current
+        }
+
+        if (packageName != current.boundPackage) return
 
         // A failed read skips this tick rather than ending the recording: the screen is
         // mid-transition often enough that one miss is not a reason to lose the rest.
