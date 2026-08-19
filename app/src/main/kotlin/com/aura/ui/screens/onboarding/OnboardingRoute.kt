@@ -1,5 +1,6 @@
 package com.aura.ui.screens.onboarding
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,6 +25,19 @@ enum class OnboardingStep { Intro, Provider, Model, Complete }
 
 enum class OnboardingCredentialStatus { Empty, Draft, Saving, Verified, Invalid }
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.Intro,
     val keyDrafts: Map<String, String> = emptyMap(),

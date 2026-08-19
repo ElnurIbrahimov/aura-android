@@ -10,6 +10,31 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+/**
+ * Compose compiler configuration.
+ *
+ * `stabilityConfigurationFile` is the lever with the widest reach in this app. Strong
+ * skipping compares an unstable parameter by *identity*, and every `*UiState` here is
+ * republished as a fresh object on each change — so a screen taking one held every
+ * recomposition it could have skipped. The classes themselves are all-`val` and their
+ * collections are replaced through `copy()`, never mutated, so the promise the file makes
+ * is one the code already keeps.
+ *
+ * Metrics and reports are written only when `-PcomposeMetrics` is passed. They are how the
+ * stability claims here were checked rather than assumed, and they cost a slower build, so
+ * they stay off by default:
+ *
+ *     ./gradlew :app:assembleDebug -PcomposeMetrics
+ *     # then read build/compose-reports/app_release-classes.txt
+ */
+composeCompiler {
+    stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("compose-stability.conf"))
+    if (project.hasProperty("composeMetrics")) {
+        metricsDestination = layout.buildDirectory.dir("compose-metrics")
+        reportsDestination = layout.buildDirectory.dir("compose-reports")
+    }
+}
+
 // Release signing configuration is read from local.properties (gitignored),
 // falling back to environment variables of the same name. Neither the keystore
 // nor its passwords ever live in the repo.

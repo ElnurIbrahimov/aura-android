@@ -1,5 +1,6 @@
 package com.aura.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import com.aura.agent.ToolRegistry
 import com.aura.providers.ToolDefinition
@@ -14,6 +15,19 @@ import javax.inject.Inject
  * the user's search query; `grouped` is the search-filtered result
  * bucketed by [com.aura.tools.ToolCategories].
  */
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class ToolsUiState(
     val tools: List<ToolDefinition> = emptyList(),
     val query: String = "",

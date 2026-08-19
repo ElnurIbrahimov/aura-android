@@ -1,4 +1,5 @@
 package com.aura.ui.viewmodel
+import androidx.compose.runtime.Immutable
 import android.util.Log
 
 import android.app.Application
@@ -218,6 +219,19 @@ internal fun resolveModelSelection(
 /** A question Aura is waiting to ask, reduced to what the card needs. */
 data class OpenQuestionPrompt(val id: String, val question: String)
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class ChatUiState(
     val conversation: com.aura.agent.Conversation = com.aura.agent.Conversation(),
     val conversationLoading: Boolean = false,
