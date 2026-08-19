@@ -110,6 +110,34 @@ class ScreenActSelectorTest {
     }
 
     @Test
+    fun `a step written by RecordedHandCompiler is one this tool can read`() = runTest {
+        // The seam. The compiler writes the selector and this tool reads it, and neither
+        // imports the other — so nothing but this test notices if one side renames a key.
+        // A recorded Hand would then fail every step at replay, on a device, silently.
+        val send = el(0, "Send", sel("Send", viewId = "send"))
+        val (t, bridge) = tool(snap(el(1, "Cancel", sel("Cancel")), send))
+
+        val compiled = com.aura.hands.record.RecordedHandCompiler.compile(
+            listOf(
+                com.aura.hands.record.RecordedStep(
+                    kind = com.aura.hands.record.RecordedStep.Kind.TAP,
+                    selector = com.aura.a11y.ElementSelector(
+                        "send", "Send", null, "android.widget.Button", Rect4(0, 0, 100, 50),
+                    ),
+                    label = "Send",
+                ),
+            ),
+        ) as com.aura.hands.record.RecordedHandCompiler.Result.Compiled
+
+        val result = t.run(compiled.steps.single().args)
+
+        assertTrue(result is ToolResult.Ok, "the compiler's own output was refused: $result")
+        val acted = slot<UiElement>()
+        coVerify { bridge.act(any(), capture(acted)) }
+        assertEquals("Send", acted.captured.label)
+    }
+
+    @Test
     fun `the snapshot and element path the agentic loop uses is unchanged`() = runTest {
         val send = el(0, "Send", sel("Send", viewId = "send"))
         val bridge = mockk<ScreenControlBridge>(relaxed = true)
