@@ -67,6 +67,10 @@ class HandScheduler internal constructor(
 
         fun nextRunAt(hand: Hand, now: ZonedDateTime = ZonedDateTime.now()): ZonedDateTime? {
             if (!hand.enabled) return null
+            // Screen control is an attended grant by design — see ScreenControlSession, which
+            // calls itself a parking ticket rather than a driving licence. A hand that drives
+            // the screen has no unattended run time, whatever its schedule says.
+            if (stepsDriveScreen(hand.steps)) return null
             val type = HandScheduleType.from(hand.scheduleType)
             if (type == HandScheduleType.NONE) return null
             val hour = hand.scheduleHour.coerceIn(0, 23)

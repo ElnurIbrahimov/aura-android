@@ -154,6 +154,44 @@ class ScreenControlContractTest {
     }
 
     @Test
+    fun `the accessibility callback reads nothing but the package off an event`() {
+        // onAccessibilityEvent fires for every window change on the device. Its own comment
+        // says keeping event content "would turn the bridge into a device-wide keystroke and
+        // content log", and record mode added a second branch to that method — so the
+        // guarantee now needs a gate rather than a comment. AccessibilityEvent.getText()
+        // returns what a view says; on a text-changed event that is the characters typed.
+        val source = strippedKotlin(sourceDir("src/main/kotlin/com/aura/a11y").resolve("AuraAccessibilityService.kt"))
+        assertTrue(source.isNotEmpty(), "read no source — a vacuous scan is the defect, not the gate")
+
+        val callback = source.substringAfter("override fun onAccessibilityEvent")
+            .substringBefore("override fun onInterrupt")
+        assertTrue(callback.isNotEmpty(), "could not isolate the callback; this scan proves nothing")
+
+        val forbidden = listOf("e.text", "event.text", ".getText()", "contentDescription", "e.source", "event.source")
+        val found = forbidden.filter { it in callback }
+        assertTrue(
+            found.isEmpty(),
+            "the accessibility callback now reads $found off the event. Everything Aura learns " +
+                "must come from ScreenControlBridge.snapshot(), which runs under the screen-control " +
+                "gate; an event field bypasses it entirely.",
+        )
+    }
+
+    @Test
+    fun `content changed events are forwarded only while a recording is running`() {
+        // The branch is cheap to widen by accident — deleting one line turns a recorder into
+        // a device-wide screen reader that traverses every app the user opens.
+        val source = strippedKotlin(sourceDir("src/main/kotlin/com/aura/a11y").resolve("AuraAccessibilityService.kt"))
+        val branch = source.substringAfter("TYPE_WINDOW_CONTENT_CHANGED", "")
+            .substringBefore("TYPE_WINDOW_STATE_CHANGED")
+        assertTrue(branch.isNotEmpty(), "could not isolate the content-changed branch")
+        assertTrue(
+            "recorder.state.value.recording" in branch,
+            "content-changed events are no longer gated on an active recording: " + branch,
+        )
+    }
+
+    @Test
     fun `the traversal never returns a platform node`() {
         // minSdk 26 means recycle() is not yet a no-op, so a leaked
         // AccessibilityNodeInfo exhausts the obtain pool — and the symptom is
