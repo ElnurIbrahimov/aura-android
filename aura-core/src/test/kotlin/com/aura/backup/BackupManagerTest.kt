@@ -58,6 +58,10 @@ class BackupManagerTest {
     private val evolutionRevisionDao = mockk<com.aura.evolution.EvolutionRevisionDao>(relaxed = true)
     private val agentDao = mockk<com.aura.agent.AgentDao>(relaxed = true)
     private val strategyBanditDao = mockk<com.aura.agent.StrategyBanditDao>(relaxed = true)
+    private val agentStateDao = mockk<com.aura.agent.state.AgentStateDao>(relaxed = true)
+    private val agentRelationshipDao = mockk<com.aura.agent.state.AgentRelationshipDao>(relaxed = true)
+    private val agentObservationDao = mockk<com.aura.agent.state.AgentObservationDao>(relaxed = true)
+    private val forumPostDao = mockk<com.aura.agent.forum.ForumPostDao>(relaxed = true)
 
     private val manager = BackupManager(
         context = context,
@@ -82,6 +86,10 @@ class BackupManagerTest {
         evolutionRevisionDao = evolutionRevisionDao,
         agentDao = agentDao,
         strategyBanditDao = strategyBanditDao,
+        agentStateDao = agentStateDao,
+        agentRelationshipDao = agentRelationshipDao,
+        agentObservationDao = agentObservationDao,
+        forumPostDao = forumPostDao,
     )
 
     /**
@@ -1018,5 +1026,69 @@ class BackupManagerTest {
         // Password must NOT be in the backup JSON.
         assertFalse(json.contains("smtp_password"))
         assertFalse(json.contains("password"))
+    }
+
+    // ------------------------------------------------- what "add to existing" promises
+
+    @Test
+    fun `merge restore keeps local rows the backup does not carry`() = runTest {
+        // The restore dialog says, in these words: "Add to existing keeps what is already
+        // here and writes the backup on top: rows with the same id are replaced, new rows are
+        // added, nothing is deleted."
+        //
+        // restoreCouncil and restoreStrategyBandit deleted their tables outright before
+        // writing, so a merge silently destroyed agent state, relationships, observations,
+        // forum posts, votes and every learned strategy weight the backup did not happen to
+        // contain. writeEverything took no RestoreMode, so it could not have known better.
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.1.0",
+                strategyBandit = listOf(
+                    com.aura.agent.StrategyBanditBackup("general", "DIRECT", 1.0, 1.0, 0L),
+                ),
+            ),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { strategyBanditDao.clear() }
+        coVerify(exactly = 0) { agentStateDao.deleteAll() }
+        coVerify(exactly = 0) { agentRelationshipDao.deleteAll() }
+        coVerify(exactly = 0) { agentObservationDao.deleteAll() }
+        coVerify(exactly = 0) { forumPostDao.deleteAll() }
+    }
+
+    @Test
+    fun `merge restore does not wipe the profile just because the backup has none`() = runTest {
+        // The one unconditional delete: a backup carrying no userProfile cleared the local
+        // one. Correct when replacing everything, and a silent loss of identity when merging.
+        manager.restore(
+            AuraBackup(exportedAt = 0L, appVersionName = "0.1.0"),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { userProfileDao.deleteAll() }
+    }
+
+    @Test
+    fun `merge restore still writes the rows the backup does carry`() {
+        // The control, and not a REPLACE one: replace refuses without a rollback snapshot,
+        // which this harness cannot take, so asserting on it would test the harness. This
+        // asserts the merge path still writes — without it, the two tests above would pass
+        // if restore stopped doing anything at all.
+        runTest {
+            manager.restore(
+                AuraBackup(
+                    exportedAt = 0L,
+                    appVersionName = "0.1.0",
+                    strategyBandit = listOf(
+                        com.aura.agent.StrategyBanditBackup("general", "DIRECT", 1.0, 1.0, 0L),
+                    ),
+                ),
+                BackupManager.RestoreMode.MERGE,
+            )
+
+            coVerify { strategyBanditDao.insertAll(any()) }
+        }
     }
 }

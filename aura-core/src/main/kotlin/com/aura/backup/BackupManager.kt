@@ -551,7 +551,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                     // Running purgeAll twice is harmless: it is ~60
                     // unconditional DELETEs with no reads between them.
                     if (mode == RestoreMode.REPLACE) purgeAll()
-                    writeEverything(backup)
+                    writeEverything(backup, mode)
                 } catch (e: Throwable) {
                     // Throwable (not just Exception) so OOM / StackOverflow
                     // also trigger the rollback.
@@ -560,7 +560,9 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                         purgeAll()
                         val preRestore = readRollbackSnapshot(rollbackFile)
                         if (preRestore != null) {
-                            writeEverything(preRestore)
+                            // The rollback runs after purgeAll, so the tables are already
+                            // empty; REPLACE is nonetheless what restoring a snapshot means.
+                            writeEverything(preRestore, RestoreMode.REPLACE)
                             true
                         } else {
                             android.util.Log.e("BackupManager", "no pre-restore snapshot — purged tables stay empty")
@@ -619,7 +621,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * user's evolution history, learned strategy weights and entire council,
      * permanently, and reported only the error that started it.
      */
-    private suspend fun writeEverything(backup: AuraBackup): RestoreCounts {
+    private suspend fun writeEverything(backup: AuraBackup, mode: RestoreMode): RestoreCounts {
         val counts = writeRows(backup)
         val unreadable = restoreEvolutionRows(backup)
         // The two below stay guarded, unlike everything above, and the reason is
@@ -633,9 +635,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         // and roll back a Room import that had already succeeded. Calling them
         // from here still gets the council and the learned weights back on the
         // rollback path, which is the loss this method exists to close.
-        runCatching { restoreStrategyBandit(backup) }
+        // Only when replacing everything. A merge that wiped the profile because the backup
+        // happened not to carry one is a silent loss of identity, on an import the dialog
+        // describes as additive.
+        if (mode == RestoreMode.REPLACE && backup.userProfile == null) {
+            runCatching { userProfileDao.deleteAll() }
+                .onFailure { android.util.Log.w("BackupManager", "profile clear failed: ${it.message}", it) }
+        }
+        runCatching { restoreStrategyBandit(backup, mode) }
             .onFailure { android.util.Log.w("BackupManager", "strategy bandit write failed: ${it.message}", it) }
-        runCatching { restoreCouncil(backup) }
+        runCatching { restoreCouncil(backup, mode) }
             .onFailure { android.util.Log.w("BackupManager", "council write failed: ${it.message}", it) }
         return counts.copy(evolutionRevisionsUnreadable = unreadable)
     }
@@ -921,14 +930,10 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
         if (proactiveInteractionRows.isNotEmpty()) proactiveInteractionDao?.insertAll(proactiveInteractionRows)
         restoreReminders(reminderRows)
-        // If the backup has a profile, replace the current one.
-        // If it doesn't, clear the existing profile so stale identity
-        // data doesn't survive a restore.
-        if (profileRow != null) {
-            userProfileDao.upsert(profileRow)
-        } else {
-            userProfileDao.deleteAll()
-        }
+        // Writing only. Clearing a profile the backup does not carry depends on the restore
+        // mode, and lives in writeEverything with the other mode-dependent deletes — this
+        // method is already at the JVM's 64KB ceiling and cannot take another parameter.
+        if (profileRow != null) userProfileDao.upsert(profileRow)
         // Restore custom agents. Builtins are re-seeded on startup
         // so we only insert non-builtin entries from the backup.
         val customAgents = agentRows.filter { !it.isBuiltin }
@@ -1404,10 +1409,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * empty list writes nothing and deletes nothing, which is exactly right:
      * empty there means the pre-restore snapshot genuinely had no rows.
      */
-    private suspend fun restoreStrategyBandit(backup: AuraBackup) {
+    private suspend fun restoreStrategyBandit(backup: AuraBackup, mode: RestoreMode) {
         val rows = backup.strategyBandit.map { it.toEntity() }
         if (rows.isNotEmpty()) {
-            strategyBanditDao?.clear()
+            // Only REPLACE clears. The merge dialog promises "nothing is deleted", and
+            // clearing here threw away every strategy weight the backup did not happen to
+            // carry — months of learning, on an import the user was told was additive.
+            if (mode == RestoreMode.REPLACE) strategyBanditDao?.clear()
             strategyBanditDao?.insertAll(rows)
         }
     }
@@ -1422,29 +1430,29 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * `forum_votes.postId` can point at a row that no longer exists. That is
      * why [writeEverything] calls this inside a guard — see the comment there.
      */
-    private suspend fun restoreCouncil(backup: AuraBackup) {
+    private suspend fun restoreCouncil(backup: AuraBackup, mode: RestoreMode) {
         // Agent state
         val states = backup.agentStates.map { it.toEntity() }
         if (states.isNotEmpty()) {
-            agentStateDao?.deleteAll()
+            if (mode == RestoreMode.REPLACE) agentStateDao?.deleteAll()
             agentStateDao?.upsertAll(states)
         }
         // Relationships
         val rels = backup.agentRelationships.map { it.toEntity() }
         if (rels.isNotEmpty()) {
-            agentRelationshipDao?.deleteAll()
+            if (mode == RestoreMode.REPLACE) agentRelationshipDao?.deleteAll()
             agentRelationshipDao?.upsertAll(rels)
         }
         // Observations
         val obs = backup.agentObservations.map { it.toEntity() }
         if (obs.isNotEmpty()) {
-            agentObservationDao?.deleteAll()
+            if (mode == RestoreMode.REPLACE) agentObservationDao?.deleteAll()
             agentObservationDao?.insertAll(obs)
         }
         // Forum posts
         val posts = backup.forumPosts.map { it.toEntity() }
         if (posts.isNotEmpty()) {
-            forumPostDao?.deleteAll()
+            if (mode == RestoreMode.REPLACE) forumPostDao?.deleteAll()
             posts.forEach { forumPostDao?.insert(it) }
         }
         // Forum votes
