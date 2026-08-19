@@ -122,7 +122,7 @@ internal fun truncateToolResult(raw: String): String =
  * `send_email_background` — went in unframed. The derivative was defended and
  * the original was not.
  *
- * Framing keys off [com.aura.tools.ToolCategories.WEB] rather than a new flag on
+ * Framing keys off [com.aura.agent.ToolCategories.WEB] rather than a new flag on
  * `Tool`, so there is one fact rather than two that can drift, and
  * `ToolFramingAuditTest` pins the membership so recategorising a tool for the
  * Tools browser cannot quietly remove a security control.
@@ -136,7 +136,7 @@ internal fun truncateToolResult(raw: String): String =
  * between a hostile page and an irreversible action.
  */
 internal fun frameToolResult(category: String, result: String): String =
-    if (category == com.aura.tools.ToolCategories.WEB) {
+    if (category == com.aura.agent.ToolCategories.WEB) {
         PromptFraming.UNTRUSTED_DATA_DIRECTIVE + "\n\n" + result
     } else {
         result

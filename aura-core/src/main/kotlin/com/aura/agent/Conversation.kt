@@ -1,7 +1,7 @@
 package com.aura.agent
 
 import com.aura.providers.ProviderMessage
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import kotlinx.serialization.Serializable
 import java.util.UUID
 

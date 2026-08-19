@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.Citation
 import com.aura.agent.TIMEOUT_HEADROOM_MS
 import com.aura.agent.Tool
 import com.aura.agent.ToolContext
@@ -65,7 +66,7 @@ class DeepResearchTool @Inject constructor(
     private val mediaType = "application/json".toMediaType()
     private val ddg by lazy { DuckDuckGoSearch(httpClient) }
 
-    // Citation type lives at com.aura.tools.Citation (top-level) — used
+    // Citation type lives at com.aura.agent.Citation (top-level) — used
     // by every UI consumer (MessageBubble, ChatDialogs, ChatViewModel).
     // The old nested DeepResearchTool.Citation was a duplicate; removed
     // in v0.30.x.

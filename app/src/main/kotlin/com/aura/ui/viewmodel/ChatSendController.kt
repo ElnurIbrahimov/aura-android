@@ -11,7 +11,7 @@ import com.aura.agent.ToolResult
 import com.aura.core.error.AuraError
 import com.aura.data.UserPreferences
 import com.aura.kg.KnowledgeGraphRepository
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.tools.DelegateToAgentTool
 import com.aura.voice.TextToSpeech
 import kotlinx.serialization.json.buildJsonObject

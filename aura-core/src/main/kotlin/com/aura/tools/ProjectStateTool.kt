@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.ToolCategories
 import com.aura.agent.Tool
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk

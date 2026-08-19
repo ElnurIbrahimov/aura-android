@@ -75,6 +75,11 @@ class EvolutionCoordinator @Inject constructor(
         for (candidate in pending) {
             val settings = settingsByDomain[candidate.domain]
                 ?: EvolutionSettingsEntity(domain = candidate.domain)
+            // The master switch, checked before reflection. It is documented as one and
+            // rendered as a Switch per domain in EvolutionInboxScreen, and until now it was
+            // written, read back to draw itself, and consulted nowhere — a domain the user
+            // had switched off still spent LLM calls and still promoted proposals.
+            if (!settings.enabled) continue
             if (!settings.reflectionEnabled) continue
             if (candidate.score < AUTHORING_SCORE_THRESHOLD) continue
             // Skip candidates in domains where recent outcomes are consistently poor.
@@ -139,6 +144,7 @@ class EvolutionCoordinator @Inject constructor(
         reason: String,
     ) {
         val saga = applySaga ?: return
+        if (!settings.enabled) return
         if (!settings.autoApplyApproved) return
         if (!safetyGuard.canAutoApply(candidate.domain)) {
             android.util.Log.i(TAG,

@@ -25,7 +25,7 @@ data class ToolDefinition(
     val parameters: ToolParameters,
     /**
      * UI category used by the Tools browser screen. See
-     * [com.aura.tools.ToolCategories] for the list of valid values.
+     * [com.aura.agent.ToolCategories] for the list of valid values.
      * Empty string = "other" (default if a tool hasn't been
      * categorized yet).
      */

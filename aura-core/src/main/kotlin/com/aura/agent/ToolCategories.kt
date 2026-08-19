@@ -1,5 +1,12 @@
-package com.aura.tools
+package com.aura.agent
 
+/**
+ * Moved here from `com.aura.tools`.
+ *
+ * See [Citation]: these two names were the entire `agent -> tools` direction of the
+ * package cycle. A category is part of a tool's *definition*, which `agent` owns through
+ * [ToolRegistry]; the implementations that pick one live in `tools`.
+ */
 /**
  * Tool categories used by the Tools browser screen. Stable strings —
  * never rename, or the user's grouped view will break. Add new

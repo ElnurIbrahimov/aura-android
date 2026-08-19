@@ -173,7 +173,12 @@ class EvolutionCandidateDetectors @Inject constructor(
     }.onFailure { android.util.Log.w("EvolutionCandidateDetect", "payload parse failed: ${it.message}", it) }
         .getOrDefault(emptyMap())
 
-    private companion object {
+    // `internal` rather than private so ConsolidationReachabilityTest can assert against
+    // these directly. Whether a consolidation candidate can ever clear the authoring bar
+    // is decided by these five numbers together with two in MemoryStore and one in
+    // EvolutionCoordinator, and no file mentions the others — an audit read them and
+    // concluded, wrongly but not unreasonably, that the action was dead code.
+    internal companion object {
         const val TAG = "EvolutionDetectors"
         val json = Json { ignoreUnknownKeys = true }
         const val DAY_MS = 24L * 60L * 60L * 1000L

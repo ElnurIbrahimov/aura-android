@@ -36,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aura.providers.ToolDefinition
-import com.aura.tools.ToolCategories
+import com.aura.agent.ToolCategories
 import com.aura.ui.viewmodel.ToolsViewModel
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction

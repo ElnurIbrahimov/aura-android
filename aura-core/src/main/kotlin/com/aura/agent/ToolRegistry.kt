@@ -49,7 +49,7 @@ data class Tool(
     /**
      * Top-level group the tool belongs to, used by the Tools
      * browser screen. Categories are stable strings — see
-     * [com.aura.tools.ToolCategories]. Empty string = "other".
+     * [com.aura.agent.ToolCategories]. Empty string = "other".
      */
     val category: String = "",
     /**

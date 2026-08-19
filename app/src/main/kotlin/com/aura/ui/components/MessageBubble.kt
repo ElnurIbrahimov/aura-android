@@ -72,7 +72,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.agent.Reaction
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.Fraunces
 import com.aura.ui.theme.InterDisplay

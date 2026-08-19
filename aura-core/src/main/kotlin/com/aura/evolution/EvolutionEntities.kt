@@ -193,15 +193,27 @@ data class EvolutionSettingsEntity(
     val autoApplyApproved: kotlin.Boolean = false,
     /** User has opted into optional LLM reflection for this domain. */
     val reflectionEnabled: kotlin.Boolean = false,
-    /** When enabled, approved evolutions run in shadow mode first and compare metrics. */
+    /**
+     * When enabled, approved evolutions run in shadow mode first and compare metrics.
+     *
+     * NOT IMPLEMENTED. The column exists and a migration adds it; nothing reads it and
+     * shadow mode does not exist. Named here rather than removed because dropping a Room
+     * column costs a migration and buys nothing — but a field describing a safety
+     * mechanism that is not there is worse than no field, so this says so.
+     */
     val shadowEnabled: kotlin.Boolean = false,
-    /** Max cloud calls per 24h window for this domain. */
+    /**
+     * Max cloud calls per 24h window for this domain.
+     *
+     * NOT IMPLEMENTED — no caller reads it, and no budget is enforced anywhere. This one
+     * reads as a spend cap, which makes believing it the expensive mistake.
+     */
     val dailyCloudCallBudget: Int = 24,
-    /** Max tokens per reflection call. */
+    /** Max tokens per reflection call. NOT IMPLEMENTED — no caller reads it. */
     val reflectionMaxTokens: Int = 2048,
     /** Retention days for evidence rows. */
     val evidenceRetentionDays: Int = 30,
-    /** Retention days for resolved proposals. */
+    /** Retention days for resolved proposals. NOT IMPLEMENTED — no caller reads it. */
     val proposalRetentionDays: Int = 90,
     /** Max number of proposals kept before automatic stale cleanup. */
     val retentionCount: Int = 50,

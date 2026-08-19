@@ -28,7 +28,7 @@ import com.aura.providers.ModelCatalogRepository
 import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
 import com.aura.taste.TasteEngine
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.ui.util.toSummary
 import com.aura.voice.TextToSpeech
 import dagger.hilt.android.lifecycle.HiltViewModel
