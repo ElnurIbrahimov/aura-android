@@ -19,25 +19,54 @@ marked `ANSWERABLE_USER` or answerable by the world.
 That is most of an uncertainty ledger, and it is unusual. Assistants that start each session
 near-blank have no accumulated model to have gaps *in*.
 
-Then it ends here:
+### Correction, 2026-08-19, after reading the callers
 
-```sql
--- OpenQuestionEntity.kt:150
-SELECT * FROM open_questions WHERE status = 'open' ORDER BY createdAt ASC LIMIT 1
+An earlier draft of this document claimed Aura "asks whichever question is oldest," citing
+`ORDER BY createdAt ASC LIMIT 1` at `OpenQuestionEntity.kt:150`. That query is real and that
+reading was wrong. `CuriosityStore.scanAndAuthor:48` opens with:
+
+```kotlin
+if (dao.openCount() > 0) return 0
 ```
 
-**The question Aura asks is whichever one is oldest.** A queue, not a judgement. Everything
-downstream — the one question appended to the prompt at
-`MemoryAugmentedAgenticLoop.kt:1046-1055`, the `SelfServeResearcher`'s daily budget, the
-CURIOSITY drive that `IntrinsicMotivation` renders into the system prompt — is spent on
-whatever happened to be noticed first.
+**Only one question is ever open.** `current()` orders a set of size one, and the DAO's own
+KDoc says why — *"Singular by design. One open question at a time is the entire defence
+against an assistant that plays twenty questions."* There is no queue and no FIFO problem.
+The error was reading a query without reading its caller, and it is left recorded here
+rather than quietly edited out.
 
-Aura knows what it does not know. It has no idea which of those things matters.
+### Where the decision actually is
+
+Ranking happens earlier, at scan time, and it already exists:
+
+```kotlin
+// QuestionScanner.scan:75
+.sortedByDescending { it.priority }
+
+CONTRADICTION_BASE = 1.0f    priority = base × row.confidence
+GAP_BASE           = 0.7f    priority = base × node.confidence
+SHALLOW_BASE       = 0.6f    priority = base × node.confidence
+STALE_BASE         = 0.5f    priority = base × memory.importance
+```
+
+A fixed weight per kind, times **a detector's confidence that it found something**.
+Confidence answers *"am I sure this is a gap"* and never *"does this gap matter"*. A
+high-confidence contradiction about a throwaway remark outranks a lower-confidence gap about
+the project with months of work behind it.
+
+And because there is exactly one slot, the scan-time choice is the **entire** decision.
+Choosing badly spends the only question Aura gets to ask, and nothing better can be authored
+until that one is answered or dismissed. Everything downstream — the question appended to the
+prompt at `MemoryAugmentedAgenticLoop.kt:1046-1055`, the `SelfServeResearcher`'s daily
+budget, the CURIOSITY drive `IntrinsicMotivation` renders into the system prompt — spends
+itself on that single choice.
+
+Aura knows what it does not know. It ranks that by how sure it is, not by what it would change.
 
 ## What this phase builds
 
-Only the knowing half: **score each open question by how much resolving it would change what
-Aura does, and order everything by that score instead of by age.**
+Only the knowing half: **score each candidate subject by how much knowing would change what
+Aura does, and choose the one question by that rather than by detector confidence.**
 
 Not in this phase, deliberately: the resolution planner, the silent resolver, watches, and
 outcome scoring of resolutions. Those are phase 2, and they are worth building only if the
@@ -46,28 +75,28 @@ acting half has nothing worth acting on.
 
 ## Design
 
-### 1. Arithmetic shortlist — free, deterministic, no key
+### 1. Arithmetic scoring — free, deterministic, no key
 
-`ValueOfInformation` (pure, `com.aura.curiosity`, no Android imports) scores every open
-question from rows already present:
+`ValueOfInformation` (pure, `com.aura.curiosity`, no Android imports) scores each candidate
+`QuestionScanner.Subject` from signals the scanner's existing DAOs already reach — it takes
+pre-fetched values rather than DAOs, so it stays a pure function with no mocks in its tests.
 
 | Factor | Meaning | Source |
 |---|---|---|
-| **reach** | how much of the model touches this subject | KG edge count for `SUBJECT_KG_NODE`; memories and beliefs referenced for `SUBJECT_CONTRADICTION`; `accessCount` for `SUBJECT_MEMORY` |
-| **liveness** | is the subject feeding anything right now | referenced by an `active` belief, a pending task, or a recall in the last 14 days |
-| **recency** | when the subject was last touched | subject's `updatedAt` |
-| **age** | how long the question has waited | `createdAt`, smallest weight |
+| **kind** | the existing per-kind judgement | `Subject.priority`, kept unchanged — a wrong belief corrupts every future recall, a gap only limits one |
+| **reach** | how much of the model touches this subject | `edgesForNode(id).size` for a KG node; `accessCount` for a memory; shared-id count for a contradiction |
+| **recency** | when the subject was last touched | `accessedAt` / `createdAt` on the subject |
 
-`age` is deliberately the weakest term and deliberately still present: it makes today's FIFO
-the tiebreak rather than the rule, so a low-reach question is not starved forever.
+Reach saturates rather than growing without bound, so one enormous hub cannot swamp the
+ranking. Pure function of its inputs, testable with no emulator and no key, in the manner of
+`NotabilityScorer` and the living-world engine.
 
-Output: the top `SHORTLIST = 10`. Pure function of its inputs, testable with no emulator and
-no key, in the manner of `NotabilityScorer` and the living-world engine.
+### 2. The consequence judgement rides the model call that already happens
 
-### 2. One model call a night to rank the shortlist
-
-On the existing dream cycle (`DreamConsolidator.runCycle`, which already makes model calls
-and already invokes `curiosityStore.scanAndAuthor()` at `:280`), a single call ranks the ten:
+`QuestionAuthor.author(subjects)` already sends up to eight numbered subjects to the
+background model in **one** call and keeps the best it could phrase
+(`CuriosityStore.kt:79-81`). That call is extended to return a reason per line, so no second
+call is added — an earlier draft proposed one, which reading the author made unnecessary:
 
 > Given these open questions and what each is about, rank them by how much knowing the answer
 > would change the advice you would give. Return id, score 0-100, and one sentence saying why.
@@ -80,22 +109,23 @@ which is reliably not what matters most.
 budget, the ten shortlisted questions only, and a token ceiling. A failed or skipped call
 leaves `voiScore` at its default.
 
-### 3. Selection becomes consequence-ordered
+### 3. Selection becomes consequence-ordered at scan time
 
-```sql
-ORDER BY voiScore DESC, createdAt ASC LIMIT 1
-```
+`QuestionScanner.scan` sorts by the new score instead of raw `priority`, and the author picks
+by the returned judgement rather than by position among the phrasable.
 
-**The fallback matters as much as the feature.** With no scores — first run, model call
-failed, dream disabled — every `voiScore` is 0 and the ordering collapses to `createdAt ASC`,
-which is exactly today's behaviour. The feature degrades to the thing it replaces rather than
-to nothing.
+**The fallback matters as much as the feature.** With no reach and no age difference the
+score reduces to `priority`, which is exactly today's ordering. A failed model call, a
+missing reason, an empty graph — each degrades to the behaviour being replaced rather than to
+nothing.
 
 ### 4. Where it surfaces
 
-`MindScreen` ("What Aura thinks") already lists open questions. Phase 1 changes what it shows
-them as: ordered by score, each with the one-sentence reason it matters and the evidence
-behind it. A person reading that list is the actual test of whether any of this works.
+`MindScreen` ("What Aura thinks") already renders `openQuestionsSection` (`:105`, `:290`).
+Phase 1 shows the open question with the reason it was chosen, and beneath it the ranked
+candidates that lost — computed live from `scanner.scan()`, which is pure DB reads and needs
+no storage. That list is the ledger; the single question is its tip. A person reading it is
+the actual test of whether any of this works.
 
 ## Data
 
@@ -110,13 +140,13 @@ Defaults chosen so existing rows are valid and behave as they do today. Schema e
 
 ## Files
 
-**New** — `curiosity/ValueOfInformation.kt` (pure scorer), `curiosity/VoiRanker.kt` (the
-nightly call), plus tests for both.
+**New** — `curiosity/ValueOfInformation.kt` (pure scorer) and its test.
 
-**Modified** — `curiosity/OpenQuestionEntity.kt` (columns + the `current()` query),
-`curiosity/CuriosityStore.kt` (expose ranked reads), `dream/DreamConsolidator.kt` (invoke the
-ranker after `scanAndAuthor`), `memory/MemoryDatabase.kt` + `MemoryModule.kt` (v30),
-`app/.../MindScreen.kt` (ranked rendering).
+**Modified** — `curiosity/QuestionScanner.kt` (rank via the scorer), `curiosity/QuestionAuthor.kt`
+(a reason per line), `curiosity/CuriosityStore.kt` (carry score and reason onto the row),
+`curiosity/OpenQuestionEntity.kt` (two columns), `memory/MemoryDatabase.kt` +
+`memory/MemoryModule.kt` (v30 and its migration), `app/.../MindScreen.kt` and `MindViewModel`
+(reason plus ranked candidates).
 
 **Reused** — `QuestionScanner`, `QuestionAuthor`, `SelfServeResearcher`, `DriveSignals`,
 `KnowledgeGraphDao`, `ContradictionDao`, `BeliefDao`, the dream cycle's model plumbing.
@@ -124,7 +154,7 @@ ranker after `scanAndAuthor`), `memory/MemoryDatabase.kt` + `MemoryModule.kt` (v
 ## Verification
 
 **Unit, JVM, no key** — the scorer is pure, so all of it is testable:
-- reach, liveness, recency and age each move the score in the stated direction
+- kind, reach and recency each move the score in the stated direction
 - a high-reach live subject outranks an old low-reach one, and the reverse when reach is equal
 - **with no scores at all the order is identical to today's FIFO** — the degradation pin
 - the ranker parses a well-formed model response, and drops a malformed one without
