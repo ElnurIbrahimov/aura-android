@@ -59,6 +59,7 @@ class BackupViewModelTest {
             prefs,
             secure,
             mockk<com.aura.proactive.ProactiveScheduler>(relaxed = true),
+            mockk<com.aura.security.ProviderKeyTransfer>(relaxed = true),
         )
     }
 
