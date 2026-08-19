@@ -435,6 +435,20 @@ class ChatViewModel @Inject constructor(
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
     /** Projects this conversation can be attributed to. */
     private val projectStore: com.aura.projects.ProjectStore? = null,
+    /**
+     * The only state here that outlives the process.
+     *
+     * SavedStateHandle appeared nowhere in this app and rememberSaveable twice against 233
+     * `remember`, so nothing survived Android killing a backgrounded app — which it does
+     * for entirely routine reasons. Almost all of that is fine: a collapsed card reopening
+     * collapsed is not worth a line of code.
+     *
+     * The draft is the exception. It is the one piece of state the *user* authored, and it
+     * is not in Room precisely because it has not been sent. Look something up mid-message,
+     * come back, and it was gone. Nullable so the many tests that construct this directly
+     * do not all have to supply one.
+     */
+    private val savedStateHandle: androidx.lifecycle.SavedStateHandle? = null,
 ) : AndroidViewModel(application) {
 
     /**
@@ -599,6 +613,12 @@ class ChatViewModel @Inject constructor(
 
 
     init {
+        // Before anything that might overwrite it. A restored draft is only ever what the
+        // user last typed; if the process was never killed the handle is empty and this
+        // does nothing.
+        savedStateHandle?.get<String>(DRAFT_KEY)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { restored -> _state.update { it.copy(draft = restored) } }
         textToSpeech.initialize()
         // Sticky project attribution.
         //
@@ -820,6 +840,10 @@ class ChatViewModel @Inject constructor(
 
     fun setDraft(text: String) {
         _state.update { it.copy(draft = text) }
+        // Mirrored rather than read back on every keystroke: the flow stays the source of
+        // truth and this is only the copy the OS keeps. Written on clear too, or a sent
+        // message reappears in the field after the app is killed and reopened.
+        savedStateHandle?.set(DRAFT_KEY, text)
     }
 
     /**
@@ -1446,4 +1470,9 @@ class ChatViewModel @Inject constructor(
 
     fun onDocumentPicked(uri: Uri) =
         mediaController.onDocumentPicked(uri)
+
+    private companion object {
+        /** Where the unsent draft is mirrored so it can outlive the process. */
+        const val DRAFT_KEY = "chat_draft"
+    }
 }

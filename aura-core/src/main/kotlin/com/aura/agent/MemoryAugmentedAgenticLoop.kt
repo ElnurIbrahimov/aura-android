@@ -11,9 +11,11 @@ import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderMessage.Role
 import com.aura.providers.ModelCatalogRepository
 import com.aura.providers.ToolDefinition
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -382,6 +384,8 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // is still coherent.
         tail.collect { emit(it) }
     }
+        // Same reason as run(): a resumed turn does the same recall and assembly work.
+        .flowOn(Dispatchers.Default)
 
 
     /**
@@ -1686,6 +1690,15 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         }
         emit(AgentEvent.Done)
     }
+        // Everything upstream of the collector runs here rather than on whatever thread
+        // collected. That thread is Main: ChatSendController collects in viewModelScope,
+        // and this flow does BM25 scoring, cosine similarity over every candidate embedding
+        // and reciprocal-rank fusion before it emits anything — MemoryStore has no
+        // withContext of its own, so all of it ran on the UI thread on every turn.
+        //
+        // Default rather than IO: the expensive part is arithmetic over float arrays, not
+        // waiting on a disk. The providers already move their own network work to IO.
+        .flowOn(Dispatchers.Default)
 
     /** Lightweight regex-based profile extraction. Updates name, traits, and facts. */
 private suspend fun extractProfileFromText(text: String) {
