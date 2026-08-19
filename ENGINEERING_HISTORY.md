@@ -587,14 +587,43 @@ database's sole migration had been verified by nothing at all.
 loss, with the fix sitting unpushed on a feature branch since 03:01 that morning. The
 `migrations` job is green for the first time since 2026-08-17.
 
-Two things found and deliberately **not** fixed here, recorded rather than absorbed:
-`ProviderKeysTest > loaded becomes true when the embedding model read throws` failed once on
-CI and passes locally on repeat — when the embedding read throws, the mutex block that
-publishes `credentialStates` is skipped while `finally` still sets `_loaded`, so a consumer
-woken by `loaded` can see state that was never written. That is a real ordering hazard in
-production code, not a test bug, and it deserves its own change. And `hiltViewModel()` is
-deprecated in favour of `androidx.hilt.lifecycle.viewmodel.compose` across all 41 call
-sites — a mechanical migration that should not ride along with a crash fix.
+One thing found and deliberately **not** fixed here: `hiltViewModel()` is deprecated in
+favour of `androidx.hilt.lifecycle.viewmodel.compose` across all 41 call sites — a
+mechanical migration that should not ride along with a crash fix.
+
+*Same day, the ProviderKeys flake, and a diagnosis that was wrong twice.* The first reading
+of `ProviderKeysTest > loaded becomes true when the embedding model read throws` was that
+the embedding read threw past the publish and left `credentialStates` at `Loading` behind a
+true `loaded`. It does not: `loadEmbeddingModel` has its own catch returning `""`, and the
+comment above it explains exactly why it is guarded separately. The second reading was that
+the assertion at the named line had failed. It had not. `runTest`'s timeout throws
+`UncompletedCoroutinesError`, which **extends `AssertionError`**, and the line it names is
+the `runTest(` line rather than any assertion — verified with a throwaway probe rather than
+assumed. The test did not fail an assertion. It **timed out after 30 seconds waiting for
+`awaitLoaded()`**, on a runner where this module took 4m36s against 2m06s locally.
+
+The test wrapped `awaitLoaded()` in `withContext(Dispatchers.IO)` **twenty-three times**.
+`awaitLoaded` is a suspend on a StateFlow and wants no dispatcher at all, so each of those
+took an IO thread purely to wait — in a class that also constructs 27 `ProviderKeys`, every
+one launching an uncancellable coroutine onto the same pool. All twenty-three are gone.
+This could not be reproduced locally across eight stress iterations, so it is strong
+inference from proven facts rather than a reproduced-then-cured bug; CI staying green is
+what would confirm it.
+
+The ordering hazard turned out to be real anyway, just not the cause. `_loaded.value = true`
+sat in a `finally`, and a `finally` runs while a `CancellationException` is on its way out,
+so a **cancelled** load announced that it had finished over state nobody had published. It
+is now assigned inside the same mutex as the state it announces, and last; the non-
+cancellation failure path publishes what the loop gathered under `NonCancellable` before
+marking loaded, so the "never stuck in a perpetual loading state" promise the 40-minute hang
+was about still holds.
+
+The first test written for that fix **passed against the broken code** — the bug needs a
+cancellation and the test never cancelled anything, so it could not fail for the reason it
+was named after, which is §2.6's defect exactly. The load body is now `internal
+suspend fun loadOnce()`, documented as existing because `scope` is process-scoped and never
+cancelled, which is precisely why the path stayed invisible. The replacement cancels a load
+in flight and fails against the `finally` with the message it was written for.
 
 What remains is what §4 asked for and this file has owed since: the device pass. Nothing
 above is a substitute for it, and the backup work in particular is only half-proved — the

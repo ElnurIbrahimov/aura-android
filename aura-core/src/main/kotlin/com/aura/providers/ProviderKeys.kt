@@ -2,6 +2,7 @@ package com.aura.providers
 
 import com.aura.security.SecureDataStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -116,89 +118,119 @@ class ProviderKeys @Inject constructor(
      * false.
      */
     init {
-        scope.launch {
-            val values = mutableMapOf<String, String>()
-            val states = mutableMapOf<String, ProviderCredentialState>()
+        scope.launch { loadOnce() }
+    }
 
-            try {
-                for (prefix in PREFIXES) {
-                    try {
-                        val key = secureDataStore.getString("${prefix}_api_key")?.takeIf { it.isNotBlank() }
-                        if (key == null) {
-                            states[prefix] = ProviderCredentialState.NotConfigured
-                        } else {
-                            values[prefix] = key
-                            states[prefix] = ProviderCredentialState.Saved
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        states[prefix] = ProviderCredentialState.StorageError
+    /**
+     * The initial load, extracted from [init] so it can be cancelled by a test.
+     *
+     * [scope] is process-scoped and never cancelled — correct for a `@Singleton`
+     * that lives as long as the app, and also the reason the cancellation path
+     * here is unreachable from a test that can only construct this class. That
+     * path is where `loaded` used to be announced over state nobody published,
+     * so leaving it untestable is how the bug survived. Running this directly
+     * inside a job the test owns is the only seam that makes it provable.
+     */
+    internal suspend fun loadOnce() {
+        val values = mutableMapOf<String, String>()
+        val states = mutableMapOf<String, ProviderCredentialState>()
+
+        try {
+            for (prefix in PREFIXES) {
+                try {
+                    val key = secureDataStore.getString("${prefix}_api_key")?.takeIf { it.isNotBlank() }
+                    if (key == null) {
+                        states[prefix] = ProviderCredentialState.NotConfigured
+                    } else {
+                        values[prefix] = key
+                        states[prefix] = ProviderCredentialState.Saved
                     }
-                }
-
-                // Guarded separately, and not folded into the block below.
-                //
-                // This read sits after the provider loop but before the publish,
-                // so letting it throw past here discards every provider state
-                // just gathered: `_credentialStates` stays at its initial
-                // `Loading` for all of them, permanently. With `_loaded` now
-                // flipped in a `finally`, that combination is worse than the
-                // original hang was honest about — consumers would be told
-                // loading had finished while every provider still read
-                // "Loading". A blank model is the documented meaning of "use
-                // the local embedder", so falling back to it costs nothing.
-                val model = try {
-                    loadEmbeddingModel()
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
-                    android.util.Log.w("ProviderKeys", "embedding model unreadable; using local", e)
-                    ""
+                } catch (_: Exception) {
+                    states[prefix] = ProviderCredentialState.StorageError
                 }
-                stateMutex.withLock {
-                    _state.value = values
-                    _values.clear()
-                    _values.putAll(values)
-                    _credentialStates.value = states.toMap()
-                    _embeddingModel.value = model
-                }
+            }
+
+            // Guarded separately, and not folded into the block below.
+            //
+            // This read sits after the provider loop but before the publish,
+            // so letting it throw past here discards every provider state
+            // just gathered: `_credentialStates` stays at its initial
+            // `Loading` for all of them, permanently. With `_loaded` now
+            // flipped in a `finally`, that combination is worse than the
+            // original hang was honest about — consumers would be told
+            // loading had finished while every provider still read
+            // "Loading". A blank model is the documented meaning of "use
+            // the local embedder", so falling back to it costs nothing.
+            val model = try {
+                loadEmbeddingModel()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Logged, not thrown. This body runs on a process-scoped
-                // SupervisorJob with no parent to receive a failure, so an
-                // escaping exception becomes an uncaught one — which is how a
-                // fault here surfaced as `UncaughtExceptionsBeforeTest` inside
-                // whichever test happened to run next, naming a test that was
-                // perfectly fine.
-                android.util.Log.w(
-                    "ProviderKeys",
-                    "initial key load failed; some provider states may be incomplete: ${e.message}",
-                    e,
-                )
-            } finally {
-                // In a `finally`, and that is the entire point of this change.
-                //
-                // The per-provider catch above handles one bad entry, and the
-                // KDoc on `loaded` promises consumers are "never stuck in a
-                // perpetual loading state". That promise did not hold: only the
-                // loop was guarded, so anything thrown by `loadEmbeddingModel`
-                // or the mutex block skipped this assignment and left `_loaded`
-                // false forever. `awaitLoaded()` suspends on `_loaded.first { it }`
-                // with nothing remaining that could flip it, and every caller —
-                // Settings, Onboarding, the agentic loop — waits for good.
-                //
-                // That is the 40-minute CI hang. Bounding the tests with a
-                // timeout turned it into a fast failure, which is a better
-                // symptom and was not a fix.
-                //
-                // Assigned last, after the state above is populated, so a
-                // consumer woken by it sees that state in the same read; and
-                // assigned even when a provider is in StorageError, because a
-                // terminal error is not "still loading".
-                _loaded.value = true
+                android.util.Log.w("ProviderKeys", "embedding model unreadable; using local", e)
+                ""
             }
+            publish(values, states, model)
+        } catch (e: CancellationException) {
+            // Deliberately falls through without marking loaded.
+            //
+            // This used to be a `finally`, which also runs while a
+            // CancellationException is on its way out — so a cancelled load
+            // announced `loaded = true` over a `_credentialStates` that was
+            // still `Loading` for every provider, and over `_values` that had
+            // never been written. `awaitLoaded()` returned to a caller that
+            // then read state nobody had published. In production the scope is
+            // process-scoped and never cancelled, so this was latent; under a
+            // test JVM it is reachable, and "latent" is not the same as "not a
+            // bug".
+            throw e
+        } catch (e: Exception) {
+            // Logged, not thrown. This body runs on a process-scoped
+            // SupervisorJob with no parent to receive a failure, so an
+            // escaping exception becomes an uncaught one — which is how a
+            // fault here surfaced as `UncaughtExceptionsBeforeTest` inside
+            // whichever test happened to run next, naming a test that was
+            // perfectly fine.
+            android.util.Log.w(
+                "ProviderKeys",
+                "initial key load failed; some provider states may be incomplete: ${e.message}",
+                e,
+            )
+            // Terminal, and complete. The KDoc on `loaded` promises consumers
+            // are "never stuck in a perpetual loading state", and this is where
+            // that promise is kept for every failure that is not a cancellation:
+            // whatever the per-provider loop gathered still goes out, so no
+            // provider is left reading `Loading` behind a `loaded` that says the
+            // load finished. Leaving it unpublished was the 40-minute CI hang.
+            //
+            // NonCancellable because this is the last write of a load that has
+            // already failed; being cancelled here would strand the very state
+            // this branch exists to publish.
+            withContext(NonCancellable) { publish(values, states, "") }
+        }
+    }
+
+    /**
+     * Write the loaded state and mark the load finished, atomically.
+     *
+     * `_loaded` is assigned **inside** the same lock as the state it announces,
+     * and last. Consumers wake on `loaded` and immediately read
+     * `credentialStates`; publishing the flag anywhere else lets them observe a
+     * true flag over state that was never written.
+     */
+    private suspend fun publish(
+        values: Map<String, String>,
+        states: Map<String, ProviderCredentialState>,
+        model: String,
+    ) {
+        stateMutex.withLock {
+            _state.value = values.toMap()
+            _values.clear()
+            _values.putAll(values)
+            _credentialStates.value = states.toMap()
+            _embeddingModel.value = model
+            _loaded.value = true
         }
     }
 
