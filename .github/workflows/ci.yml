@@ -13,8 +13,23 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Keyed on the COMMIT, not the ref, and that distinction is the whole point.
+#
+# `push: ['**']` and `pull_request` both fire for a branch with an open PR, and
+# `github.ref` is `refs/heads/<branch>` for one and `refs/pull/N/merge` for the
+# other — different groups, so neither cancelled the other and every push ran
+# the whole workflow twice. With two emulator jobs per run that is four
+# emulators booting at once on 2-core runners, contending for KVM and for the
+# same AVD cache entry, which is how `adb: device offline` became routine: 8 of
+# 13 failures across a 40-run sample were emulator jobs, at a 38% overall
+# failure rate, with the same commit passing in one run and failing in its twin.
+#
+# `github.event.pull_request.head.sha` and `github.sha` are the same commit from
+# the two events' points of view, so both land in one group and one cancels the
+# other. Branch gating is unchanged — the `push: ['**']` above stays, because a
+# gate that does not run on the branch you work on is not a gate.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -423,7 +438,17 @@ jobs:
   # something different from a migration failure. Keeping them apart keeps the
   # signal readable.
   app-instrumented:
-    needs: gates
+    # Waits for `migrations` rather than racing it, and not for its result —
+    # `always()` means a red migration suite does not hide the app suite behind
+    # it. Two emulators booting simultaneously on one runner pool is the other
+    # half of the contention above; this leaves one at a time per commit. It
+    # also warms the shared AVD cache, so on a miss the second job reads what
+    # the first paid for instead of both building it.
+    #
+    # Costs wall-clock, deliberately. These two ran in parallel and failed
+    # often enough that the parallelism was not buying anything.
+    needs: [gates, migrations]
+    if: always() && needs.gates.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
