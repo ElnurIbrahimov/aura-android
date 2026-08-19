@@ -7,6 +7,12 @@ import com.aura.agent.ToolRegistry
 import com.aura.agent.ToolResult
 import com.aura.agent.ToolRisk
 import com.aura.providers.ToolParameters
+import com.aura.agent.policy.PolicyEngine
+import com.aura.agent.policy.PolicyResult
+import com.aura.agent.policy.ToolPolicy
+import io.mockk.coEvery
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.runTest
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -226,5 +232,43 @@ class RealtimeToolBridgeTest {
         budget.record(RealtimeEvent.AudioUsage(10_000, 10_000))
         budget.start(1_000)
         assertEquals(0L to 0L, budget.billedAudioSeconds())
+    }
+
+    // ---- the policy check at connect -------------------------------------
+
+    @Test
+    fun `the policy check does not block the thread it is called on`() = runTest {
+        // advertisableTools is already suspend, and Iterable.filter is inline, so the
+        // policy check could always have been called directly. It was wrapped in
+        // runBlocking instead — once per tool, ~78 of them, each a DataStore read, all on
+        // whatever thread started the voice session. That thread is Main.
+        //
+        // Virtual time is what separates the two: a suspending delay inside runTest costs
+        // nothing, while runBlocking spins up its own event loop and waits for real. Three
+        // tools at two seconds each is six seconds of wall clock if anything still blocks.
+        val registry = registryWith(
+            tool("recall", ToolRisk.READ_ONLY),
+            tool("web_search", ToolRisk.READ_ONLY),
+            tool("remember", ToolRisk.WRITE_LOCAL),
+        )
+        val policy = mockk<PolicyEngine>()
+        coEvery { policy.evaluate(any(), any(), any()) } coAnswers {
+            delay(2_000)
+            PolicyResult.Allowed(ToolPolicy(toolName = "any"))
+        }
+        val bridge = RealtimeToolBridge(
+            toolRegistry = registry,
+            toolExecutor = ToolExecutor(registry, context = mockk(relaxed = true)),
+            policyEngine = policy,
+        )
+
+        var offered: List<com.aura.providers.ToolDefinition> = emptyList()
+        val elapsedMs = kotlin.system.measureTimeMillis { offered = bridge.advertisableTools(ctx) }
+
+        assertEquals(3, offered.size)
+        assertTrue(
+            elapsedMs < 1_000,
+            "advertisableTools spent ${elapsedMs}ms of real time — the policy check is still blocking",
+        )
     }
 }

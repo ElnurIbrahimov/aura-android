@@ -58,7 +58,11 @@ class RealtimeToolBridge @Inject constructor(
                 // and it should not arrive by accident if a risk level changes.
                 def.name in EXCLUDED_TOOLS -> false
                 policyEngine == null -> true
-                else -> kotlinx.coroutines.runBlocking { policyEngine.evaluate(tool, context) } is PolicyResult.Allowed
+                // Called directly, not through runBlocking. This function is already
+                // suspend and Iterable.filter is inline, so there was never anything to
+                // bridge — and the ~78 blocking DataStore reads it produced all landed on
+                // whichever thread opened the voice session, which is Main.
+                else -> policyEngine.evaluate(tool, context) is PolicyResult.Allowed
             }
         }
     }

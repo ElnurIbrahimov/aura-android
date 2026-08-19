@@ -1039,7 +1039,12 @@ class ChatViewModel @Inject constructor(
             runCatching { retrievalLabels?.markSupersededByEdit(turnProvenance(editedTurn)) }
                 .onFailure { Log.w("ChatViewModel", "edit marker write failed: ${it.message}", it) }
         }
-        val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex))
+        // subList is exclusive, so this drops the turn being edited along with everything
+        // after it — and then addUser puts the edited text back. Without that second half
+        // the message went nowhere: runSend's contract for retryUserText is that the
+        // caller has already rewound and left the user row in place, so it does not add
+        // one. Neither side did, and editing the first message emptied the conversation.
+        val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex)).addUser(newText)
         _state.update {
             it.copy(
                 conversation = truncated,

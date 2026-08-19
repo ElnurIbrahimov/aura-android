@@ -354,7 +354,9 @@ class HomeViewModel @Inject constructor(
 
     private fun observeActiveAgent() {
         viewModelScope.launch {
-            userPreferences.defaultModel.collect { }
+            // No `defaultModel.collect { }` above this. It had an empty body and it never
+            // completed — DataStore flows do not — so this collect was unreachable and the
+            // agent shown on the home screen was permanently unnamed.
             userPreferences.agentId.collect { agentId ->
                 val name = agentId?.let { agentStore.byId(it)?.name }
                 updateObserved { it.copy(activeAgentId = agentId, activeAgentName = name) }
