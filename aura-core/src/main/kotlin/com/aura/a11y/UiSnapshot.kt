@@ -96,6 +96,42 @@ data class ElementSelector(
         if (bounds == other.bounds) s += 2
         return s
     }
+
+    /**
+     * The element in [snapshot] this selector refers to, or null if it cannot be found.
+     *
+     * Used to replay a recorded step against a screen that has moved on since. Refuses in
+     * two cases, both deliberately:
+     *
+     * - **Nothing scores [MIN_MATCH_SCORE].** Position and class alone total 3, so a match
+     *   has to come from what the element *says* — its id, text or description — never from
+     *   where it sits. A redesigned screen puts a different control in the same place, and
+     *   "the button that is where the button used to be" is how a macro deletes an account.
+     * - **The best score is tied.** Two identical "Delete" buttons carry no information that
+     *   separates them, and choosing the first is choosing at random.
+     *
+     * Null means the step stops with a legible reason. That is the correct outcome: a
+     * recorded Hand runs unsupervised inside someone else's app, so the cost of doing
+     * nothing is a re-run, and the cost of doing the wrong thing is unbounded.
+     */
+    fun bestMatchIn(snapshot: UiSnapshot): UiElement? {
+        val scored = snapshot.elements
+            .map { it to score(it.selector) }
+            .filter { (_, s) -> s >= MIN_MATCH_SCORE }
+        val best = scored.maxOfOrNull { (_, s) -> s } ?: return null
+        val winners = scored.filter { (_, s) -> s == best }
+        return winners.singleOrNull()?.first
+    }
+
+    companion object {
+        /**
+         * The floor for calling two elements the same thing.
+         *
+         * Set at 4 so it clears text (4), contentDescription (4) or viewId (8) but not
+         * className + bounds (1 + 2 = 3). Identity comes from what an element says.
+         */
+        const val MIN_MATCH_SCORE = 4
+    }
 }
 
 /**
