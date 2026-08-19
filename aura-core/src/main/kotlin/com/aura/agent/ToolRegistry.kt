@@ -17,7 +17,27 @@ import javax.inject.Singleton
  * - PRIVACY: reads or transmits personal data.
  * - DESTRUCTIVE: irreversible.
  */
-enum class ToolRisk { READ_ONLY, REMOTE_COST, WRITE_LOCAL, WRITE_REMOTE, PRIVACY, DESTRUCTIVE }
+enum class ToolRisk {
+    READ_ONLY, REMOTE_COST, WRITE_LOCAL, WRITE_REMOTE, PRIVACY, DESTRUCTIVE;
+
+    /**
+     * Whether this risk describes changing something, rather than seeing something.
+     *
+     * Named rather than compared. Two call sites used to ask
+     * `risk.ordinal >= WRITE_LOCAL.ordinal`, which reads as "at least a local write" and is
+     * not what the enum says: PRIVACY sits at 4, above WRITE_LOCAL's 2, so every notification,
+     * contact and screen read a privacy tool returned was summarised into `world_events` —
+     * plaintext SQLite, no purge, carried in backups, and readable back by `query_world_model`,
+     * which is READ_ONLY and asks no confirmation. `NotificationCaptureStore` and
+     * `docs/architecture/privacy-boundaries.md` both promise that data is never persisted.
+     *
+     * A privacy tool reads something sensitive; it changes nothing. Ordering an enum by
+     * severity and then treating that order as a category is the mistake, so the category is
+     * spelled out here and the order is free to mean whatever it means.
+     */
+    val mutatesState: Boolean
+        get() = this == WRITE_LOCAL || this == WRITE_REMOTE || this == DESTRUCTIVE
+}
 
 data class Tool(
     val name: String,

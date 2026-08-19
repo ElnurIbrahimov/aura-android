@@ -39,6 +39,26 @@ class WorldEventProducerTest {
     }
 
     @Test
+    fun `recordToolExecution skips PRIVACY tools`() = runBlocking {
+        // A privacy tool reads something sensitive; it does not change state, and this
+        // method's own KDoc says only state-mutating tools produce events. The gate was
+        // `risk.ordinal >= WRITE_LOCAL.ordinal` over an enum where PRIVACY sits at 4 and
+        // WRITE_LOCAL at 2, so every notification, contact and screen read was summarised
+        // into world_events: plaintext SQLite, no purge, carried in backups, and readable
+        // back out by query_world_model, which is READ_ONLY and asks no confirmation.
+        //
+        // NotificationCaptureStore and docs/architecture/privacy-boundaries.md both promise
+        // this data is in-memory only and never backed up.
+        val id = producer.recordToolExecution(
+            toolName = "notification_list",
+            toolRisk = com.aura.agent.ToolRisk.PRIVACY,
+            resultSummary = "Messages from Mom: are you coming tonight?",
+        )
+        assertNull(id)
+        coVerify(exactly = 0) { worldEventDao.insert(any()) }
+    }
+
+    @Test
     fun `recordToolExecution skips REMOTE_COST tools`() = runBlocking {
         val id = producer.recordToolExecution(
             toolName = "tavily_search",

@@ -1331,7 +1331,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
                         // Record a world event for state-mutating tools.
                         val tool = toolRegistry.get(name)
                         val risk = tool?.risk ?: com.aura.agent.ToolRisk.READ_ONLY
-                        if (risk.ordinal >= com.aura.agent.ToolRisk.WRITE_LOCAL.ordinal) {
+                        if (risk.mutatesState) {
                             runCatching {
                                 worldEventProducer?.recordToolExecution(
                                     toolName = name,
