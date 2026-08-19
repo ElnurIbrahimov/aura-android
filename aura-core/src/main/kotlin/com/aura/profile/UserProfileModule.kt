@@ -14,7 +14,14 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object UserProfileModule {
-    private val MIGRATION_1_2 = object : Migration(1, 2) {
+    /**
+     * `internal`, not `private`, so [com.aura.migration.MigrationReplayTest] can
+     * name it. The test source set is a friend module and can see `internal`; it
+     * cannot see `private`, and its registry is written out by hand precisely so
+     * the compiler is the gate. While this was `private` it could not be listed,
+     * so this database's only migration was verified by nothing at all.
+     */
+    internal val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE user_profile ADD COLUMN agentScope TEXT NOT NULL DEFAULT 'general'")
         }

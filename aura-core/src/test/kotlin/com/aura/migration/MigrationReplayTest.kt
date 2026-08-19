@@ -11,6 +11,7 @@ import com.aura.agent.ConversationModule
 import com.aura.agent.requireNonEmpty
 import com.aura.agent.sourceDir
 import com.aura.dream.DreamConsolidationModule
+import com.aura.profile.UserProfileModule
 import com.aura.hands.HandsModule
 import com.aura.memory.MemoryModule
 import com.aura.proactive.ProactiveEventModule
@@ -161,11 +162,20 @@ class MigrationReplayTest {
             "com.aura.dream.DreamConsolidationDatabase",
             listOf(DreamConsolidationModule.MIGRATION_1_2, DreamConsolidationModule.MIGRATION_2_3),
         ),
+        DatabaseUnderTest(
+            "com.aura.profile.UserProfileDatabase",
+            listOf(UserProfileModule.MIGRATION_1_2),
+        ),
     )
 
     // ------------------------------------------------------------------ schema
 
-    private class TableSchema(val name: String, val columns: Map<String, Boolean>)
+    private class TableSchema(
+        val name: String,
+        val columns: Map<String, Boolean>,
+        /** Index name -> "unique:col,col", the shape SQLite can be asked for back. */
+        val indices: Map<String, String>,
+    )
 
     private fun schemaRoot(): File = File(sourceDir("schemas").absolutePath)
 
@@ -185,7 +195,17 @@ class MigrationReplayTest {
                 val f = fields.getJSONObject(j)
                 cols[f.getString("columnName")] = f.optBoolean("notNull", false)
             }
-            out[table] = TableSchema(table, cols)
+            val idx = LinkedHashMap<String, String>()
+            val indices = e.optJSONArray("indices")
+            if (indices != null) {
+                for (j in 0 until indices.length()) {
+                    val n = indices.getJSONObject(j)
+                    val cs = n.getJSONArray("columnNames")
+                    val names = (0 until cs.length()).joinToString(",") { cs.getString(it) }
+                    idx[n.getString("name")] = "${n.optBoolean("unique", false)}:$names"
+                }
+            }
+            out[table] = TableSchema(table, cols, idx)
         }
         return out
     }
@@ -212,6 +232,38 @@ class MigrationReplayTest {
                 db.execSQL(views.getJSONObject(i).getString("createSql"))
             }
         }
+    }
+
+    /**
+     * The indices a table actually carries, in the same shape [declaredTables] reports.
+     *
+     * `origin` is 'c' for a CREATE INDEX, 'u' for an implicit UNIQUE-constraint index
+     * and 'pk' for a rowid primary key. Only 'c' has a Room counterpart, so the other
+     * two are dropped rather than reported as extras nobody declared.
+     */
+    private fun actualIndices(db: SupportSQLiteDatabase, table: String): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        val names = mutableListOf<Pair<String, Boolean>>()
+        db.query("PRAGMA index_list(`$table`)").use { c ->
+            val nameIdx = c.getColumnIndexOrThrow("name")
+            val uniqueIdx = c.getColumnIndexOrThrow("unique")
+            val originIdx = c.getColumnIndex("origin")
+            while (c.moveToNext()) {
+                val name = c.getString(nameIdx)
+                val origin = if (originIdx >= 0) c.getString(originIdx) else "c"
+                if (origin != "c" || name.startsWith("sqlite_autoindex_")) continue
+                names += name to (c.getInt(uniqueIdx) == 1)
+            }
+        }
+        for ((name, unique) in names) {
+            val cols = mutableListOf<String>()
+            db.query("PRAGMA index_info(`$name`)").use { c ->
+                val colIdx = c.getColumnIndexOrThrow("name")
+                while (c.moveToNext()) cols += c.getString(colIdx)
+            }
+            out[name] = "$unique:${cols.joinToString(",")}"
+        }
+        return out
     }
 
     /** What the database actually contains after a migration has run. */
@@ -304,6 +356,31 @@ class MigrationReplayTest {
                         if (nullabilityDrift.isNotEmpty()) {
                             problems += "${target.schemaDir} ${migration.startVersion}->${migration.endVersion}: " +
                                 "table '$table' has NOT NULL drift on: ${nullabilityDrift.sorted().joinToString(", ")}"
+                        }
+
+                        // Indices, which this test was blind to until 2026-08-19.
+                        // Room's TableInfo validation compares them on every open, so a
+                        // migration that creates a table without its CREATE INDEX
+                        // statements throws "Migration didn't properly handle" on first
+                        // touch — while this replay reported the hop green, because the
+                        // tables and every column were correct. Dream 1->2 shipped
+                        // exactly that: three right tables, seven missing indices.
+                        val actualIdx = actualIndices(db, table)
+                        val missingIdx = expected.indices.keys - actualIdx.keys
+                        if (missingIdx.isNotEmpty()) {
+                            problems += "${target.schemaDir} ${migration.startVersion}->${migration.endVersion}: " +
+                                "table '$table' is missing ${missingIdx.size} index(es) the target version " +
+                                "declares: ${missingIdx.sorted().joinToString(", ")} — Room validates indices " +
+                                "on open, so this crashes the app rather than merely slowing it"
+                        }
+                        val idxDrift = expected.indices
+                            .filterKeys { it in actualIdx }
+                            .filter { (name, shape) -> actualIdx[name] != shape }
+                            .keys
+                        if (idxDrift.isNotEmpty()) {
+                            problems += "${target.schemaDir} ${migration.startVersion}->${migration.endVersion}: " +
+                                "table '$table' has index drift (uniqueness or column list) on: " +
+                                idxDrift.sorted().joinToString(", ")
                         }
                     }
                 } finally {
