@@ -531,6 +531,48 @@ escape (every explicit ALWAYS/NEVER fell back to EARNED on read) — codec extra
 trip tested. All five phases of the world-author spine are code-complete; what remains is
 the device pass this file has asked for since §4 was written.
 
+*2026-08-19 (value of information, phase 1):* **3,408 unit tests / 510 suites, 0 failures;
+82 instrumented methods; MemoryDB v30.** Aura keeps an uncertainty ledger almost nothing else
+can — `DriveSignals` counts knowledge-graph nodes with missing edges, unresolved
+contradictions, and strategies the bandit doubts, and `QuestionScanner` turns them into rows
+already classified by kind and already marked answerable by the user or by the world. An
+assistant that starts each session near-blank has no accumulated model to have gaps in.
+
+What it ranked that ledger by was `kindBase x detectorConfidence`. Confidence answers "am I
+sure I found a gap" and never "does this gap matter", so a contradiction the detector was
+certain about, concerning a remark made once, outranked a gap in the entity half the graph
+points at. And `scanAndAuthor` opens with `if (dao.openCount() > 0) return 0` — exactly one
+question is ever open — so that scan-time choice is the entire decision: spend it badly and
+the only question Aura gets to ask is gone until it closes.
+
+`ValueOfInformation` weighs the per-kind judgement, which is kept because it encodes
+something true, against how much of the model touches the subject. Reach and recency come off
+`accessCount` and `lastAccessed` on rows the scanner had already loaded, so ranking costs no
+extra query; reach saturates so a hub with ten thousand edges cannot own every ranking
+forever, and recency decays to a floor rather than a cliff because "not now" is not "never".
+Contradiction rows carry no access history and are scored as unmeasured rather than as zero
+interest. The pinned property is the degradation: with an empty graph and no access history
+the score reduces to the old priority exactly, and ranking collapses to the behaviour being
+replaced rather than to noise.
+
+The consequence judgement rides `QuestionAuthor`'s existing call rather than a second one —
+it already sends eight subjects to the background model because eight cost the same as one —
+and returns a sentence on what knowing would change. A three-field reply still parses; losing
+an explanation is not worth losing the thing explained. The sentence is stored and shown in
+Mind beneath the question, with the candidates that lost listed below it, read live from
+`scan()` since only one question is ever persisted.
+
+**The spec for this was committed with a wrong premise and corrected in place rather than
+edited quietly.** It claimed selection was FIFO, citing `ORDER BY createdAt ASC LIMIT 1` — a
+real query that sorts a set of size one. Reading a query without reading its caller. The
+correction is recorded in the document because a spec that loses its own wrong turn teaches
+nobody anything, and the finding underneath survived and sharpened.
+
+Phase 2 — resolving a gap rather than only ranking it, cheapest strategy first, and scoring
+whether the resolution held — is deliberately not built. It is worth building only if the top
+of this ranking, read by a person, is something they recognise as worth being asked. No test
+can answer that and weeks of use can.
+
 *2026-08-19 (the four-agent audit, and the four things it found worth stopping for):*
 **3,396 unit tests / 509 suites, 0 failures.** Four agents read the tree in parallel —
 engine, app layer, tests/CI/build, security and data. The headline is that the codebase is

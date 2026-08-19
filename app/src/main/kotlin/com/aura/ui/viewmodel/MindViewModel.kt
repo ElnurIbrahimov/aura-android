@@ -36,6 +36,7 @@ class MindViewModel @Inject constructor(
     private val changeLog: ChangeLog,
     private val projectStore: com.aura.projects.ProjectStore? = null,
     private val calibrationReader: com.aura.calibration.Calibration? = null,
+    private val questionScanner: com.aura.curiosity.QuestionScanner? = null,
 ) : ViewModel() {
 
     private val _corrections = MutableStateFlow<List<CorrectionEntity>>(emptyList())
@@ -43,6 +44,16 @@ class MindViewModel @Inject constructor(
 
     private val _questions = MutableStateFlow<List<OpenQuestionEntity>>(emptyList())
     val questions: StateFlow<List<OpenQuestionEntity>> = _questions.asStateFlow()
+
+    /**
+     * What Aura does not understand, ranked, below the one thing it chose to ask.
+     *
+     * Read live rather than stored: `scan()` is DB reads, and only one question is ever open,
+     * so the losing candidates exist nowhere else. This list is the ledger — the open
+     * question is only its tip.
+     */
+    private val _candidates = MutableStateFlow<List<com.aura.curiosity.QuestionScanner.Subject>>(emptyList())
+    val candidates: StateFlow<List<com.aura.curiosity.QuestionScanner.Subject>> = _candidates.asStateFlow()
 
     private val _summaries = MutableStateFlow<List<DreamSummaryEntity>>(emptyList())
     val summaries: StateFlow<List<DreamSummaryEntity>> = _summaries.asStateFlow()
@@ -94,6 +105,9 @@ class MindViewModel @Inject constructor(
             _questions.value = runCatching {
                 openQuestionDao.byStatus(OpenQuestionEntity.STATUS_OPEN, QUESTIONS)
             }.onFailure { Log.w(TAG, "questions read failed", it) }.getOrDefault(emptyList())
+            _candidates.value = runCatching { questionScanner?.scan() ?: emptyList() }
+                .onFailure { Log.w(TAG, "candidate scan failed", it) }
+                .getOrDefault(emptyList())
             _summaries.value = runCatching { dreamDao.recent(SUMMARIES) }
                 .onFailure { Log.w(TAG, "summaries read failed", it) }
                 .getOrDefault(emptyList())

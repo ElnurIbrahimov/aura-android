@@ -35,6 +35,17 @@ class QuestionAuthor @Inject constructor(
         val subject: QuestionScanner.Subject,
         val question: String,
         val answerable: String,
+        /**
+         * Why this subject is worth the one question, in the model's words, or null.
+         *
+         * The scanner's arithmetic can count how much of the model touches a subject; it
+         * cannot say whether knowing would change anything. That judgement rides this call
+         * rather than a second one, because eight subjects cost the same as one.
+         *
+         * Null is a normal outcome, not a failure. A reason is an explanation, and losing an
+         * explanation is not worth losing the thing it explains.
+         */
+        val reason: String? = null,
     )
 
     /**
@@ -84,7 +95,7 @@ class QuestionAuthor @Inject constructor(
         val out = mutableListOf<Authored>()
         val seen = mutableSetOf<Int>()
         for (line in response.lines()) {
-            val parts = line.trim().split("|", limit = 3)
+            val parts = line.trim().split("|", limit = 4)
             if (parts.size < 3) continue
             val index = parts[0].trim().trimStart('#').toIntOrNull()?.minus(1) ?: continue
             if (index !in subjects.indices || !seen.add(index)) continue
@@ -99,7 +110,11 @@ class QuestionAuthor @Inject constructor(
                 parts[1].trim().lowercase().startsWith("w") -> OpenQuestionEntity.ANSWERABLE_WORLD
                 else -> OpenQuestionEntity.ANSWERABLE_USER
             }
-            out += Authored(subject, question, answerable)
+            val reason = parts.getOrNull(3)
+                ?.trim()
+                ?.trim('"')
+                ?.takeIf { it.isNotBlank() && it.length <= MAX_REASON_CHARS }
+            out += Authored(subject, question, answerable, reason)
         }
         return out
     }
@@ -116,13 +131,20 @@ class QuestionAuthor @Inject constructor(
           user  - only this person knows (anything about them, their life, or people they know)
           world - a general fact anyone could look up
 
+        Last, say in one short sentence why knowing the answer would change what you
+        advise this person. Not why the item is interesting — what you would do
+        differently. If knowing would change nothing, leave it empty.
+
         Reply with one line per item and nothing else:
-        <number>|<user or world>|<question>
+        <number>|<user or world>|<question>|<why it changes something>
     """.trimIndent()
 
-    private companion object {
+    internal companion object {
         const val TAG = "QuestionAuthor"
         const val MIN_QUESTION_CHARS = 8
         const val MAX_QUESTION_CHARS = 160
+
+        /** A reason longer than this is the model narrating rather than answering. */
+        const val MAX_REASON_CHARS = 200
     }
 }

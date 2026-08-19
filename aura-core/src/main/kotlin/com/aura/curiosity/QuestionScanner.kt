@@ -49,6 +49,14 @@ class QuestionScanner @Inject constructor(
         val subjectId: String,
         val context: String,
         val priority: Float,
+        /**
+         * What the row already knew about how much of the model touches this.
+         *
+         * Read off the entity that produced the subject, so scoring costs no extra query.
+         * A contradiction row records no access history, so its reach is left unmeasured —
+         * which [ValueOfInformation] treats as neutral rather than as zero interest.
+         */
+        val signals: ValueOfInformation.Signals = ValueOfInformation.Signals(),
     ) {
         val key: String get() = "$subjectKind/$subjectId"
     }
@@ -72,7 +80,11 @@ class QuestionScanner @Inject constructor(
         return subjects
             .filter { it.key !in claimed }
             .distinctBy { it.key }
-            .sortedByDescending { it.priority }
+            // Ranked by what knowing would change, not by how sure the detector is that it
+            // found something. Only one question is ever open — scanAndAuthor refuses to
+            // author while one is — so this ordering is the entire decision, and it used to
+            // be made by `kindBase × detectorConfidence` alone.
+            .sortedByDescending { ValueOfInformation.score(it.priority, it.signals, now) }
             .take(limit)
     }
 
@@ -89,6 +101,7 @@ class QuestionScanner @Inject constructor(
                     // A node Aura is confident about but knows nothing around is
                     // a better question than one it half-recognised.
                     priority = GAP_BASE * node.confidence,
+                    signals = ValueOfInformation.Signals(node.accessCount, node.lastAccessed),
                 )
             }
 
@@ -104,6 +117,7 @@ class QuestionScanner @Inject constructor(
                     context = "A ${node.type} called \"${node.label}\" comes up often and connects to a lot, " +
                         "but has never been looked at directly.",
                     priority = SHALLOW_BASE * node.confidence,
+                    signals = ValueOfInformation.Signals(node.accessCount, node.lastAccessed),
                 )
             }
 
@@ -123,6 +137,8 @@ class QuestionScanner @Inject constructor(
                     // The highest-value question of the three: one of these is
                     // wrong and Aura is currently using both.
                     priority = CONTRADICTION_BASE * row.confidence,
+                    // No access history on a contradiction row; reach stays unmeasured.
+                    signals = ValueOfInformation.Signals(lastTouchedAt = row.createdAt),
                 )
             }
 
@@ -145,6 +161,7 @@ class QuestionScanner @Inject constructor(
                     context = "Recorded about $months months ago and never confirmed since: " +
                         "\"${memory.content.take(CONTEXT_CHARS)}\".",
                     priority = STALE_BASE * memory.importance,
+                    signals = ValueOfInformation.Signals(memory.accessCount, memory.accessedAt),
                 )
             }
 

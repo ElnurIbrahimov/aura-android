@@ -87,7 +87,7 @@ import com.aura.kg.NodeEntity
         com.aura.projects.ProjectNoteEntity::class,
         com.aura.calibration.ClaimResolutionEntity::class,
     ],
-    version = 29,
+    version = 30,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
