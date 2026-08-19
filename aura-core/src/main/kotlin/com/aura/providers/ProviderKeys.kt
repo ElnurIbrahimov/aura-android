@@ -185,7 +185,20 @@ class ProviderKeys @Inject constructor(
             // test JVM it is reachable, and "latent" is not the same as "not a
             // bug".
             throw e
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception, and that distinction is the whole point.
+            //
+            // The per-provider catch inside the loop is also Exception, so an Error passes
+            // through both and reaches nothing that marks the load finished. `_loaded` stays
+            // false with nothing left that could flip it, and every caller of awaitLoaded()
+            // suspends for the life of the process. That is the forty-minute CI hang the
+            // original `finally` existed to prevent, and narrowing this catch reintroduced it
+            // within the hour — as a TestTimedOutException plus an UncaughtExceptionsBeforeTest
+            // landing on whichever test happened to run next.
+            //
+            // Cancellation is the one exit that may leave `_loaded` false, and it is handled
+            // above. Everything else must mark it.
+            //
             // Logged, not thrown. This body runs on a process-scoped
             // SupervisorJob with no parent to receive a failure, so an
             // escaping exception becomes an uncaught one — which is how a
@@ -207,7 +220,17 @@ class ProviderKeys @Inject constructor(
             // NonCancellable because this is the last write of a load that has
             // already failed; being cancelled here would strand the very state
             // this branch exists to publish.
-            withContext(NonCancellable) { publish(values, states, "") }
+            //
+            // And if even that throws, mark loaded anyway, without the lock. The ordering
+            // guarantee is worth having and is not worth a permanent hang: a caller that
+            // reads half-written state recovers on the next read, a caller suspended on
+            // `_loaded.first { it }` never does.
+            runCatching { withContext(NonCancellable) { publish(values, states, "") } }
+                .onFailure {
+                    _state.value = values.toMap()
+                    _credentialStates.value = states.toMap()
+                    _loaded.value = true
+                }
         }
     }
 
