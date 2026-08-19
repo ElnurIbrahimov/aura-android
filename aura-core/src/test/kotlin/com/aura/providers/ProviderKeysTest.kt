@@ -436,6 +436,31 @@ class ProviderKeysTest {
         assertNull(keys.keyForAwaiting("openai"))
     }
 
+    @Test
+    fun `a load that fails with an Error still finishes rather than hanging every caller`() = runTest(timeout = 30.seconds) {
+        // The regression this test exists for. `_loaded` used to be assigned in a `finally`,
+        // which fires on every exit path. Narrowing that to `catch (e: Exception)` looked
+        // equivalent and is not: the per-provider catch inside the loop is also Exception, so
+        // an Error passes through both and leaves `_loaded` false with nothing remaining that
+        // could flip it. awaitLoaded() then suspends for the life of the process, which is the
+        // forty-minute CI hang the finally existed to prevent — and it came straight back,
+        // as a TestTimedOutException plus an UncaughtExceptionsBeforeTest landing on whichever
+        // test ran next.
+        val store = mockk<SecureDataStore>()
+        coEvery { store.getString(any()) } throws LoadError()
+        coEvery { store.removeString(any()) } returns Unit
+        coEvery { store.putString(any(), any()) } returns Unit
+
+        val keys = ProviderKeys(store)
+        keys.awaitLoaded()
+
+        assertTrue(keys.loaded.value)
+        val stuck = keys.credentialStates.value.filterValues { it == ProviderCredentialState.Loading }
+        assertTrue(stuck.isEmpty(), "loaded is true while ${stuck.keys.sorted()} still read Loading")
+    }
+
+    private class LoadError : Error("the keystore fell over")
+
     /**
      * A cancelled load must not announce that it finished.
      *
