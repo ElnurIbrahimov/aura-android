@@ -25,7 +25,13 @@ data class BackupUiState(
     val lastResult: String? = null,
     val pendingImportBytes: String? = null,
     val showImportConfirm: Boolean = false,
-    val showPurgeConfirm: Boolean = false,
+    /**
+     * The picked file is a sealed envelope and needs a passphrase before it can
+     * be read. [pendingImportBytes] holds the still-encrypted text meanwhile.
+     */
+    val showPassphrasePrompt: Boolean = false,
+    /** Why the last unseal attempt failed, shown inside the prompt. */
+    val passphraseError: String? = null,
     // ---- Automatic backup ----
     val autoBackupEnabled: Boolean = false,
     /** Display form of the chosen SAF tree, or blank when none is set. */
@@ -228,6 +234,23 @@ class BackupViewModel @Inject constructor(
                         ?: throw IllegalStateException("Could not open file")
                 }
                 val text = bytes.toString(Charsets.UTF_8)
+
+                // Automatic backups are sealed; manual "Export to JSON" files are
+                // not. Decide on content rather than filename — BackupWorker names
+                // its sealed output `*.json` too, and the SAF provider gets the
+                // final say on the display name anyway.
+                if (backupManager.isSealed(text)) {
+                    _state.update {
+                        it.copy(
+                            pendingImportBytes = text,
+                            showPassphrasePrompt = true,
+                            passphraseError = null,
+                            lastResult = "This backup is encrypted. Enter its passphrase.",
+                        )
+                    }
+                    return@launch
+                }
+
                 // Validate before showing the confirm dialog so the
                 // user doesn't get a parse error after clicking Yes.
                 // Keep the decoded backup so confirmImport doesn't have
@@ -251,7 +274,68 @@ class BackupViewModel @Inject constructor(
 
     fun cancelImport() {
         stagedBackup = null
-        _state.update { it.copy(showImportConfirm = false, pendingImportBytes = null) }
+        _state.update {
+            it.copy(
+                showImportConfirm = false,
+                showPassphrasePrompt = false,
+                passphraseError = null,
+                pendingImportBytes = null,
+            )
+        }
+    }
+
+    /**
+     * Open the sealed file staged by [stageImport] and, if it opens, hand it to
+     * the same confirmation the plaintext path uses.
+     *
+     * The passphrase is always typed, never read back from [secureDataStore],
+     * even on the device that stored it. A restore is rare and the passphrase is
+     * unrecoverable, so asking makes every restore a rehearsal: you find out you
+     * have forgotten it while you still have the phone, rather than on the day
+     * the phone is gone and this file is all that is left.
+     *
+     * On failure the prompt stays open — the common case is a typo, and closing
+     * it would throw away the staged bytes and make the user pick the file again.
+     */
+    fun submitImportPassphrase(passphrase: String) {
+        val sealed = _state.value.pendingImportBytes ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(passphraseError = null) }
+            val plaintext = runCatching { backupManager.unseal(sealed, passphrase) }.getOrNull()
+            if (plaintext == null) {
+                // BackupCrypto returns null for a wrong passphrase, a truncated
+                // file and a corrupt payload alike, on purpose. Do not invent a
+                // distinction it refuses to make.
+                _state.update {
+                    it.copy(passphraseError = "Could not open this backup — wrong passphrase, or the file is damaged.")
+                }
+                return@launch
+            }
+            try {
+                stagedBackup = withContext(Dispatchers.IO) { backupManager.decodeFromJson(plaintext) }
+                _state.update {
+                    it.copy(
+                        showPassphrasePrompt = false,
+                        passphraseError = null,
+                        showImportConfirm = true,
+                        lastResult = "Backup opened. Read ${plaintext.length / 1024} KB.",
+                    )
+                }
+            } catch (e: Exception) {
+                // It decrypted and then would not parse: a real backup from a
+                // newer build, or a file that is not one at all. Distinct from a
+                // failed unseal, and worth saying so.
+                _state.update {
+                    it.copy(passphraseError = "Opened, but could not be read: ${e.message ?: e.javaClass.simpleName}")
+                }
+            }
+        }
+    }
+
+    fun cancelPassphrasePrompt() {
+        _state.update {
+            it.copy(showPassphrasePrompt = false, passphraseError = null, pendingImportBytes = null)
+        }
     }
 
     /**

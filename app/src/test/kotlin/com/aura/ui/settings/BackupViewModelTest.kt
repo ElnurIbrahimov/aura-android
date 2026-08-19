@@ -21,6 +21,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import java.io.ByteArrayInputStream
 
 /**
  * Tests the synchronous state-machine portion of [BackupViewModel].
@@ -133,5 +134,103 @@ class BackupViewModelTest {
         val vm = viewModel()
         vm.clearResult()
         assertNull(vm.state.value.lastResult)
+    }
+
+    // ---------------------------------------------------------------- sealed import
+
+    /**
+     * Feed [text] through the real [BackupViewModel.stageImport] by standing in for
+     * the content resolver, which is the only reason no earlier test drove this path.
+     */
+    private fun BackupViewModel.stage(text: String) {
+        val uri = mockk<Uri>(relaxed = true)
+        val resolver = mockk<android.content.ContentResolver>(relaxed = true)
+        every { context.contentResolver } returns resolver
+        every { resolver.openInputStream(uri) } returns ByteArrayInputStream(text.toByteArray())
+        stageImport(uri)
+    }
+
+    /**
+     * Wait for a state the view model reaches on a real dispatcher.
+     *
+     * `stageImport` and `submitImportPassphrase` both hop to `Dispatchers.IO`, which
+     * `UnconfinedTestDispatcher` does not control — the note at the top of this file
+     * is why every earlier test stopped short of this path. Polling the StateFlow
+     * with a deadline is honest about that rather than pretending it is synchronous.
+     */
+    private fun BackupViewModel.awaitState(what: String, predicate: (BackupUiState) -> Boolean): BackupUiState {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            val current = state.value
+            if (predicate(current)) return current
+            Thread.sleep(5)
+        }
+        throw AssertionError("never reached $what; last state was ${state.value}")
+    }
+
+    @Test
+    fun `a sealed backup asks for a passphrase instead of failing to parse`() = runTest {
+        // Before this existed, the sealed envelope went straight to decodeFromJson
+        // and the user was told "Unexpected JSON token at offset 0".
+        every { backupManager.isSealed(any()) } returns true
+        val vm = viewModel()
+
+        vm.stage("AURA-BACKUP-1.c2FsdA==.210000.cGF5bG9hZA==")
+
+        val state = vm.awaitState("the passphrase prompt") { it.showPassphrasePrompt }
+        assertFalse(state.showImportConfirm, "a sealed file must not reach the confirm dialog unopened")
+        assertNull(state.passphraseError)
+        assertTrue(state.pendingImportBytes!!.startsWith("AURA-BACKUP-1."), "the sealed bytes were not kept")
+    }
+
+    @Test
+    fun `the right passphrase opens the backup and hands it to the confirm dialog`() = runTest {
+        val decoded = AuraBackup(exportedAt = 7L, appVersionName = "sealed")
+        every { backupManager.isSealed(any()) } returns true
+        coEvery { backupManager.unseal(any(), "correct horse battery") } returns "{}"
+        every { backupManager.decodeFromJson("{}") } returns decoded
+        val vm = viewModel()
+        vm.stage("AURA-BACKUP-1.c2FsdA==.210000.cGF5bG9hZA==")
+        vm.awaitState("the passphrase prompt") { it.showPassphrasePrompt }
+
+        vm.submitImportPassphrase("correct horse battery")
+
+        val state = vm.awaitState("the confirm dialog") { it.showImportConfirm }
+        assertFalse(state.showPassphrasePrompt, "the prompt should close once the file opens")
+        assertNull(state.passphraseError)
+    }
+
+    @Test
+    fun `a wrong passphrase reports honestly and keeps the prompt open`() = runTest {
+        every { backupManager.isSealed(any()) } returns true
+        coEvery { backupManager.unseal(any(), any()) } returns null
+        val vm = viewModel()
+        vm.stage("AURA-BACKUP-1.c2FsdA==.210000.cGF5bG9hZA==")
+        vm.awaitState("the passphrase prompt") { it.showPassphrasePrompt }
+
+        vm.submitImportPassphrase("wrong")
+
+        val state = vm.awaitState("the error") { it.passphraseError != null }
+        // BackupCrypto cannot tell a wrong passphrase from a damaged file, so the
+        // message must not claim to either.
+        assertTrue("wrong passphrase" in state.passphraseError!!, state.passphraseError!!)
+        assertTrue("damaged" in state.passphraseError!!, state.passphraseError!!)
+        assertTrue(state.showPassphrasePrompt, "closing the prompt would discard the staged bytes")
+        assertFalse(state.showImportConfirm)
+        assertTrue(state.pendingImportBytes != null, "the staged bytes must survive a typo")
+    }
+
+    @Test
+    fun `a plaintext export still goes straight to the confirm dialog`() = runTest {
+        // The manual export path is unsealed and must be untouched by any of this.
+        val decoded = AuraBackup(exportedAt = 1L, appVersionName = "plain")
+        every { backupManager.isSealed(any()) } returns false
+        every { backupManager.decodeFromJson(any()) } returns decoded
+        val vm = viewModel()
+
+        vm.stage("{\"schemaVersion\":1}")
+
+        val state = vm.awaitState("the confirm dialog") { it.showImportConfirm }
+        assertFalse(state.showPassphrasePrompt, "a plain export must never be asked for a passphrase")
     }
 }

@@ -159,6 +159,51 @@ class ProjectSpineIsWiredTest {
     }
 
     @Test
+    fun `a sealed backup can be opened by the restore path`() {
+        // The purest instance of this file's thesis that the repo has produced.
+        //
+        // BackupWorker sealed every weekly backup with BackupCrypto.seal.
+        // BackupCrypto.open was written, correct, and covered by eight tests —
+        // and had no production caller, so the restore path fed the sealed
+        // envelope to Json.decodeFromString and told the user "Unexpected JSON
+        // token at offset 0". Every automatic backup on disk was unopenable by
+        // any code in this project, on a phone whose owner had already lost
+        // Keystore-encrypted keys once. The button that writes them carries the
+        // comment "A backup that has never been restored is not a backup".
+        val manager = core("backup/BackupManager.kt")
+        assertTrue(
+            manager.contains("crypto.open("),
+            "BackupManager never calls BackupCrypto.open. The seal has no counterpart again, " +
+                "which means every automatic backup is an envelope nothing can read.",
+        )
+
+        val viewModel = app("ui/settings/BackupViewModel.kt")
+        assertTrue(
+            viewModel.contains("backupManager.isSealed("),
+            "stageImport does not check whether the picked file is sealed, so a sealed backup " +
+                "goes straight to decodeFromJson and dies as a JSON parse error.",
+        )
+        assertTrue(
+            viewModel.contains("backupManager.unseal("),
+            "nothing calls unseal. A passphrase the user types has nowhere to go.",
+        )
+
+        val section = app("ui/settings/sections/DataAndBackupSection.kt")
+        assertTrue(
+            section.contains("RestorePassphraseDialog("),
+            "the restore passphrase dialog is never rendered, so there is no way for the user " +
+                "to supply the one thing that opens the file.",
+        )
+
+        val settings = app("ui/screens/SettingsScreen.kt")
+        assertTrue(
+            settings.contains("backupViewModel::submitImportPassphrase"),
+            "the passphrase the dialog collects is not wired back to the view model — the last " +
+                "hop, and the one that was missing for the live-call stack too.",
+        )
+    }
+
+    @Test
     fun `the mind screen renders the ledger`() {
         val screen = app("ui/screens/MindScreen.kt")
         assertTrue(

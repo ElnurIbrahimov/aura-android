@@ -531,6 +531,76 @@ escape (every explicit ALWAYS/NEVER fell back to EARNED on read) — codec extra
 trip tested. All five phases of the world-author spine are code-complete; what remains is
 the device pass this file has asked for since §4 was written.
 
+*2026-08-19 (the four-agent audit, and the four things it found worth stopping for):*
+**3,396 unit tests / 509 suites, 0 failures.** Four agents read the tree in parallel —
+engine, app layer, tests/CI/build, security and data. The headline is that the codebase is
+in better shape than this file's tone implies: 31 routes all registered and reachable, every
+screen on a real `@HiltViewModel` over real engine types, no placeholder screens, no fake
+data, ~81% of a 957-test read-in-full sample substantive, no telemetry, no hardcoded
+secrets, OAuth with PKCE and state. What they also found is that the one defect §4 named has
+not gone away, it has only changed costume four more times.
+
+**`BackupCrypto.open` had no production caller.** `BackupWorker` sealed every weekly backup;
+the restore path fed the sealed envelope straight to `decodeFromJson` and reported
+"Unexpected JSON token at offset 0". Every automatic backup ever written was an envelope
+nothing in this project could open — on a phone whose owner has already lost
+Keystore-encrypted keys once, behind a button whose own comment reads *"A backup that has
+never been restored is not a backup"*, under a §3 row marked done. `isSealed`/`unseal` now
+sit on `BackupService` beside `decodeFromJson`, over an inline `BackupCrypto()` (the
+`BackupWorker` precedent — no 76th constructor parameter), with `open`'s PBKDF2 moved to
+`Dispatchers.Default` because 210,000 iterations is not a main-thread call. A sealed restore
+**always** prompts, even where a passphrase is stored: a restore is rare and the passphrase
+unrecoverable, so asking makes every restore a rehearsal. The failure text says "wrong
+passphrase, or the file is damaged" and means both, because `open` fails closed and refuses
+to distinguish them. `ProjectSpineIsWiredTest` gates all five hops of the chain.
+
+**Two screens could not be opened at all.** `MindScreen` defaulted two of its four
+ViewModels with Compose's plain `viewModel()` while the two either side used
+`hiltViewModel()`; `DreamsScreen` did the same. All are `@HiltViewModel` with `@Inject`
+constructors, so the plain factory throws on navigation. Both are two taps from a bottom-nav
+tab and were unopenable for their entire existence. Three things had to be true at once for
+that to survive: no unit test composes a screen (`ui-test-junit4` is androidTest-only, so
+they structurally cannot), `ScreenViewModelWiringTest` accepted `viewModel(` as *evidence of
+correct wiring*, and `ProjectSpineIsWiredTest` — written for exactly this class of defect —
+asserts that MindScreen renders the project ledger and is green about a screen that cannot
+open. `HiltViewModelFactoryTest` now bans the import tree-wide (verified: all 41 app
+ViewModels are `@HiltViewModel`, so no false positive is possible), the wiring test stopped
+blessing it, and two instrumented render tests watch both screens actually reach first frame
+in a real `@AndroidEntryPoint` host. With the import gone the compiler rejects the call
+outright, which is a better gate than any of them.
+
+**`DreamConsolidationModule.MIGRATION_1_2` created three tables and none of their seven
+indices**, because a comment above it said Room generates them from the `@Index` annotations.
+Room does that in `createAllTables` — fresh installs only — and validates indices on every
+open, so an upgrading v1 install crash-loops, and the recovery is clearing app data, which
+destroys the API keys again. The two UNIQUE indices are also the dedup the DAOs' REPLACE
+upserts rely on. The sentence that caused it is gone from all three places it was repeated.
+`MigrationReplayTest` was replaying that exact hop and reporting it green, because it
+compared tables, columns and NOT NULL flags and nothing else; it now compares indices too —
+`materialise` already built them on the baseline side, so only the comparison was blind.
+Blast radius was measured across every hop of all 11 databases before the change: Dream 1→2
+was the only hit, so no allowlist entry was needed. `UserProfileModule.MIGRATION_1_2` went
+`private` → `internal` and joined the registry; being `private` was the only reason this
+database's sole migration had been verified by nothing at all.
+
+**And `migrate28To29` was failing in CI**, on the one job that guards irreversible data
+loss, with the fix sitting unpushed on a feature branch since 03:01 that morning. The
+`migrations` job is green for the first time since 2026-08-17.
+
+Two things found and deliberately **not** fixed here, recorded rather than absorbed:
+`ProviderKeysTest > loaded becomes true when the embedding model read throws` failed once on
+CI and passes locally on repeat — when the embedding read throws, the mutex block that
+publishes `credentialStates` is skipped while `finally` still sets `_loaded`, so a consumer
+woken by `loaded` can see state that was never written. That is a real ordering hazard in
+production code, not a test bug, and it deserves its own change. And `hiltViewModel()` is
+deprecated in favour of `androidx.hilt.lifecycle.viewmodel.compose` across all 41 call
+sites — a mechanical migration that should not ride along with a crash fix.
+
+What remains is what §4 asked for and this file has owed since: the device pass. Nothing
+above is a substitute for it, and the backup work in particular is only half-proved — the
+round trip is verified in code, and has still never been done with a real file on a real
+phone.
+
 ### The 2026-08-18 remediation (eleven passes in, and the eleventh was an audit)
 
 Prompted by a four-reviewer read of the whole repo. Its finding was not a list of

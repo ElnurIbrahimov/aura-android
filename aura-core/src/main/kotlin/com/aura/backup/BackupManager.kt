@@ -464,6 +464,26 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
     override fun encodeToJson(backup: AuraBackup): String = json.encodeToString(backup)
 
     /**
+     * Constructed here rather than injected, exactly as [BackupWorker] does it.
+     *
+     * `BackupCrypto`'s only dependency is a `KeyManager` it uses purely as an
+     * AES-GCM primitive — every key is passed in as a parameter — and its default
+     * is deliberately Keystore-free, because the Keystore is the one place a
+     * backup key must not come from. Injecting it would also mean a 76th
+     * constructor parameter on this class, which is the hazard BackupService's
+     * KDoc exists to record.
+     */
+    private val crypto = com.aura.security.BackupCrypto()
+
+    override fun isSealed(text: String): Boolean = crypto.isSealed(text)
+
+    override suspend fun unseal(text: String, passphrase: String): String? =
+        // PBKDF2 at 210,000 iterations: hundreds of milliseconds, and CPU-bound
+        // rather than IO-bound. On the caller's dispatcher this is a dropped-frame
+        // storm on the thread that has to draw the dialog it was launched from.
+        withContext(Dispatchers.Default) { crypto.open(text, passphrase) }
+
+    /**
      * Parse [bytes] into an [AuraBackup]. Throws if the JSON is
      * unparseable or the schema version is newer than this build.
      */
