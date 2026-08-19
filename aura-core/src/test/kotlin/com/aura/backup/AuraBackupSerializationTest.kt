@@ -106,7 +106,37 @@ class AuraBackupSerializationTest {
     }
 
     @Test
-    fun `latest schema version is 29`() {
-        assertEquals(29, AuraBackup.SCHEMA_VERSION)
+    fun `latest schema version is 30`() {
+        assertEquals(30, AuraBackup.SCHEMA_VERSION)
+    }
+
+    @Test
+    fun `a forum post survives the round trip under the id its votes reference`() {
+        // The vote-to-post link was severed at export, not at import: ForumPostBackup
+        // carried no id, so the mapper could not have restored one. Guarding the round
+        // trip rather than the restore is what catches that — a restore test can be made
+        // to pass by hand-building a backup that carries an id the exporter never writes.
+        val entity = com.aura.agent.forum.ForumPostEntity(
+            id = 42L, threadId = "t1", agentId = "a1", replyToId = 7L,
+            type = "proposal", title = "T", body = "B", sentiment = 0.5f,
+            status = "open", createdAt = 1L,
+        )
+
+        val restored = Json.decodeFromString<ForumPostBackup>(
+            Json.encodeToString(entity.toBackup()),
+        ).toEntity()
+
+        assertEquals(entity, restored, "a forum post must round-trip unchanged, id included")
+    }
+
+    @Test
+    fun `a backup written before post ids deserialises with an absent id`() {
+        // Every backup taken before schema 30 is missing the field. It must still load —
+        // BackupManager drops its votes rather than orphaning them, but the posts
+        // themselves are fine and are the bulk of what the user wants back.
+        val old = """{"threadId":"t1","agentId":"a1","type":"proposal","title":"T",
+            "body":"B","sentiment":0.0,"status":"open","createdAt":1}"""
+
+        assertEquals(0L, Json.decodeFromString<ForumPostBackup>(old).id)
     }
 }

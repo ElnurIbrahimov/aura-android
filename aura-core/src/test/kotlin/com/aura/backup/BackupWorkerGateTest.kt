@@ -16,6 +16,9 @@ import com.aura.backup.BackupService
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import androidx.documentfile.provider.DocumentFile
+import io.mockk.verify
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -197,5 +200,28 @@ class BackupWorkerGateTest {
         } finally {
             db.close()
         }
+    }
+
+    // ------------------------------------------- the previous backup survives a failed write
+
+    @Test
+    fun `a write that fails leaves the previous backup where it was`() = runBlocking {
+        // writeInto deleted the existing file and only then created its replacement, so a
+        // failure in between — a full disk, a dropped network on a Drive-backed tree, a
+        // provider refusing createFile — took the good backup with it and left nothing.
+        // The bytes are already in memory by then, so there is nothing to gain by clearing
+        // the way first.
+        val existing = mockk<DocumentFile>(relaxed = true)
+        val dir = mockk<DocumentFile>(relaxed = true)
+        every { dir.canWrite() } returns true
+        every { dir.findFile("aura.json") } returns existing
+        every { dir.findFile("aura.json.part") } returns null
+        every { dir.createFile(any(), any()) } throws java.io.IOException("no space left on device")
+
+        assertFailsWith<java.io.IOException> {
+            worker().first.writeInto(dir, "aura.json", "{}")
+        }
+
+        verify(exactly = 0) { existing.delete() }
     }
 }

@@ -90,15 +90,23 @@ class BackupWorker @AssistedInject constructor(
                 appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName
             }.getOrNull().orEmpty()
 
-            val sealed = crypto.seal(backupManager.encodeToJson(backupManager.snapshot(version)), passphrase)
+            val snapshot = backupManager.snapshot(version)
+            val sealed = crypto.seal(backupManager.encodeToJson(snapshot), passphrase)
                 ?: error("the stored passphrase is shorter than BackupCrypto allows")
 
             val bytes = write(Uri.parse(folder), backupManager.defaultExportFileName(now), sealed)
             val pruned = prune(Uri.parse(folder))
 
             userPreferences.recordBackupOutcome(at = now)
+            // A backup missing tables is still worth keeping — it is most of the data, and
+            // the next run may well read them fine. What it must not do is report the same
+            // thing a complete one reports. The file records the same list, so a restore
+            // months from now can say what was never in it.
+            val missing = snapshot.unreadableTables
             lastOutcome = WorkerRunRecorder.Result.ok(
-                "wrote ${bytes / 1024} KB" + if (pruned > 0) ", pruned $pruned old" else "",
+                "wrote ${bytes / 1024} KB" +
+                    (if (pruned > 0) ", pruned $pruned old" else "") +
+                    (if (missing.isEmpty()) "" else " — ${missing.size} table(s) unreadable: ${missing.joinToString()}"),
             )
             true
         } catch (cancelled: CancellationException) {
@@ -123,16 +131,60 @@ class BackupWorker @AssistedInject constructor(
     private suspend fun write(tree: Uri, name: String, content: String): Int = withContext(Dispatchers.IO) {
         val dir = DocumentFile.fromTreeUri(appContext, tree)
             ?: error("the backup folder could not be opened")
-        if (!dir.canWrite()) error("the backup folder is no longer writable — re-pick it in Settings")
-        // Same name twice would otherwise create "name (1)", which breaks prune's
-        // ordering and quietly doubles the folder.
-        dir.findFile(name)?.delete()
-        val file = dir.createFile(MIME, name) ?: error("could not create $name in the backup folder")
-        val bytes = content.toByteArray(Charsets.UTF_8)
-        appContext.contentResolver.openOutputStream(file.uri)?.use { it.write(bytes) }
-            ?: error("could not open $name for writing")
-        bytes.size
+        writeInto(dir, name, content)
     }
+
+    /**
+     * Write [content] to [name] in [dir] without destroying what is already there first.
+     *
+     * The old order was delete-then-create, so anything that failed in between — a full
+     * disk, a dropped network on a Drive-backed tree, a provider that simply refused
+     * createFile — left the folder with neither the old backup nor the new one. The bytes
+     * are already in memory by the time this is called, so there is nothing to gain by
+     * clearing the way first.
+     *
+     * The replacement writes to a `.part` sibling, and only once those bytes are down does
+     * it remove the old file and rename over it. A crash leaves a stray `.part`, which the
+     * next run overwrites and [prune] ignores.
+     *
+     * `renameTo` is not universal across document providers. If it refuses, the bytes are
+     * still in memory and the folder has just proven itself writable, so writing again
+     * under the real name is the safe fallback rather than a lost backup.
+     *
+     * Separate from [write] and `internal` rather than private so the ordering can be
+     * asserted against a mocked [DocumentFile]; resolving a real tree Uri is a device
+     * concern and stays in the manual plan.
+     *
+     * @return bytes written.
+     */
+    internal suspend fun writeInto(dir: DocumentFile, name: String, content: String): Int =
+        withContext(Dispatchers.IO) {
+            if (!dir.canWrite()) error("the backup folder is no longer writable — re-pick it in Settings")
+            val bytes = content.toByteArray(Charsets.UTF_8)
+            val partName = "$name$PART_SUFFIX"
+            // A .part left by a crashed run would otherwise become "name.part (1)".
+            dir.findFile(partName)?.delete()
+            val part = dir.createFile(MIME, partName)
+                ?: error("could not create $partName in the backup folder")
+            try {
+                appContext.contentResolver.openOutputStream(part.uri)?.use { it.write(bytes) }
+                    ?: error("could not open $partName for writing")
+                // Same name twice would otherwise create "name (1)", which breaks prune's
+                // ordering and quietly doubles the folder.
+                dir.findFile(name)?.delete()
+                if (!part.renameTo(name)) {
+                    val file = dir.createFile(MIME, name)
+                        ?: error("could not create $name in the backup folder")
+                    appContext.contentResolver.openOutputStream(file.uri)?.use { it.write(bytes) }
+                        ?: error("could not open $name for writing")
+                    runCatching { part.delete() }
+                }
+            } catch (t: Throwable) {
+                runCatching { part.delete() }
+                throw t
+            }
+            bytes.size
+        }
 
     /**
      * Keep [KEEP] most recent, delete the rest.
@@ -143,8 +195,14 @@ class BackupWorker @AssistedInject constructor(
      */
     private suspend fun prune(tree: Uri): Int = withContext(Dispatchers.IO) {
         val dir = DocumentFile.fromTreeUri(appContext, tree) ?: return@withContext 0
-        dir.listFiles()
-            .filter { it.isFile && it.name.orEmpty().let { n -> n.startsWith(PREFIX) && n.endsWith(SUFFIX) } }
+        val files = dir.listFiles().filter { it.isFile }
+        // Export names carry a to-the-second timestamp, so a .part left by a crashed run
+        // is never named again and nothing else would ever remove it. Swept here rather
+        // than counted — the number reported to the user is about real backups.
+        files.filter { it.name.orEmpty().let { n -> n.startsWith(PREFIX) && n.endsWith(PART_SUFFIX) } }
+            .forEach { runCatching { it.delete() } }
+        files
+            .filter { it.name.orEmpty().let { n -> n.startsWith(PREFIX) && n.endsWith(SUFFIX) } }
             .sortedByDescending { it.lastModified() }
             .drop(KEEP)
             .count { it.delete() }
@@ -163,6 +221,9 @@ class BackupWorker @AssistedInject constructor(
         const val WORKER_NAME = "BackupWorker"
 
         private const val TAG = "BackupWorker"
+        /** Extension for the half-written file; [prune] must not count these as backups. */
+        private const val PART_SUFFIX = ".part"
+
         private const val MIME = "application/octet-stream"
 
         /** Must match [BackupManager.defaultExportFileName]'s shape. */
