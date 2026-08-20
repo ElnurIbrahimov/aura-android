@@ -123,6 +123,7 @@ fun HomeContent(
     onOpenTools: () -> Unit = {},
 
     onOpenSkills: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
 
     onOpenCreative: () -> Unit = {},
 
@@ -279,6 +280,7 @@ fun HomeContent(
                             onOpenTools = onOpenTools,
 
                             onOpenSkills = onOpenSkills,
+                            onOpenLibrary = onOpenLibrary,
 
                             onOpenCreative = onOpenCreative,
 
@@ -324,6 +326,7 @@ fun HomeContent(
                     onOpenTools = onOpenTools,
 
                     onOpenSkills = onOpenSkills,
+                    onOpenLibrary = onOpenLibrary,
 
                     onOpenCreative = onOpenCreative,
 
@@ -366,6 +369,7 @@ fun HomeContent(
                     onOpenTools = onOpenTools,
 
                     onOpenSkills = onOpenSkills,
+                    onOpenLibrary = onOpenLibrary,
 
                     onOpenCreative = onOpenCreative,
 
@@ -404,6 +408,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
     onOpenHands: () -> Unit = {},
     onOpenTools: () -> Unit = {},
     onOpenSkills: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
     onOpenProactive: () -> Unit = {},
     onOpenAgentRuns: () -> Unit = {},

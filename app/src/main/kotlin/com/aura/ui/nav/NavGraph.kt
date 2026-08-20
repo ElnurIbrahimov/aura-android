@@ -165,6 +165,7 @@ fun NavGraph(
                     onOpenHands = { navController.navigate(Route.Hands.path) },
                     onOpenTools = { navController.navigate(Route.Tools.path) },
                     onOpenSkills = { navController.navigate(Route.Skills.path) },
+                    onOpenLibrary = { navController.navigate(Route.Library.path) },
                     onOpenCreative = { navController.navigate(Route.Creative.path) },
                     onOpenProactive = { navController.navigate(Route.Proactive.path) },
                     onOpenAgentRuns = { navController.navigate(Route.AgentRuns.path) },
@@ -328,6 +329,22 @@ fun NavGraph(
                 AgentRunsScreen(
                     runId = backStackEntry.arguments?.getString("runId"),
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Route.Library.path) {
+                com.aura.ui.screens.LibraryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpen = { item ->
+                        // Routed to whichever feature owns the item, because that feature is
+                        // where it can actually be worked on. The Library lists; it does not
+                        // reimplement four viewers.
+                        when (item.source) {
+                            com.aura.library.LibrarySource.CREATIVE_ARTIFACT ->
+                                navController.navigate(Route.Creative.path)
+                            com.aura.library.LibrarySource.DOCUMENT,
+                            com.aura.library.LibrarySource.GENERATED_MEDIA -> Unit
+                        }
+                    },
                 )
             }
             composable(Route.Skills.path) {

@@ -483,4 +483,11 @@
     <string name="load_api_keys">Load API keys</string>
     <string name="file_analysis_against">File this analysis against a scene</string>
     <string name="not_linked">Not linked</string>
+    <string name="library">Library</string>
+    <string name="library_empty">Nothing here yet. Images Aura generates, documents you import and scenes it drafts will collect here.</string>
+    <string name="library_images">Images</string>
+    <string name="library_documents">Documents</string>
+    <string name="library_writing">Writing</string>
+    <string name="library_other">Other</string>
+    <string name="everything">Everything</string>
 </resources>
