@@ -476,13 +476,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // of a full model round-trip. Only fires for short questions in a
         // fresh conversation — anything tool-driven or context-heavy
         // misses and runs normally.
-        val lastUserTurn = conversation.turns.lastOrNull { it.user != null }
-        val lastUserText = lastUserTurn?.user.orEmpty()
-        val cacheKey = lastUserText.takeIf { it.length in 2..120 }
-            ?.let { normalizeCacheKey(it) + "|" + model }
-        val cachedAnswer = if (cacheKey != null && conversation.turns.size <= 2 && memoryEnabled) {
-            responseCache?.get(cacheKey)
-        } else null
+        val (cacheKey, cachedAnswer) = lookUpCachedAnswer(conversation, model, memoryEnabled)
         if (cachedAnswer != null) {
             traceSink?.emit(runId, com.aura.agent.runtime.TraceEventType.RUN_COMPLETED, redactedPayload = "response_cache_hit")
             emit(AgentEvent.TextDelta(cachedAnswer))
@@ -513,56 +507,7 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
         // than cost. That is a different problem with a different answer, and
         // it should be argued on its own terms rather than inheriting this
         // one's reasoning. Read the cache hit rate in Settings → Usage first.
-        val allTools = specialist?.let { s ->
-            val allowed = s.toolsAllowed
-            if (allowed.isEmpty()) toolRegistry.definitions()
-            else toolRegistry.definitions().filter { def ->
-                // Exact match for native tools, plus a controlled pass
-                // for MCP tools. Until v0.30.x the filter used
-                //   def.name.startsWith("mcp_") || def.category == "mcp"
-                // which let *any* MCP tool bypass the specialist's
-                // allowlist. That was a security boundary: a user who
-                // created a "research" specialist with `allowed=[web_search]`
-                // and then connected an MCP server exposing `delete_file`
-                // would see the specialist silently gain file-deletion
-                // capability without any UI indication.
-                //
-                // The correct rule: an MCP tool is allowed if its
-                // unprefixed base name (what the MCP server actually
-                // exposes) is in the specialist's allowlist. If the
-                // specialist doesn't have a base name match, the tool
-                // is hidden — even though the registry exposes it. This
-                // matches the user-visible intent of "this specialist
-                // can only call these tools."
-                if (def.category == "mcp" || def.name.startsWith("mcp_")) {
-                    val baseName = if (def.name.startsWith("mcp_")) {
-                        // mcp_<serverId>_<toolName> → <toolName>.
-                        // serverIds MAY contain underscores (McpToolBridge
-                        // registers mcp_<serverId>_<toolName> verbatim and
-                        // tracks ownership via registeredNameToServerId).
-                        // The first segment after the prefix is the server
-                        // id; the remainder is the tool name. If the server
-                        // id itself contains an underscore, this splits at
-                        // the FIRST one, which still yields the correct
-                        // tool name for allowlist matching (the base name
-                        // is what the MCP server actually exposes).
-                        val rest = def.name.removePrefix("mcp_")
-                        val firstUnderscore = rest.indexOf('_')
-                        if (firstUnderscore > 0) rest.substring(firstUnderscore + 1) else rest
-                    } else {
-                        // Tool was registered unprefixed because there
-                        // was no native collision — base name == def.name.
-                        def.name
-                    }
-                    baseName in allowed
-                } else {
-                    def.name in allowed
-                }
-            }
-        } ?: toolRegistry.definitions()
-        // Hide search tools that need an API key the user hasn't configured.
-        // The LLM should only see search tools that will actually work.
-        val tools = filterUnavailableTools(filterSearchTools(allTools))
+        val tools = toolsForRun(specialist)
         // The step counter tracks model attempts. It is incremented at the
         // top of the outer step loop; the inner failover loop retries the
         // SAME step with a different provider without consuming another slot.
@@ -1777,6 +1722,98 @@ private suspend fun extractProfileFromText(text: String) {
     private fun modelFamily(modelId: kotlin.String): kotlin.String? {
         val name = modelId.substringAfter(":", modelId).lowercase()
         return Regex("[a-z]{2,}").find(name)?.value
+    }
+
+    /**
+     * The response-cache key for this turn, and the cached answer if there is one.
+     *
+     * Lifted out of [run]: the lookup is a pure question about the conversation, while the
+     * decision to short-circuit is control flow that has to stay where the `return@flow`
+     * and the emissions are. Splitting it that way keeps the extraction honest — moving
+     * the emits too would have meant moving the early return, which is exactly the kind of
+     * change that turns a refactor into a behaviour change.
+     *
+     * @return the key (null when this turn is not cacheable) and the hit (null on a miss).
+     */
+    private suspend fun lookUpCachedAnswer(
+        conversation: Conversation,
+        model: String,
+        memoryEnabled: Boolean,
+    ): Pair<String?, String?> {
+        val lastUserTurn = conversation.turns.lastOrNull { it.user != null }
+        val lastUserText = lastUserTurn?.user.orEmpty()
+        val cacheKey = lastUserText.takeIf { it.length in 2..120 }
+            ?.let { normalizeCacheKey(it) + "|" + model }
+        val cached = if (cacheKey != null && conversation.turns.size <= 2 && memoryEnabled) {
+            responseCache?.get(cacheKey)
+        } else {
+            null
+        }
+        return cacheKey to cached
+    }
+
+    /**
+     * The tool list for a whole run, fixed before the first step.
+     *
+     * Lifted out of [run] unchanged. It is the one block in that function with a single
+     * input and a single output — everything else it needs is a member — which is why it
+     * is the piece that could move. The specialist allowlist logic below is a security
+     * boundary and is easier to review at 45 lines than at 45 lines a thousand deep
+     * inside a flow builder.
+     */
+    private suspend fun toolsForRun(specialist: Specialist?): List<ToolDefinition> {
+    val allTools = specialist?.let { s ->
+        val allowed = s.toolsAllowed
+        if (allowed.isEmpty()) toolRegistry.definitions()
+        else toolRegistry.definitions().filter { def ->
+            // Exact match for native tools, plus a controlled pass
+            // for MCP tools. Until v0.30.x the filter used
+            //   def.name.startsWith("mcp_") || def.category == "mcp"
+            // which let *any* MCP tool bypass the specialist's
+            // allowlist. That was a security boundary: a user who
+            // created a "research" specialist with `allowed=[web_search]`
+            // and then connected an MCP server exposing `delete_file`
+            // would see the specialist silently gain file-deletion
+            // capability without any UI indication.
+            //
+            // The correct rule: an MCP tool is allowed if its
+            // unprefixed base name (what the MCP server actually
+            // exposes) is in the specialist's allowlist. If the
+            // specialist doesn't have a base name match, the tool
+            // is hidden — even though the registry exposes it. This
+            // matches the user-visible intent of "this specialist
+            // can only call these tools."
+            if (def.category == "mcp" || def.name.startsWith("mcp_")) {
+                val baseName = if (def.name.startsWith("mcp_")) {
+                    // mcp_<serverId>_<toolName> → <toolName>.
+                    // serverIds MAY contain underscores (McpToolBridge
+                    // registers mcp_<serverId>_<toolName> verbatim and
+                    // tracks ownership via registeredNameToServerId).
+                    // The first segment after the prefix is the server
+                    // id; the remainder is the tool name. If the server
+                    // id itself contains an underscore, this splits at
+                    // the FIRST one, which still yields the correct
+                    // tool name for allowlist matching (the base name
+                    // is what the MCP server actually exposes).
+                    val rest = def.name.removePrefix("mcp_")
+                    val firstUnderscore = rest.indexOf('_')
+                    if (firstUnderscore > 0) rest.substring(firstUnderscore + 1) else rest
+                } else {
+                    // Tool was registered unprefixed because there
+                    // was no native collision — base name == def.name.
+                    def.name
+                }
+                baseName in allowed
+            } else {
+                def.name in allowed
+            }
+        }
+    } ?: toolRegistry.definitions()
+    // Hide search tools that need an API key the user hasn't configured.
+    // The LLM should only see search tools that will actually work.
+    // Hidden here rather than at the registry, so the specialist filter above sees the
+    // whole set and this only removes what would fail at call time.
+    return filterUnavailableTools(filterSearchTools(allTools))
     }
 
     /**
