@@ -100,6 +100,13 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
+            // Coverage instrumentation for the unit-test JVM. Off in release, and it
+            // slows the debug test run slightly, which is the price of ever knowing what
+            // fraction of the code the suite executes.
+            //
+            // Run:  ./gradlew jacocoTestReport
+            // Read: <module>/build/reports/jacoco/jacocoTestReport/html/index.html
+            enableUnitTestCoverage = true
             versionNameSuffix = "-debug"
         }
     }
