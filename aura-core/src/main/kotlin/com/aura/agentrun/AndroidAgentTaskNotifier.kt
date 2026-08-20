@@ -42,11 +42,17 @@ class AndroidAgentTaskNotifier @Inject constructor(
             Log.i(TAG, "task $runId finished but notifications are not permitted")
             return
         }
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            // A separate question from the permission: the user can hold the grant and
+            // still have switched notifications off for the app.
+            Log.i(TAG, "task $runId finished but notifications are switched off")
+            return
+        }
 
         runCatching {
             ensureChannel()
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                .setSmallIcon(com.aura.core.R.drawable.ic_aura_notification)
                 .setContentTitle(if (succeeded) "Task finished" else "Task failed")
                 .setContentText(summary.lineSequence().firstOrNull()?.take(TITLE_CHARS).orEmpty())
                 // The whole answer, not the first line of it. A background task's result is
@@ -56,8 +62,14 @@ class AndroidAgentTaskNotifier @Inject constructor(
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .build()
+            // The platform manager rather than the compat wrapper, matching NotificationsTool
+            // and ProactiveNotifier. The permission is checked above, and lint's dataflow
+            // cannot follow that check across the compat call — ProactiveNotifier's KDoc
+            // says so in as many words, and this used the wrapper anyway.
+            //
             // Keyed on the run id, so two tasks finishing do not overwrite each other.
-            NotificationManagerCompat.from(context).notify(runId.hashCode(), notification)
+            val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            mgr.notify(runId.hashCode(), notification)
         }.onFailure { Log.w(TAG, "could not notify for $runId: ${it.message}", it) }
     }
 

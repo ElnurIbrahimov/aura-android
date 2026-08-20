@@ -382,7 +382,34 @@ jobs:
             ~/.android/adb*
           key: ${{ runner.os }}-avd-30-default-x86_64
 
+      # Retried once, deliberately.
+      #
+      # The failure being retried is not a test failure. It is the emulator never coming
+      # up: "Unable to connect to adb daemon on port: 5037", then adb exiting 1, with zero
+      # tests executed. Proved to be infrastructure rather than code by watching the same
+      # commit fail and then pass, and by watching a superset branch pass while this one
+      # failed. Re-running these by hand was already the routine; this makes the routine
+      # part of the job.
+      #
+      # A retry that hides real failures would be worse than the flakiness. It does not:
+      # the second attempt runs the identical suite, so anything genuinely broken fails
+      # twice and the job still goes red. What it absorbs is the boot, which is the part
+      # that has never once been about this repository's code.
       - name: Run database migration tests
+        id: migrations-attempt
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: ./gradlew :aura-core:connectedDebugAndroidTest
+
+      - name: Run database migration tests (retry after an emulator that would not boot)
+        if: steps.migrations-attempt.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 30
@@ -530,7 +557,36 @@ jobs:
 
       # disable-animations matters here in a way it does not for the migration
       # suite: Compose UI assertions race animations that never settle.
+      # Retried once, deliberately.
+      #
+      # The failure being retried is not a test failure. It is the emulator never coming
+      # up: "Unable to connect to adb daemon on port: 5037", then adb exiting 1, with zero
+      # tests executed. Proved to be infrastructure rather than code by watching the same
+      # commit fail and then pass, and by watching a superset branch pass while this one
+      # failed. Re-running these by hand was already the routine; this makes the routine
+      # part of the job.
+      #
+      # A retry that hides real failures would be worse than the flakiness. It does not:
+      # the second attempt runs the identical suite, so anything genuinely broken fails
+      # twice and the job still goes red. What it absorbs is the boot, which is the part
+      # that has never once been about this repository's code.
       - name: Run :app instrumented tests
+        id: instrumented-attempt
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: >-
+            ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.notClass=com.aura.smoke.DeviceSmokeTest
+
+      - name: Run :app instrumented tests (retry after an emulator that would not boot)
+        if: steps.instrumented-attempt.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 30
