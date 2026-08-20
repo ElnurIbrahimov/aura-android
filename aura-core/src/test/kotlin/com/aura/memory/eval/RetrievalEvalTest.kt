@@ -64,7 +64,28 @@ class RetrievalEvalTest {
         // to ten days should not be made against evidence that is merely absent
         // instead of visibly absent.
         val baseline = EvalFixtures.baseline()
-        runner.writeReport(cards, baseline, gateB = runner.gateB())
+        // Gate B twice, at both weightings, because neither alone answers the question.
+        //
+        // At LEGACY weights a semantic model is one vote of six, against recency, usage,
+        // decay and importance — four signals that know nothing about what was asked. At
+        // relevance weights with no semantic model there is nothing to amplify. Running
+        // only one of the two makes the embedder look worthless for a reason that is
+        // actually about the ranking, and the ranking look worthless for a reason that is
+        // actually about the embedder.
+        val relevanceWeighted = RetrievalConfig.DEFAULT.copy(
+            tieHandling = TieHandling.COMPETITION,
+            weights = SignalWeights(
+                text = 1f, vector = 1f, recency = 0.35f,
+                usage = 0.35f, decay = 0f, importance = 0.2f,
+            ),
+        )
+        runner.writeReport(
+            cards,
+            baseline,
+            gateB = runner.gateB() + runner.gateB(relevanceWeighted).map {
+                it.copy(label = it.label + " @ relevance weights")
+            },
+        )
 
         // A missing baseline FAILS. It must not skip: a gate that reports OK
         // over absent data is precisely the defect this repo's history records

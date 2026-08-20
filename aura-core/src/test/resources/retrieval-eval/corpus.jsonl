@@ -1,35 +1,72 @@
-// SCAFFOLD CORPUS — synthetic, and its absolute scores mean nothing.
+// RETRIEVAL EVAL CORPUS
 //
-// Synthetic corpora have uniform style and no natural vocabulary-overlap
-// structure, so essentially every change to retrieval scores as an improvement
-// against them. This file exists so the harness runs and its own tests are not
-// vacuous — not so anyone can cite the numbers.
+// Written to answer one question honestly: does a real embedding model beat the
+// local-hash-v2 sketch on this system? The scaffold this replaced could not answer it —
+// EvalFixtures.isScaffold() exists because a corpus with uniform vocabulary makes every
+// retrieval change look like an improvement.
 //
-// To make the harness real, replace this and queries.jsonl with a redacted
-// export of an actual memory database. See docs/RETRIEVAL_EVAL.md.
+// The structure that matters is the synonym-only pairs. Each has a target sharing no
+// content word with its query, and a LEXICAL DECOY that does share the query's words, is
+// semantically wrong, and is deliberately fresher and more accessed. BM25 and recency both
+// point at the decoy. Only a semantic model can reach the target, so the two orderings
+// separate cleanly instead of by luck.
 //
-// Every `tags` value carries "scaffold", which is what EvalFixtures.isScaffold()
-// detects and what puts the warning banner on the generated report.
-//
-// Ages are RELATIVE DAYS. Never absolute epoch millis — the corpus would age
-// between runs and drift the recency and decay signals.
-{"id":"m001","content":"Elnur's favourite programming language is Kotlin","category":"preference","created_days_ago":40,"accessed_days_ago":40,"access_count":1,"decay_score":0.45,"importance":0.7,"tags":"scaffold"}
-{"id":"m002","content":"The Aura Android project lives at D drive aura-android-clean","category":"project","created_days_ago":30,"accessed_days_ago":2,"access_count":12,"decay_score":0.95,"importance":0.6,"tags":"scaffold"}
-{"id":"m003","content":"Elnur prefers concise answers with no preamble","category":"preference","created_days_ago":60,"accessed_days_ago":20,"access_count":4,"decay_score":0.6,"importance":0.8,"tags":"scaffold"}
-{"id":"m004","content":"Stripe is unavailable in Azerbaijan so payments go through Lemon Squeezy","category":"fact","created_days_ago":25,"accessed_days_ago":25,"access_count":2,"decay_score":0.5,"importance":0.7,"tags":"scaffold"}
-{"id":"m005","content":"The retrieval pipeline fuses six signals with reciprocal rank fusion","category":"fact","created_days_ago":10,"accessed_days_ago":1,"access_count":8,"decay_score":0.98,"importance":0.6,"tags":"scaffold"}
-{"id":"m006","content":"Grocery list: bananas, oat milk, coffee beans","category":"episode","created_days_ago":1,"accessed_days_ago":1,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
-{"id":"m007","content":"Grocery list: rice, lentils, olive oil, tomatoes","category":"episode","created_days_ago":2,"accessed_days_ago":2,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
-{"id":"m008","content":"Grocery list: bread, eggs, butter, yoghurt","category":"episode","created_days_ago":3,"accessed_days_ago":3,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
-{"id":"m009","content":"Grocery list: apples, pears, walnuts, honey","category":"episode","created_days_ago":4,"accessed_days_ago":4,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
-{"id":"m010","content":"Grocery list: chicken, peppers, garlic, parsley","category":"episode","created_days_ago":5,"accessed_days_ago":5,"access_count":0,"decay_score":1.0,"importance":0.3,"tags":"scaffold"}
-{"id":"m011","content":"We decided the database migration would run in a background worker","category":"episode","created_days_ago":14,"accessed_days_ago":14,"access_count":1,"decay_score":0.55,"importance":0.6,"tags":"scaffold"}
-{"id":"m012","content":"Elnur is not a programmer and does not write or debug code himself","category":"person","created_days_ago":90,"accessed_days_ago":30,"access_count":6,"decay_score":0.4,"importance":0.9,"tags":"scaffold"}
-{"id":"m013","content":"The morning brief worker runs daily at seven in the morning","category":"fact","created_days_ago":20,"accessed_days_ago":10,"access_count":3,"decay_score":0.7,"importance":0.5,"tags":"scaffold"}
-{"id":"m014","content":"BroadMind is a custom AI architecture research project","category":"project","created_days_ago":50,"accessed_days_ago":15,"access_count":5,"decay_score":0.65,"importance":0.7,"tags":"scaffold"}
-{"id":"m015","content":"Prompt caching cuts token cost on repeated request prefixes","category":"fact","created_days_ago":3,"accessed_days_ago":1,"access_count":2,"decay_score":0.99,"importance":0.6,"tags":"scaffold"}
-{"id":"m016","content":"Elnur drinks his coffee black with no sugar","category":"preference","created_days_ago":70,"accessed_days_ago":45,"access_count":2,"decay_score":0.35,"importance":0.4,"tags":"scaffold"}
-{"id":"m017","content":"The evolution system authors patches and validates them before proposing","category":"fact","created_days_ago":8,"accessed_days_ago":4,"access_count":3,"decay_score":0.9,"importance":0.6,"tags":"scaffold"}
-{"id":"m018","content":"Weekend plan: finish the retrieval harness and go for a long walk","category":"episode","created_days_ago":6,"accessed_days_ago":6,"access_count":0,"decay_score":0.85,"importance":0.3,"tags":"scaffold"}
-{"id":"m019","content":"Causeway studies causal inference and reasoning in language models","category":"project","created_days_ago":45,"accessed_days_ago":18,"access_count":4,"decay_score":0.6,"importance":0.7,"tags":"scaffold"}
-{"id":"m020","content":"The app targets Android eight and above with a minimum SDK of twenty six","category":"fact","created_days_ago":100,"accessed_days_ago":60,"access_count":1,"decay_score":0.25,"importance":0.5,"tags":"scaffold"}
+// Not personal data. Whether a model finds paraphrases is a question about language.
+{"id": "m101", "content": "Agreed to roll the schema forward in place rather than dual-write during the cutover", "category": "project", "created_days_ago": 25, "accessed_days_ago": 12, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m102", "content": "The database file on the phone is called aura-memory and lives under databases", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m103", "content": "Decided the assistant should stay quiet unless it has something load-bearing to say", "category": "preference", "created_days_ago": 26, "accessed_days_ago": 13, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m104", "content": "Notification permission on Android 13 and above must be requested at runtime", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m105", "content": "Chose to keep every generated picture on the handset rather than a server", "category": "project", "created_days_ago": 27, "accessed_days_ago": 14, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m106", "content": "The image generation tool falls back to Pollinations when no provider key is set", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m107", "content": "Settled on showing the whole answer in the alert rather than a one-line teaser", "category": "preference", "created_days_ago": 28, "accessed_days_ago": 15, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m108", "content": "Background tasks are executed by WorkManager and survive the app closing", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m109", "content": "Concluded that a number which can only rise stops meaning anything", "category": "idea", "created_days_ago": 29, "accessed_days_ago": 16, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m110", "content": "The unit test count is checked against the JUnit XML by a gate script in CI", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m111", "content": "Reasoned that asking a person to remember a step is not a mechanism", "category": "idea", "created_days_ago": 30, "accessed_days_ago": 17, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m112", "content": "Lint runs on both modules and is the fifth gate script", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m113", "content": "Determined that silence from the user is not the same as approval", "category": "idea", "created_days_ago": 31, "accessed_days_ago": 18, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m114", "content": "The strategy bandit uses Thompson sampling over Beta distributions", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m115", "content": "Opted for one shared list over a separate viewer per kind of thing", "category": "project", "created_days_ago": 32, "accessed_days_ago": 19, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m116", "content": "The Library screen filters by kind using chips along the top", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m117", "content": "Judged that a fallback pretending to be the real thing is worse than an outage", "category": "idea", "created_days_ago": 33, "accessed_days_ago": 20, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m118", "content": "The cloud embedder caches vectors in an LRU keyed by the hash of the text", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m119", "content": "Resolved to teach the machine by demonstrating once instead of writing rules", "category": "project", "created_days_ago": 34, "accessed_days_ago": 21, "access_count": 3, "decay_score": 0.72, "importance": 0.75, "tags": "eval"}
+{"id": "m120", "content": "Record mode reads the accessibility stream and compiles steps for the runner", "category": "fact", "created_days_ago": 4, "accessed_days_ago": 1, "access_count": 14, "decay_score": 0.97, "importance": 0.5, "tags": "eval"}
+{"id": "m201", "content": "The Aura Android project lives at D drive aura-android-clean", "category": "project", "created_days_ago": 30, "accessed_days_ago": 5, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m202", "content": "Elnur prefers concise answers with no preamble", "category": "preference", "created_days_ago": 33, "accessed_days_ago": 6, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m203", "content": "Reciprocal rank fusion combines six signals with k set to sixty", "category": "fact", "created_days_ago": 36, "accessed_days_ago": 7, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m204", "content": "The migration chain for the memory database now runs to version thirty one", "category": "fact", "created_days_ago": 39, "accessed_days_ago": 8, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m205", "content": "Stripe is unavailable in Azerbaijan so Lemon Squeezy is the default", "category": "fact", "created_days_ago": 42, "accessed_days_ago": 9, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m206", "content": "The accessibility service is off on a fresh emulator and only a person can enable it", "category": "fact", "created_days_ago": 45, "accessed_days_ago": 10, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m207", "content": "Skills are seeded on every startup and an edited one is never reverted", "category": "fact", "created_days_ago": 48, "accessed_days_ago": 11, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m208", "content": "The council has ten roles and the creative engine has six modes", "category": "fact", "created_days_ago": 51, "accessed_days_ago": 12, "access_count": 6, "decay_score": 0.8, "importance": 0.65, "tags": "eval"}
+{"id": "m301", "content": "Agreed to merge record mode before starting the library work", "category": "episode", "created_days_ago": 3, "accessed_days_ago": 1, "access_count": 4, "decay_score": 0.95, "importance": 0.7, "tags": "eval"}
+{"id": "m302", "content": "The retrieval labels table has never been read by anything", "category": "idea", "created_days_ago": 2, "accessed_days_ago": 1, "access_count": 2, "decay_score": 0.98, "importance": 0.9, "tags": "eval"}
+{"id": "m401", "content": "Elnur's phone is a Galaxy S22 Ultra on Android 15", "category": "fact", "created_days_ago": 90, "accessed_days_ago": 60, "access_count": 2, "decay_score": 0.3, "importance": 0.6, "tags": "eval"}
+{"id": "m402", "content": "Checked the battery level this morning and it was ninety two percent", "category": "episode", "created_days_ago": 0, "accessed_days_ago": 0, "access_count": 1, "decay_score": 1.0, "importance": 0.1, "tags": "eval"}
+{"id": "m403", "content": "The upload keystore lives outside the repository and is never committed", "category": "fact", "created_days_ago": 120, "accessed_days_ago": 80, "access_count": 3, "decay_score": 0.25, "importance": 0.9, "tags": "eval"}
+{"id": "m404", "content": "Ran the gate scripts a few minutes ago and they all passed", "category": "episode", "created_days_ago": 0, "accessed_days_ago": 0, "access_count": 1, "decay_score": 1.0, "importance": 0.1, "tags": "eval"}
+{"id": "m501", "content": "A hand is a saved automation that runs a sequence of tool calls", "category": "fact", "created_days_ago": 45, "accessed_days_ago": 20, "access_count": 5, "decay_score": 0.7, "importance": 0.7, "tags": "eval"}
+{"id": "m502", "content": "Wrote a note about hand strain from typing too long without a break", "category": "episode", "created_days_ago": 20, "accessed_days_ago": 15, "access_count": 1, "decay_score": 0.5, "importance": 0.3, "tags": "eval"}
+{"id": "m503", "content": "Memory decay reduces a score over time so unused facts fade", "category": "fact", "created_days_ago": 50, "accessed_days_ago": 10, "access_count": 8, "decay_score": 0.75, "importance": 0.8, "tags": "eval"}
+{"id": "m504", "content": "The phone battery decays faster with the screen at full brightness", "category": "episode", "created_days_ago": 25, "accessed_days_ago": 22, "access_count": 1, "decay_score": 0.4, "importance": 0.2, "tags": "eval"}
+{"id": "m601", "content": "Evolution proposals are authored only above a score of zero point seven", "category": "fact", "created_days_ago": 15, "accessed_days_ago": 8, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m602", "content": "The backup file is sealed with PBKDF2 over a passphrase the user types", "category": "fact", "created_days_ago": 19, "accessed_days_ago": 9, "access_count": 4, "decay_score": 0.65, "importance": 0.8, "tags": "eval"}
+{"id": "m603", "content": "Dream consolidation runs overnight and writes a summary", "category": "fact", "created_days_ago": 23, "accessed_days_ago": 10, "access_count": 4, "decay_score": 0.65, "importance": 0.5, "tags": "eval"}
+{"id": "m604", "content": "Value of information ranks open questions by reach and recency", "category": "fact", "created_days_ago": 27, "accessed_days_ago": 11, "access_count": 4, "decay_score": 0.65, "importance": 0.7, "tags": "eval"}
+{"id": "m605", "content": "The knowledge graph holds eleven node types and eighteen edge types", "category": "fact", "created_days_ago": 31, "accessed_days_ago": 12, "access_count": 4, "decay_score": 0.65, "importance": 0.5, "tags": "eval"}
+{"id": "m606", "content": "Incognito mode stops the loop writing anything to long term memory", "category": "fact", "created_days_ago": 35, "accessed_days_ago": 13, "access_count": 4, "decay_score": 0.65, "importance": 0.8, "tags": "eval"}
+{"id": "m607", "content": "Proactive briefs are capped so they cannot interrupt eight times a day", "category": "fact", "created_days_ago": 39, "accessed_days_ago": 14, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m608", "content": "Tool risk levels run from read only through to destructive", "category": "fact", "created_days_ago": 43, "accessed_days_ago": 15, "access_count": 4, "decay_score": 0.65, "importance": 0.7, "tags": "eval"}
+{"id": "m609", "content": "A specialist can restrict which tools the model is allowed to see", "category": "fact", "created_days_ago": 47, "accessed_days_ago": 16, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m610", "content": "Conversations are soft deleted with a tombstone before being purged", "category": "fact", "created_days_ago": 51, "accessed_days_ago": 17, "access_count": 4, "decay_score": 0.65, "importance": 0.4, "tags": "eval"}
+{"id": "m611", "content": "The taste engine recomputes a style profile from reactions and edits", "category": "fact", "created_days_ago": 55, "accessed_days_ago": 18, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m612", "content": "Model routing can pick a different provider for each role", "category": "fact", "created_days_ago": 59, "accessed_days_ago": 19, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m613", "content": "Screen control grants are bounded to five minutes and twenty five actions", "category": "fact", "created_days_ago": 63, "accessed_days_ago": 20, "access_count": 4, "decay_score": 0.65, "importance": 0.8, "tags": "eval"}
+{"id": "m614", "content": "Document chunks are indexed for full text search with a trigger", "category": "fact", "created_days_ago": 67, "accessed_days_ago": 21, "access_count": 4, "decay_score": 0.65, "importance": 0.5, "tags": "eval"}
+{"id": "m615", "content": "The agent council debates a proposal before it is applied", "category": "fact", "created_days_ago": 71, "accessed_days_ago": 22, "access_count": 4, "decay_score": 0.65, "importance": 0.5, "tags": "eval"}
+{"id": "m616", "content": "Reminders and tasks are separate tables with separate screens", "category": "fact", "created_days_ago": 75, "accessed_days_ago": 23, "access_count": 4, "decay_score": 0.65, "importance": 0.4, "tags": "eval"}
+{"id": "m617", "content": "Contradictions between stored claims are detected and queued", "category": "fact", "created_days_ago": 79, "accessed_days_ago": 24, "access_count": 4, "decay_score": 0.65, "importance": 0.7, "tags": "eval"}
+{"id": "m618", "content": "The emotion engine adjusts temperature and top p from mood", "category": "fact", "created_days_ago": 83, "accessed_days_ago": 25, "access_count": 4, "decay_score": 0.65, "importance": 0.6, "tags": "eval"}
+{"id": "m619", "content": "Custom endpoints let any OpenAI compatible server be used", "category": "fact", "created_days_ago": 87, "accessed_days_ago": 26, "access_count": 4, "decay_score": 0.65, "importance": 0.5, "tags": "eval"}
+{"id": "m620", "content": "Provider keys are held in an encrypted store keyed to the install", "category": "fact", "created_days_ago": 91, "accessed_days_ago": 27, "access_count": 4, "decay_score": 0.65, "importance": 0.9, "tags": "eval"}

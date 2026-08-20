@@ -1,41 +1,35 @@
-// SCAFFOLD QUERY SET — see the header of corpus.jsonl. Absolute scores from
-// this file mean nothing; it exists so the harness is exercised.
+// RETRIEVAL EVAL QUERIES
 //
-// Judgments are GRADED: 0 irrelevant, 1 related, 2 relevant, 3 ideal. Binary
-// labels destroy the distinction the set most needs — "this is the answer" vs
-// "this is related and would be acceptable filler".
+// Graded 0-3: 0 irrelevant, 1 related, 2 relevant, 3 ideal. A query whose judgments contain
+// no grade >= 1 is a should-return-nothing case.
 //
-// A query with no grade >= 1 is a should-return-nothing case. Those are
-// first-class: recall inventing context for a question it has no answer to is
-// worse than silence, and MemoryStoreQueryTest already asserts that behaviour.
-//
-// Classes are deliberately adversarial — each names a known weakness:
-//   lexical         plain term overlap; the easy case, and the control
-//   synonym-only    ZERO lexical overlap. The only class LocalEmbedder cannot
-//                   possibly serve, so its share and its score are the entire
-//                   business case for a real on-device embedding model.
-//   deictic         "that thing we discussed" — exercises query rewriting
-//   fresh-decoy     one old relevant row against a wall of fresh irrelevant
-//                   ones; measures the metadata-vs-relevance imbalance directly
-//   ambiguous-term  the answer is old AND low-importance
-//   expect-empty    feeds zeroResultRate
-{"qid":"q01","class":"lexical","query":"favourite programming language","judgments":{"m001":3}}
-{"qid":"q02","class":"lexical","query":"where does the aura android project live","judgments":{"m002":3}}
-{"qid":"q03","class":"lexical","query":"reciprocal rank fusion signals","judgments":{"m005":3,"m017":1}}
-{"qid":"q04","class":"lexical","query":"morning brief worker schedule","judgments":{"m013":3}}
-{"qid":"q05","class":"lexical","query":"payments azerbaijan stripe","judgments":{"m004":3}}
-{"qid":"q06","class":"lexical","query":"evolution patches validation","judgments":{"m017":3,"m005":1}}
-{"qid":"q07","class":"lexical","query":"causal inference language models","judgments":{"m019":3}}
-{"qid":"q08","class":"lexical","query":"prompt caching token cost","judgments":{"m015":3}}
-{"qid":"q09","class":"synonym-only","query":"which coding tongue does he like most","judgments":{"m001":3}}
-{"qid":"q10","class":"synonym-only","query":"does he take anything in his espresso","judgments":{"m016":3}}
-{"qid":"q11","class":"synonym-only","query":"can he implement software himself","judgments":{"m012":3}}
-{"qid":"q12","class":"synonym-only","query":"how terse should replies be","judgments":{"m003":3}}
-{"qid":"q13","class":"deictic","query":"what did we decide about that","recent_context":"user: the schema change is going to be slow\nassistant: we could move it off the main thread","judgments":{"m011":3}}
-{"qid":"q14","class":"deictic","query":"remind me what that runs on","recent_context":"user: tell me about the daily summary\nassistant: it is generated each morning","judgments":{"m013":3}}
-{"qid":"q15","class":"fresh-decoy","query":"kotlin language preference","judgments":{"m001":3}}
-{"qid":"q16","class":"fresh-decoy","query":"minimum android sdk version","judgments":{"m020":3}}
-{"qid":"q17","class":"ambiguous-term","query":"list","judgments":{"m006":1,"m007":1,"m008":1,"m009":1,"m010":1}}
-{"qid":"q18","class":"ambiguous-term","query":"research project architecture","judgments":{"m014":3,"m019":2}}
-{"qid":"q19","class":"expect-empty","query":"zzqxv unknownword nonexistent","judgments":{}}
-{"qid":"q20","class":"expect-empty","query":"quantum chromodynamics lattice gauge","judgments":{}}
+// Classes: synonym-only is the one that discriminates — see the corpus header. lexical
+// should be won by anything. deictic needs the prior turn. fresh-decoy checks that recency
+// does not beat relevance. ambiguous-term checks one word with two senses. expect-empty
+// checks that nothing is invented.
+{"qid": "s01", "class": "synonym-only", "query": "how did we decide to handle the database change", "judgments": {"m101": 3, "m102": 0}}
+{"qid": "s02", "class": "synonym-only", "query": "what did we settle on for notifications", "judgments": {"m103": 3, "m104": 0}}
+{"qid": "s03", "class": "synonym-only", "query": "where are images stored", "judgments": {"m105": 3, "m106": 0}}
+{"qid": "s04", "class": "synonym-only", "query": "how much text should a background task notification show", "judgments": {"m107": 3, "m108": 0}}
+{"qid": "s05", "class": "synonym-only", "query": "why not gate on the test count going up", "judgments": {"m109": 3, "m110": 0}}
+{"qid": "s06", "class": "synonym-only", "query": "why add a script instead of just remembering to run lint", "judgments": {"m111": 3, "m112": 0}}
+{"qid": "s07", "class": "synonym-only", "query": "what counts as a successful answer for the bandit", "judgments": {"m113": 3, "m114": 0}}
+{"qid": "s08", "class": "synonym-only", "query": "why is there a single library rather than one screen per type", "judgments": {"m115": 3, "m116": 0}}
+{"qid": "s09", "class": "synonym-only", "query": "what should happen when the embedding service is unavailable", "judgments": {"m117": 3, "m118": 0}}
+{"qid": "s10", "class": "synonym-only", "query": "how should a phone automation be created", "judgments": {"m119": 3, "m120": 0}}
+{"qid": "l01", "class": "lexical", "query": "where does the aura android project live", "judgments": {"m201": 3}}
+{"qid": "l02", "class": "lexical", "query": "how does Elnur like answers written", "judgments": {"m202": 3}}
+{"qid": "l03", "class": "lexical", "query": "reciprocal rank fusion signals", "judgments": {"m203": 3}}
+{"qid": "l04", "class": "lexical", "query": "memory database migration version", "judgments": {"m204": 3}}
+{"qid": "l05", "class": "lexical", "query": "which payment provider to use", "judgments": {"m205": 3}}
+{"qid": "l06", "class": "lexical", "query": "accessibility service on the emulator", "judgments": {"m206": 3}}
+{"qid": "l07", "class": "lexical", "query": "how are builtin skills seeded", "judgments": {"m207": 3}}
+{"qid": "l08", "class": "lexical", "query": "how many council roles are there", "judgments": {"m208": 3}}
+{"qid": "d01", "class": "deictic", "query": "what did we decide about that", "judgments": {"m301": 3}, "context": "We were talking about whether record mode was finished enough to land."}
+{"qid": "d02", "class": "deictic", "query": "and what was wrong with it", "judgments": {"m302": 3}, "context": "We were discussing the table that stores thumbs up and thumbs down on answers."}
+{"qid": "f01", "class": "fresh-decoy", "query": "what phone does Elnur use", "judgments": {"m401": 3, "m402": 0}}
+{"qid": "f02", "class": "fresh-decoy", "query": "where is the signing key kept", "judgments": {"m403": 3, "m404": 0}}
+{"qid": "a01", "class": "ambiguous-term", "query": "what is a hand in this app", "judgments": {"m501": 3, "m502": 0}}
+{"qid": "a02", "class": "ambiguous-term", "query": "how does decay work for stored facts", "judgments": {"m503": 3, "m504": 0}}
+{"qid": "e01", "class": "expect-empty", "query": "what is the capital of Mongolia", "judgments": {}}
+{"qid": "e02", "class": "expect-empty", "query": "how much did the groceries cost last Thursday", "judgments": {}}
