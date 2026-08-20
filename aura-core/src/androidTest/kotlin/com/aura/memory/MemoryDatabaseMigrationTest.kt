@@ -756,4 +756,39 @@ class MemoryDatabaseMigrationTest {
             assertEquals(5, it.getInt(1))
         }
     }
+
+    /**
+     * v29 -> v30: the two columns that record why a question was the one chosen.
+     *
+     * The seed row states every one of v29's seven NOT NULL columns. Guessing that set is how
+     * migrate28To29 died on its fixture before reaching the migration it exists to prove, and
+     * the JVM replay cannot catch it: it validates DDL, not the rows a test inserts.
+     */
+    @Test
+    fun migrate29To30() {
+        val db = helper.createDatabase("test-aura-memory.db", 29)
+        db.execSQL(
+            "INSERT INTO open_questions (id, kind, subjectKind, subjectId, question, status, " +
+                "answerable, timesAsked, createdAt) " +
+                "VALUES ('q1', 'gap', 'kg_node', 'n1', 'What is this?', 'open', 'user', 0, 100)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            "test-aura-memory.db",
+            30,
+            true,
+            MemoryModule.MIGRATION_29_30,
+        )
+
+        // The pre-existing question survives, unscored — which is what an unscored row must
+        // look like, since every question written before this existed is one.
+        migrated.query("SELECT voiScore, voiReason, question FROM open_questions WHERE id = 'q1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+            assertTrue("an unscored row must have no reason, not an empty one", it.isNull(1))
+            assertEquals("What is this?", it.getString(2))
+        }
+        migrated.close()
+    }
 }

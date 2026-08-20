@@ -87,6 +87,12 @@ class CuriosityStore @Inject constructor(
                 subjectId = authored.subject.subjectId,
                 question = authored.question,
                 answerable = authored.answerable,
+                // What the scan-time decision was, kept so it can be argued with. The
+                // arithmetic is recomputable; the model's sentence is not.
+                voiScore = ValueOfInformation.percent(
+                    ValueOfInformation.score(authored.subject.priority, authored.subject.signals, now),
+                ),
+                voiReason = authored.reason,
                 createdAt = now,
             ),
         )

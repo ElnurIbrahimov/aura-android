@@ -56,6 +56,15 @@ data class OpenQuestionEntity(
      * something else entirely.
      */
     val answerable: String = ANSWERABLE_USER,
+    /**
+     * How much this subject was judged to matter, 0-100. 0 means never scored.
+     *
+     * Only one question is open at a time, so this does not order a queue — it records what
+     * the scan-time decision was, which is what makes the choice arguable after the fact.
+     */
+    val voiScore: Int = 0,
+    /** Why it was chosen, in the model's words, or null when it did not say. */
+    val voiReason: String? = null,
     /** The memory the answer became, once there is one. */
     val answerMemoryId: String? = null,
     /** Last time this was actually put in front of the user. */

@@ -297,12 +297,36 @@ private fun LazyListScope.openQuestionsSection(viewModel: MindViewModel) {
                     AuraCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             Text(question.question, style = MaterialTheme.typography.bodyMedium)
+                            // Why this one and not another. Only one question is ever open,
+                            // so the choice is the whole decision — and a reason a person can
+                            // disagree with is the only way to find out if it was a good one.
+                            question.voiReason?.let { reason ->
+                                Text(
+                                    reason,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AuraThemeTokens.colors.textPrimary,
+                                )
+                            }
                             Text(
                                 "It'll ask next time you're in chat",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AuraThemeTokens.colors.textSecondary,
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    item {
+        val candidates by viewModel.candidates.collectAsStateWithLifecycle()
+        if (candidates.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                SectionHeading("Also doesn't understand")
+                for (subject in candidates) {
+                    AuraCard(modifier = Modifier.fillMaxWidth()) {
+                        Text(subject.context, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

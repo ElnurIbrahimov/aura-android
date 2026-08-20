@@ -98,4 +98,51 @@ class QuestionAuthorParseTest {
         assertTrue(author.parse("I could not think of any.", listOf(subject("n1"))).isEmpty())
         assertTrue(author.parse("1|user", listOf(subject("n1"))).isEmpty())
     }
+
+    // ---------------------------------------------------------------- the reason
+
+    @Test
+    fun `a fourth field carries why the subject matters`() {
+        // The consequence judgement rides this call rather than a second one. The scanner's
+        // arithmetic knows how much of the model touches a subject; only the model can say
+        // whether knowing would change anything.
+        val parsed = author.parse(
+            "1|user|What is Causeway to you?|Three suggestions assume it is your main project.",
+            listOf(subject("n1")),
+        )
+
+        assertEquals(1, parsed.size)
+        assertEquals("Three suggestions assume it is your main project.", parsed.single().reason)
+    }
+
+    @Test
+    fun `a line without a reason still yields its question`() {
+        // The degradation pin. A model that answers in the old three-field shape, or drops
+        // the field on one line, must not cost us the question — the reason is an
+        // explanation, and losing an explanation is not worth losing the thing explained.
+        val parsed = author.parse("1|user|What is Causeway to you?", listOf(subject("n1")))
+
+        assertEquals(1, parsed.size)
+        assertEquals(null, parsed.single().reason)
+    }
+
+    @Test
+    fun `a blank or absurd reason is dropped, the question is kept`() {
+        val long = "x".repeat(400)
+        val parsed = author.parse(
+            listOf(
+                "1|user|What is Causeway to you?|   ",
+                "2|user|And this one too?|" + long,
+            ).joinToString("\n"),
+            listOf(subject("n1"), subject("n2")),
+        )
+
+        assertTrue(parsed.isNotEmpty(), "questions must survive a bad reason")
+        parsed.forEach { authored ->
+            assertTrue(
+                authored.reason == null || authored.reason!!.length <= QuestionAuthor.MAX_REASON_CHARS,
+                "a reason must be absent or bounded, got ${authored.reason?.length}",
+            )
+        }
+    }
 }
