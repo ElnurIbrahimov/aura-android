@@ -205,8 +205,46 @@ data class RetrievalConfig(
     val embedTimeoutMs: Long = 4_000L,
 ) {
     companion object {
-        /** The shipped behaviour. */
+        /** The shipped behaviour when vectors are a hash sketch and cannot be trusted. */
         val DEFAULT = RetrievalConfig()
+
+        /**
+         * The settings for when vectors actually carry meaning.
+         *
+         * Every constant in [DEFAULT] was calibrated against a 384-dim hash, and all three
+         * of these are wrong for a real model — two of them in opposite directions. The
+         * eval measured that the three changes are multiplicative rather than additive: a
+         * semantic model at DEFAULT buys +0.011 nDCG@10 on paraphrase queries, these
+         * settings without a semantic model buy +0.004, and together they buy +0.311.
+         *
+         * `vectorPoolSize = 25` is the largest single part, and the least obvious. At 0 —
+         * measured off, correctly, against the hash — a memory sharing no word with the
+         * query can never become a candidate at all, so the model never gets the chance to
+         * recognise it. Its own KDoc said so; nobody had re-run the A/B with real vectors.
+         *
+         * `minRelevance = 0.50` because 0.15 is three sigma of a hash's noise floor
+         * (|cos| ~= 1/sqrt(384) ~= 0.051) and a real model puts entirely unrelated English
+         * at 0.2-0.4. At 0.15 the floor admits everything and "nothing is relevant" stops
+         * being expressible — correctly-empty was 0.0 for every model tried until this
+         * moved. Swept per model: nomic peaks at 0.50, above which it starts rejecting
+         * real matches.
+         *
+         * The weights down-rank the four signals that know nothing about what was asked.
+         * A semantic score is otherwise one vote of six against recency, usage, decay and
+         * importance, which is why the model alone changes so little.
+         *
+         * Selected by [com.aura.memory.MemoryStore] per query, on the model that is
+         * actually loaded — the 137 MB download can finish while the app is running, and
+         * these settings applied to hash vectors make retrieval measurably worse.
+         */
+        val SEMANTIC = RetrievalConfig(
+            vectorPoolSize = 25,
+            minRelevance = 0.50f,
+            weights = SignalWeights(
+                text = 1f, vector = 1f, recency = 0.35f,
+                usage = 0.35f, decay = 0f, importance = 0.2f,
+            ),
+        )
     }
 }
 

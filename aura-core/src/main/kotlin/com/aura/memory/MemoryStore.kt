@@ -252,6 +252,12 @@ class MemoryStore @Inject constructor(
             text: String,
             options: RecallOptions = RecallOptions(),
         ): List<MemoryEntity> {
+            // Shadows the injected field for this call. The three settings that make a
+            // semantic model worth having — the vector pool, the relevance floor, the
+            // signal weights — are measurably HARMFUL applied to hash vectors, and the
+            // 137 MB model can finish downloading while the app is running. So the choice
+            // is made per query against the model actually in hand, not once at startup.
+            val config = activeConfig()
             val limit = options.limit
             val scopeFilter = options.scopeFilter
             val rerankModel = options.rerankModel
@@ -322,7 +328,14 @@ class MemoryStore @Inject constructor(
         // vector nobody is waiting for. Logged, because a recall that silently
         // loses one of its two relevance signals is indistinguishable from a
         // working one in the output.
-        val qVec: FloatArray? = withTimeoutOrNull(config.embedTimeoutMs) { embedder.embed(retrievalQuery) }
+        // Embedded as a QUERY. nomic prefixes questions and passages differently and
+        // produces different vectors for identical text depending which — embedding a
+        // question as though it were a stored passage is not what the eval measured.
+        val qVec: FloatArray? = withTimeoutOrNull(config.embedTimeoutMs) {
+            (embedder as? com.aura.memory.onnx.RoutedEmbedder)
+                ?.embed(retrievalQuery, EmbedKind.QUERY)
+                ?: embedder.embed(retrievalQuery)
+        }
         if (qVec == null) {
             Log.w(
                 "MemoryStore",
@@ -1039,6 +1052,22 @@ class MemoryStore @Inject constructor(
      * rebuild returns the count of successful re-embeds so the UI
      * can show "Rebuilt 142 of 145".
      */
+    /**
+     * The retrieval settings matching the embedder currently in use.
+     *
+     * [RetrievalConfig.DEFAULT]'s constants were calibrated against a 384-dim hash sketch
+     * and are wrong for a semantic model in both directions: too conservative about
+     * vectors in candidate selection, too permissive about them in the relevance floor.
+     * Applying [RetrievalConfig.SEMANTIC] to hash vectors is worse still — the vector pool
+     * was measured off for exactly that reason.
+     */
+    private fun activeConfig(): RetrievalConfig =
+        if (embedder.modelId() == com.aura.memory.onnx.OnDeviceEmbedder.MODEL_ID) {
+            RetrievalConfig.SEMANTIC
+        } else {
+            config
+        }
+
     suspend fun rebuildEmbeddings(onProgress: ((done: Int, total: Int) -> Unit)? = null): Int {
         val model = embedder.modelId()
         val total = runCatching { dao.countNeedingReembed(model) }

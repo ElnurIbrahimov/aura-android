@@ -1136,11 +1136,43 @@ object MemoryModule {
 
     @Provides
     @Singleton
+    fun provideWordPieceTokenizer(
+        @ApplicationContext context: Context,
+    ): com.aura.memory.onnx.WordPieceTokenizer =
+        com.aura.memory.onnx.WordPieceTokenizer(
+            context.assets.open("nomic_vocab.txt").bufferedReader().readLines(),
+        )
+
+    @Provides
+    @Singleton
+    fun provideOnDeviceEmbedder(
+        modelStore: com.aura.memory.onnx.EmbeddingModelStore,
+        tokenizer: com.aura.memory.onnx.WordPieceTokenizer,
+    ): com.aura.memory.onnx.OnDeviceEmbedder =
+        com.aura.memory.onnx.OnDeviceEmbedder(modelStore.modelFile, tokenizer)
+
+    /**
+     * On-device first, then cloud, then the hash sketch.
+     *
+     * The hash was never a semantic model — SHA-256 over character n-grams — so two
+     * sentences meaning the same thing scored no better than two unrelated ones. It stays
+     * as the floor, because something has to answer before the 137 MB model has finished
+     * downloading, and every vector it produces is tagged as its own so it is excluded
+     * from scoring and repaired later rather than silently mixed in.
+     */
+    @Provides
+    @Singleton
     fun provideEmbedder(
         localEmbedder: LocalEmbedder,
         providerKeys: ProviderKeys,
         httpClient: OkHttpClient,
-    ): Embedder = CloudEmbedder(localEmbedder, providerKeys, httpClient)
+        onDevice: com.aura.memory.onnx.OnDeviceEmbedder,
+        modelStore: com.aura.memory.onnx.EmbeddingModelStore,
+    ): Embedder = com.aura.memory.onnx.RoutedEmbedder(
+        onDevice = onDevice,
+        fallback = CloudEmbedder(localEmbedder, providerKeys, httpClient),
+        modelStore = modelStore,
+    )
 
     @Provides
     @Singleton
