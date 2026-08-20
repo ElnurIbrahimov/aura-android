@@ -531,6 +531,66 @@ escape (every explicit ALWAYS/NEVER fell back to EARNED on read) — codec extra
 trip tested. All five phases of the world-author spine are code-complete; what remains is
 the device pass this file has asked for since §4 was written.
 
+*2026-08-19 (record mode):* **3,437 unit tests / 515 suites, 0 failures; 83 instrumented
+methods.** Demonstrate a task once in another app and Aura writes the Hand. xAI shipped the
+same idea in Grok Bot eight days earlier, on a cloud VM signing into your accounts with your
+credentials; on a personal phone it is a different thing, driving your real apps in your real
+sessions, and Aura already had every piece but the recorder.
+
+Capture is by snapshot-diff, chosen over subscribing to tap and text events so that no new
+accessibility event type is requested and no keystroke is ever delivered.
+`TYPE_WINDOW_CONTENT_CHANGED` was already subscribed in the config and dropped in code under
+a comment saying that keeping event content "would turn the bridge into a device-wide
+keystroke and content log"; the new branch forwards `e.packageName` and nothing else, as a
+bare "look now" tick, only while a recording is running, floored at 250ms because
+content-changed fires on every frame of a scroll. Two source-scan tests now hold that comment
+to its word: one fails if the callback reads text, contentDescription or source off an event,
+the other if the branch stops checking for a live recording — one deleted line from a
+device-wide screen reader. Both passed on arrival, which proves nothing, so both were mutated
+until they went red.
+
+The inference declines rather than guesses, and that decision came from writing the test
+first. The original rule was "a clickable vanished, so that was the tap"; the test made the
+counter-case unavoidable, because tapping "Send" usually leaves "Send" exactly where it was.
+Most taps are therefore unattributable from a diff, and they record every clickable that
+could have been pressed instead of picking one — dropping the step would lose an action from
+the middle of a demonstration and the replay would then do something nobody showed it. The
+honest consequence is that the review screen does more work than "demonstrate once" implies,
+and the ship gate in the design says so: worse than roughly one correction per three steps
+and the capture approach needs rethinking rather than more building on top.
+
+Replay needed a real change to `screen_act`, which identified elements by an index into one
+`screen_read` snapshot and refuses stale snapshots — correct for the loop, useless for a step
+recorded yesterday. A step may now carry a `selector`, resolved against a read taken at
+replay time through the new `ElementSelector.bestMatchIn`, which requires a score of 4 so a
+match comes from what an element *says* (id 8, text 4, description 4) and never from
+className plus bounds, which total 3. "The button that is where the button used to be" is how
+a macro deletes an account after a redesign. It also refuses a tie. Both refusals stop the
+step with a legible reason; verified by mutation, since making it fall back to the nearest
+element is exactly the helpful-looking change someone would make.
+
+`HandScheduler` now returns no run time for any hand that drives the screen. The plan called
+this a security property and reading the run loop first showed it is not one: `HandRepository`
+already stops on `NeedsConfirmation` and returns NEEDS_APPROVAL with the step number, so a
+scheduled screen macro cannot half-execute. What it does is nothing at all, at 09:00, with
+nobody there to read the record, every day. It is a silent-failure guard and is documented as
+one. Enforced on the steps rather than on a "recorded" flag, because nothing marks a hand as
+recorded — the compiler emits ordinary `screen_act` calls precisely so the rest of the system
+stays ignorant — which means a hand-written screen macro is covered too.
+
+Nothing is recorded while a password field is visible, a recording binds lazily to the first
+window that is not Aura or anything on the screen-control denylist (when Record is tapped the
+foreground app is Aura), and it stops itself at 50 steps. Two existing gates caught work in
+progress: `ScreenContractTest` rejected a nav registration whose fully-qualified name its
+allowlist did not cover, and `check-version-docs.sh` refused three counts in a row — routes,
+ViewModels, nav destinations — which is the gate doing exactly what §4 wanted from it.
+
+Every one of the 44 new unit tests was watched failing before its implementation existed.
+What is *not* proved is the feature: recording is driven by the accessibility service, which
+a fresh emulator has switched off and only the user can enable, so the instrumented test only
+shows the screen opening and starting. Demonstrating a task and replaying it tomorrow is the
+device pass, and this file has now asked for one across two consecutive features.
+
 *2026-08-19 (the four-agent audit, and the four things it found worth stopping for):*
 **3,396 unit tests / 509 suites, 0 failures.** Four agents read the tree in parallel —
 engine, app layer, tests/CI/build, security and data. The headline is that the codebase is

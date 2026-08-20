@@ -81,6 +81,12 @@ class ScreenActTool @Inject constructor(
                     type = "integer",
                     description = "The snapshot number the element came from. Stale snapshots are refused.",
                 ),
+                "selector" to ToolProperty(
+                    type = "string",
+                    description = "Alternative to element/snapshot: JSON naming the target, e.g. " +
+                        "{\"text\":\"Send\"}. Resolved against a fresh read, so it survives a screen " +
+                        "that has moved on. Used by recorded Hands, whose steps outlive any snapshot.",
+                ),
                 "text" to ToolProperty(type = "string", description = "Text to type. Required for type."),
                 "direction" to ToolProperty(
                     type = "string",
@@ -133,12 +139,31 @@ class ScreenActTool @Inject constructor(
         // does not cost the user part of their budget.
         var element: UiElement? = null
         if (request.needsElement) {
-            val resolved = bridge.resolve(request.snapshotId, request.elementIndex)
-            element = resolved.getOrElse { e ->
-                return ToolResult.Error(
-                    (e as? ScreenControlException)?.error?.detail ?: (e.message ?: "Element not found."),
-                    "stale_snapshot",
+            val named = (args["selector"] as? String)?.takeIf { it.isNotBlank() }
+            element = if (named != null) {
+                // A recorded step names its target, because the index path cannot serve it:
+                // `element` is a position in one snapshot and stale snapshots are refused, so
+                // a number captured yesterday means nothing today. Resolve against a screen
+                // read now.
+                val recorded = parseSelector(named)
+                    ?: return ToolResult.Error("The selector could not be read.", "bad_args")
+                val fresh = runCatching { bridge.snapshot() }.getOrNull()
+                    ?: return ToolResult.Error("Could not read the screen.", "screen_read_failed")
+                // Null here is a refusal, not a miss — see ElementSelector.bestMatchIn. The
+                // step stops rather than acting on whatever is nearest, because a recorded
+                // Hand runs unsupervised inside another app.
+                recorded.bestMatchIn(fresh) ?: return ToolResult.Error(
+                    "Could not find \"${describeSelector(recorded)}\" on this screen. " +
+                        "The app may have changed since this was recorded.",
+                    "element_not_found",
                 )
+            } else {
+                bridge.resolve(request.snapshotId, request.elementIndex).getOrElse { e ->
+                    return ToolResult.Error(
+                        (e as? ScreenControlException)?.error?.detail ?: (e.message ?: "Element not found."),
+                        "stale_snapshot",
+                    )
+                }
             }
         }
 
@@ -246,6 +271,32 @@ class ScreenActTool @Inject constructor(
                 },
             )
     }
+
+    /** Read a recorded target. Bounds are deliberately not carried: they have moved. */
+    private fun parseSelector(raw: String): com.aura.a11y.ElementSelector? {
+        val obj = runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(raw)
+                as? kotlinx.serialization.json.JsonObject
+        }.getOrNull() ?: return null
+        fun field(key: String): String? =
+            (obj[key] as? kotlinx.serialization.json.JsonPrimitive)
+                ?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+        val viewId = field("viewId")
+        val text = field("text")
+        val description = field("contentDescription")
+        if (viewId == null && text == null && description == null) return null
+        return com.aura.a11y.ElementSelector(
+            viewId = viewId,
+            text = text,
+            contentDescription = description,
+            className = field("className"),
+            bounds = com.aura.a11y.Rect4(0, 0, 0, 0),
+        )
+    }
+
+    /** What to call the thing that could not be found, in an error a person reads. */
+    private fun describeSelector(s: com.aura.a11y.ElementSelector): String =
+        s.text ?: s.contentDescription ?: s.viewId.orEmpty()
 
     private fun parse(args: Map<String, Any?>): ActionRequest? {
         val kind = when ((args["action"] as? String)?.lowercase()) {

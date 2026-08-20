@@ -10,8 +10,13 @@ import android.util.DisplayMetrics
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import com.aura.hands.record.HandRecorder
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -38,17 +43,44 @@ class AuraAccessibilityService : AccessibilityService() {
 
     @Inject lateinit var bridge: ScreenControlBridge
 
+    @Inject lateinit var recorder: HandRecorder
+
+    /** Cancelled on unbind: a recording tick must not outlive the service. */
+    private var recordScope: CoroutineScope? = null
+
+    /** When the last content tick was forwarded, to keep scrolls from becoming a firehose. */
+    private var lastTickAt = 0L
+
     private var lastPackage: String = ""
     private var lastActivity: String = ""
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        recordScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         bridge.attach(controller)
         android.util.Log.i(TAG, "accessibility service connected")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
+
+        // Content-changed events were subscribed and dropped until record mode needed them.
+        // They are still not read: this forwards the package name and nothing else, as a
+        // bare "something moved, look now" tick, and only while the user has a recording
+        // running. What Aura learns still comes from ScreenControlBridge.snapshot(), the
+        // same read screen_read performs under the same gate — so the guarantee above holds
+        // exactly as written. Content-changed fires on every frame of a scroll, hence the
+        // interval: without it each tick would ask for a full traversal of the tree.
+        if (e.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            if (!recorder.state.value.recording) return
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastTickAt < TICK_INTERVAL_MS) return
+            lastTickAt = now
+            val recordingPackage = e.packageName?.toString().orEmpty()
+            recordScope?.launch { recorder.onScreenChanged(recordingPackage) }
+            return
+        }
+
         if (e.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         // Package and activity only. Deliberately NOT event text: this callback
         // fires for every window change in every app, and keeping their content
@@ -66,12 +98,16 @@ class AuraAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        recordScope?.cancel()
+        recordScope = null
         bridge.detach()
         android.util.Log.i(TAG, "accessibility service unbound")
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        recordScope?.cancel()
+        recordScope = null
         bridge.detach()
         super.onDestroy()
     }
@@ -313,6 +349,15 @@ class AuraAccessibilityService : AccessibilityService() {
         const val TAG = "AuraA11y"
 
         /**
+         * Floor between forwarded content ticks.
+         *
+         * TYPE_WINDOW_CONTENT_CHANGED fires on every frame of a scroll, and each forwarded
+         * tick costs a full traversal of the view tree. A tap and the screen settling after
+         * it take longer than this; a scroll frame does not.
+         */
+        const val TICK_INTERVAL_MS = 250L
+
+        /**
          * Extra time allowed for dispatchGesture's callback beyond the gesture
          * itself. The callback is not guaranteed to fire — a gesture cancelled
          * by a window transition can simply never call back — so this bounds
@@ -352,4 +397,5 @@ class AuraAccessibilityService : AccessibilityService() {
             else -> "code $code"
         }
     }
+
 }

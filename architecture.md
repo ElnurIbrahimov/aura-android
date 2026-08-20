@@ -132,6 +132,29 @@ aura-android-clean/
 - `ScreenCaptureService`: MediaProjection foreground service (type `mediaProjection`), async first frame via ImageReader on a dedicated HandlerThread, row-stride-corrected bitmap, watchdog teardown
 - `ScreenCaptureHolder`: per-capture `CompletableDeferred`s; consent requested fresh for every capture (single-use consent Intents on API 34+)
 
+### Record mode (`com.aura.hands.record`)
+
+Demonstrate a task once; Aura writes the Hand. Four pure pieces plus a thin screen:
+
+- `StepInference` — one `RecordedStep` from a before/after `UiSnapshot` pair. Reads TYPE from
+  text arriving in an existing field, SCROLL from two or more elements moving by an identical
+  offset, TAP from a clickable that left the screen. Everything else records its candidates
+  instead of choosing. Returns nothing at all while a password field is visible.
+- `HandRecorder` — `@Singleton`, driven by `AuraAccessibilityService`'s content-changed tick
+  (package name only, only while recording, floored at 250ms). Binds lazily to the first
+  window that is not Aura or anything else on `ScreenControlGuard.deniedPackages()`, because
+  the foreground app when Record is tapped is Aura. Capped at 50 steps.
+- `RecordedHandDraft` — the review state. `resolve` accepts only selectors that were among
+  the recorded candidates; `makeVariable` rewrites typed text as `{{name}}` keeping the
+  original as its default.
+- `RecordedHandCompiler` — emits ordinary `screen_act` steps, so `HandRepository`,
+  `RunHandWorker`, `HandScheduler` and backup are all untouched. Refuses a draft with an
+  unanswered question rather than compiling its first candidate.
+
+Replay resolves `ElementSelector.bestMatchIn` against a read taken at replay time, requiring
+a score of 4 (text, description or id — never className + bounds, which total 3) and refusing
+a tie. Recorded hands are never scheduled: `screen_act` needs a session a person opens.
+
 ### Room Databases (11)
 - MemoryDB v29, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
@@ -190,7 +213,7 @@ aura-android-clean/
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,399 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,438 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 81 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,

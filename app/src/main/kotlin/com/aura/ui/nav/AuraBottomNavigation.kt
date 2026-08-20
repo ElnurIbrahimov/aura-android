@@ -83,6 +83,7 @@ sealed class TopLevelRoute(
 sealed class Route(val path: String) {
     data object History : Route("history")
     data object Hands : Route("hands")
+    data object RecordHand : Route("hands/record")
     data object Tasks : Route("tasks")
     data object Reminders : Route("reminders")
     data object Tools : Route("tools")
