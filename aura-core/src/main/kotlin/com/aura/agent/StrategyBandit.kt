@@ -1,6 +1,7 @@
 package com.aura.agent
 
 import android.util.Log
+import com.aura.provenance.ConversationProvenance
 import kotlin.math.ln
 import kotlin.random.Random
 import javax.inject.Inject
@@ -120,6 +121,16 @@ enum class ProblemCategory {
 class StrategyBandit @Inject constructor(
     private val store: StrategyBanditStore,
 ) {
+
+    companion object {
+        /**
+         * Turns held awaiting a verdict.
+         *
+         * Generous: the cost of an entry is two enum references, and evicting one that was
+         * about to be judged silently loses the signal this whole change exists to capture.
+         */
+        const val MAX_PENDING = 500
+    }
     /**
      * Select the best reasoning strategy for [category] using Thompson Sampling.
      *
@@ -146,14 +157,64 @@ class StrategyBandit @Inject constructor(
     }
 
     /**
-     * Record the outcome of a run. Call after the agentic loop completes.
-     * Success increments α; failure increments β.
+     * Record the outcome of a run. Success increments α; failure increments β.
+     *
+     * Call this directly only for an outcome that is known *at the moment it happens* — a
+     * provider error, or the step limit. Whether a completed answer was any good is not
+     * known then, and passing "the machinery did not throw" as success is what made every
+     * arm's posterior saturate. Use [notePending] for that half.
      */
     suspend fun recordOutcome(category: ProblemCategory, strategy: ReasoningStrategy, success: Boolean) {
         runCatching {
             store.recordOutcome(category, strategy, success)
         }.onFailure { Log.w("StrategyBandit", "recordOutcome failed: ${it.message}", it) }
     }
+
+    /**
+     * Remember which arm produced [turn], without counting it yet.
+     *
+     * A completed run tells you nothing about answer quality. The verdict — thumbs, or a
+     * regenerate — arrives minutes later through [resolvePending], from a screen that has
+     * long since lost the strategy and category. This map is the only thing joining them.
+     *
+     * In memory rather than persisted, deliberately. An unresolved turn contributes nothing
+     * either way, so losing the map to process death costs exactly one observation that was
+     * never going to be made — and persisting it would mean a row per turn, forever, for a
+     * verdict that usually never comes.
+     */
+    fun notePending(turn: ConversationProvenance, category: ProblemCategory, strategy: ReasoningStrategy) {
+        if (!turn.isPresent) return
+        synchronized(pending) {
+            pending[turn] = Pending(category, strategy)
+            // Oldest first. A turn from a thousand turns ago is not going to be judged, and
+            // most turns are never judged at all, so this map only ever grows without it.
+            while (pending.size > MAX_PENDING) {
+                val oldest = pending.keys.firstOrNull() ?: break
+                pending.remove(oldest)
+            }
+        }
+    }
+
+    /**
+     * Count [turn]'s arm as a success or a failure, if it is still pending.
+     *
+     * Removes the entry, so one answer produces one observation however many times the user
+     * toggles their reaction. A turn nobody noted — from a previous process, or a run this
+     * bandit never chose for — resolves to nothing rather than being attributed to whatever
+     * arm is at hand.
+     *
+     * @return true when an observation was actually recorded.
+     */
+    suspend fun resolvePending(turn: ConversationProvenance, success: Boolean): Boolean {
+        val noted = synchronized(pending) { pending.remove(turn) } ?: return false
+        recordOutcome(noted.category, noted.strategy, success)
+        return true
+    }
+
+    private data class Pending(val category: ProblemCategory, val strategy: ReasoningStrategy)
+
+    /** Insertion-ordered so eviction is oldest-first; guarded because reactions arrive off-thread. */
+    private val pending = LinkedHashMap<ConversationProvenance, Pending>()
 
     /**
      * Sample from a Beta(α, β) distribution using the log-ratio method.

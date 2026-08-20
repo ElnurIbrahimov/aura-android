@@ -618,7 +618,27 @@ class ChatSendController(
                             // run, whose outcome belongs to the send path that
                             // chose the strategy.
                             if (strategy != null && category != null) {
-                                runCatching { strategyBandit.recordOutcome(category, strategy, success = !runFailed) }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
+                                // A failed run is a real observation, made when it happens.
+                                // A completed one is not: "the machinery did not throw" was
+                                // being passed as success, so a confidently wrong answer and
+                                // a perfect one incremented alpha alike and every arm's
+                                // posterior saturated. The verdict for a completed run —
+                                // thumbs, or a regenerate — arrives minutes later, so the
+                                // turn is left pending and resolved by whoever hears it.
+                                runCatching {
+                                    if (runFailed) {
+                                        strategyBandit.recordOutcome(category, strategy, success = false)
+                                    } else {
+                                        strategyBandit.notePending(
+                                            com.aura.provenance.ConversationProvenance(
+                                                state.value.conversation.id,
+                                                state.value.conversation.turns.lastOrNull()?.timestamp ?: 0L,
+                                            ),
+                                            category,
+                                            strategy,
+                                        )
+                                    }
+                                }.onFailure { Log.w("ChatSendCtrl", "op failed: ${it.message}", it) }
                             }
                             // Record wall-clock duration for the response footer.
                             if (runStartTimeMs > 0) {

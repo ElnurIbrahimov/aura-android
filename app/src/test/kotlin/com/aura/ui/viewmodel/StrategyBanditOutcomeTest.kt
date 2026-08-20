@@ -46,11 +46,18 @@ class StrategyBanditOutcomeTest {
         events: List<AgentEvent>,
         recorded: MutableList<Recorded>,
         scope: kotlinx.coroutines.CoroutineScope,
+        pending: MutableList<Recorded> = mutableListOf(),
     ) {
-        val strategyBandit = mockk<StrategyBandit>()
+        val strategyBandit = mockk<StrategyBandit>(relaxed = true)
         coEvery { strategyBandit.selectStrategy(any()) } returns ReasoningStrategy.SINGLE_PASS
         coEvery { strategyBandit.recordOutcome(any(), any(), any()) } coAnswers {
             recorded += Recorded(firstArg(), secondArg(), thirdArg())
+        }
+        // A completed run no longer records an outcome; it leaves one pending for whatever
+        // verdict the user gives. Captured here so "exactly one per run" can still be
+        // asserted across both paths.
+        every { strategyBandit.notePending(any(), any(), any()) } answers {
+            pending += Recorded(secondArg(), thirdArg(), success = true)
         }
 
         val loop = mockk<com.aura.agent.MemoryAugmentedAgenticLoop>(relaxed = true)
@@ -121,10 +128,21 @@ class StrategyBanditOutcomeTest {
     }
 
     @Test
-    fun `a clean run records exactly one success`() = runTest(UnconfinedTestDispatcher()) {
-        val recorded = mutableListOf<Recorded>()
-        runWith(listOf(AgentEvent.Done), recorded, this)
-        assertEquals(1, recorded.size, "expected exactly one outcome per run, got $recorded")
-        assertEquals(true, recorded.single().success, "a run that finished is a success")
-    }
+    fun `a clean run records nothing yet, and leaves exactly one turn pending`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // This used to assert one success. "The run finished" is not evidence the answer
+            // was good, and passing it as success drove every arm to Beta(large, ~0) — the
+            // same corrupted posterior this file was written to protect, arrived at from the
+            // other direction. A completed run now waits for a verdict.
+            //
+            // The invariant is unchanged and still asserted: exactly one observation per
+            // run. It is simply deferred rather than assumed.
+            val recorded = mutableListOf<Recorded>()
+            val pending = mutableListOf<Recorded>()
+
+            runWith(listOf(AgentEvent.Done), recorded, this, pending)
+
+            assertEquals(0, recorded.size, "a completed run must not count itself a success: $recorded")
+            assertEquals(1, pending.size, "expected exactly one pending turn per run, got $pending")
+        }
 }

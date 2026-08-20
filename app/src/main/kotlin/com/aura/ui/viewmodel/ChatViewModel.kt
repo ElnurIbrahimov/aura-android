@@ -1292,6 +1292,15 @@ class ChatViewModel @Inject constructor(
             viewModelScope.launch {
                 runCatching { retrievalLabels?.recordTurnSignal(turnProvenance(turnTimestamp), signal) }
                     .onFailure { Log.w("ChatViewModel", "turn signal write failed: ${it.message}", it) }
+                // The same verdict, to the arm that produced the answer. Until this existed
+                // the bandit had already counted this turn a success at the moment the run
+                // completed, whichever way the user then judged it.
+                runCatching {
+                    strategyBandit.resolvePending(
+                        turnProvenance(turnTimestamp),
+                        success = signal == com.aura.memory.RetrievalLabelStore.TurnSignal.THUMBS_UP,
+                    )
+                }.onFailure { Log.w("ChatViewModel", "bandit verdict failed: ${it.message}", it) }
             }
         }
     }
@@ -1376,6 +1385,12 @@ class ChatViewModel @Inject constructor(
                     com.aura.memory.RetrievalLabelStore.TurnSignal.REGENERATED,
                 )
             }.onFailure { Log.w("ChatViewModel", "regenerate signal write failed: ${it.message}", it) }
+            // Regenerating is a rejection of the answer, so it is a failure for the arm that
+            // chose how to reason about it — not for the retrieval, which is graded
+            // separately and deliberately not graded down by an edit.
+            runCatching {
+                strategyBandit.resolvePending(turnProvenance(retriedTurn), success = false)
+            }.onFailure { Log.w("ChatViewModel", "bandit verdict failed: ${it.message}", it) }
         }
         _state.update {
             it.copy(
