@@ -791,4 +791,42 @@ class MemoryDatabaseMigrationTest {
         }
         migrated.close()
     }
+
+    @Test
+    fun migrate30To31() {
+        // Somewhere durable to record what Aura generated. Images went to cacheDir with no
+        // row anywhere, so Android could reclaim them and nothing would know they had ever
+        // existed.
+        val db = helper.createDatabase("test-aura-memory.db", 30)
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            "test-aura-memory.db",
+            31,
+            true,
+            MemoryModule.MIGRATION_30_31,
+        )
+
+        // Created empty on purpose. The files that were in cacheDir when this shipped may
+        // already be gone, and inventing rows for them would put tiles in the Library that
+        // nothing could tell apart from real ones.
+        migrated.query("SELECT COUNT(*) FROM generated_media").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+        }
+
+        // A row round-trips, including the two columns the Library sorts and filters on.
+        migrated.execSQL(
+            "INSERT INTO generated_media (id, kind, prompt, mimeType, storageUri, remoteUrl, " +
+                "byteSize, conversationId, createdAt) " +
+                "VALUES ('m1', 'image', 'a cat in a hat', 'image/png', " +
+                "'file:///data/generated_media/img.png', '', 4096, 'c1', 100)",
+        )
+        migrated.query("SELECT kind, prompt, storageUri FROM generated_media WHERE id = 'm1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("image", it.getString(0))
+            assertEquals("a cat in a hat", it.getString(1))
+            assertEquals("file:///data/generated_media/img.png", it.getString(2))
+        }
+    }
 }

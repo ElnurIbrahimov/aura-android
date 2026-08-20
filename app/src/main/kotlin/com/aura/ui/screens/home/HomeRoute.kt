@@ -26,6 +26,7 @@ fun HomeRoute(
     onOpenTools: () -> Unit = {},
     onOpenHands: () -> Unit = {},
     onOpenSkills: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
     onOpenAgentRuns: () -> Unit = {},
     onOpenProduction: () -> Unit = {},

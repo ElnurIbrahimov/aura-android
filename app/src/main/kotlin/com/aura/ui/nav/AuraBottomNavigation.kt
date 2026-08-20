@@ -88,6 +88,7 @@ sealed class Route(val path: String) {
     data object Reminders : Route("reminders")
     data object Tools : Route("tools")
     data object Skills : Route("skills")
+    data object Library : Route("library")
     data object Creative : Route("creative")
     data object CreativeProject : Route("creative/{projectId}")
     data object Production : Route("production")

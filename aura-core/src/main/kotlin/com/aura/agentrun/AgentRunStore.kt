@@ -87,6 +87,39 @@ class AgentRunStore @Inject constructor(
         })
     }
 
+    /**
+     * Append one step to a run that is already underway, and return its id.
+     *
+     * [planSteps] cannot do this. It assigns positions with `mapIndexed` over the list it
+     * is given and writes fresh `PENDING` rows, so calling it once per step would put every
+     * step at position 0 and reset the ones that had already finished. That is correct for
+     * its own caller — a plan is known in full before it runs — and wrong for a loop, which
+     * discovers each tool call only as the model makes it.
+     */
+    suspend fun appendStep(
+        runId: kotlin.String,
+        toolName: kotlin.String,
+        toolArgs: kotlin.String = "{}",
+        stepId: kotlin.String = UUID.randomUUID().toString(),
+        position: Int = 0,
+    ): kotlin.String = mutex.withLock {
+        stepDao.upsertAll(
+            listOf(
+                StepEntity(
+                    id = stepId,
+                    agentRunId = runId,
+                    toolName = toolName,
+                    toolArgs = toolArgs,
+                    status = "RUNNING",
+                    position = position,
+                    startedAt = System.currentTimeMillis(),
+                ),
+            ),
+        )
+        emitEvent(runId, "STEP_STARTED", stepId = stepId, toolName = toolName)
+        stepId
+    }
+
     suspend fun stepsForRun(runId: kotlin.String): List<StepEntity> =
         stepDao.forRun(runId)
 

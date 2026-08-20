@@ -978,6 +978,40 @@ object MemoryModule {
         }
     }
 
+    /**
+     * Somewhere durable to record what Aura generated.
+     *
+     * Images were written to `cacheDir` and recorded nowhere, so they could be reclaimed by
+     * Android at any time with nothing left to say they had existed. The table is created
+     * empty on purpose: the files that were in `cacheDir` when this shipped may already be
+     * gone, and inventing rows for images that might not be there would put broken tiles in
+     * the Library with nothing able to tell which were real.
+     */
+    val MIGRATION_30_31 = object : Migration(30, 31) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `generated_media` (" +
+                    "`id` TEXT NOT NULL, " +
+                    "`kind` TEXT NOT NULL, " +
+                    "`prompt` TEXT NOT NULL, " +
+                    "`mimeType` TEXT NOT NULL, " +
+                    "`storageUri` TEXT NOT NULL, " +
+                    "`remoteUrl` TEXT NOT NULL, " +
+                    "`byteSize` INTEGER NOT NULL, " +
+                    "`conversationId` TEXT NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`))",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_generated_media_createdAt` ON `generated_media` (`createdAt`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_generated_media_kind` ON `generated_media` (`kind`)")
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideGeneratedMediaDao(db: MemoryDatabase): com.aura.media.GeneratedMediaDao =
+        db.generatedMediaDao()
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MemoryDatabase =
@@ -985,7 +1019,7 @@ object MemoryModule {
             context,
             MemoryDatabase::class.java,
             "aura-memory.db",
-            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30),
+            migrations = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31),
             // Room's createAllTables builds the FTS virtual table but not the
             // triggers that fill it, so a fresh install needs this or the index
             // stays permanently empty — silently, since an empty index is

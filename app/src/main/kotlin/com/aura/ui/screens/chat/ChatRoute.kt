@@ -457,6 +457,7 @@ fun ChatRoute(
                     followLiveEdge = true
                     viewModel.send()
                 },
+                onRunInBackground = viewModel::runInBackground,
                 onCancel = viewModel::cancel,
                 onTapToSpeak = {
                     if (hasMicPermission) showVoiceOverlay = true

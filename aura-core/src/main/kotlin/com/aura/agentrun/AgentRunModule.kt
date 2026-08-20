@@ -13,6 +13,14 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AgentRunModule {
 
+    /**
+     * The worker takes the interface so it stays testable on the JVM, where posting a real
+     * notification is not possible. This is the only implementation.
+     */
+    @Provides
+    @Singleton
+    fun provideAgentTaskNotifier(impl: AndroidAgentTaskNotifier): AgentTaskNotifier = impl
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AgentRunDatabase =

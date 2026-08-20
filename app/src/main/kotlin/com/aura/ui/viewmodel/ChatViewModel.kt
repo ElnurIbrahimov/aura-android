@@ -449,6 +449,13 @@ class ChatViewModel @Inject constructor(
      * do not all have to supply one.
      */
     private val savedStateHandle: androidx.lifecycle.SavedStateHandle? = null,
+    /**
+     * Lets a message become a task instead of a turn.
+     *
+     * Optional and last, matching every other late arrival here: Hilt supplies it in
+     * production and the many tests that construct this positionally do not need it.
+     */
+    private val agentRunStore: com.aura.agentrun.AgentRunStore? = null,
 ) : AndroidViewModel(application) {
 
     /**
@@ -1452,6 +1459,53 @@ class ChatViewModel @Inject constructor(
 
     fun send() {
         sendController.runSend(viewModelScope)
+    }
+
+    /**
+     * Run the draft as a background task rather than as a turn in this conversation.
+     *
+     * The difference that matters is what survives closing the app. A turn lives in the
+     * conversation and dies with the collector; a task is a row with a status, a goal and
+     * its own steps, executed by a WorkManager job that finishes whether or not the app is
+     * open, and reports when it does.
+     *
+     * Everything this needs already existed — createRun has always taken a goal, and
+     * AgentRunsScreen has always been able to list, resume and cancel. What it never had
+     * was a way for the user to make one.
+     */
+    fun runInBackground() {
+        val store = agentRunStore ?: return
+        val goal = _state.value.draft.trim().takeIf { it.isNotEmpty() } ?: return
+        viewModelScope.launch {
+            val run = runCatching {
+                store.createRun(
+                    trigger = "user",
+                    goalDescription = goal,
+                    conversationId = _state.value.conversation.id,
+                    modelId = _state.value.effectiveModel,
+                )
+            }.onFailure {
+                Log.w("ChatViewModel", "could not create a background task: ${it.message}", it)
+                setErrorWithAutoDismiss("Could not start that as a background task.")
+            }.getOrNull() ?: return@launch
+
+            // createRun writes the row as RUNNING, so a failure to enqueue would leave a
+            // task that nothing will ever execute and that reads to the user as still
+            // working — the same orphan state AgentTaskWorker guards against on a crash.
+            // Finish it here rather than leaving it, and keep the draft so nothing the user
+            // typed is lost to a WorkManager problem they cannot see.
+            runCatching { com.aura.agentrun.AgentTaskService.enqueue(getApplication(), run.id) }
+                .onFailure {
+                    Log.w("ChatViewModel", "could not enqueue task ${run.id}: ${it.message}", it)
+                    runCatching { store.finish(run.id, "FAILED", "the task could not be started") }
+                    setErrorWithAutoDismiss("Could not start that as a background task.")
+                    return@launch
+                }
+
+            // Only once it is genuinely running. Clearing earlier would lose what the user
+            // typed whenever the launch failed.
+            setDraft("")
+        }
     }
 
     // ---- Media handling (delegated to ChatMediaController) ----

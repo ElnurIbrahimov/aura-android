@@ -75,6 +75,7 @@ fun ChatComposer(
     sendEnabled: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
+    onRunInBackground: () -> Unit = {},
     onCancel: () -> Unit = {},
     onTapToSpeak: () -> Unit = {},
     onHoldToTalk: () -> Unit = {},
@@ -265,6 +266,19 @@ fun ChatComposer(
                         // sees the response, not the input bar.
                         keyboardController?.hide()
                         onSend()
+                    }
+                },
+                // Hold to run it as a background task instead of a turn: it keeps going
+                // after the app closes and notifies when it is done.
+                //
+                // A long-press rather than a second button. The composer already has four
+                // controls in a row, a fifth would crowd them, and "hold for the other
+                // thing" is the idiom this bar already uses for the voice modes.
+                onLongClick = {
+                    if (!streaming && canSend) {
+                        Haptics.send(hapticView)
+                        keyboardController?.hide()
+                        onRunInBackground()
                     }
                 },
                 enabled = streaming || canSend,

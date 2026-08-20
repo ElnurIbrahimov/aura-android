@@ -91,6 +91,7 @@ object ToolsModule {
         queryTaste: QueryTasteTool,
         projectState: ProjectStateTool,
         useSkill: UseSkillTool,
+        listSkills: ListSkillsTool,
         approveProposal: ApproveEvolutionProposalTool,
         rollbackEvolution: RollbackEvolutionTool,
         triggerEvolution: TriggerEvolutionRunTool,
@@ -181,6 +182,7 @@ object ToolsModule {
         registry.register(queryTaste.tool)
         registry.register(projectState.tool)
         registry.register(useSkill.tool)
+        registry.register(listSkills.tool)
         registry.register(approveProposal.tool)
         registry.register(rollbackEvolution.tool)
         registry.register(triggerEvolution.tool)

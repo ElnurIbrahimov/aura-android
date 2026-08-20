@@ -53,6 +53,13 @@ class ImageGenTool @Inject constructor(
     // not need it. Only the inline-base64 response path touches it.
     @dagger.hilt.android.qualifiers.ApplicationContext
     private val appContext: android.content.Context? = null,
+    /**
+     * Records that the image exists. Optional for the same reason as the others — the JVM
+     * tests construct this positionally — and best-effort by contract: the image is the
+     * product, the row is bookkeeping, and a store that cannot be written must not turn a
+     * successful generation into an error.
+     */
+    private val generatedMedia: com.aura.media.GeneratedMediaStore? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaTypeJson = "application/json".toMediaType()
@@ -92,6 +99,17 @@ class ImageGenTool @Inject constructor(
 
             try {
                 val result = generateImage(prompt, size)
+                // The single point where both paths meet: `result` is either a file:// URI
+                // this tool just wrote, or the provider's own URL. Recorded after success,
+                // so a failed generation cannot leave a row pointing at nothing — a broken
+                // tile in the Library with no way to tell it from a real one.
+                generatedMedia?.record(
+                    kind = "image",
+                    prompt = prompt,
+                    storageUri = result,
+                    remoteUrl = result.takeUnless { it.startsWith("file://") }.orEmpty(),
+                    conversationId = call.id,
+                )
                 ToolResult.Ok("[IMAGE:$result]")
             } catch (e: Exception) {
                 ToolResult.Error("image generation failed: ${e.message}", "http_error")
@@ -174,16 +192,25 @@ class ImageGenTool @Inject constructor(
     // ------------------------------------------------------------------
 
     /**
-     * Write an inline base64 image to the cache and return a `file://` URI.
+     * Write an inline base64 image to app storage and return a `file://` URI.
      *
      * Kept out of the conversation as base64: `Turn.generatedImages` is
      * persisted in the conversation JSON, and a 1024x1024 PNG is well over a
-     * megabyte of text per image once encoded. A cache file can be evicted,
-     * but so can a provider-hosted URL expire — and the JSON stays small.
+     * megabyte of text per image once encoded.
+     *
+     * `filesDir`, not `cacheDir`. The original reasoning was that a cache file can be
+     * evicted "but so can a provider-hosted URL expire" — true, and beside the point. A URL
+     * expiring is a decision someone else makes; an eviction is one we were making
+     * ourselves, on every image, silently, with no record that the image had ever existed.
+     * `BackupManager`'s interrupted-restore marker already lives in `filesDir` for exactly
+     * this reason, and its KDoc says so.
+     *
+     * Note that these are not in the JSON backup — it is a text format and these are
+     * megabytes of binary. They survive Clear cache and storage pressure, not a reinstall.
      */
     private fun persistImageBytes(bytes: ByteArray): kotlin.String {
         val ctx = appContext ?: throw RuntimeException("no Context available to store an inline image")
-        val dir = java.io.File(ctx.cacheDir, "generated_images").apply { mkdirs() }
+        val dir = java.io.File(ctx.filesDir, "generated_media").apply { mkdirs() }
         val file = java.io.File(dir, "img_${java.util.UUID.randomUUID()}.png")
         file.writeBytes(bytes)
         return android.net.Uri.fromFile(file).toString()

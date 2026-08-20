@@ -12,7 +12,7 @@ This is my personal copy.
 
 Then the 2026-08-13 pass, which found the code itself in good shape and every real defect in the seam between code and process — a CI job that had stopped finishing, a `prune()` with no caller, a preference six subsystems gate on that nothing ever set, and this version string. See [ENGINEERING_HISTORY.md](ENGINEERING_HISTORY.md) §2.8 and §3.
 
-- 81 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, living world query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
+- 82 built-in tools (web search over Tavily/Brave/DDG/SearXNG/Wikipedia, vision, image gen x2, deep + parallel research, firecrawl fetch, Jina reader, knowledge graph, weather, translate, timer, code interpreter, SMS, email, biometric prompt, phone-native tools, reminders, skills, creative studio, evolution, world model, taste, document indexing, canon query, living world query, media generation, agent delegation, councils, schedule task, gmail, google calendar, google drive, outlook mail, outlook calendar, onedrive) plus dynamically registered MCP tools
 - Creative Studio (Room-backed projects, world bible, simulations, drafts, continuity, 6 creative-engine modes, genre craft prompts for 5 genres, narrative world bible rendering, conversation continuity via artifact history, word count targets, smart codex injection)
 - Manuscript ledger (`SceneLedger`, `com.aura.creative.longform`): after each scene commits, one cheap-tier model call writes a two-sentence synopsis onto the beat and canon triples into `canon_facts`, flagging contradictions on a fixed single-valued predicate allowlist (location, age, alive, allegiance, occupation, rank) into `continuity_issues` — both tables had full DAOs, indices and backup mappers since the schema was designed and had never held a row. Every scene now also receives `storySoFar` (prior synopses, oldest dropped first) and `retrieved` (lexical search over drafted scenes, no embeddings) — `SceneContextBuilder` documented both since it was written and no production caller had ever supplied them, so scene twelve of a novel had never read scenes one through ten. `canon_query` now reads these facts instead of running a malformed filter against the user's personal memory store. A per-slice back-fill heals scenes drafted before this existed, which is why the change ships with no Room migration. Surfaced as a Canon card in the Manuscript tab: fact count, open contradictions, dismissible as intentional
 - Living worlds (Creative → Living tab): a creative project's world bible compiles into a **simulation that runs on its own**, one world day per real hour, in a WorkManager job. Factions hold scarce quantities — land is a strictly conserved pool, so one faction only gains it by taking it from another — and executable rules fire on thresholds. **The engine never calls a model**: a tick is integer arithmetic, which is what makes it deterministic (and therefore replayable), catchable-up offline, and testable without a key. Quantities are scaled `Long`s and each decision draws from a content-keyed SplitMix64 substream, so adding a rule cannot shift an unrelated outcome. A long absence is collapsed by one closed-form `fold`, so returning after three months costs the same as after three days. Seeded from the world bible with author-supplied starting numbers, since the bible carries no quantities at all
@@ -41,7 +41,7 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - 7 specialists (general, coder, researcher, writer, creative, executive, phone-native) with keyword router + tool-allowlist enforcement
 - Multi-agent system (7 builtin agents seeded from specialists, per-agent memory scopes, 6-dimension personality profiles, delegate_to_agent tool, AgentCouncil, user-creatable agents via Settings)
 - Consciousness layer (NarrativeSelf evolving identity fed by dream cycles, IntrinsicMotivation 4 drives fed by real DB signals via DriveSignals — KG gap nodes, unresolved contradictions, low-confidence strategies, TheoryOfMind user mental model, ProactiveAwarenessEngine, AgentPresence outreach). All five stateful components persist across cold starts, and all five are in the backup schema as of v18 (`AuraBackupSchema18.kt`) — this line said "none are in the backup schema yet" for three days after they went in, and the line 30 rows below it said the opposite.
-- 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 28 secondary routes (History, Hands, Record Hand, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, Mind, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Rollback, Agent Editor)
+- 5-tab bottom nav (Home, Chat, Memory, Tasks, Settings) + 29 secondary routes (History, Hands, Record Hand, Tasks, Reminders, Tools, Skills, Creative, Creative Project, Production, Proactive, Agent Runs, Agent Run Detail, Capabilities, Council, Dreams, Dream Log, Agent Profiles, Mind, Knowledge Graph, Profile, Identity Editor, Diagnostics, Crash Logs, Schedule, Evolution Inbox, Evolution Rollback, Agent Editor)
 - Voice I/O (push-to-talk STT via Android SpeechRecognizer, auto-TTS via Android TextToSpeech, sentence-boundary streaming TTS in continuous voice mode, voice call UI)
 - Live voice calls (OpenAI Realtime over WebSocket — duplex audio, server VAD, barge-in with playback-position truncation, tool calling capped at WRITE_LOCAL, 10-minute session budget, typed microphone foreground service). Reached from the mic button in chat, which now opens a sheet offering the live call or push-to-talk; push-to-talk remains the default and works with every provider.
   - **Reachable since 2026-08-18, and this line claimed it for weeks before that.** `RealtimeCallController` had no production caller and `LiveCallSheet` had no caller either, so the whole stack — 1,476 lines and ~60 tests — was reachable only from its own test suite. `ProjectSpineIsWiredTest` named it as the repo's standing example of exactly this defect and gated four *other* paths. It now gates this one. **Not yet exercised on a device:** the manual table in `docs/ANDROID_TEST_PLAN.md` has still never been run, and this is a beta protocol over a real socket.
@@ -74,10 +74,10 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v30, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - Craft guidance is **data, not constants**. The genre and mode prompts in `GenreCraftPrompts` are seeded into `SkillsStore` as builtin skills on first run (`CraftSkills`), so the author can read and rewrite them, `use_skill("craft-novel")` returns them, and the evolution system's `PATCH_SKILL` action finally has real targets. The constants stay as the seed source *and* the fallback: a deleted, blank or unreadable skill drafts with the craft that shipped rather than with none. Builtins are editable and resettable, never deletable.
 - **A manuscript can leave the phone.** Export in the Manuscript tab compiles the drafted outline into one Markdown document and hands it to the share sheet — Drive, Obsidian, email, anywhere. Until now the only outbound paths in the app were images and URLs, so prose, the thing Creative Studio exists to produce, terminated in a Room table. Gaps are stated rather than hidden: a beat with no scene reads `*[not yet written]*`, one whose text cannot be recovered reads `*[scene text unavailable]*`, and scenes orphaned by a re-planned outline are counted in a footer instead of vanishing. Reads through `CreativeArtifactStore.currentRevision` rather than `currentContent`, whose `previewText` fallback would place 200-character stubs mid-novel that read like finished scenes.
-- 3,493 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 3,525 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - Coverage, measured 2026-08-20 (`./gradlew jacocoTestReport`): `aura-core` 53.4% line / 37.7% branch, `app` 15.7% line / 5.6% branch. The app figure is largely Compose UI, which JVM unit tests do not reach — it is what the instrumented suite and a device pass are for. Not gated: a coverage threshold turns "write a test that proves something" into "write a test that touches a line".
   - **Down 45, on purpose.** Deleting `SpecialistRouter`, `com.aura.pipeline.ProductionPipeline` and `AgentTextAccumulator` took their tests with them — all of it thorough coverage of code that had no production caller. ENGINEERING_HISTORY §4 records test count becoming the quality metric while screens went untested; a number that can only go up is the mechanism by which that happens.
-- 84 instrumented test methods (35 Room migration-chain methods in :aura-core, 49 in :app — 39 Compose rendering, 5 launch and flow, 5 device smoke). Both suites **execute** in CI on an emulator: `:aura-core` in the `migrations` job, `:app` in `app-instrumented`, which excludes `DeviceSmokeTest` by name because it needs a real key. Record mode's own instrumented test only proves the screen opens and starts: the accessibility service is off on a fresh emulator and only the user can enable it, so demonstrating a task cannot be automated and the loop is unproven until the device pass
+- 85 instrumented test methods (36 Room migration-chain methods in :aura-core, 49 in :app — 39 Compose rendering, 5 launch and flow, 5 device smoke). Both suites **execute** in CI on an emulator: `:aura-core` in the `migrations` job, `:app` in `app-instrumented`, which excludes `DeviceSmokeTest` by name because it needs a real key. Record mode's own instrumented test only proves the screen opens and starts: the accessibility service is off on a fresh emulator and only the user can enable it, so demonstrating a task cannot be automated and the loop is unproven until the device pass
 - 5 device smoke checks (`scripts/smoke.sh`) asserting outcomes against a real model and a real database: a stated preference becomes a categorised memory, a pleasantry becomes none, an imported document is retrievable and outlined, a fired worker leaves a non-empty run detail, the screenshot path answers rather than going silent. These are the only tests in the repo that exercise the real provider graph.
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
@@ -127,13 +127,13 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +--------------------------------------------+
 | :app  (Compose UI, 5 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   32 nav destinations + 42 ViewModels      |
+|   33 nav destinations + 43 ViewModels      |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+
 | :aura-core  (logic library, no Compose)    |
 |   MemoryAugmentedAgenticLoop -> Brain      |
-|   ToolRegistry (81) -> ToolExecutor        |
+|   ToolRegistry (82) -> ToolExecutor        |
 |     -> PolicyEngine (typed gate            |
 |        pause/resume for permission /       |
 |        confirmation / cost approval)       |
@@ -177,14 +177,14 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Evolution Inbox** — review self-improvement proposals, approve/reject.
 - **Evolution Rollback** — revert applied evolution changes.
 - **Knowledge Graph** — browse extracted entities and edges.
-- **Tools** — browse all 81 registered tools, grouped by category and searchable by name or description. No risk column: `ToolsScreen` renders `ToolRegistry.definitions()`, and `ToolDefinition` carries name, description, parameters and category only — `Tool.risk` never reaches the UI. The Risk column in the catalog below is read from the Kotlin source.
+- **Tools** — browse all 82 registered tools, grouped by category and searchable by name or description. No risk column: `ToolsScreen` renders `ToolRegistry.definitions()`, and `ToolDefinition` carries name, description, parameters and category only — `Tool.risk` never reaches the UI. The Risk column in the catalog below is read from the Kotlin source.
 - **Diagnostics** — provider health, model catalog, usage tracking.
 - **Profile** — view/edit user profile (name, traits, facts).
 - **Identity Editor** — customize Aura's persona.
 
-## Tool catalog (81 built-in)
+## Tool catalog (82 built-in)
 
-All 81 registered tools (plus any MCP-discovered ones) are browsable in-app on the Tools screen, grouped by category. The Risk column below is the `Tool.risk` value in Kotlin, not something the screen displays. The tables cover the full built-in set — they previously came to 76 rows and called themselves complete, having omitted the two highest-risk tools in the app.
+All 82 registered tools (plus any MCP-discovered ones) are browsable in-app on the Tools screen, grouped by category. The Risk column below is the `Tool.risk` value in Kotlin, not something the screen displays. The tables cover the full built-in set — they previously came to 76 rows and called themselves complete, having omitted the two highest-risk tools in the app.
 
 ### Web & research
 | Tool | What it does | Risk |
@@ -226,7 +226,8 @@ All 81 registered tools (plus any MCP-discovered ones) are browsable in-app on t
 | `index_document` | Import + chunk a document into `document_chunks` and `memories` | WRITE_LOCAL |
 | `search_documents` | Search imported documents, returning passages with citations | READ_ONLY |
 | `run_hand` | Execute a named hand (automation macro) | WRITE_LOCAL |
-| `use_skill` | Dispatch a skill-backed tool call | WRITE_LOCAL |
+| `use_skill` | Return a named skill's body as context for the next turn | READ_ONLY |
+| `list_skills` | Name every available skill and what each is for | READ_ONLY |
 
 ### Creative
 | Tool | What it does | Risk |
@@ -372,7 +373,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 
 | Database | Version | Contents |
 |---|---|---|
-| MemoryDatabase | v30 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
+| MemoryDatabase | v31 | Memories, memory edits, document chunks, creative artifacts/revisions/branches/jobs, canon facts/simulations/continuity, beliefs/evidence/events/opportunities, preference signals/style profiles/reference identities/routing outcomes, FTS4 index over memory content, coarse place visits, creative analysis per revision |
 | ConversationDatabase | v6 | Conversations with embeddings for semantic search |
 | ProactiveEventDatabase | v7 | Proactive events with structured payload |
 | TaskDatabase | v6 | Tasks + reminders |
@@ -385,7 +386,7 @@ Scheduled via WorkManager. Re-scheduled on app start (idempotent, UPDATE policy)
 | StrategyBanditDatabase | v1 | Strategy bandit weights (Thompson Sampling Beta distributions) |
 
 All databases have schema export enabled (`room.schemaLocation`). MemoryDatabase
-schema exports span versions 1-30, all committed — migration tests cover
+schema exports span versions 1-31, all committed — migration tests cover
 the full chain.
 
 Eleven separate databases means no cross-database transactions or joins,
@@ -448,7 +449,7 @@ aura-android/
 │       ├── kg/           # Knowledge graph (Room + extractor + repository)
 │       ├── hands/        # Automation macros (Room + repository + worker)
 │       ├── tasks/        # Task manager (Room)
-│       ├── tools/        # 81 tool implementations + ToolsModule
+│       ├── tools/        # 82 tool implementations + ToolsModule
 │       ├── voice/        # SpeechToText + TextToSpeech
 │       ├── proactive/    # MorningBrief + Decay + CalendarCheckWorker + DaemonWorker + ProactiveEvents + ProactiveScheduler
 │       ├── emotion/      # EmotionEngine (4-dimension state) + ResponseProfile
@@ -475,7 +476,7 @@ aura-android/
 - Kotlin 2.4.10 (K2 compiler), Gradle 9.7, AGP 9.3.1, KSP 2.3.11, JVM target 17
 - Jetpack Compose (BOM 2026.06.01) with the Compose compiler Gradle plugin, Material 3, Navigation Compose
 - Hilt 2.60.1 (DI) + Hilt Work 1.4.0 (for WorkManager injection)
-- Room 2.8.4 (11 databases, 68 entities, 54 migrations, schema export)
+- Room 2.8.4 (11 databases, 69 entities, 55 migrations, schema export)
 - WorkManager 2.11.2 (proactive workers, agent run executor, reminders)
 - OkHttp 4.12.0 + okhttp-sse (streaming LLM responses, DNS-pinned clients)
 - kotlinx-serialization 1.11.0, kotlinx-coroutines 1.11.0

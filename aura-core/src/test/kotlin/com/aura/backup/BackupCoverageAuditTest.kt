@@ -245,12 +245,24 @@ class BackupCoverageAuditTest {
          * - `WorkerRunEntity` is health telemetry about one installation.
          *   "The dream worker ran on Tuesday" restored onto another device is
          *   simply false, and the log is pruned to 30 days anyway.
+         * - `GeneratedMediaEntity` is a pointer to a file. The backup is JSON and
+         *   the file is megabytes of binary, so the bytes cannot travel in it —
+         *   and a reinstall clears `filesDir`, which is where they live. A
+         *   restored row could therefore only ever point at something that is
+         *   not there, filling the Library with tiles nothing can distinguish
+         *   from real ones. The image is lost either way; the difference is
+         *   whether the app claims otherwise.
+         *
+         *   Not permanent. Exporting the media alongside the JSON — a zip rather
+         *   than a document — would make these restorable, and this entry should
+         *   be removed the day that happens.
          */
         private val DERIVED_OR_TRANSIENT = setOf(
             "MemoryFtsEntity",
             "DocumentChunkFtsEntity",
             "CreativeGenerationJobEntity",
             "WorkerRunEntity",
+            "GeneratedMediaEntity",
         )
     }
 }

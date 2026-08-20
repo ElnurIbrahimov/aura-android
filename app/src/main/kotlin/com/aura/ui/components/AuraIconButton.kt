@@ -1,6 +1,9 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.aura.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +42,13 @@ fun AuraIconButton(
      * collide with the surrounding curve.
      */
     shape: Shape = RoundedCornerShape(AuraDimensions.controlRadius),
+    /**
+     * Optional secondary action on a long press.
+     *
+     * Null by default, so a button that does not want one keeps `clickable`'s ripple and
+     * accessibility handling rather than `combinedClickable`'s.
+     */
+    onLongClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = AuraThemeTokens.colors
@@ -50,7 +60,18 @@ fun AuraIconButton(
     Box(
         modifier = baseModifier
             .size(AuraDimensions.minimumTouchTarget)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            .then(
+                if (onLongClick == null) {
+                    Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                } else {
+                    Modifier.combinedClickable(
+                        enabled = enabled,
+                        role = Role.Button,
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    )
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Surface(

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Psychology
@@ -67,6 +68,7 @@ fun HomeSecondaryActions(
     creativeCount: Int = 0,
     activeCapabilities: Map<CapabilityKind, String> = emptyMap(),
     onOpenSkills: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
     onOpenCreative: () -> Unit = {},
     onOpenProactive: () -> Unit,
     onOpenAgentRuns: () -> Unit = {},
@@ -91,6 +93,7 @@ fun HomeSecondaryActions(
                 HomeDestination("Creative", if (creativeCount == 0) "New project" else "$creativeCount projects", Icons.Filled.AutoStories, onOpenCreative),
                 HomeDestination("Hands", if (handsCount == 0) "New macro" else "$handsCount macros", Icons.Filled.AccountTree, onOpenHands),
                 HomeDestination("Skills", if (skillsCount == 0) "No skills" else "$skillsCount skills", Icons.Filled.Lightbulb, onOpenSkills),
+                HomeDestination("Library", "Everything Aura has made", Icons.Filled.PhotoLibrary, onOpenLibrary),
             ),
         ),
         HomeDestinationGroup(
