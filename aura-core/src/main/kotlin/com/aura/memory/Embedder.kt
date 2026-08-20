@@ -28,6 +28,21 @@ data class Embedding(
     override fun hashCode(): Int = 31 * (31 * modelId.hashCode() + dim) + vector.contentHashCode()
 }
 
+/**
+ * Whether text is being stored or searched for.
+ *
+ * Asymmetric models — nomic among them — want a different prefix for each, and produce
+ * measurably different vectors for identical text depending which. A model that does not
+ * care simply ignores the prefix, so callers can always say which they mean.
+ *
+ * The eval that selected the shipped model used these exact prefixes. Embedding a query as
+ * though it were a document would ship something other than what was measured.
+ */
+enum class EmbedKind(val prefix: String) {
+    DOCUMENT("search_document: "),
+    QUERY("search_query: "),
+}
+
 interface Embedder {
 
     /** Embed [text] into a unit-normalized vector. */

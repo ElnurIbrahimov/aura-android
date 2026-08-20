@@ -103,6 +103,12 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.datastore.preferences)
 
+    // On-device embeddings. The only native dependency in the project, and it is here
+    // rather than in :app because MemoryStore owns retrieval and lives in this module.
+    // The 137 MB model it runs is NOT bundled — GitHub rejects files over 100 MB, so it
+    // downloads at runtime and the hash embedder covers the gap until it lands.
+    implementation(libs.onnxruntime.android)
+
     api(libs.hilt.android)
     ksp(libs.hilt.compiler)
     // Workers live in this module; this compiler generates the bindings
