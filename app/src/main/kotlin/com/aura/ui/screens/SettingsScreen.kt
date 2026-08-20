@@ -221,6 +221,7 @@ fun SettingsScreen(
             morningBriefHour = state.morningBriefHour,
             calendarMonitorEnabled = state.calendarMonitorEnabled,
             decayEnabled = state.decayEnabled,
+            smarterMemoryEnabled = state.smarterMemoryEnabled,
             screenControlEnabled = state.screenControlEnabled,
             onSetScreenControlEnabled = viewModel::setScreenControlEnabled,
             appAwarenessEnabled = state.appAwarenessEnabled,
@@ -232,6 +233,7 @@ fun SettingsScreen(
             onSetMorningBriefHour = viewModel::setMorningBriefHour,
             onSetCalendarMonitor = viewModel::setCalendarMonitorEnabled,
             onSetDecayEnabled = viewModel::setDecayEnabled,
+            onSetSmarterMemory = viewModel::setSmarterMemoryEnabled,
             onNavigateProfile = onNavigateProfile,
         )
 

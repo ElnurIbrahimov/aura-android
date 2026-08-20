@@ -164,6 +164,7 @@
     <string name="marks_estimated_tokens_cost_is_not">~ marks estimated tokens. Cost is not guessed: provider APIs do not return reliable live pricing.</string>
     <string name="memory">Memory</string>
     <string name="memory_decay">Memory decay</string>
+    <string name="smarter_memory">Smarter memory</string>
     <string name="merge">Merge</string>
     <string name="message_aura">Message Aura…</string>
     <string name="minute">Minute</string>

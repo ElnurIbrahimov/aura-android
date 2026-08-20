@@ -96,6 +96,7 @@ class SettingsViewModelEvolutionGuardTest {
         every { userPreferences.daemonIntervalMinutes } returns flowOf(UserPreferences.DEFAULT_DAEMON_INTERVAL_MINUTES)
         every { userPreferences.dreamEnabled } returns flowOf(false)
         every { userPreferences.decayEnabled } returns flowOf(true)
+        every { userPreferences.smarterMemoryEnabled } returns flowOf(false)
         every { userPreferences.planningEnabled } returns flowOf(false)
         every { userPreferences.promptCachingEnabled } returns flowOf(true)
         every { userPreferences.screenControlEnabled } returns flowOf(false)

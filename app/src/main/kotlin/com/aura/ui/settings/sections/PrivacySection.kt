@@ -42,6 +42,7 @@ fun PrivacySection(
     morningBriefHour: Int,
     calendarMonitorEnabled: Boolean,
     decayEnabled: Boolean,
+    smarterMemoryEnabled: Boolean,
     screenControlEnabled: Boolean,
     onSetScreenControlEnabled: (Boolean) -> Unit,
     appAwarenessEnabled: Boolean = false,
@@ -53,6 +54,7 @@ fun PrivacySection(
     onSetMorningBriefHour: (Int) -> Unit,
     onSetCalendarMonitor: (Boolean) -> Unit,
     onSetDecayEnabled: (Boolean) -> Unit,
+    onSetSmarterMemory: (Boolean) -> Unit,
     onNavigateProfile: () -> Unit,
 ) {
     SettingsSection(
@@ -313,6 +315,25 @@ fun PrivacySection(
                 )
             }
             Switch(checked = decayEnabled, onCheckedChange = onSetDecayEnabled)
+        }
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(R.string.smarter_memory), style = MaterialTheme.typography.bodyLarge)
+                // The download size is in the label rather than a dialog. It is
+                // the entire cost of the feature and the only surprising thing
+                // about it, so it belongs where the switch is.
+                Text(
+                    text = if (smarterMemoryEnabled) {
+                        "On - finds memories by meaning, not just matching words"
+                    } else {
+                        "Off - matches words only. On downloads 137 MB over wifi"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = smarterMemoryEnabled, onCheckedChange = onSetSmarterMemory)
         }
     }
 }

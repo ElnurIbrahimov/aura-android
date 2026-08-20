@@ -85,6 +85,7 @@ internal val KEY_INTERRUPTION_POLICIES = stringPreferencesKey("interruption_poli
 internal val KEY_DREAM_LAST_RUN_AT = longPreferencesKey("dream_last_run_at")
 internal val KEY_DREAM_LAST_RUN_STATS = stringPreferencesKey("dream_last_run_stats")
 internal val KEY_DECAY_ENABLED = booleanPreferencesKey("decay_enabled")
+internal val KEY_SMARTER_MEMORY_ENABLED = booleanPreferencesKey("smarter_memory_enabled")
 internal val KEY_AGENT_ID = stringPreferencesKey("agent_id")
 internal val KEY_TRIGGERS_ENABLED = booleanPreferencesKey("triggers_enabled")
 internal val KEY_TRIGGERS_JSON = stringPreferencesKey("triggers_json")
@@ -357,6 +358,25 @@ class UserPreferences @Inject constructor(
      * indefinitely — useful for users who want to preserve everything.
      */
     val decayEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_DECAY_ENABLED] ?: true }
+
+    /**
+     * Whether to fetch the on-device embedding model. Default **false**, and the
+     * odd one out in the other direction from [decayEnabled].
+     *
+     * Off is not a judgement about whether the model is worth having — the eval
+     * says it is, by +0.311 nDCG@10 on paraphrase queries. Off is because
+     * turning it on downloads 137 MB, and that is a cost paid before any of the
+     * benefit arrives. An on-by-default flag would mean an app update helping
+     * itself to a nine-figure byte count on next launch.
+     *
+     * Switching it off again deletes the model. That is the only coherent
+     * reading: leaving a complete model on disk while the toggle says off would
+     * mean [com.aura.memory.onnx.RoutedEmbedder] keeps using it and the setting
+     * controls nothing. `rebuildEmbeddings` converts the corpus back, the same
+     * path that converted it in the first place.
+     */
+    val smarterMemoryEnabled: Flow<Boolean> =
+        context.auraPrefs.data.map { it[KEY_SMARTER_MEMORY_ENABLED] ?: false }
 val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
     /** Whether the trigger worker runs every 15m. Default true (opt-out). */
     val triggersEnabled: Flow<Boolean> = context.auraPrefs.data.map { it[KEY_TRIGGERS_ENABLED] ?: true }
@@ -732,6 +752,10 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
         context.auraPrefs.edit { prefs ->
             prefs[KEY_DAEMON_INTERVAL_MINUTES] = minutes.coerceIn(15, 24 * 60)
         }
+    }
+
+    suspend fun setSmarterMemoryEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { prefs -> prefs[KEY_SMARTER_MEMORY_ENABLED] = enabled }
     }
 
     suspend fun setDecayEnabled(enabled: Boolean) {

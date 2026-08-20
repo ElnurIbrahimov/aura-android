@@ -231,6 +231,7 @@ data class SettingsUiState(
     val dreamEnabled: Boolean = true,
     /** Whether the memory decay worker is enabled (default true). */
     val decayEnabled: Boolean = true,
+    val smarterMemoryEnabled: Boolean = false,
     /** Whether the agentic loop makes a pre-answer planning call (default false). */
     val planningEnabled: Boolean = false,
     /** Whether providers are asked to cache the fixed prompt prefix (default true). */
@@ -460,6 +461,7 @@ class SettingsViewModel @Inject constructor(
             val councilActivityLevel = userPreferences.councilActivityLevel.first()
             val dreamEnabled = userPreferences.dreamEnabled.first()
             val decayEnabled = userPreferences.decayEnabled.first()
+            val smarterMemoryEnabled = userPreferences.smarterMemoryEnabled.first()
             val planningEnabled = userPreferences.planningEnabled.first()
             val promptCachingEnabled = userPreferences.promptCachingEnabled.first()
             val screenControlEnabled = userPreferences.screenControlEnabled.first()
@@ -566,6 +568,7 @@ class SettingsViewModel @Inject constructor(
                 councilActivityLevel = councilActivityLevel,
                 dreamEnabled = dreamEnabled,
                 decayEnabled = decayEnabled,
+                smarterMemoryEnabled = smarterMemoryEnabled,
                 planningEnabled = planningEnabled,
                 promptCachingEnabled = promptCachingEnabled,
                 screenControlEnabled = screenControlEnabled,
@@ -870,6 +873,21 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setDreamEnabled(enabled)
             _state.update { it.copy(dreamEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Turn the on-device embedding model on or off.
+     *
+     * Only writes the preference. `ProactiveBootstrap` collects it and does the
+     * work — enqueue the download, or cancel it and delete the model. Doing the
+     * download from here would tie a 137 MB transfer to a screen the user can
+     * navigate away from.
+     */
+    fun setSmarterMemoryEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setSmarterMemoryEnabled(enabled)
+            _state.update { it.copy(smarterMemoryEnabled = enabled) }
         }
     }
 

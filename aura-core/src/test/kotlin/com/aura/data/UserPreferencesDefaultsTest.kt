@@ -55,6 +55,13 @@ class UserPreferencesDefaultsTest {
         // chosen yet. `BackupWorker` skips with a stated reason rather than
         // failing, which only reads correctly if the default is off.
         assertFalse("autoBackupEnabled", p.autoBackupEnabled.first())
+
+        // Off because turning it on downloads 137 MB. Every other flag in this
+        // method spends money or privacy; this one spends storage and somebody's
+        // data plan, and it is the only preference here whose cost is paid
+        // before the feature does anything at all. On-by-default would mean an
+        // app update silently pulling a nine-figure byte count on next launch.
+        assertFalse("smarterMemoryEnabled", p.smarterMemoryEnabled.first())
     }
 
     @Test

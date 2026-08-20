@@ -72,6 +72,7 @@ class ProactiveBootstrap @Inject constructor(
     // Appended, not inserted — this constructor's own KDoc records why.
     private val skillsStore: com.aura.skills.SkillsStore? = null,
     private val widgetRefresher: WidgetRefresher? = null,
+    private val embeddingModelStore: com.aura.memory.onnx.EmbeddingModelStore? = null,
 ) {
     /**
      * Internal scope used to fire-and-forget the startup decay
@@ -278,6 +279,39 @@ class ProactiveBootstrap @Inject constructor(
         scope.launch {
             runCatching { com.aura.memory.ReembedWorker.enqueue(appContext) }
                 .onFailure { android.util.Log.w("ProactiveBootstrap", "reembed enqueue failed", it) }
+        }
+
+        // The on-device embedding model. A live collector rather than a
+        // start-up read, because the toggle has to take effect in the running
+        // process — switching it on and waiting for a relaunch to begin a
+        // download is not a setting, it is a rumour.
+        //
+        // Off by default and off means gone: cancel the download, delete the
+        // model, and let the same rebuild path convert the corpus back to the
+        // hash. Leaving a complete model on disk while the toggle reads off
+        // would mean RoutedEmbedder keeps using it and the switch controls
+        // nothing.
+        scope.launch {
+            userPreferences.smarterMemoryEnabled.distinctUntilChanged().collect { wanted ->
+                runCatching {
+                    if (wanted) {
+                        com.aura.memory.onnx.EmbeddingModelWorker.enqueue(appContext)
+                    } else {
+                        com.aura.memory.onnx.EmbeddingModelWorker.cancel(appContext)
+                        val modelStore = embeddingModelStore
+                        if (modelStore != null && modelStore.isReady()) {
+                            modelStore.delete()
+                            // Only after a delete that had something to delete.
+                            // Enqueuing unconditionally here would schedule a
+                            // rebuild on every cold start of an install that has
+                            // never turned this on.
+                            com.aura.memory.ReembedWorker.enqueue(appContext)
+                        }
+                    }
+                }.onFailure {
+                    android.util.Log.w("ProactiveBootstrap", "embedding model reconcile failed", it)
+                }
+            }
         }
 
         // Decay reconciliation — separate flow for the same reason.
