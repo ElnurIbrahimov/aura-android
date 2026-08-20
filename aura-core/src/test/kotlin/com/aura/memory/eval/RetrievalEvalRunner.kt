@@ -224,15 +224,21 @@ class RetrievalEvalRunner(
             return@buildString
         }
         val floor = cards.first()
-        appendLine("| model | nDCG@10 | Δ vs floor | synonym-only nDCG@10 | Δ synonym-only |")
-        appendLine("|---|---|---|---|---|")
+        // correctly-empty is in this table because a config can buy nDCG by returning more,
+        // and returning more is exactly how "nothing is relevant" stops being expressible.
+        // Reading the two apart is the only way to tell a better ranking from a looser one.
+        appendLine(
+            "| model | nDCG@10 | Δ vs floor | synonym-only nDCG@10 | Δ synonym-only | correctly empty |",
+        )
+        appendLine("|---|---|---|---|---|---|")
         cards.forEach { c ->
             val syn = c.byClass[SYNONYM_CLASS]?.ndcg10
             val synFloor = floor.byClass[SYNONYM_CLASS]?.ndcg10
             appendLine(
                 "| ${c.label} | ${"%.4f".format(c.ndcg10)} | ${delta(c.ndcg10 - floor.ndcg10)} | " +
                     "${syn?.let { "%.4f".format(it) } ?: "—"} | " +
-                    "${if (syn != null && synFloor != null) delta(syn - synFloor) else "—"} |",
+                    "${if (syn != null && synFloor != null) delta(syn - synFloor) else "—"} | " +
+                    "${"%.4f".format(c.correctlyEmptyRate)} |",
             )
         }
         appendLine()

@@ -79,12 +79,34 @@ class RetrievalEvalTest {
                 usage = 0.35f, decay = 0f, importance = 0.2f,
             ),
         )
+        // And once more with the vector arm in pool SELECTION, not just in scoring.
+        //
+        // vectorPoolSize is 0 today, measured off against a hash sketch whose vectors are
+        // noise. Its own KDoc says what that costs: "without it a memory sharing no word
+        // with the query can never be a candidate on the main path". Every synonym-only
+        // query in this corpus is exactly that case — the target was never in the pool, so
+        // the two runs above were measuring how much a semantic model helps after the
+        // candidates were chosen lexically, which is not the question anyone asked.
+        //
+        // The constant's comment asks for precisely this A/B: "the code path stays for an
+        // A/B with a real embedder; the default does not."
+        val semanticPool = relevanceWeighted.copy(vectorPoolSize = 25)
         runner.writeReport(
             cards,
             baseline,
-            gateB = runner.gateB() + runner.gateB(relevanceWeighted).map {
-                it.copy(label = it.label + " @ relevance weights")
-            },
+            gateB = runner.gateB() +
+                runner.gateB(relevanceWeighted).map { it.copy(label = it.label + " @ relevance weights") } +
+                runner.gateB(semanticPool).map { it.copy(label = it.label + " @ weights + vector pool") } +
+                // minRelevance is 0.15, set at 3 sigma of a 384-dim HASH's noise
+                // (|cos| ~= 1/sqrt(384) ~= 0.051). A real sentence embedder puts entirely
+                // unrelated English at 0.2-0.4, so that floor admits everything and
+                // "nothing is relevant" stops being expressible — which is exactly what
+                // correctly-empty being 0.0000 in every row above is reporting. Recalibrate
+                // or the better ranking ships alongside an assistant that answers
+                // questions it has nothing to say about.
+                runner.gateB(semanticPool.copy(minRelevance = 0.5f)).map {
+                    it.copy(label = it.label + " @ + floor 0.50")
+                },
         )
 
         // A missing baseline FAILS. It must not skip: a gate that reports OK
