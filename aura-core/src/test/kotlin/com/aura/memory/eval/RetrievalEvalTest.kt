@@ -104,8 +104,15 @@ class RetrievalEvalTest {
                 // correctly-empty being 0.0000 in every row above is reporting. Recalibrate
                 // or the better ranking ships alongside an assistant that answers
                 // questions it has nothing to say about.
-                runner.gateB(semanticPool.copy(minRelevance = 0.5f)).map {
-                    it.copy(label = it.label + " @ + floor 0.50")
+                // Swept, not guessed. The floor is a property of the model's similarity
+                // distribution, not a global constant: 0.15 is three sigma of a hash's
+                // noise, and a real model puts unrelated English far above it. Each model
+                // needs its own, so comparing them all at one value judges the value
+                // rather than the models.
+                listOf(0.35f, 0.50f, 0.60f, 0.70f).flatMap { floor ->
+                    runner.gateB(semanticPool.copy(minRelevance = floor)).map {
+                        it.copy(label = it.label + " @ floor %.2f".format(floor))
+                    }
                 },
         )
 
