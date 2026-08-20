@@ -59,6 +59,7 @@ import com.aura.kg.NodeEntity
         CreativeProjectEntity::class,
         DocumentChunkEntity::class,
         CreativeArtifactEntity::class,
+        com.aura.media.GeneratedMediaEntity::class,
         CreativeRevisionEntity::class,
         com.aura.creative.CreativeAnalysisEntity::class,
         CreativeBranchEntity::class,
@@ -87,7 +88,7 @@ import com.aura.kg.NodeEntity
         com.aura.projects.ProjectNoteEntity::class,
         com.aura.calibration.ClaimResolutionEntity::class,
     ],
-    version = 30,
+    version = 31,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -96,6 +97,8 @@ abstract class MemoryDatabase : RoomDatabase() {
     abstract fun creativeAnalysisDao(): com.aura.creative.CreativeAnalysisDao
     abstract fun knowledgeGraphDao(): KnowledgeGraphDao
     abstract fun memoryEditDao(): MemoryEditDao
+    abstract fun generatedMediaDao(): com.aura.media.GeneratedMediaDao
+
     abstract fun documentDao(): DocumentDao
     abstract fun creativeProjectDao(): CreativeProjectDao
     abstract fun documentChunkDao(): DocumentChunkDao
