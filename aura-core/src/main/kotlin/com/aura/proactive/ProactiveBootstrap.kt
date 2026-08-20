@@ -154,6 +154,15 @@ class ProactiveBootstrap @Inject constructor(
             runCatching { skillsStore?.seedBuiltins(com.aura.creative.CraftSkills.seeds()) }
                 .onFailure { Log.w("Bootstrap", "craft skill seeding failed: ${it.message}", it) }
         }
+        // The general-purpose skills, seeded the same way and for the same reason. Separate
+        // from the craft seeds above because they are read by a different path — the craft
+        // prompts go through CraftResolver inside the creative engine, these are invoked by
+        // the model through use_skill. Both share one namespace, which BuiltinSkillsTest
+        // holds them to, and a failure of one must not stop the other.
+        scope.launch {
+            runCatching { skillsStore?.seedBuiltins(com.aura.skills.BuiltinSkills.seeds()) }
+                .onFailure { Log.w("Bootstrap", "builtin skill seeding failed: ${it.message}", it) }
+        }
         // Seed builtin agents on first run, then repair the descriptions of
         // installs seeded before they were written by hand — a no-op once done.
         scope.launch {
