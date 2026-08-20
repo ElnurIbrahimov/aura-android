@@ -478,4 +478,9 @@
     <string name="since_you_left_summary">%1$d world days passed · %2$d moments worth telling</string>
     <string name="save_scene">Save</string>
     <string name="scene_saved">Scene saved — Aura will learn from your changes</string>
+    <string name="api_key_backup">API key backup</string>
+    <string name="save_api_keys">Save API keys</string>
+    <string name="load_api_keys">Load API keys</string>
+    <string name="file_analysis_against">File this analysis against a scene</string>
+    <string name="not_linked">Not linked</string>
 </resources>

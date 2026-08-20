@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -112,6 +113,20 @@ fun ProactiveHistoryScreen(
                 )
             }
         }
+        // Both hoisted above the LazyColumn: a LazyListScope block is not a composable
+        // context, so `remember` cannot live inside it.
+        //
+        // asReversed() is a view over the same list rather than a copy. The previous
+        // `state.events.reversed()` sat inside the scope and allocated a fresh copy of the
+        // whole history on every recomposition, including the ones the rows caused.
+        val reversed = remember(state.events) { state.events.asReversed() }
+        // An inline lambda per row is a new instance per recomposition, so no card could
+        // ever skip.
+        val onAction = remember(viewModel) {
+            { id: Long, type: String, action: String, _: String? ->
+                viewModel.onEventAction(id, type, action)
+            }
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -119,18 +134,19 @@ fun ProactiveHistoryScreen(
                 .padding(horizontal = AuraSpacing.md, vertical = AuraSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.medium),
         ) {
-            val reversed = state.events.reversed()
             if (reversed.isEmpty()) {
                 item { EmptyState() }
             }
             if (outcomes.summary.isNotEmpty()) {
                 item { OutcomeSummaryHeader(outcomes.summary) }
             }
-            items(reversed) { event ->
+            // Keyed by event id. Without a key a LazyColumn identifies rows by index, and
+            // this list is *prepended* to — a new proactive event shifts every index by
+            // one, so every visible card was rebuilt and lost its state each time one
+            // arrived, which on this screen is the one thing that regularly happens.
+            items(reversed, key = { it.id }) { event ->
                 val model = event
-                    .toCardModel(context, onProactiveAction) { id, type, action, _ ->
-                        viewModel.onEventAction(id, type, action)
-                    }
+                    .toCardModel(context, onProactiveAction, onAction)
                     .copy(outcome = outcomes.byEventId[event.id]?.reason.orEmpty())
                 HistoryCard(
                     model = model,

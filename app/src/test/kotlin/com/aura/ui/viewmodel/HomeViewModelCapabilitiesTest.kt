@@ -115,4 +115,27 @@ class HomeViewModelCapabilitiesTest {
         assertEquals("Exa Search", vm.state.value.activeCapabilities[CapabilityKind.WebSearch])
         assertTrue(vm.state.value.hasHomeData())
     }
+
+    @Test
+    fun `the active agent is named even though defaultModel never completes`() = runTest(dispatcher) {
+        // observeActiveAgent opened with `userPreferences.defaultModel.collect { }` — an
+        // empty-bodied collect on a DataStore flow, which never completes. Everything after
+        // it in that coroutine was unreachable, so activeAgentId and activeAgentName were
+        // never set and AgentPresence rendered unnamed on the first screen you see.
+        //
+        // No test caught it because every harness here stubs preferences with flowOf(),
+        // which completes immediately and lets the next line run. Production uses a
+        // DataStore flow that does not. This one is a MutableStateFlow for that reason.
+        every { userPreferences.defaultModel } returns MutableStateFlow("ollama:general")
+        every { userPreferences.agentId } returns MutableStateFlow("agent-1")
+        coEvery { agentStore.byId("agent-1") } returns mockk(relaxed = true) {
+            every { name } returns "Nova"
+        }
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals("agent-1", vm.state.value.activeAgentId)
+        assertEquals("Nova", vm.state.value.activeAgentName)
+    }
 }

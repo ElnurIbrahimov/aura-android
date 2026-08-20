@@ -36,6 +36,13 @@ data class ContinuousVoiceState(
     val partialTranscript: String = "",
     val lastResponse: String = "",
     val error: String? = null,
+    /**
+     * The microphone is off and the recogniser is cancelled, but the call is still up.
+     *
+     * Distinct from `!active`: muting is not hanging up. Nothing resumes listening until
+     * [ContinuousVoiceViewModel.setMuted] is called with false.
+     */
+    val muted: Boolean = false,
 )
 
 @HiltViewModel
@@ -60,6 +67,10 @@ class ContinuousVoiceViewModel @Inject constructor(
     /** Barge-in collector — cancelled alongside the others in stopLoop(). */
     private var bargeInJob: Job? = null
 
+    // The callbacks startLoop was given, kept so unmuting can resume listening.
+    private var loopOnSend: ((String) -> Unit)? = null
+    private var loopOnStreamingDone: (() -> Boolean)? = null
+
     /**
      * Start the voice loop. The caller (ChatScreen) provides callbacks
      * for sending a message and listening for completion. The loop
@@ -70,8 +81,42 @@ class ContinuousVoiceViewModel @Inject constructor(
         onSend: (String) -> Unit,
         onStreamingDone: () -> Boolean,
     ) {
+        // Held so unmuting can resume listening. startListening needs both, and by the
+        // time the user taps unmute the call site that supplied them is long gone.
+        loopOnSend = onSend
+        loopOnStreamingDone = onStreamingDone
         _state.value = ContinuousVoiceState(active = true, phase = VoiceModeState.LISTENING)
         startListening(onSend, onStreamingDone)
+    }
+
+    /**
+     * Turn the microphone off or back on without ending the call.
+     *
+     * Mute used to be a `remember` flag in ChatRoute that nothing but the icon read: the
+     * button swapped Mic for MicOff and the recogniser carried on transcribing. The one
+     * moment someone reaches for mute is when they do not want the next thing they say
+     * leaving the room, so the flag has to reach [SpeechToText] and it now does.
+     *
+     * The silence timer is cancelled alongside it. It hangs up after ten seconds without
+     * speech, which is precisely what muting produces — leaving it armed would turn every
+     * mute longer than ten seconds into a hang-up.
+     */
+    fun setMuted(muted: Boolean) {
+        if (_state.value.muted == muted) return
+        _state.update { it.copy(muted = muted) }
+        if (muted) {
+            silenceTimer?.cancel()
+            sttCollectorJob?.cancel()
+            speechToText.cancel()
+            // Phase is deliberately untouched. Aura may be mid-reply, and muting the
+            // microphone is not an instruction to stop talking — the barge-in collector
+            // also keys off SPEAKING and would be silently disabled by an IDLE here.
+            _state.update { it.copy(partialTranscript = "") }
+        } else {
+            val onSend = loopOnSend ?: return
+            val onStreamingDone = loopOnStreamingDone ?: return
+            startListening(onSend, onStreamingDone)
+        }
     }
 
     fun stopLoop() {
@@ -82,7 +127,21 @@ class ContinuousVoiceViewModel @Inject constructor(
         bargeInJob?.cancel()
         speechToText.cancel()
         textToSpeech.stop()
-        _state.update { it.copy(active = false, phase = VoiceModeState.IDLE) }
+        _state.update { it.copy(active = false, phase = VoiceModeState.IDLE, muted = false) }
+        loopOnSend = null
+        loopOnStreamingDone = null
+    }
+
+    /**
+     * Open the microphone unless the user has muted.
+     *
+     * Two paths open it: the listening cycle, and the barge-in listener that runs while
+     * Aura is speaking so it can be interrupted. Both must respect mute — routing them
+     * through one function is what stops a third from forgetting.
+     */
+    private fun startMic() {
+        if (_state.value.muted) return
+        speechToText.start()
     }
 
     private fun startListening(
@@ -94,7 +153,7 @@ class ContinuousVoiceViewModel @Inject constructor(
         responseWaitJob?.cancel()
 
         _state.update { it.copy(phase = VoiceModeState.LISTENING, partialTranscript = "") }
-        speechToText.start()
+        startMic()
 
         // Silence timeout: if no speech detected in 10s, stop the loop.
         silenceTimer?.cancel()
@@ -239,7 +298,7 @@ class ContinuousVoiceViewModel @Inject constructor(
         // new user turn. Word-count guard raises the bar above the
         // assistant's own voice bleeding into the mic, and STOP_PHRASES
         // are checked here so the user can exit voice mode mid-reply.
-        speechToText.start()
+        startMic()
         bargeInJob = viewModelScope.launch {
             speechToText.state.collect { sttState ->
                 if (_state.value.phase != VoiceModeState.SPEAKING) return@collect

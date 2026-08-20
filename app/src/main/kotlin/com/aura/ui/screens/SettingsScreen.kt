@@ -267,6 +267,8 @@ fun SettingsScreen(
                 }
             },
             onStageImport = backupViewModel::stageImport,
+            onExportKeys = backupViewModel::exportKeys,
+            onImportKeys = backupViewModel::importKeys,
             onConfirmImport = { replace -> backupViewModel.confirmImport(replace = replace) },
             onCancelImport = backupViewModel::cancelImport,
             onSubmitImportPassphrase = backupViewModel::submitImportPassphrase,

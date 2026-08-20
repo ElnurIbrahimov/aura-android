@@ -32,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.AuraSpacing
 

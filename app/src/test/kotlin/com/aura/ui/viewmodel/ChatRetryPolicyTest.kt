@@ -4,7 +4,7 @@ import com.aura.agent.Conversation
 import com.aura.agent.RecallSummary
 import com.aura.agent.ToolTurn
 import com.aura.agent.Turn
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

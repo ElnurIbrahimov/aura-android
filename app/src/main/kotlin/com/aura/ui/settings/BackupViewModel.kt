@@ -1,5 +1,6 @@
 package com.aura.ui.settings
 
+import androidx.compose.runtime.Immutable
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -19,6 +20,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class BackupUiState(
     val exportInFlight: Boolean = false,
     val importInFlight: Boolean = false,
@@ -59,6 +73,7 @@ class BackupViewModel @Inject constructor(
     private val userPreferences: com.aura.data.UserPreferences,
     private val secureDataStore: com.aura.security.SecureDataStore,
     private val scheduler: com.aura.proactive.ProactiveScheduler,
+    private val keyTransfer: com.aura.security.ProviderKeyTransfer,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BackupUiState())
@@ -217,6 +232,57 @@ class BackupViewModel @Inject constructor(
             // Composable coroutineScope, and an unhandled exception
             // would crash the app.
             null
+        }
+    }
+
+    // ------------------------------------------------------------------ API key transfer
+
+    /**
+     * Seal every configured API key into [uri] under [passphrase].
+     *
+     * Separate from the JSON export on purpose. That file is written unattended on a
+     * schedule into a folder picked once; this one exists only because the user asked for
+     * it in this moment and typed a passphrase for it. Keys are the one thing that cannot
+     * be regenerated from anywhere — losing them means re-issuing at every provider.
+     */
+    fun exportKeys(uri: Uri, passphrase: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(exportInFlight = true, lastResult = null) }
+            val result = runCatching {
+                val sealed = keyTransfer.export(passphrase, System.currentTimeMillis())
+                    ?: error("passphrase must be at least ${com.aura.security.BackupCrypto.MIN_PASSPHRASE} characters")
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(sealed.toByteArray()) }
+                        ?: error("could not open the file for writing")
+                }
+                "API keys saved. This file opens with that passphrase on any install."
+            }.getOrElse { "Key export failed: ${it.message ?: it.javaClass.simpleName}" }
+            _state.update { it.copy(exportInFlight = false, lastResult = result) }
+        }
+    }
+
+    /** Open a key file written by [exportKeys] and write what it holds back into storage. */
+    fun importKeys(uri: Uri, passphrase: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(importInFlight = true, lastResult = null) }
+            val result = runCatching {
+                val sealed = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                        ?: error("could not open the file")
+                }
+                when (val outcome = keyTransfer.import(sealed, passphrase)) {
+                    is com.aura.security.ProviderKeyTransfer.Result.Restored ->
+                        "Restored ${outcome.keys} API key(s)" +
+                            if (outcome.embeddingModel) " and the embedding model." else "."
+                    com.aura.security.ProviderKeyTransfer.Result.Empty ->
+                        "That file opened but held no keys this build can use."
+                    // Wrong passphrase and not-a-key-file are indistinguishable by design —
+                    // nothing stores a hash of the passphrase — so the message says both.
+                    com.aura.security.ProviderKeyTransfer.Result.Unreadable ->
+                        "Could not open that file. Wrong passphrase, or not an Aura key file."
+                }
+            }.getOrElse { "Key import failed: ${it.message ?: it.javaClass.simpleName}" }
+            _state.update { it.copy(importInFlight = false, lastResult = result) }
         }
     }
 

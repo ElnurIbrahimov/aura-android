@@ -75,9 +75,10 @@ class WorldEventProducer @Inject constructor(
     }
 
     /**
-     * Record a tool-execution event. Called after a tool with
-     * risk >= WRITE_LOCAL completes successfully. READ_ONLY and
-     * REMOTE_COST tools don't produce events — they don't change state.
+     * Record a tool-execution event, for tools that changed something.
+     *
+     * READ_ONLY, REMOTE_COST and PRIVACY tools produce no event: they see rather than
+     * change, and a privacy tool's output must not be persisted at all.
      */
     suspend fun recordToolExecution(
         toolName: kotlin.String,
@@ -85,13 +86,15 @@ class WorldEventProducer @Inject constructor(
         resultSummary: kotlin.String,
         agentScope: kotlin.String = "general",
     ): kotlin.String? {
-        // Only state-mutating tools produce world events.
-        if (toolRisk.ordinal < com.aura.agent.ToolRisk.WRITE_LOCAL.ordinal) return null
+        // Only state-mutating tools produce world events. PRIVACY is deliberately not one:
+        // it reads something sensitive and changes nothing, and it used to pass this gate
+        // because the check compared enum ordinals and PRIVACY happens to sit above
+        // WRITE_LOCAL. See ToolRisk.mutatesState.
+        if (!toolRisk.mutatesState) return null
         val eventType = when (toolRisk) {
             com.aura.agent.ToolRisk.WRITE_LOCAL -> "local_action"
             com.aura.agent.ToolRisk.WRITE_REMOTE -> "remote_action"
             com.aura.agent.ToolRisk.DESTRUCTIVE -> "destructive_action"
-            com.aura.agent.ToolRisk.PRIVACY -> "privacy_action"
             else -> "action"
         }
         return record(

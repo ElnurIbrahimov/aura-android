@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,10 +55,30 @@ fun DataAndBackupSection(
     onSetBackupPassphrase: (String) -> Unit = {},
     onSetAutoBackupEnabled: (Boolean) -> Unit = {},
     onRunBackupNow: () -> Unit = {},
+    onExportKeys: (android.net.Uri, String) -> Unit = { _, _ -> },
+    onImportKeys: (android.net.Uri, String) -> Unit = { _, _ -> },
 ) {
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: android.net.Uri? -> if (uri != null) onStageImport(uri) }
+
+    // The key flows ask for the passphrase and the file in opposite orders, because each
+    // asks for the cheap thing first: exporting cannot seal without a passphrase, and
+    // importing should not prompt for one before knowing there is a file to open.
+    var keyExportPassphrase by remember { mutableStateOf<String?>(null) }
+    var askKeyExportPassphrase by remember { mutableStateOf(false) }
+    var pendingKeyImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val keyExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: android.net.Uri? ->
+        val passphrase = keyExportPassphrase
+        keyExportPassphrase = null
+        if (uri != null && passphrase != null) onExportKeys(uri, passphrase)
+    }
+    val keyImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: android.net.Uri? -> if (uri != null) pendingKeyImportUri = uri }
 
     val context = LocalContext.current
     val folderLauncher = rememberLauncherForActivityResult(
@@ -118,17 +139,19 @@ fun DataAndBackupSection(
         //
         // The omission is deliberate and correct: API keys and OAuth tokens live
         // in SecureDataStore under an Android Keystore key that never leaves the
-        // install, and writing them into a JSON file would be a security
-        // regression (see AuraBackup's KDoc). But nothing said so on this screen.
-        // The restore dialog mentions embeddings — which rebuild themselves — and
-        // stays silent on the keys, which cannot be recovered from anywhere and
-        // have to be re-issued by the provider. That is the omission worth
-        // naming, and this is the last moment naming it can still prevent the
-        // loss rather than explain it.
+        // install, and writing them into a JSON file written unattended on a
+        // schedule would be a security regression (see AuraBackup's KDoc).
+        //
+        // What used to follow was "keep a copy of your API keys somewhere else",
+        // which is advice, not a feature — and it is advice that has already
+        // failed. "Save API keys" below is the somewhere else: a separate file,
+        // written only when asked, sealed under a typed passphrase rather than a
+        // Keystore key, so it opens on an install that shares nothing with this
+        // one. This text now points at it instead of at the user's memory.
         Text(
             "Does not include API keys, connected accounts, or embeddings — those are " +
-                "encrypted to this install and cannot be restored from a file. Keep a " +
-                "copy of your API keys somewhere else.",
+                "encrypted to this install. Embeddings rebuild themselves; use " +
+                "\"Save API keys\" below for the keys.",
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
             modifier = Modifier.padding(top = AuraSpacing.xxs),
@@ -141,6 +164,13 @@ fun DataAndBackupSection(
             enabled = !backupState.importInFlight,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (backupState.importInFlight) "Restoring..." else "Restore from JSON") }
+
+        Spacer(Modifier.height(AuraSpacing.sm))
+        ApiKeyTransferRows(
+            busy = backupState.exportInFlight || backupState.importInFlight,
+            onSave = { askKeyExportPassphrase = true },
+            onLoad = { keyImportLauncher.launch(arrayOf("application/json", "*/*")) },
+        )
 
         Spacer(Modifier.height(AuraSpacing.sm))
         AutomaticBackupRows(
@@ -210,6 +240,29 @@ fun DataAndBackupSection(
             )
         }
     }
+        if (askKeyExportPassphrase) {
+            PassphraseDialog(
+                onDismiss = { askKeyExportPassphrase = false },
+                onConfirm = { entered ->
+                    askKeyExportPassphrase = false
+                    // Held only until the picker returns. Nothing writes it to disk: it is
+                    // the key to the file, so storing it beside the file would defeat it.
+                    keyExportPassphrase = entered
+                    keyExportLauncher.launch("aura-api-keys.json")
+                },
+            )
+        }
+
+        pendingKeyImportUri?.let { uri ->
+            RestorePassphraseDialog(
+                error = null,
+                onDismiss = { pendingKeyImportUri = null },
+                onConfirm = { entered ->
+                    pendingKeyImportUri = null
+                    onImportKeys(uri, entered)
+                },
+            )
+        }
 }
 
 /**
@@ -417,5 +470,46 @@ private fun relativeDays(at: Long): String {
         days <= 0L -> "today"
         days == 1L -> "yesterday"
         else -> "$days days ago"
+    }
+}
+
+/**
+ * Save and load API keys as their own file.
+ *
+ * Keys are the only thing in this app that cannot be rebuilt from anything else. Memories
+ * and conversations are in the backup; embeddings regenerate; a key that is gone has to be
+ * re-issued at the provider, and on some of them that means losing the old one's history.
+ * They are excluded from the automatic backup for good reason — it runs unattended into a
+ * folder that is often cloud-synced — so they need a door of their own, and this is it.
+ *
+ * Sealed with [com.aura.security.BackupCrypto], which derives its key from the typed
+ * passphrase and never consults the Keystore. That is the entire point: the file has to
+ * open on an install that shares nothing with the one that wrote it.
+ */
+@Composable
+private fun ApiKeyTransferRows(
+    busy: Boolean,
+    onSave: () -> Unit,
+    onLoad: () -> Unit,
+) {
+    Text(stringResource(R.string.api_key_backup), style = MaterialTheme.typography.titleSmall)
+    Text(
+        "A separate encrypted file, written only when you ask. Opens with the passphrase " +
+            "you choose — including after a reinstall, which is when you will need it.",
+        style = MaterialTheme.typography.bodySmall,
+        color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+        modifier = Modifier.padding(top = AuraSpacing.xxs),
+    )
+    Spacer(Modifier.height(AuraSpacing.xs))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+    ) {
+        OutlinedButton(onClick = onSave, enabled = !busy, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.save_api_keys))
+        }
+        OutlinedButton(onClick = onLoad, enabled = !busy, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.load_api_keys))
+        }
     }
 }

@@ -18,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Tests for [ContinuousVoiceViewModel] — verifies start/stop and
@@ -83,5 +84,49 @@ class ContinuousVoiceViewModelTest {
         vm.setLastResponse("Hello world")
 
         assertEquals("Hello world", vm.state.value.lastResponse)
+    }
+
+    // ---- mute actually stops the microphone -------------------------------
+
+    @Test
+    fun `muting stops the recogniser`() {
+        // Mute was a `remember` flag in ChatRoute read by nothing but the icon swap:
+        // VoiceCallScreen used it to pick MicOff over Mic and to tint the button. The
+        // recogniser was never told, so it kept listening and transcribing behind a UI
+        // showing a crossed-out microphone. That is a privacy bug wearing a UX bug's
+        // clothes — the one moment a user reaches for mute is when they do not want the
+        // next thing they say leaving the room.
+        val vm = makeVm()
+        vm.startLoop(onSend = {}, onStreamingDone = { true })
+
+        vm.setMuted(true)
+
+        assertTrue(vm.state.value.muted)
+        verify { stt.cancel() }
+    }
+
+    @Test
+    fun `unmuting starts listening again`() {
+        val vm = makeVm()
+        vm.startLoop(onSend = {}, onStreamingDone = { true })
+        vm.setMuted(true)
+
+        vm.setMuted(false)
+
+        assertFalse(vm.state.value.muted)
+        // Twice: once for the initial startLoop, once on unmute.
+        verify(atLeast = 2) { stt.start() }
+    }
+
+    @Test
+    fun `muting does not end the call`() {
+        // The silence timer hangs up after 10s of no speech. Muting produces exactly
+        // that, so leaving the timer running would turn a mute into a hang-up.
+        val vm = makeVm()
+        vm.startLoop(onSend = {}, onStreamingDone = { true })
+
+        vm.setMuted(true)
+
+        assertTrue(vm.state.value.active, "muting must not end the call")
     }
 }

@@ -1,5 +1,6 @@
 package com.aura.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import com.aura.agent.ToolRegistry
 import com.aura.providers.ToolDefinition
@@ -12,8 +13,21 @@ import javax.inject.Inject
 /**
  * State for the Tools browser screen. Holds the raw tool list and
  * the user's search query; `grouped` is the search-filtered result
- * bucketed by [com.aura.tools.ToolCategories].
+ * bucketed by [com.aura.agent.ToolCategories].
  */
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class ToolsUiState(
     val tools: List<ToolDefinition> = emptyList(),
     val query: String = "",
@@ -62,12 +76,12 @@ class ToolsViewModel @Inject constructor(
 
     /**
      * Group by category, then within each group sort by tool name.
-     * Categories appear in the same order as [com.aura.tools.ToolCategories.ALL],
+     * Categories appear in the same order as [com.aura.agent.ToolCategories.ALL],
      * with any unknown category (or empty) at the end under "Other".
      */
     private fun group(tools: List<ToolDefinition>): List<Pair<String, List<ToolDefinition>>> {
-        val order = com.aura.tools.ToolCategories.ALL
-        val bucketed = tools.groupBy { it.category.ifBlank { com.aura.tools.ToolCategories.OTHER } }
+        val order = com.aura.agent.ToolCategories.ALL
+        val bucketed = tools.groupBy { it.category.ifBlank { com.aura.agent.ToolCategories.OTHER } }
         val ordered = mutableListOf<Pair<String, List<ToolDefinition>>>()
         for (cat in order) {
             bucketed[cat]?.let { ordered.add(cat to it.sortedBy { t -> t.name }) }

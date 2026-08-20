@@ -72,7 +72,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.agent.Reaction
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.theme.Fraunces
 import com.aura.ui.theme.InterDisplay
@@ -103,31 +103,46 @@ fun AuraAiAvatar(
     size: Dp = 36.dp,
     modifier: Modifier = Modifier,
 ) {
-    val transition = rememberInfiniteTransition(label = "aura-avatar")
-    val ringScale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isThinking) 1.18f else 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (isThinking) 900 else 2400,
-                easing = LinearEasing,
+    // The transition is created only while the avatar is active, the same shape
+    // StreamingText uses for its cursor and for the same reason. `isActive` used to gate
+    // only the alpha *value*: two infinite animators were built for every assistant bubble
+    // in the list and kept ticking behind an alpha of 0.10, so a conversation with forty
+    // replies ran eighty animations and the chat never reached frame idle.
+    val ringScale: Float
+    val ringAlpha: Float
+    if (isActive) {
+        val transition = rememberInfiniteTransition(label = "aura-avatar")
+        val scale by transition.animateFloat(
+            initialValue = 1f,
+            targetValue = if (isThinking) 1.18f else 1.12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = if (isThinking) 900 else 2400,
+                    easing = LinearEasing,
+                ),
+                repeatMode = RepeatMode.Reverse,
             ),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "ring-scale",
-    )
-    val ringAlpha by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = if (isThinking) 0.55f else 0.40f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (isThinking) 900 else 2400,
-                easing = LinearEasing,
+            label = "ring-scale",
+        )
+        val alpha by transition.animateFloat(
+            initialValue = 0.25f,
+            targetValue = if (isThinking) 0.55f else 0.40f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = if (isThinking) 900 else 2400,
+                    easing = LinearEasing,
+                ),
+                repeatMode = RepeatMode.Reverse,
             ),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "ring-alpha",
-    )
+            label = "ring-alpha",
+        )
+        ringScale = scale
+        ringAlpha = alpha
+    } else {
+        // What the inactive avatar already rendered: a still ring at the resting scale.
+        ringScale = 1f
+        ringAlpha = 0.10f
+    }
     Box(
         modifier = modifier.size(size + AuraSpacing.sm),
         contentAlignment = Alignment.Center,
@@ -139,7 +154,7 @@ fun AuraAiAvatar(
                 .graphicsLayer {
                     scaleX = ringScale
                     scaleY = ringScale
-                    alpha = if (isActive) ringAlpha else 0.10f
+                    alpha = ringAlpha
                 }
                 .background(
                     brush = Brush.radialGradient(

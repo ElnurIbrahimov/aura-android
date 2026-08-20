@@ -1,4 +1,5 @@
 package com.aura.ui.viewmodel
+import androidx.compose.runtime.Immutable
 import android.util.Log
 
 import android.app.Application
@@ -27,7 +28,7 @@ import com.aura.providers.ModelCatalogRepository
 import com.aura.skills.Skill
 import com.aura.skills.SkillsStore
 import com.aura.taste.TasteEngine
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.ui.util.toSummary
 import com.aura.voice.TextToSpeech
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -218,6 +219,19 @@ internal fun resolveModelSelection(
 /** A question Aura is waiting to ask, reduced to what the card needs. */
 data class OpenQuestionPrompt(val id: String, val question: String)
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class ChatUiState(
     val conversation: com.aura.agent.Conversation = com.aura.agent.Conversation(),
     val conversationLoading: Boolean = false,
@@ -421,6 +435,20 @@ class ChatViewModel @Inject constructor(
     private val retrievalLabels: com.aura.memory.RetrievalLabelStore? = null,
     /** Projects this conversation can be attributed to. */
     private val projectStore: com.aura.projects.ProjectStore? = null,
+    /**
+     * The only state here that outlives the process.
+     *
+     * SavedStateHandle appeared nowhere in this app and rememberSaveable twice against 233
+     * `remember`, so nothing survived Android killing a backgrounded app — which it does
+     * for entirely routine reasons. Almost all of that is fine: a collapsed card reopening
+     * collapsed is not worth a line of code.
+     *
+     * The draft is the exception. It is the one piece of state the *user* authored, and it
+     * is not in Room precisely because it has not been sent. Look something up mid-message,
+     * come back, and it was gone. Nullable so the many tests that construct this directly
+     * do not all have to supply one.
+     */
+    private val savedStateHandle: androidx.lifecycle.SavedStateHandle? = null,
 ) : AndroidViewModel(application) {
 
     /**
@@ -585,6 +613,12 @@ class ChatViewModel @Inject constructor(
 
 
     init {
+        // Before anything that might overwrite it. A restored draft is only ever what the
+        // user last typed; if the process was never killed the handle is empty and this
+        // does nothing.
+        savedStateHandle?.get<String>(DRAFT_KEY)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { restored -> _state.update { it.copy(draft = restored) } }
         textToSpeech.initialize()
         // Sticky project attribution.
         //
@@ -806,6 +840,10 @@ class ChatViewModel @Inject constructor(
 
     fun setDraft(text: String) {
         _state.update { it.copy(draft = text) }
+        // Mirrored rather than read back on every keystroke: the flow stays the source of
+        // truth and this is only the copy the OS keeps. Written on clear too, or a sent
+        // message reappears in the field after the app is killed and reopened.
+        savedStateHandle?.set(DRAFT_KEY, text)
     }
 
     /**
@@ -1039,7 +1077,12 @@ class ChatViewModel @Inject constructor(
             runCatching { retrievalLabels?.markSupersededByEdit(turnProvenance(editedTurn)) }
                 .onFailure { Log.w("ChatViewModel", "edit marker write failed: ${it.message}", it) }
         }
-        val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex))
+        // subList is exclusive, so this drops the turn being edited along with everything
+        // after it — and then addUser puts the edited text back. Without that second half
+        // the message went nowhere: runSend's contract for retryUserText is that the
+        // caller has already rewound and left the user row in place, so it does not add
+        // one. Neither side did, and editing the first message emptied the conversation.
+        val truncated = conv.copy(turns = conv.turns.subList(0, turnIndex)).addUser(newText)
         _state.update {
             it.copy(
                 conversation = truncated,
@@ -1427,4 +1470,9 @@ class ChatViewModel @Inject constructor(
 
     fun onDocumentPicked(uri: Uri) =
         mediaController.onDocumentPicked(uri)
+
+    private companion object {
+        /** Where the unsent draft is mirrored so it can outlive the process. */
+        const val DRAFT_KEY = "chat_draft"
+    }
 }

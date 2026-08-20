@@ -446,9 +446,44 @@ private fun ToolsRoom(
             minLines = 5,
             label = { Text(stringResource(R.string.manuscript_text)) },
         )
+        // Which scene the analysis is filed against.
+        //
+        // `analyzeTension` has always taken an optional `artifactId`, and this screen has
+        // always omitted it — so `storeAndDiff` never ran, the report was never persisted,
+        // and `state.tensionDiff` below could only ever be null. The whole
+        // compare-with-the-previous-revision half of the feature was unreachable through
+        // the only button that reaches it.
+        //
+        // A scene has to be named because the panel analyses pasted text, which belongs to
+        // no artifact by itself. "Not linked" is the default and behaves exactly as before.
+        val scenes = state.selectedProject?.world?.outline.orEmpty()
+            .filter { it.artifactId.isNotBlank() }
+        var linkedArtifactId by remember { mutableStateOf<String?>(null) }
+        if (scenes.isNotEmpty()) {
+            Text(
+                stringResource(R.string.file_analysis_against),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
+            ) {
+                FilterChip(
+                    selected = linkedArtifactId == null,
+                    onClick = { linkedArtifactId = null },
+                    label = { Text(stringResource(R.string.not_linked)) },
+                )
+                scenes.forEach { scene ->
+                    FilterChip(
+                        selected = linkedArtifactId == scene.artifactId,
+                        onClick = { linkedArtifactId = scene.artifactId },
+                        label = { Text(scene.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    )
+                }
+            }
+        }
         Button(
             enabled = tensionText.length > 500 && !state.analyzingTension,
-            onClick = { viewModel.analyzeTension(tensionText) },
+            onClick = { viewModel.analyzeTension(tensionText, linkedArtifactId) },
         ) {
             Text(if (state.analyzingTension) "Analyzing..." else "Analyze Pacing")
         }

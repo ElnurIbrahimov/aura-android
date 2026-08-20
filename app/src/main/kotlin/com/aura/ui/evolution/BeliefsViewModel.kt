@@ -1,5 +1,6 @@
 package com.aura.ui.evolution
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aura.world.BeliefDao
@@ -17,6 +18,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import android.util.Log
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class BeliefsUiState(
     val beliefs: List<BeliefEntity> = emptyList(),
     /** Evidence supporting each belief, keyed by belief id. */

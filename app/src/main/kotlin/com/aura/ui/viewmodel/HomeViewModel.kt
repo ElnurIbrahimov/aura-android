@@ -1,5 +1,6 @@
 package com.aura.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -68,6 +69,19 @@ internal fun extractUserName(memories: List<MemoryEntity>): String? = memories.f
     candidate.takeIf { it.isNotBlank() }
 }
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class HomeUiState(
     val today: List<String> = emptyList(),  // calendar events (formatted)
     val recentMemories: List<MemoryEntity> = emptyList(),
@@ -354,7 +368,9 @@ class HomeViewModel @Inject constructor(
 
     private fun observeActiveAgent() {
         viewModelScope.launch {
-            userPreferences.defaultModel.collect { }
+            // No `defaultModel.collect { }` above this. It had an empty body and it never
+            // completed — DataStore flows do not — so this collect was unreachable and the
+            // agent shown on the home screen was permanently unnamed.
             userPreferences.agentId.collect { agentId ->
                 val name = agentId?.let { agentStore.byId(it)?.name }
                 updateObserved { it.copy(activeAgentId = agentId, activeAgentName = name) }

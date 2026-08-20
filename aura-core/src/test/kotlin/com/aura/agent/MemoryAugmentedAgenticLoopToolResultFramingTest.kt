@@ -5,7 +5,7 @@ import com.aura.providers.FinishReason
 import com.aura.providers.Provider
 import com.aura.providers.ProviderMessage
 import com.aura.providers.ProviderRegistry
-import com.aura.tools.ToolCategories
+import com.aura.agent.ToolCategories
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk

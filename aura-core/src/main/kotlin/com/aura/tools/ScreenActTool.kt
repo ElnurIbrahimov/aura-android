@@ -1,5 +1,6 @@
 package com.aura.tools
 
+import com.aura.agent.ToolCategories
 import com.aura.a11y.ActionRequest
 import com.aura.a11y.ScreenControlBridge
 import com.aura.a11y.ScreenControlException

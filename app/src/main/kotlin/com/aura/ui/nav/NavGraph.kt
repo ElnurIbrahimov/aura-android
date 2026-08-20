@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -96,11 +97,7 @@ fun NavGraph(
             launchRequest.openMemory -> TopLevelRoute.Memory.route
             else -> return@LaunchedEffect
         }
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
+        navController.navigateTopLevel(route)
     }
 
     Scaffold(
@@ -118,11 +115,7 @@ fun NavGraph(
                 AuraBottomNavigation(
                     currentRoute = backStackEntry?.destination?.route,
                     onRouteSelected = { route ->
-                        navController.navigate(route.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateTopLevel(route.route)
                     },
                     badgeCounts = if (pendingProposals > 0) {
                         mapOf(TopLevelRoute.Evolution.route to pendingProposals)
@@ -151,11 +144,7 @@ fun NavGraph(
                         } else {
                             TopLevelRoute.Chat.route
                         }
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateTopLevel(route)
                     },
                     onOpenChatWithBrief = { briefEventId ->
                         // Morning-brief proactive card. Pass only the
@@ -166,18 +155,10 @@ fun NavGraph(
                         } else {
                             TopLevelRoute.Chat.route
                         }
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateTopLevel(route)
                     },
                     onOpenMemory = {
-                        navController.navigate(TopLevelRoute.Memory.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateTopLevel(TopLevelRoute.Memory.route)
                     },
                     onOpenTasks = { navController.navigate(Route.Tasks.path) },
                     onOpenReminders = { navController.navigate(Route.Reminders.path) },
@@ -469,5 +450,34 @@ private fun dispatchProactiveAction(
             )
         com.aura.proactive.ProactiveAction.OpenCalendarApp -> openCalendarApp(navController)
         com.aura.proactive.ProactiveAction.None -> Unit
+    }
+}
+
+/**
+ * Whether navigating to [route] may restore that destination's saved back stack.
+ *
+ * `restoreState` restores the entry saved for the destination, and a restored entry keeps
+ * the arguments it was created with — the ones passed now are dropped. The destination is
+ * identified by its route *pattern*, so `chat?draft=hello` and `chat?briefId=7` both
+ * resolve to the same saved `chat` entry.
+ *
+ * That is exactly what the bottom bar wants and exactly what everything else does not.
+ * All five top-level navigates here used the same recipe, so once Chat had been opened and
+ * a tab switched even once, Home's ask field silently dropped what was typed into it and
+ * the morning-brief notification opened an empty chat.
+ *
+ * A route with arguments is the caller saying "this one, with these" — so it starts fresh.
+ */
+internal fun shouldRestoreState(route: String): Boolean = "?" !in route
+
+/**
+ * Navigate to a top-level destination with the bottom-bar back-stack behaviour, restoring
+ * saved state only when [shouldRestoreState] allows it.
+ */
+private fun NavController.navigateTopLevel(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = shouldRestoreState(route)
     }
 }

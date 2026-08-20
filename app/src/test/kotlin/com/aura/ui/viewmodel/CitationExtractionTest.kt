@@ -1,6 +1,6 @@
 package com.aura.ui.viewmodel
 
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject

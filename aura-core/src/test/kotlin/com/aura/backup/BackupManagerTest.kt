@@ -4,6 +4,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -58,6 +59,11 @@ class BackupManagerTest {
     private val evolutionRevisionDao = mockk<com.aura.evolution.EvolutionRevisionDao>(relaxed = true)
     private val agentDao = mockk<com.aura.agent.AgentDao>(relaxed = true)
     private val strategyBanditDao = mockk<com.aura.agent.StrategyBanditDao>(relaxed = true)
+    private val agentStateDao = mockk<com.aura.agent.state.AgentStateDao>(relaxed = true)
+    private val agentRelationshipDao = mockk<com.aura.agent.state.AgentRelationshipDao>(relaxed = true)
+    private val agentObservationDao = mockk<com.aura.agent.state.AgentObservationDao>(relaxed = true)
+    private val forumPostDao = mockk<com.aura.agent.forum.ForumPostDao>(relaxed = true)
+    private val forumVoteDao = mockk<com.aura.agent.forum.ForumVoteDao>(relaxed = true)
 
     private val manager = BackupManager(
         context = context,
@@ -82,6 +88,11 @@ class BackupManagerTest {
         evolutionRevisionDao = evolutionRevisionDao,
         agentDao = agentDao,
         strategyBanditDao = strategyBanditDao,
+        agentStateDao = agentStateDao,
+        agentRelationshipDao = agentRelationshipDao,
+        agentObservationDao = agentObservationDao,
+        forumPostDao = forumPostDao,
+        forumVoteDao = forumVoteDao,
     )
 
     /**
@@ -1018,5 +1029,184 @@ class BackupManagerTest {
         // Password must NOT be in the backup JSON.
         assertFalse(json.contains("smtp_password"))
         assertFalse(json.contains("password"))
+    }
+
+    // ------------------------------------------------- what "add to existing" promises
+
+    @Test
+    fun `merge restore keeps local rows the backup does not carry`() = runTest {
+        // The restore dialog says, in these words: "Add to existing keeps what is already
+        // here and writes the backup on top: rows with the same id are replaced, new rows are
+        // added, nothing is deleted."
+        //
+        // restoreCouncil and restoreStrategyBandit deleted their tables outright before
+        // writing, so a merge silently destroyed agent state, relationships, observations,
+        // forum posts, votes and every learned strategy weight the backup did not happen to
+        // contain. writeEverything took no RestoreMode, so it could not have known better.
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.1.0",
+                strategyBandit = listOf(
+                    com.aura.agent.StrategyBanditBackup("general", "DIRECT", 1.0, 1.0, 0L),
+                ),
+            ),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { strategyBanditDao.clear() }
+        coVerify(exactly = 0) { agentStateDao.deleteAll() }
+        coVerify(exactly = 0) { agentRelationshipDao.deleteAll() }
+        coVerify(exactly = 0) { agentObservationDao.deleteAll() }
+        coVerify(exactly = 0) { forumPostDao.deleteAll() }
+    }
+
+    @Test
+    fun `merge restore does not wipe the profile just because the backup has none`() = runTest {
+        // The one unconditional delete: a backup carrying no userProfile cleared the local
+        // one. Correct when replacing everything, and a silent loss of identity when merging.
+        manager.restore(
+            AuraBackup(exportedAt = 0L, appVersionName = "0.1.0"),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { userProfileDao.deleteAll() }
+    }
+
+    @Test
+    fun `merge restore still writes the rows the backup does carry`() {
+        // The control, and not a REPLACE one: replace refuses without a rollback snapshot,
+        // which this harness cannot take, so asserting on it would test the harness. This
+        // asserts the merge path still writes — without it, the two tests above would pass
+        // if restore stopped doing anything at all.
+        runTest {
+            manager.restore(
+                AuraBackup(
+                    exportedAt = 0L,
+                    appVersionName = "0.1.0",
+                    strategyBandit = listOf(
+                        com.aura.agent.StrategyBanditBackup("general", "DIRECT", 1.0, 1.0, 0L),
+                    ),
+                ),
+                BackupManager.RestoreMode.MERGE,
+            )
+
+            coVerify { strategyBanditDao.insertAll(any()) }
+        }
+    }
+
+    // ------------------------------------------------------- forum votes survive a restore
+
+    @Test
+    fun `restored forum posts keep the ids their votes point at`() = runTest {
+        // ForumPostEntity.id is autoGenerate, and ForumPostBackup carried no id at all — so
+        // posts came back with fresh ids while votes still carried the exporting device's,
+        // and forum_votes.postId pointed at rows that no longer existed. The FK violation was
+        // swallowed by the runCatching around restoreCouncil, so the votes were deleted, not
+        // restored, and the UI reported success. replyToId is broken the same way: reply
+        // threading does not survive either.
+        //
+        // The loss happens at export, not import. Every backup taken before this could not
+        // have reconnected its votes.
+        val posts = slot<com.aura.agent.forum.ForumPostEntity>()
+
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.1.0",
+                forumPosts = listOf(
+                    ForumPostBackup(
+                        id = 42L, threadId = "t1", agentId = "a1", replyToId = null,
+                        type = "proposal", title = "T", body = "B", sentiment = 0f,
+                        status = "open", createdAt = 1L,
+                    ),
+                ),
+                forumVotes = listOf(
+                    ForumVoteBackup(postId = 42L, agentId = "a1", vote = "yes", reason = "", createdAt = 1L),
+                ),
+            ),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify { forumPostDao.insert(capture(posts)) }
+        assertEquals(42L, posts.captured.id, "a post must come back under the id its votes reference")
+        coVerify { forumVoteDao.insert(any()) }
+    }
+
+    @Test
+    fun `votes from a backup that predates post ids are dropped rather than orphaned`() = runTest {
+        // An older backup carries no post ids, so its votes cannot be reconnected to anything.
+        // Inserting them anyway is what broke the whole council restore. Dropping them loses
+        // the votes — which were already lost — without taking the rest down with them.
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.1.0",
+                forumPosts = listOf(
+                    ForumPostBackup(
+                        threadId = "t1", agentId = "a1", replyToId = null, type = "proposal",
+                        title = "T", body = "B", sentiment = 0f, status = "open", createdAt = 1L,
+                    ),
+                ),
+                forumVotes = listOf(
+                    ForumVoteBackup(postId = 7L, agentId = "a1", vote = "yes", reason = "", createdAt = 1L),
+                ),
+            ),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { forumVoteDao.insert(any()) }
+    }
+
+    @Test
+    fun `add to existing does not clear forum votes`() = runTest {
+        // Pass A gated every other council delete on REPLACE and missed this one, so
+        // "Add to existing" — which the UI describes as "nothing is deleted" — still
+        // dropped every vote on the device before inserting the backup's.
+        manager.restore(
+            AuraBackup(
+                exportedAt = 0L,
+                appVersionName = "0.1.0",
+                forumPosts = listOf(
+                    ForumPostBackup(
+                        id = 42L, threadId = "t1", agentId = "a1", replyToId = null,
+                        type = "proposal", title = "T", body = "B", sentiment = 0f,
+                        status = "open", createdAt = 1L,
+                    ),
+                ),
+                forumVotes = listOf(
+                    ForumVoteBackup(postId = 42L, agentId = "a1", vote = "yes", reason = "", createdAt = 1L),
+                ),
+            ),
+            BackupManager.RestoreMode.MERGE,
+        )
+
+        coVerify(exactly = 0) { forumVoteDao.deleteAll() }
+    }
+
+    // ---------------------------------------------------- a partial export says it is partial
+
+    @Test
+    fun `a table that cannot be read is named in the backup it is missing from`() = runTest {
+        // Export is deliberately non-strict — the KDoc on snapshot argues a transient read
+        // failure should cost those rows, not the whole backup, and for a scheduled backup
+        // that is right. What was wrong is that the result was indistinguishable from a
+        // complete one: readTable contributed emptyList() and the worker recorded
+        // "wrote N KB". Six tables could vanish and every signal still said success, so the
+        // loss surfaced at restore, which is the one moment it cannot be fixed.
+        mockSnapshotDeps()
+        coEvery { evolutionProposalDao.allForBackup() } throws IllegalStateException("db locked")
+
+        val backup = manager.snapshot(appVersionName = "0.1.0")
+
+        assertEquals(listOf("evolution proposals"), backup.unreadableTables)
+        assertTrue(backup.evolutionProposals.isEmpty(), "the rows are still gone; only the silence is fixed")
+    }
+
+    @Test
+    fun `a complete export names no unreadable tables`() = runTest {
+        mockSnapshotDeps()
+
+        assertTrue(manager.snapshot(appVersionName = "0.1.0").unreadableTables.isEmpty())
     }
 }

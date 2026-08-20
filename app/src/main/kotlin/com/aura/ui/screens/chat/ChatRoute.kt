@@ -268,7 +268,6 @@ fun ChatRoute(
     var showHoldToTalk by remember { mutableStateOf(false) }
     var showContinuousVoice by remember { mutableStateOf(false) }
     var voiceCallMode by remember { mutableStateOf(false) }
-    var voiceMuted by remember { mutableStateOf(false) }
     var voiceCallDurationMs by remember { mutableStateOf(0L) }
     var voiceCallStartTime by remember { mutableStateOf(0L) }
     val continuousVoiceViewModel: ContinuousVoiceViewModel = hiltViewModel()
@@ -664,8 +663,11 @@ fun ChatRoute(
             VoiceCallScreen(
                 state = cvState,
                 callDurationMs = voiceCallDurationMs,
-                isMuted = voiceMuted,
-                onToggleMute = { voiceMuted = !voiceMuted },
+                // Read from the ViewModel, not from a local remember. The old flag was
+                // written here and read only by the icon, so the recogniser never heard
+                // about it and kept transcribing behind a crossed-out microphone.
+                isMuted = cvState.muted,
+                onToggleMute = { continuousVoiceViewModel.setMuted(!cvState.muted) },
                 onEndCall = {
                     continuousVoiceViewModel.stopLoop()
                     showContinuousVoice = false

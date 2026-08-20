@@ -19,6 +19,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Coverage instrumentation for the unit-test JVM. Off in release, and it
+            // slows the debug test run slightly, which is the price of ever knowing what
+            // fraction of the code the suite executes.
+            //
+            // Run:  ./gradlew jacocoTestReport
+            // Read: <module>/build/reports/jacoco/jacocoTestReport/html/index.html
+            enableUnitTestCoverage = true
+        }
         release {
             // Never shrink the library on its own: the app's R8 run does
             // whole-program shrinking with full visibility of what the app

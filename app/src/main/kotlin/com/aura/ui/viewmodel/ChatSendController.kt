@@ -11,7 +11,7 @@ import com.aura.agent.ToolResult
 import com.aura.core.error.AuraError
 import com.aura.data.UserPreferences
 import com.aura.kg.KnowledgeGraphRepository
-import com.aura.tools.Citation
+import com.aura.agent.Citation
 import com.aura.tools.DelegateToAgentTool
 import com.aura.voice.TextToSpeech
 import kotlinx.serialization.json.buildJsonObject
@@ -117,6 +117,23 @@ class ChatSendController(
 
     /** Wall-clock of the last streaming publication, for the throttle. */
     private var lastStreamPublishMs: Long = 0L
+
+    /**
+     * Reasoning tokens, buffered exactly as [responseBuffer] buffers answer tokens.
+     *
+     * `ThinkingDelta` used to do `streamingThinking + event.text` straight into the state:
+     * a fresh String per token and a whole-state publication with it, which is the same
+     * quadratic the throttle twenty lines below exists to prevent — reasoning models emit
+     * these as fast as answer tokens and there are usually more of them.
+     */
+    private var thinkingBuffer: StringBuilder = StringBuilder()
+    private var lastThinkingPublishMs: Long = 0L
+
+    /** Drop any buffered reasoning, so the next run does not inherit the last one's. */
+    private fun resetThinkingBuffer() {
+        thinkingBuffer = StringBuilder()
+        lastThinkingPublishMs = 0L
+    }
 
     /**
      * Push [responseBuffer]'s current contents onto the open turn.
@@ -247,7 +264,7 @@ class ChatSendController(
         // as agent-authored turns. Skip the main loop for this message.
         val mentions = text.extractAgentMentions(current.availableAgents)
         if (mentions.isNotEmpty()) {
-            state.update { it.copy(streaming = true, inFlightToolCalls = emptyList(), streamingThinking = "") }
+            state.update { it.copy(streaming = true, inFlightToolCalls = emptyList(), streamingThinking = "").also { resetThinkingBuffer() } }
             runJob = scope.launch {
                 try {
                     val conversationId = state.value.conversation.id
@@ -361,11 +378,11 @@ class ChatSendController(
                     recentTopics = recentTopics?.invoke() ?: "",
                 )
             } catch (e: CancellationException) {
-                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "").also { resetThinkingBuffer() } }
                 throw e
             } catch (e: Exception) {
                 onError(e.message ?: "unknown error")
-                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "").also { resetThinkingBuffer() } }
                 return@launch
             }
             collectRunEvents(events, strategy, category)
@@ -424,12 +441,20 @@ class ChatSendController(
                                 old.copy(
                                     conversation = updatedConversation,
                                     streamingThinking = "",
-                                )
+                                ).also { resetThinkingBuffer() }
                             }
                         }
                         is AgentEvent.ThinkingDelta -> {
-                            state.update { old ->
-                                old.copy(streamingThinking = old.streamingThinking + event.text)
+                            // Buffered and published at a bounded rate, the same shape as
+                            // TextDelta below and for the same reason. The whole buffer is
+                            // republished each time, never the latest fragment, so a
+                            // skipped publication costs nothing.
+                            thinkingBuffer.append(event.text)
+                            val now = System.currentTimeMillis()
+                            if (now - lastThinkingPublishMs >= STREAM_PUBLISH_INTERVAL_MS) {
+                                lastThinkingPublishMs = now
+                                val snapshot = thinkingBuffer.toString()
+                                state.update { it.copy(streamingThinking = snapshot) }
                             }
                         }
                         is AgentEvent.TextDelta -> {
@@ -637,7 +662,7 @@ class ChatSendController(
                 // partial answer would be up to one interval stale at the exact
                 // moment it gets persisted.
                 if (responseBuffer.isNotEmpty()) publishStreamingText()
-                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "") }
+                state.update { it.copy(streaming = false, deepModeActive = false, streamingThinking = "").also { resetThinkingBuffer() } }
             }
     }
 

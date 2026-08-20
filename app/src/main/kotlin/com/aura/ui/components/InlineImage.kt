@@ -2,6 +2,7 @@ package com.aura.ui.components
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.aura.ui.viewmodel.calculateImageSampleSize
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,13 +80,13 @@ private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.I
         // (a spinner, then an empty box, with the bitmap null).
         if (url.startsWith("file://") || url.startsWith("/")) {
             val path = if (url.startsWith("file://")) android.net.Uri.parse(url).path else url
-            return@runCatching path?.let { BitmapFactory.decodeFile(it) }
+            return@runCatching path?.let { decodeSampled(it) }
         }
         val request = Request.Builder().url(url).build()
         val response = sharedImageClient.newCall(request).execute()
         if (!response.isSuccessful) return@withContext null
         val bytes = response.body?.bytes() ?: return@withContext null
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        decodeSampled(bytes)
     }.onFailure { Log.w("InlineImage", "image load failed for $url: ${it.message}", it) }.getOrNull()
 }
 
@@ -291,4 +292,41 @@ private fun ViewerButton(
     ) {
         Icon(icon, contentDescription = label)
     }
+}
+
+/**
+ * Longest edge, in pixels, an inline chat image is decoded to.
+ *
+ * These render at roughly a screen width inside a scrolling list. Decoding at full
+ * resolution bought nothing visible and cost a great deal: a 2048×2048 generation is about
+ * 16 MB of ARGB_8888, held in Compose state for as long as the message is on screen, and
+ * image generations arrive several to a conversation.
+ *
+ * Generous rather than tight — 2048 covers a fold's inner display at 3x — because the
+ * saving is quadratic and the first halving already takes 16 MB to 4 MB.
+ */
+private const val MAX_INLINE_TEXTURE_PX = 2048
+
+/**
+ * Decode within [MAX_INLINE_TEXTURE_PX] using `inJustDecodeBounds` to measure first.
+ *
+ * [calculateImageSampleSize] already existed in `ChatMediaPolicy`, with tests, and nothing
+ * called it — both decode paths here went straight to full resolution.
+ */
+private fun decodeSampled(bytes: ByteArray): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = calculateImageSampleSize(bounds.outWidth, bounds.outHeight, MAX_INLINE_TEXTURE_PX)
+    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+}
+
+private fun decodeSampled(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = calculateImageSampleSize(bounds.outWidth, bounds.outHeight, MAX_INLINE_TEXTURE_PX)
+    }
+    return BitmapFactory.decodeFile(path, options)
 }

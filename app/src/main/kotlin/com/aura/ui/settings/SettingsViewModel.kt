@@ -1,5 +1,6 @@
 package com.aura.ui.settings
 
+import androidx.compose.runtime.Immutable
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -100,6 +101,19 @@ private val TOOL_CREDENTIAL_PREFIXES: Set<String> = SETTINGS_CREDENTIAL_SPECS
     .filterNot { it.testsModelCatalog }
     .mapTo(mutableSetOf()) { it.prefix }
 
+/**
+ * Marked [Immutable] so Compose skips on `equals` instead of identity.
+ *
+ * Every one of these is republished as a fresh object on each change, so under strong
+ * skipping an unstable state class meant a screen taking it recomposed on every publish
+ * whether or not anything it read had changed. The promise holds: all properties are
+ * `val`, and the collections are replaced through `copy()` — there is no `MutableList`
+ * property anywhere in main sources and nothing mutates a state collection in place.
+ *
+ * It is a promise the compiler cannot check. A field that starts being mutated in place
+ * will stop recomposing rather than fail to build.
+ */
+@Immutable
 data class SettingsUiState(
     val keyDrafts: Map<String, String> = ProviderKeys.PREFIXES.associateWith { "" },
     /** Map of ModelRole to selected model id (empty string = unset). */
