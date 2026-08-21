@@ -61,6 +61,17 @@ class DeepResearchTool @Inject constructor(
     private val providerKeys: ProviderKeys,
     private val providerRegistry: ProviderRegistry,
     private val userPreferences: UserPreferences? = null,
+    // The two search backends, injected rather than re-implemented. This class
+    // used to build its own Tavily and Brave requests — same endpoints, same
+    // auth headers, same response shapes, parsed a second time. `WebSearchTool`
+    // already delegates to these, and a second copy of an API integration is a
+    // second place for a header or a field name to go stale.
+    //
+    // Defaulted null so the existing positional constructions in tests keep
+    // working; absent, the copies below are gone and the DuckDuckGo fallback
+    // handles it, which is what happens today with no keys configured.
+    private val tavilySearchTool: TavilySearchTool? = null,
+    private val braveSearchTool: BraveSearchTool? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaType = "application/json".toMediaType()
@@ -276,83 +287,32 @@ class DeepResearchTool @Inject constructor(
 
     private data class SearchResult(val title: String, val url: String, val snippet: String)
 
-    private fun performSearch(query: String, maxResults: Int): List<SearchResult> {
+    private suspend fun performSearch(query: String, maxResults: Int): List<SearchResult> {
+        // Key present decides the backend; a failure from a present key is not
+        // caught.
+        //
+        // The first version of this delegation wrapped both calls in
+        // `runCatching` and fell through on failure, which turned a 401 from a
+        // mistyped Tavily key into quietly worse DuckDuckGo results with nothing
+        // said. `search HTTP error returns error` caught it. A configured key
+        // that does not work is a misconfiguration only the user can fix, and
+        // the fallback exists for *no key*, not for a broken one.
+        val tavily = tavilySearchTool
         val tavilyKey = providerKeys.keyFor("tavily")
-        return if (!tavilyKey.isNullOrBlank()) {
-            searchTavily(query, maxResults, tavilyKey)
-        } else {
-            searchBrave(query, maxResults)
+        if (!tavilyKey.isNullOrBlank() && tavily != null) {
+            return tavily.searchStructured(query, maxResults, tavilyKey)
+                .map { SearchResult(it.title, it.url, it.snippet) }
         }
-    }
 
-    private fun searchTavily(query: String, maxResults: Int, apiKey: kotlin.String): List<SearchResult> {
-        val requestBody = buildJsonObject {
-            put("query", query)
-            put("max_results", maxResults.coerceIn(5, 20))
-            put("search_depth", "basic")
-        }.toString()
-
-        val req = Request.Builder()
-            .url("https://api.tavily.com/search")
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "application/json")
-            .header("User-Agent", "Mozilla/5.0 Aura/1.0")
-            .post(requestBody.toRequestBody(mediaType))
-            .build()
-
-        httpClient.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) throw RuntimeException("Tavily API HTTP ${resp.code}")
-            val bodyStr = resp.body?.string() ?: return emptyList()
-            val root = json.parseToJsonElement(bodyStr).jsonObject
-            val results = root["results"]?.jsonArray ?: return emptyList()
-            return results.mapNotNull { el ->
-                val obj = el.jsonObject
-                val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val resultUrl = obj["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val snippet = obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
-                SearchResult(title = title, url = resultUrl, snippet = snippet)
-            }
-        }
-    }
-
-    private fun searchBrave(query: String, maxResults: Int): List<SearchResult> {
+        val brave = braveSearchTool
         val braveKey = providerKeys.keyFor("brave")
-        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-
-        return if (!braveKey.isNullOrBlank()) {
-            searchBraveApi(maxResults, braveKey, encoded)
-        } else {
-            searchDuckDuckGo(encoded, maxResults)
+        if (!braveKey.isNullOrBlank() && brave != null) {
+            return brave.searchStructured(query, maxResults, braveKey)
+                .map { SearchResult(it.title, it.url, it.snippet) }
         }
-    }
 
-    private fun searchBraveApi(
-        maxResults: Int,
-        apiKey: kotlin.String,
-        encoded: String,
-    ): List<SearchResult> {
-        val url = "https://api.search.brave.com/res/v1/web/search?q=$encoded&count=$maxResults"
-        val req = Request.Builder()
-            .url(url)
-            .header("X-Subscription-Token", apiKey)
-            .header("User-Agent", "Mozilla/5.0 Aura/1.0")
-            .header("Accept", "application/json")
-            .build()
-
-        httpClient.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) throw RuntimeException("Brave API HTTP ${resp.code}")
-            val bodyStr = resp.body?.string() ?: return emptyList()
-            val root = json.parseToJsonElement(bodyStr).jsonObject
-            val web = root["web"]?.jsonObject ?: return emptyList()
-            val results = web["results"]?.jsonArray ?: return emptyList()
-            return results.mapNotNull { el ->
-                val obj = el.jsonObject
-                val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val resultUrl = obj["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val snippet = obj["description"]?.jsonPrimitive?.contentOrNull ?: ""
-                SearchResult(title = title, url = resultUrl, snippet = snippet)
-            }
-        }
+        // Free, keyless, and the only one of the three that always answers.
+        return searchDuckDuckGo(java.net.URLEncoder.encode(query, "UTF-8"), maxResults)
     }
 
     private fun searchDuckDuckGo(encoded: String, maxResults: Int): List<SearchResult> {

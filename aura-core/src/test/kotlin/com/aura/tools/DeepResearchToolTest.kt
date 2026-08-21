@@ -68,7 +68,18 @@ class DeepResearchToolTest {
             )
         }
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         val result = tool.execute(
             call("query" to "What is Kotlin?", "max_sources" to 2),
             ctx(),
@@ -94,7 +105,18 @@ class DeepResearchToolTest {
         val httpClient = mockk<OkHttpClient>()
         val mockRegistry = mockk<ProviderRegistry>()
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         val result = tool.execute(call(), ctx())
 
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
@@ -120,7 +142,18 @@ class DeepResearchToolTest {
 
         val mockRegistry = mockk<ProviderRegistry>()
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         val result = tool.execute(call("query" to "nothing"), ctx())
 
         assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
@@ -149,7 +182,18 @@ class DeepResearchToolTest {
 
         val mockRegistry = mockk<ProviderRegistry>()
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         val result = tool.execute(call("query" to "test"), ctx())
 
         assertTrue("expected Error, got $result") { result is ToolResult.Error }
@@ -188,7 +232,18 @@ class DeepResearchToolTest {
             )
         }
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         val result = tool.execute(call("query" to "Kotlin"), ctx())
 
         assertTrue("expected Ok, got $result") { result is ToolResult.Ok }
@@ -230,7 +285,18 @@ class DeepResearchToolTest {
             )
         }
 
-        val tool = DeepResearchTool(httpClient, providerKeys, mockRegistry, prefs()).tool
+        val tool = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            mockRegistry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
         // Only query, no max_sources — should default to 5
         val result = tool.execute(call("query" to "test"), ctx())
 
@@ -264,7 +330,18 @@ class DeepResearchToolTest {
             )
         }
 
-        val result = DeepResearchTool(httpClient, providerKeys, registry, prefs()).tool
+        val result = DeepResearchTool(
+            httpClient,
+            providerKeys,
+            registry,
+            prefs(),
+            // The Tavily and Brave calls moved into these two tools, which is
+            // what this class now delegates to instead of building the same
+            // requests a second time. Passed the same mock client, so the
+            // canned responses below still answer them.
+            TavilySearchTool(httpClient, providerKeys),
+            BraveSearchTool(httpClient, providerKeys),
+        ).tool
             .execute(call("query" to "test"), ctx())
 
         assertTrue(result is ToolResult.Ok)
