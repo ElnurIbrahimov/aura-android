@@ -239,13 +239,24 @@ class MemoryDatabaseMigrationTest {
      * Full chain from the oldest schema we can still instantiate (v6) to
      * head (v14).
      *
-     * MemoryDatabase's Room schema exports skip 7.json through 10.json —
-     * those versions shipped without their schema files being committed, and
-     * they were never in git, so they cannot be recovered. The direct
-     * consequence is that no test can call `createDatabase(name, 7..10)`:
-     * MigrationTestHelper needs the JSON to build the starting schema. That
-     * left MIGRATION_6_7 through MIGRATION_13_14 — eight migrations, four of
-     * them 70+ lines of DDL — with no coverage at all.
+     * MemoryDatabase's exports for 7.json through 10.json exist and are wrong,
+     * which is not the same problem this comment used to describe.
+     *
+     * It said those versions "were never in git, so they cannot be recovered".
+     * Both halves are false. All four files are committed, and commit
+     * `fce29f6c` (2026-07-26) is where they came from — its bullet reads
+     * "Regenerate missing Room schemas for MemoryDatabase v7-v10", and by then
+     * the database was at v14, so the build emitted today's entity set and the
+     * version field was relabelled four times. They are recoverable too: the
+     * commits where each version was current still exist (640f606f, 883fd749,
+     * e11eeb6e, 786a7731, all 2026-07-16).
+     *
+     * The practical consequence is the one this comment got right. Nothing can
+     * usefully call `createDatabase(name, 7..10)`, because the JSON it would
+     * build from describes v14. That leaves MIGRATION_6_7 through
+     * MIGRATION_13_14 — eight migrations, four of them 70+ lines of DDL —
+     * without a per-hop baseline. `MigrationReplayTest.untrustedBaselines`
+     * carries the same record on the JVM side.
      *
      * This closes the gap from the other end. Starting at v6 (whose schema
      * does exist) and validating against v14 (which also exists) forces

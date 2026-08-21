@@ -124,6 +124,20 @@ class QuickAskActivity : androidx.fragment.app.FragmentActivity() {
     }
 
     /**
+     * Release the biometric slot this activity claimed in [onCreate].
+     *
+     * This class had no lifecycle override but `onCreate`, so the slot stayed
+     * pointed at a destroyed overlay until something else happened to claim it
+     * — and `BiometricPrompt` was handed that dead activity in the meantime.
+     * The clear is identity-checked because `MainActivity` owns the same slot
+     * and is usually still alive behind this one.
+     */
+    override fun onDestroy() {
+        biometricHolder.clearIfCurrent(this)
+        super.onDestroy()
+    }
+
+    /**
      * Echo the answer onto the widget — unless the app can lock.
      *
      * Two defects, both invisible:

@@ -78,8 +78,16 @@ class ConversationKgExtractor private constructor(
      * drop already-queued turns. The previous debounceJob is cancelled
      * (its delay is interrupted), and a new one starts that will
      * drain the queue when it fires.
+     *
+     * An [AtomicReference] rather than a `@Volatile var`, because the restart
+     * is a swap and `@Volatile` only makes each half of it atomic. Two turns
+     * arriving together could both read the same old job, both cancel it, and
+     * both launch — leaving two live drain timers for one queue. [running] is
+     * meant to catch that, but it is a check-then-act itself, so the duplicate
+     * was only usually suppressed. When it was not, the second drain called
+     * [runOne] and paid for a second extraction of the same turns.
      */
-    @Volatile private var debounceJob: Job? = null
+    private val debounceJob = java.util.concurrent.atomic.AtomicReference<Job?>(null)
 
     /**
      * `true` while an extraction run is in progress (between
@@ -100,8 +108,7 @@ class ConversationKgExtractor private constructor(
     /** Visible for testing / teardown. */
     fun shutdown() {
         scope.cancel()
-        debounceJob?.cancel()
-        debounceJob = null
+        debounceJob.getAndSet(null)?.cancel()
     }
 
     /**
@@ -131,11 +138,16 @@ class ConversationKgExtractor private constructor(
         // Restart the debounce — the previous delay is interrupted,
         // a new one starts. This still preserves the queued turns
         // (they live in `pending`, not in the debounce job).
-        debounceJob?.cancel()
-        debounceJob = scope.launch {
+        //
+        // Launch first, then swap: getAndSet hands back whichever job this
+        // caller actually displaced, so concurrent callers cancel one job each
+        // and exactly one timer survives. Cancelling before swapping let two
+        // callers cancel the same job and leave two behind.
+        val next = scope.launch {
             delay(DEBOUNCE_MS)
             drainQueue()
         }
+        debounceJob.getAndSet(next)?.cancel()
     }
 
     /**
@@ -165,11 +177,14 @@ class ConversationKgExtractor private constructor(
             // (e.g. the last turn was queued just as drain
             // started), kick off one now.
             if (pending.isNotEmpty()) {
-                debounceJob?.cancel()
-                debounceJob = scope.launch {
+                // Same launch-then-swap ordering as `extract`, and for the same
+                // reason: this runs in the drain's `finally`, so it can race a
+                // turn arriving on another thread.
+                val next = scope.launch {
                     delay(DEBOUNCE_MS)
                     drainQueue()
                 }
+                debounceJob.getAndSet(next)?.cancel()
             }
         }
     }

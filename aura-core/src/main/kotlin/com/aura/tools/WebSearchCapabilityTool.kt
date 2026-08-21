@@ -64,8 +64,6 @@ class WebSearchCapabilityTool @Inject constructor(
         category = "web",
     )
 
-    private data class DdgResult(val title: String, val url: String, val snippet: String)
-
     private fun formatResults(results: List<WebSearchResult>, source: String): String {
         if (results.isEmpty()) return "No results from $source."
         return buildString {

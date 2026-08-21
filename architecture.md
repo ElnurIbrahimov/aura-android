@@ -213,7 +213,7 @@ a tie. Recorded hands are never scheduled: `screen_act` needs a session a person
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,547 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,557 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 82 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -319,4 +319,4 @@ Five components, all persisted so they survive the process death Android imposes
 sessions: `NarrativeSelf` and `IntrinsicMotivation` and `TheoryOfMind` (JSON in `filesDir`),
 `EmotionEngine` and `AffinityTracker` (DataStore). `DriveSignals` is derived, not stored.
 
-None of them are in the backup schema — see ENGINEERING_HISTORY §3.
+All five are in the backup schema as of v18 (`AuraBackupSchema18.kt`). This line said the opposite for longer than the gap it described, which is why README now carries the correction next to the claim rather than a pointer to it.

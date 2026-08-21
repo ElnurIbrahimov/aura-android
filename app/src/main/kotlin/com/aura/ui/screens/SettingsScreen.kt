@@ -227,6 +227,8 @@ fun SettingsScreen(
             appAwarenessEnabled = state.appAwarenessEnabled,
             placeLogEnabled = state.placeLogEnabled,
             onSetPlaceLogEnabled = viewModel::setPlaceLogEnabled,
+            projectLedgerEnabled = state.projectLedgerEnabled,
+            onSetProjectLedgerEnabled = viewModel::setProjectLedgerEnabled,
             onSetAppAwarenessEnabled = viewModel::setAppAwarenessEnabled,
             onSetAppLock = viewModel::setAppLockEnabled,
             onSetMorningBrief = viewModel::setMorningBriefEnabled,

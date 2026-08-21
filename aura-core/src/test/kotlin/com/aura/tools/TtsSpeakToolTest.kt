@@ -46,6 +46,9 @@ class TtsSpeakToolTest {
         val result = tool.execute(ToolCall("id-2", tool.name, mapOf("text" to "hello")),
             ToolContext(conversationId = "test"))
         assertTrue(result is ToolResult.Error)
-        assertEquals("No TTS provider configured. Add an ElevenLabs key in Settings or enable platform TTS.", (result as ToolResult.Error).message)
+        assertEquals(
+            "No TTS provider configured. Add an ElevenLabs key in Settings, or use the device's own voice from Settings → Voice.",
+            (result as ToolResult.Error).message,
+        )
     }
 }

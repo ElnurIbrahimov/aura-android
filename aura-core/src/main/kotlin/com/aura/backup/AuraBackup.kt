@@ -19,9 +19,13 @@ import kotlinx.serialization.Serializable
  * (the JSON file would have plaintext keys sitting in a backup).
  *
  * Embeddings are also omitted. They are model-specific, take ~1.5 KB
- * per row, and are rebuilt on the next embedding pass. The
- * `memoryRebuildEmbeddings` action in Settings handles the rebuild
- * after a restore.
+ * per row, and are rebuilt afterwards rather than carried.
+ * [com.aura.backup.BackupManager.restore] enqueues
+ * [com.aura.memory.ReembedWorker] when it finishes, so the rebuild is the
+ * app's job and not the user's. Settings —> Memory —> Rebuild embeddings
+ * ([com.aura.ui.viewmodel.MemoryViewModel.rebuildEmbeddings]) still forces
+ * one on demand. This paragraph previously named a `memoryRebuildEmbeddings`
+ * action, which has never existed under that name.
  */
 @Serializable
 data class AuraBackup(

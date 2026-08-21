@@ -218,8 +218,10 @@ fun DataAndBackupSection(
                         "exactly what the file holds.\n\n" +
                         "Either way, the settings in the backup overwrite your current settings - " +
                         "a merge merges rows, not preferences.\n\n" +
-                        "Embeddings are NOT included - after restoring, go to the Memory tab " +
-                        "and tap 'Rebuild embeddings' to re-embed everything in one pass.\n\n" +
+                        "Embeddings are NOT included - Aura rebuilds them itself after the " +
+                        "restore, in the background and when the battery is not low. " +
+                        "You can force a pass from the Memory tab if you do not want " +
+                        "to wait.\n\n" +
                         "API keys and connected accounts are NOT included either - they are " +
                         "encrypted to the install that made the file. Re-paste your keys in " +
                         "Settings after restoring."

@@ -475,15 +475,4 @@ class ChatGptSubscriptionProvider(
         activeEventSource = null
     }
 
-/**
- * Mutable accumulator for streaming OpenAI tool-call deltas.
- */
-private class ToolCallBuilder {
-    var id: String = ""
-    var name: String = ""
-    val arguments = StringBuilder()
-
-    fun isComplete(): Boolean = id.isNotBlank() && name.isNotBlank()
-    fun toToolCall(): ToolCall = ToolCall(id = id, name = name, arguments = arguments.toString().ifBlank { "{}" })
-}
 }

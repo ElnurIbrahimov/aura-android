@@ -784,7 +784,14 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        textToSpeech.shutdown()
+        // stop(), not shutdown(). `TextToSpeech` is a @Singleton and this
+        // ViewModel has two ViewModelStoreOwners — the chat back-stack entry and
+        // `QuickAskActivity`. `shutdown()` destroys the platform engine for the
+        // whole process and only `initialize()` brings it back, which runs in
+        // this class's init, so dismissing the widget overlay left the chat
+        // screen's TTS permanently mute with nothing to say why.
+        // `ContinuousVoiceViewModel.onCleared` already gets this right.
+        textToSpeech.stop()
         networkCallback?.let { cb ->
             runCatching {
                 val cm = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE)

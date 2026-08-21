@@ -576,6 +576,52 @@ class BackupManagerTest {
     }
 
     @Test
+    fun `a merge that cannot snapshot first never purges on failure`() = runTest {
+        // Regression, and the worst one this class has held: a MERGE could empty
+        // all eleven databases.
+        //
+        // restore() refuses to start without a pre-restore snapshot only when
+        // mode == REPLACE. A merge runs regardless — reasonably, since every
+        // delete inside writeEverything is guarded on REPLACE, so a merge only
+        // ever adds rows. But the failure path then called purgeAll() before it
+        // checked whether a snapshot existed to restore from. With no snapshot
+        // there was nothing to put back, so a single failed insert wiped tables
+        // the import had never touched, on the operation the confirmation dialog
+        // describes to the user as "nothing is deleted".
+        //
+        // Two ordinary things produce a null snapshot: the spool could not be
+        // written or read, and a merge never required one in the first place.
+        mockSnapshotDeps()
+        // strict = true on the rollback snapshot, so a failed table read
+        // propagates and writeRollbackSnapshot() returns null.
+        coEvery { memoryDao.allForExport() } throws RuntimeException("cannot read memories")
+        // The import then fails partway through, as it did above.
+        coEvery { conversationDao.insertAll(any()) } throws RuntimeException("disk full")
+
+        val importBackup = AuraBackup(
+            exportedAt = 0L,
+            appVersionName = "0.1.0",
+            memories = listOf(
+                MemoryBackup("im1", "imported memory", "user", "fact", "general", 0.5f, 1L, 1L, 0, 1f, "", "{}"),
+            ),
+            conversations = listOf(
+                ConversationBackup("c1", "t", 1L, 2L, null, "m", "{}", "[]"),
+            ),
+        )
+
+        assertFailsWith<RuntimeException> {
+            manager.restore(importBackup, BackupManager.RestoreMode.MERGE)
+        }
+
+        // Nothing was purged. The half-imported database is worse than a clean
+        // rollback and far better than an empty one, and the interrupted-restore
+        // marker is what tells the next launch which of the two it is holding.
+        coVerify(exactly = 0) { memoryDao.deleteAll() }
+        coVerify(exactly = 0) { conversationDao.deleteAll() }
+        coVerify(exactly = 0) { taskDao.deleteAll() }
+    }
+
+    @Test
     fun `defaultExportFileName ends in json and has a timestamp that matches`() {
         // Use a fixed instant and verify the filename contains the
         // timestamp in some timezone-recognizable form. We just check

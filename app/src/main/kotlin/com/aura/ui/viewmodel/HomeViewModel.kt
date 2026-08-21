@@ -164,7 +164,20 @@ class HomeViewModel @Inject constructor(
     private val knowledgeGraphRepository: KnowledgeGraphRepository,
     private val reminderDao: ReminderDao,
     private val handDao: com.aura.hands.HandDao,
-    private val toolRegistry: com.aura.agent.ToolRegistry,
+    /**
+     * A [javax.inject.Provider], not the registry, and read off the main
+     * thread below.
+     *
+     * This is used for one thing: the number in "All N tools". Injecting it
+     * directly made Hilt build `ToolRegistry` to satisfy this constructor, and
+     * that pulls the 81-parameter `provideToolRegistry` and every tool's
+     * transitive graph. `HomeViewModel` is built on the main thread when Home
+     * — the start destination — is first composed, so the work `AuraApp`
+     * deliberately defers off the first frame was being done during it anyway,
+     * for a label. `definitions()` itself is cached and cheap; it was never the
+     * cost.
+     */
+    private val toolRegistry: javax.inject.Provider<com.aura.agent.ToolRegistry>,
     private val skillsStore: com.aura.skills.SkillsStore,
     private val creativeProjectStore: com.aura.creative.CreativeProjectStore,
     private val affinityTracker: com.aura.consciousness.AffinityTracker? = null,
@@ -350,9 +363,24 @@ class HomeViewModel @Inject constructor(
 
     private fun loadToolsCount() {
         viewModelScope.launch {
-            updateObserved { it.copy(toolsCount = toolRegistry.definitions().size) }
+            val count = countTools()
+            updateObserved { it.copy(toolsCount = count) }
         }
     }
+
+    /**
+     * Build the registry (first call only) and count it, off the main thread.
+     *
+     * `viewModelScope` is `Main.immediate`, so resolving the provider inside it
+     * without this hop would put the same graph construction back on the main
+     * thread, just a little later. Safe to build off Main for the reason
+     * `AuraApp` records: nothing in the tool graph needs a Looper to be
+     * constructed.
+     */
+    private suspend fun countTools(): Int =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            toolRegistry.get().definitions().size
+        }
 
     private fun observeMemories() {
         viewModelScope.launch {
@@ -439,7 +467,7 @@ class HomeViewModel @Inject constructor(
                 val latestProactive = proactiveEvents.latest.first()
                 val proactiveHistory = proactiveEvents.history.first()
                 val proactiveUnread = proactiveEvents.unreadCount.first()
-                val toolsCount = toolRegistry.definitions().size
+                val toolsCount = countTools()
                 val name = extractUserName(recentForProfile)
 
                 val loaded = _state.value.copy(

@@ -198,54 +198,68 @@ class AuraAccessibilityService : AccessibilityService() {
             // API 30+. Below that there is no accessibility screenshot at all
             // and the caller must fall back to MediaProjection.
             if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return null
-            return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
-                suspendCancellableCoroutine { cont ->
-                    takeScreenshot(
-                        android.view.Display.DEFAULT_DISPLAY,
-                        java.util.concurrent.Executors.newSingleThreadExecutor(),
-                        object : TakeScreenshotCallback {
-                            override fun onSuccess(result: ScreenshotResult) {
-                                val bytes = runCatching {
-                                    val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
-                                        result.hardwareBuffer,
-                                        result.colorSpace,
-                                    ) ?: return@runCatching null
-                                    val copy = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-                                    java.io.ByteArrayOutputStream().use { out ->
-                                        copy.compress(
-                                            android.graphics.Bitmap.CompressFormat.JPEG,
-                                            quality.coerceIn(1, 100),
-                                            out,
-                                        )
-                                        out.toByteArray()
-                                    }
-                                }.getOrNull()
-                                // The HardwareBuffer is ours to close; leaking
-                                // one per capture exhausts graphics memory and
-                                // the symptom appears far from the cause.
-                                runCatching { result.hardwareBuffer.close() }
-                                    .onFailure { Log.w(TAG, "hardware buffer close failed: ${it.message}", it) }
-                                if (cont.isActive) cont.resume(bytes) {}
-                            }
-
-                            override fun onFailure(errorCode: Int) {
-                                // A FLAG_SECURE window failing here is expected.
-                                // Everything else is not, and treating the whole
-                                // callback as "expected" is what let a total
-                                // outage hide: the service was missing
-                                // canTakeScreenshot, so every call landed here
-                                // with NO_ACCESSIBILITY_ACCESS, resumed null, and
-                                // looked exactly like a banking app being
-                                // screenshotted. Naming the code is the
-                                // difference between a fallback and a failure.
-                                if (errorCode != AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) {
-                                    Log.w(TAG, "accessibility screenshot failed: ${screenshotErrorName(errorCode)}")
+            // Hoisted out of the argument list so there is something to shut
+            // down. Created inline, every capture leaked a live non-daemon
+            // thread for the life of the service — on the one path this class
+            // advertises as safe to loop on. `AppLockGate` and
+            // `BiometricPromptTool` both create the same executor and both shut
+            // it down on every path; the comment in `AppLockGate` says the
+            // cancelled path was the one that used to leak, which is this one:
+            // the call below sits inside `withTimeoutOrNull`, so a screenshot
+            // that never calls back leaves through the timeout.
+            val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+            return try {
+                withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
+                    suspendCancellableCoroutine { cont ->
+                        takeScreenshot(
+                            android.view.Display.DEFAULT_DISPLAY,
+                            executor,
+                            object : TakeScreenshotCallback {
+                                override fun onSuccess(result: ScreenshotResult) {
+                                    val bytes = runCatching {
+                                        val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
+                                            result.hardwareBuffer,
+                                            result.colorSpace,
+                                        ) ?: return@runCatching null
+                                        val copy = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                        java.io.ByteArrayOutputStream().use { out ->
+                                            copy.compress(
+                                                android.graphics.Bitmap.CompressFormat.JPEG,
+                                                quality.coerceIn(1, 100),
+                                                out,
+                                            )
+                                            out.toByteArray()
+                                        }
+                                    }.getOrNull()
+                                    // The HardwareBuffer is ours to close; leaking
+                                    // one per capture exhausts graphics memory and
+                                    // the symptom appears far from the cause.
+                                    runCatching { result.hardwareBuffer.close() }
+                                        .onFailure { Log.w(TAG, "hardware buffer close failed: ${it.message}", it) }
+                                    if (cont.isActive) cont.resume(bytes) {}
                                 }
-                                if (cont.isActive) cont.resume(null) {}
-                            }
-                        },
-                    )
+
+                                override fun onFailure(errorCode: Int) {
+                                    // A FLAG_SECURE window failing here is expected.
+                                    // Everything else is not, and treating the whole
+                                    // callback as "expected" is what let a total
+                                    // outage hide: the service was missing
+                                    // canTakeScreenshot, so every call landed here
+                                    // with NO_ACCESSIBILITY_ACCESS, resumed null, and
+                                    // looked exactly like a banking app being
+                                    // screenshotted. Naming the code is the
+                                    // difference between a fallback and a failure.
+                                    if (errorCode != AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) {
+                                        Log.w(TAG, "accessibility screenshot failed: ${screenshotErrorName(errorCode)}")
+                                    }
+                                    if (cont.isActive) cont.resume(null) {}
+                                }
+                            },
+                        )
+                    }
                 }
+            } finally {
+                executor.shutdownNow()
             }
         }
 

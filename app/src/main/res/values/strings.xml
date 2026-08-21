@@ -101,6 +101,7 @@
     <string name="daily_while_charging_clusters_paraphrases_into">Daily, while charging. Clusters paraphrases into single summaries.</string>
     <string name="debug_fire_now">Debug · fire now</string>
     <string name="default_chat_model">Default chat model</string>
+    <string name="onboarding_no_model_chosen">No model chosen yet</string>
     <string name="defaults_to_username">defaults to username</string>
     <string name="delete">Delete</string>
     <string name="delete_agent">Delete agent?</string>

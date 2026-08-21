@@ -467,7 +467,7 @@ class ProviderKeysTest {
      * `_loaded` was assigned in a `finally`, and a `finally` runs while a
      * CancellationException is on its way out. So a cancelled load set
      * `loaded = true` having published nothing: `credentialStates` still read
-     * `Loading` for every provider and `_values` was empty. Anything waiting on
+     * `Loading` for every provider and `state` was empty. Anything waiting on
      * `awaitLoaded()` woke up and read state that was never written.
      *
      * This fails against the `finally` and passes against the assignment inside

@@ -127,6 +127,7 @@ class SettingsViewModelAppLockTest {
         every { userPreferences.screenControlEnabled } returns flowOf(false)
         every { userPreferences.appAwarenessEnabled } returns flowOf(false)
         every { userPreferences.placeLogEnabled } returns flowOf(false)
+        every { userPreferences.projectLedgerEnabled } returns flowOf(true)
         every { userPreferences.dreamLastRunAt } returns flowOf(0L)
         every { userPreferences.dreamLastRunStats } returns flowOf("")
         every { userPreferences.mcpServersJson } returns flowOf("")

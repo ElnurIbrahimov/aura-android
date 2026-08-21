@@ -103,7 +103,41 @@ class MigrationReplayTest {
      * `@Database(version = 7)` was current, then delete this line and watch the
      * test go green on its own.
      */
-    private val untrustedBaselines = setOf("com.aura.memory.MemoryDatabase 6->7")
+    private val untrustedBaselines = setOf(
+        // Five hops, four bad files, one cause.
+        //
+        // `MemoryDatabase/7,8,9,10.json` are byte-for-byte `14.json` with the
+        // version field rewritten — same 24 tables, same identityHash
+        // (`0274c5e79df7c531f98633eb2f55e6d6`), while `6.json` declares six
+        // tables and `MIGRATION_6_7` creates one. Commit `fce29f6c` did it, and
+        // says so in a bullet: "Regenerate missing Room schemas for
+        // MemoryDatabase v7-v10". By then the database was at v14, so a build
+        // emitted today's entity set four times over.
+        //
+        // The consequence is not that these hops fail. It is that they cannot:
+        // 7->8, 8->9 and 9->10 replay a snapshot against an identical copy of
+        // itself, and every statement in those three migrations is
+        // `CREATE TABLE IF NOT EXISTS` or `CREATE INDEX IF NOT EXISTS`, so
+        // nothing can conflict. They passed for the entire time they were
+        // wrong. 10->11 is different and worse: it passed only because the
+        // column comparison above ran in one direction, and now that it runs in
+        // both, a v14 baseline against the real `11.json` fails honestly.
+        //
+        // Listed rather than deleted because deleting the files breaks the hops
+        // on either side too, and listed rather than left silent because a
+        // vacuous pass reads exactly like a real one.
+        //
+        // To remove: regenerate each file from the commit where its version was
+        // current — 640f606f (v7), 883fd749 (v8), e11eeb6e (v9), 786a7731
+        // (v10), all 2026-07-16 — then delete these lines and watch the hops go
+        // green on their own. Those commits build on AGP 8.2.2 / Kotlin 1.9.24 /
+        // Room 2.6.1, which is the whole cost of the job.
+        "com.aura.memory.MemoryDatabase 6->7",
+        "com.aura.memory.MemoryDatabase 7->8",
+        "com.aura.memory.MemoryDatabase 8->9",
+        "com.aura.memory.MemoryDatabase 9->10",
+        "com.aura.memory.MemoryDatabase 10->11",
+    )
 
     private fun databases(): List<DatabaseUnderTest> = listOf(
         DatabaseUnderTest(
@@ -349,6 +383,19 @@ class MigrationReplayTest {
                             problems += "${target.schemaDir} ${migration.startVersion}->${migration.endVersion}: " +
                                 "table '$table' is missing ${missing.size} column(s) the target version " +
                                 "declares: ${missing.sorted().joinToString(", ")}"
+                        }
+                        // Both directions. This compared only one, so a baseline
+                        // that was a strict superset of its target replayed clean
+                        // — which is exactly how a schema export copied from a
+                        // later version passes as if it were verified. An extra
+                        // column is as much a mismatch as a missing one; it means
+                        // the starting schema is not the one that shipped.
+                        val unexpected = actual.keys - expected.columns.keys
+                        if (unexpected.isNotEmpty()) {
+                            problems += "${target.schemaDir} ${migration.startVersion}->${migration.endVersion}: " +
+                                "table '$table' has ${unexpected.size} column(s) the target version does not " +
+                                "declare: ${unexpected.sorted().joinToString(", ")} — the baseline is not the " +
+                                "schema that shipped at version ${migration.startVersion}"
                         }
                         val nullabilityDrift = expected.columns
                             .filterKeys { it in actual }

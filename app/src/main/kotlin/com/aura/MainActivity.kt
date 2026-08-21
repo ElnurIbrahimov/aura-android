@@ -133,8 +133,25 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /**
+     * Re-claim the biometric slot when this activity returns to the front.
+     *
+     * `onCreate` alone was not enough once a second activity could take the
+     * slot: the widget's `QuickAskActivity` claims it on top of a live
+     * `MainActivity` and releases it on destroy, which leaves the slot empty
+     * rather than back where it was. Claiming on resume makes the holder mean
+     * what its name says — the activity currently in front.
+     */
+    override fun onResume() {
+        super.onResume()
+        biometricHolder.activity = this
+    }
+
     override fun onDestroy() {
-        biometricHolder.activity = null
+        // Identity-checked: `QuickAskActivity` may hold the slot right now, and
+        // an unconditional clear here would take it out from under a live
+        // overlay.
+        biometricHolder.clearIfCurrent(this)
         screenCaptureHolder.detach()
         super.onDestroy()
     }

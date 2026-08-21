@@ -52,6 +52,12 @@ class HomeViewModelCapabilitiesTest {
     private val reminderDao = mockk<ReminderDao>(relaxed = true)
     private val handDao = mockk<HandDao>(relaxed = true)
     private val toolRegistry = mockk<ToolRegistry>(relaxed = true)
+
+    /**
+     * `HomeViewModel` takes a [javax.inject.Provider] so Hilt does not build the
+     * whole tool graph on the main thread just to render a count.
+     */
+    private val toolRegistryProvider = javax.inject.Provider { toolRegistry }
     private val skillsStore = mockk<SkillsStore>(relaxed = true)
     private val capabilityRegistry = mockk<CapabilityRegistry>(relaxed = true)
     private val agentStore = mockk<AgentStore>(relaxed = true)
@@ -92,7 +98,7 @@ class HomeViewModelCapabilitiesTest {
             knowledgeGraphRepository = knowledgeGraphRepository,
             reminderDao = reminderDao,
             handDao = handDao,
-            toolRegistry = toolRegistry,
+            toolRegistry = toolRegistryProvider,
             skillsStore = skillsStore,
             creativeProjectStore = mockk(relaxed = true),
             capabilityRegistry = capabilityRegistry,

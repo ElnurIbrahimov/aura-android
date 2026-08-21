@@ -49,6 +49,8 @@ fun PrivacySection(
     onSetAppAwarenessEnabled: (Boolean) -> Unit = {},
     placeLogEnabled: Boolean = false,
     onSetPlaceLogEnabled: (Boolean) -> Unit = {},
+    projectLedgerEnabled: Boolean = true,
+    onSetProjectLedgerEnabled: (Boolean) -> Unit = {},
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
@@ -146,6 +148,28 @@ fun PrivacySection(
                 )
             }
             Switch(checked = placeLogEnabled, onCheckedChange = onSetPlaceLogEnabled)
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Project ledger", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    // Names the cadence and that it costs tokens, because this
+                    // is the only background worker here that calls a model and
+                    // the whole reason the switch exists is to answer "what is
+                    // running when I am not looking".
+                    text = if (projectLedgerEnabled) {
+                        "On - reads conversations you tagged to a project every 15 min " +
+                            "and keeps a summary. Uses your background model, so it costs tokens"
+                    } else {
+                        "Off - nothing is summarised in the background. Projects still work; " +
+                            "their ledgers just stop updating on their own"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = projectLedgerEnabled, onCheckedChange = onSetProjectLedgerEnabled)
         }
 
         if (appAwarenessEnabled) {

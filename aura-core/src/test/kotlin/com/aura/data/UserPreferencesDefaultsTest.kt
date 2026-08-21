@@ -111,6 +111,22 @@ class UserPreferencesDefaultsTest {
     }
 
     @Test
+    fun `the project ledger is on by default and can be switched off`() = runBlocking {
+        // On by default deliberately: it had no switch at all before, so
+        // defaulting off would silently stop something existing installs
+        // already depend on. It belongs in this file anyway because it is the
+        // one background worker that calls a model — fifteen-minute cadence,
+        // billed to whatever `backgroundModel` resolves to — and a default
+        // flipped by accident here is a bill nobody asked for.
+        val p = prefs()
+        assertTrue("default must be on", p.projectLedgerEnabled.first())
+        p.setProjectLedgerEnabled(false)
+        assertFalse("set(false) must be visible", p.projectLedgerEnabled.first())
+        p.setProjectLedgerEnabled(true)
+        assertTrue("set(true) must be visible", p.projectLedgerEnabled.first())
+    }
+
+    @Test
     fun `an unset nullable preference is null rather than empty`() = runBlocking {
         // `agentId` has no `?:` fallback, unlike its neighbours. Null and "" are
         // different answers — one means "no agent chosen", the other is a scope

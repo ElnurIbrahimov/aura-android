@@ -74,14 +74,14 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v30, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - Craft guidance is **data, not constants**. The genre and mode prompts in `GenreCraftPrompts` are seeded into `SkillsStore` as builtin skills on first run (`CraftSkills`), so the author can read and rewrite them, `use_skill("craft-novel")` returns them, and the evolution system's `PATCH_SKILL` action finally has real targets. The constants stay as the seed source *and* the fallback: a deleted, blank or unreadable skill drafts with the craft that shipped rather than with none. Builtins are editable and resettable, never deletable.
 - **A manuscript can leave the phone.** Export in the Manuscript tab compiles the drafted outline into one Markdown document and hands it to the share sheet — Drive, Obsidian, email, anywhere. Until now the only outbound paths in the app were images and URLs, so prose, the thing Creative Studio exists to produce, terminated in a Room table. Gaps are stated rather than hidden: a beat with no scene reads `*[not yet written]*`, one whose text cannot be recovered reads `*[scene text unavailable]*`, and scenes orphaned by a re-planned outline are counted in a footer instead of vanishing. Reads through `CreativeArtifactStore.currentRevision` rather than `currentContent`, whose `previewText` fallback would place 200-character stubs mid-novel that read like finished scenes.
-- 3,547 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 3,557 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - Coverage, measured 2026-08-20 (`./gradlew jacocoTestReport`): `aura-core` 53.4% line / 37.7% branch, `app` 15.7% line / 5.6% branch. The app figure is largely Compose UI, which JVM unit tests do not reach — it is what the instrumented suite and a device pass are for. Not gated: a coverage threshold turns "write a test that proves something" into "write a test that touches a line".
   - **Down 45, on purpose.** Deleting `SpecialistRouter`, `com.aura.pipeline.ProductionPipeline` and `AgentTextAccumulator` took their tests with them — all of it thorough coverage of code that had no production caller. ENGINEERING_HISTORY §4 records test count becoming the quality metric while screens went untested; a number that can only go up is the mechanism by which that happens.
 - 89 instrumented test methods (36 Room migration-chain methods and 4 on-device embedder methods in :aura-core, 49 in :app — 39 Compose rendering, 5 launch and flow, 5 device smoke). Both suites **execute** in CI on an emulator: `:aura-core` in the `migrations` job, `:app` in `app-instrumented`, which excludes `DeviceSmokeTest` by name because it needs a real key. Record mode's own instrumented test only proves the screen opens and starts: the accessibility service is off on a fresh emulator and only the user can enable it, so demonstrating a task cannot be automated and the loop is unproven until the device pass
 - 5 device smoke checks (`scripts/smoke.sh`) asserting outcomes against a real model and a real database: a stated preference becomes a categorised memory, a pleasantry becomes none, an imported document is retrievable and outlined, a fired worker leaves a non-empty run detail, the screenshot path answers rather than going silent. These are the only tests in the repo that exercise the real provider graph.
 - 2 daily-use UX round-3 fixes (selection in code blocks + table cells, soft-delete with 7-day retention)
 
-Note: the app uses **cloud providers only** — there is no on-device model.
+Note: all **chat** inference is cloud-side — there is no on-device LLM. There *is* an on-device embedding model (nomic-embed-text-v1.5 int8 via ONNX Runtime, off by default, downloaded on demand); see the memory section above. This line read "cloud providers only — there is no on-device model" from the first commit until the embedder shipped two months later, and nothing noticed because it had been true when written.
 
 ## Quick start (sideload on a real device)
 
@@ -160,12 +160,13 @@ The `:aura-core` module has no Compose dependencies. If you ever port to iOS via
 - **Home** — greeting, quick actions, model status, cards for Skills, Creative, Tasks, Hands, Production, Beliefs, Evolution.
 - **Chat** — streaming assistant with text/voice input, model picker, specialist chips, tool-call badges, citation chips, follow-up suggestions, markdown rendering, code blocks, tables.
 - **Memory** — browse, search, edit, merge, bulk-clear, and rebuild embeddings.
+- **Tasks** — create, edit, complete, delete, filter by status, clear completed; salience ordering and the Quiet section. This list named four tabs while the summary above named five.
 - **Settings** — providers, model defaults, planning toggle, appearance, persona, app lock, proactive toggles, tool policies, MCP servers, evolution, diagnostics, profile, emotional state, daemon config.
 
 ### Secondary routes
 - **History** — long-press to rename/pin; tap to resume; multi-select + swipe-to-delete.
 - **Hands** — create, edit, run, and delete user-defined automation macros.
-- **Tasks** — create, edit, complete, delete, filter by status, clear completed.
+- **Tasks** — the same screen the tab opens, also reachable as a route from Home.
 - **Reminders** — schedule and cancel notification reminders.
 - **Proactive history** — review morning briefs, calendar events, memory decay warnings, daemon thoughts.
 - **Skills** — browse installed skills and dispatch skill-backed tool calls.
@@ -496,7 +497,7 @@ current build and the two before it; prune it again when it grows.
 
 ## Changelog
 
-`git log --oneline` is the changelog. 750+ commits across the full development history.
+`git log --oneline` is the changelog. 1,000+ commits across the full development history.
 
 ## Engineering history
 

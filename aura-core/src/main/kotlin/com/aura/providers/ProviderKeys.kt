@@ -178,7 +178,7 @@ class ProviderKeys @Inject constructor(
             // This used to be a `finally`, which also runs while a
             // CancellationException is on its way out — so a cancelled load
             // announced `loaded = true` over a `_credentialStates` that was
-            // still `Loading` for every provider, and over `_values` that had
+            // still `Loading` for every provider, and over a `_state` that had
             // never been written. `awaitLoaded()` returned to a caller that
             // then read state nobody had published. In production the scope is
             // process-scoped and never cancelled, so this was latent; under a
@@ -249,8 +249,6 @@ class ProviderKeys @Inject constructor(
     ) {
         stateMutex.withLock {
             _state.value = values.toMap()
-            _values.clear()
-            _values.putAll(values)
             _credentialStates.value = states.toMap()
             _embeddingModel.value = model
             _loaded.value = true
@@ -258,16 +256,17 @@ class ProviderKeys @Inject constructor(
     }
 
     /**
-     * Internal decrypted values cache. Mirrors [state] for fast [keyFor]
-     * access without map reconstruction. Modified directly in [set] and
-     * [init] under [stateMutex].
-     */
-    private val _values = mutableMapOf<String, String>()
-
-    /**
      * Returns the current API key for the given provider prefix, or null if
      * the user hasn't set one. Called on every chat request so the most
      * recent value wins.
+     *
+     * Reads [_state] directly. There used to be a second `_values` map beside
+     * it, documented as a cache this method read "for fast access without map
+     * reconstruction" — it did not; this line has always read [_state]. So the
+     * map was written on every publish and every set, read by nothing, and its
+     * only real effect was to keep a second plaintext copy of every decrypted
+     * API key resident for the life of the process. Deleted rather than wired
+     * up, because the thing it claimed to optimise was already a field read.
      */
     fun keyFor(prefix: String): String? = _state.value[prefix]?.takeIf { it.isNotBlank() }
 
@@ -314,12 +313,10 @@ class ProviderKeys @Inject constructor(
         stateMutex.withLock {
             if (trimmed.isBlank()) {
                 secureDataStore.removeString(datastoreKey)
-                _values.remove(prefix)
                 _state.value = _state.value - prefix
                 _credentialStates.value = _credentialStates.value + (prefix to ProviderCredentialState.NotConfigured)
             } else {
                 secureDataStore.putString(datastoreKey, trimmed)
-                _values[prefix] = trimmed
                 _state.value = _state.value + (prefix to trimmed)
                 _credentialStates.value = _credentialStates.value + (prefix to ProviderCredentialState.Saved)
             }

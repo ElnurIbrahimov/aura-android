@@ -57,6 +57,31 @@ class BackupCoverageAuditTest {
         error("unbalanced braces reading '$name'")
     }
 
+    /**
+     * `purgeAll` plus every purge helper it calls, as one body.
+     *
+     * `purgeAll` used to be one flat run of DELETEs and this test read it
+     * directly. It is now a dispatcher over eleven per-database helpers, one
+     * transaction each, so reading only its own body finds no DAO calls at all.
+     *
+     * The helpers are **discovered from the call site**, not listed here. The
+     * comment further down records what happened the one time this file guessed
+     * a private method name: a confident, wrong failure naming three healthy
+     * tables as orphaned. Following the calls means a twelfth group, or a
+     * rename, is picked up with no edit to this file — and if the regrouping
+     * is ever undone, `requireNonEmpty` below still catches an empty read.
+     */
+    private fun purgeSurface(source: String): String {
+        val root = functionBody(source, "purgeAll")
+        val helpers = Regex("""\b(purge[A-Z]\w*)\(\)""")
+            .findAll(root)
+            .map { it.groupValues[1] }
+            .filter { it != "purgeAll" }
+            .distinct()
+            .toList()
+        return root + helpers.joinToString("\n") { functionBody(source, it) }
+    }
+
     /** DAO properties a body calls a clearing method on. */
     private val clearCall =
         Regex("""(\w+Dao)\??\.(deleteAll|deleteAllCustom|clear|purge)\w*\(""")
@@ -78,7 +103,7 @@ class BackupCoverageAuditTest {
     fun `every table the rollback purges is one a restore can write back`() {
         val src = backupManagerSource()
 
-        val purged = daosMatching(functionBody(src, "purgeAll"), clearCall)
+        val purged = daosMatching(purgeSurface(src), clearCall)
             .toList()
             .requireNonEmpty("DAOs cleared by purgeAll")
             .toSet()
@@ -97,8 +122,8 @@ class BackupCoverageAuditTest {
         // that both the success path and the rollback go through ONE writer, so
         // "written somewhere in this file" and "written on the rollback path"
         // cannot drift apart the way they had before schema v18.
-        val purgeBody = functionBody(src, "purgeAll")
-        val written = daosMatching(src.replace(purgeBody, ""), writeCall)
+        val purgeBody = purgeSurface(src)
+        val written = daosMatching(src.replace(functionBody(src, "purgeAll"), ""), writeCall)
             .toList()
             .requireNonEmpty("DAOs written by a restore path")
             .toSet()

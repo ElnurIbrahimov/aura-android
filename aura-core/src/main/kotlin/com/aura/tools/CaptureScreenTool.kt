@@ -81,6 +81,45 @@ class CaptureScreenTool @Inject constructor(
             val height = (call.arguments["height"] as? Int) ?: 1920
             val quality = ((call.arguments["quality"] as? Int) ?: 80).coerceIn(1, 100)
 
+            // Refuse while a password field is on screen.
+            //
+            // `ScreenControlGuard` already refuses to *act* on a screen with a
+            // visible password field, and `StepInference` already refuses to
+            // *record* one. This tool shipped the pixels of that same screen to
+            // a third-party vision model. The text path is carefully redacted
+            // — `UiTraversal.redact` treats the password flag as authoritative
+            // — and none of that reaches a JPEG, because a regex cannot edit an
+            // image. So the one surface where the secret is actually legible
+            // was the one with no guard on it.
+            //
+            // A fresh snapshot rather than `currentSnapshot()`: the cached one
+            // can be from a different screen entirely, which would give both
+            // false negatives and false positives on a check whose whole job is
+            // to be right about the screen in front of the user.
+            //
+            // This can only be checked when the accessibility service is
+            // connected. With it off there is no view tree to ask, so a
+            // MediaProjection capture proceeds unguarded — that path shows the
+            // user a system consent dialog for every capture, which is the
+            // control that covers it, and it is stated here rather than left to
+            // be discovered.
+            val passwordVisible = screenControlBridge?.let { bridge ->
+                if (!bridge.connected.value) {
+                    null
+                } else {
+                    runCatching { bridge.snapshot().hasPasswordField }
+                        .onFailure { Log.w("CaptureScreen", "password-field check failed", it) }
+                        .getOrNull()
+                }
+            }
+            if (passwordVisible == true) {
+                return@Tool ToolResult.Error(
+                    "A password field is on screen. Aura will not capture it. " +
+                        "Close or leave that screen and ask again.",
+                    "password_field_visible",
+                )
+            }
+
             // Accessibility screenshot FIRST when the service is connected.
             //
             // It needs no consent dialog and works while Aura is backgrounded,

@@ -164,7 +164,9 @@ class OnboardingViewModel @Inject constructor(
             OnboardingStep.Provider -> if (current.catalog.allModels.isNotEmpty()) {
                 current.copy(step = OnboardingStep.Model, error = null)
             } else {
-                current.copy(error = "Save and verify a provider, or choose Skip for local-only mode.")
+                current.copy(
+                    error = "Save and verify a provider, or skip for now and add one later in Settings.",
+                )
             }
             OnboardingStep.Model -> if (current.selectedDefaultModel != null) {
                 current.copy(step = OnboardingStep.Complete, error = null)

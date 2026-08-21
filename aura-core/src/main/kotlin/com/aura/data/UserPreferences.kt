@@ -94,6 +94,7 @@ internal val KEY_PROMPT_CACHING_ENABLED = booleanPreferencesKey("prompt_caching_
 internal val KEY_SCREEN_CONTROL_ENABLED = booleanPreferencesKey("screen_control_enabled")
 internal val KEY_APP_AWARENESS_ENABLED = booleanPreferencesKey("app_awareness_enabled")
 internal val KEY_PLACE_LOG_ENABLED = booleanPreferencesKey("place_log_enabled")
+internal val KEY_PROJECT_LEDGER_ENABLED = booleanPreferencesKey("project_ledger_enabled")
 // Automatic backup. The passphrase is NOT here — it lives in SecureDataStore,
 // because this DataStore is plaintext and the passphrase is the only thing
 // standing between a synced folder and everything Aura knows.
@@ -494,6 +495,27 @@ val agentId: Flow<String?> = context.auraPrefs.data.map { it[KEY_AGENT_ID] }
 
     suspend fun setPlaceLogEnabled(enabled: Boolean) {
         context.auraPrefs.edit { it[KEY_PLACE_LOG_ENABLED] = enabled }
+    }
+
+    /**
+     * Whether the project ledger sweeps in the background.
+     *
+     * **On by default**, because it was previously not switchable at all and
+     * turning it off for existing installs would silently remove something
+     * they already rely on.
+     *
+     * It used to have no switch on the argument that it only reads
+     * conversations the user already attributed to a project, and that
+     * `BackgroundBudget` bounds the spend. Both are true. Neither answers the
+     * question the user actually asks, which is "what is this costing me right
+     * now" — a fifteen-minute cadence that makes a model call is the one piece
+     * of background work here with no off switch, and "bounded" is not "off".
+     */
+    val projectLedgerEnabled: Flow<Boolean> =
+        context.auraPrefs.data.map { it[KEY_PROJECT_LEDGER_ENABLED] ?: true }
+
+    suspend fun setProjectLedgerEnabled(enabled: Boolean) {
+        context.auraPrefs.edit { it[KEY_PROJECT_LEDGER_ENABLED] = enabled }
     }
 
     suspend fun setScreenControlEnabled(enabled: Boolean) {

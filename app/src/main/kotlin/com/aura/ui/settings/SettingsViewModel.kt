@@ -240,6 +240,7 @@ data class SettingsUiState(
     val screenControlEnabled: Boolean = false,
     val appAwarenessEnabled: Boolean = false,
     val placeLogEnabled: Boolean = false,
+    val projectLedgerEnabled: Boolean = true,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -467,6 +468,7 @@ class SettingsViewModel @Inject constructor(
             val screenControlEnabled = userPreferences.screenControlEnabled.first()
             val appAwarenessEnabled = userPreferences.appAwarenessEnabled.first()
             val placeLogEnabled = userPreferences.placeLogEnabled.first()
+            val projectLedgerEnabled = userPreferences.projectLedgerEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val storedPolicies = runCatching { userPreferences.interruptionPolicies.first() }
                 .onFailure { Log.w(TAG, "interruption policies read failed: ${it.message}", it) }
@@ -574,6 +576,7 @@ class SettingsViewModel @Inject constructor(
                 screenControlEnabled = screenControlEnabled,
                 appAwarenessEnabled = appAwarenessEnabled,
                 placeLogEnabled = placeLogEnabled,
+                projectLedgerEnabled = projectLedgerEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -943,6 +946,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setPlaceLogEnabled(enabled)
             _state.update { it.copy(placeLogEnabled = enabled) }
+        }
+    }
+
+    /**
+     * The schedule follows the preference through `ProactiveBootstrap`, which
+     * collects this flow and cancels the worker when it goes off. Nothing is
+     * scheduled or cancelled from here.
+     */
+    fun setProjectLedgerEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setProjectLedgerEnabled(enabled)
+            _state.update { it.copy(projectLedgerEnabled = enabled) }
         }
     }
 

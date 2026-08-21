@@ -59,9 +59,11 @@ import android.util.Log
  * second; the import is similar.
  *
  * Embeddings are intentionally NOT exported — they are model-specific
- * (384-dim for nomic-embed-text) and would be meaningless on a
- * different device with a different model. After import, the user
- * triggers Settings → Memory → Rebuild embeddings to regenerate.
+ * (768-dim for nomic-embed-text-v1.5; the hash sketch is 384) and would
+ * be meaningless on a different device with a different model. [restore]
+ * enqueues [com.aura.memory.ReembedWorker] when it finishes, so the
+ * rebuild starts on its own. Settings → Memory → Rebuild embeddings still
+ * forces a pass; it used to be the only way, and this comment said so.
  *
  * API keys are also NOT exported — they live in [com.aura.security.SecureDataStore]
  * (encrypted with the Android Keystore) and the user has to re-paste
@@ -159,6 +161,13 @@ class BackupManager @Inject constructor(
     private val projectNoteDao: com.aura.projects.ProjectNoteDao? = null,
     // Schema v28. Appended for the reason stated on the v18 block above.
     private val claimResolutionDao: com.aura.calibration.ClaimResolutionDao? = null,
+    /**
+     * Per-database transaction envelopes. Null in tests, where the DAOs are
+     * mocks and there is no database to hold a transaction open on — every
+     * call site below runs its block directly when this is absent, so the
+     * ordering under test is identical either way.
+     */
+    private val transactions: RestoreTransactions? = null,
 ) : BackupService {
 
     private suspend fun encodeTriggersJson(userPreferences: UserPreferences): String = runCatching {
@@ -518,7 +527,16 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * after a larger one leaves stale rows. [RestoreMode.REPLACE] runs
      * [purgeAll] first and is the clean-slate path; it refuses to start at all
      * when the pre-restore snapshot could not be taken, because a purge with
-     * nothing behind it is unrecoverable. Both modes overwrite the preferences
+     * nothing behind it is unrecoverable.
+     *
+     * That refusal covers the forward path only, and for a long time nothing
+     * covered the failure path: the rollback purged before it checked whether
+     * a snapshot existed to restore, so a merge — which never requires a
+     * snapshot — could empty all eleven databases on any failed insert. The
+     * order is now read-then-purge, which is what makes the guarantee below
+     * true for both modes rather than one.
+     *
+     * Both modes overwrite the preferences
      * the backup carries — a merge is a merge of rows, not of settings, and
      * the confirmation dialog says so.
      *
@@ -568,15 +586,42 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                     // also trigger the rollback.
                     android.util.Log.e("BackupManager", "restore failed, rolling back to pre-restore data: ${e.message}", e)
                     val rolledBack = try {
-                        purgeAll()
+                        // Read the spool BEFORE purging, not after.
+                        //
+                        // Purging first meant that a spool which could not be
+                        // read left every table empty with nothing to put back,
+                        // and there are two ordinary ways for it to be
+                        // unreadable: the cache it lives in can be evicted by
+                        // the system at any moment, and MERGE never required one
+                        // in the first place — only REPLACE refuses to start
+                        // without it.
+                        //
+                        // On the merge path that purge was pure loss. Every
+                        // delete inside `writeEverything` is guarded on REPLACE,
+                        // so a merge only ever adds rows; the wipe destroyed data
+                        // the import had not touched, on the operation the
+                        // confirmation dialog describes as "nothing is deleted".
+                        //
+                        // Reading first makes the purge conditional on having
+                        // something to restore. When there is nothing, the
+                        // half-imported database is left alone: worse than a
+                        // clean rollback, better than an empty one, and the
+                        // marker below still tells the next launch what happened.
                         val preRestore = readRollbackSnapshot(rollbackFile)
                         if (preRestore != null) {
-                            // The rollback runs after purgeAll, so the tables are already
-                            // empty; REPLACE is nonetheless what restoring a snapshot means.
+                            // Tables are purged here rather than before the read,
+                            // so the snapshot is known to exist first. REPLACE is
+                            // what restoring a snapshot means regardless of the
+                            // mode the failed import was running in.
+                            purgeAll()
                             writeEverything(preRestore, RestoreMode.REPLACE)
                             true
                         } else {
-                            android.util.Log.e("BackupManager", "no pre-restore snapshot — purged tables stay empty")
+                            android.util.Log.e(
+                                "BackupManager",
+                                "no pre-restore snapshot — leaving the database as the failed import left it, " +
+                                    "rather than purging what the import never touched",
+                            )
                             false
                         }
                     } catch (rollback: Throwable) {
@@ -613,6 +658,26 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         var consciousnessCount = 0
         runCatching { consciousnessCount = restoreConsciousness(backup) }
             .onFailure { android.util.Log.w("BackupManager", "restoreConsciousness failed (non-fatal): ${it.message}", it) }
+
+        // Backups carry no embedding vectors — `MemoryBackup` has no such field
+        // and `toEntity` writes `embedding = null` — so every restored memory
+        // lands unembedded and contributes nothing to vector recall until
+        // something rebuilds it.
+        //
+        // Nothing here used to. `ReembedWorker` existed and was correct, but its
+        // only callers were the embedding-model workers and app start, so the
+        // rebuild happened on the next cold launch by accident rather than on
+        // the restore that created the need. Meanwhile this file and the backup
+        // dialog both told the user to go and tap Rebuild in Settings, which
+        // made the manual path the documented one for a job the app can start
+        // itself. `enqueueUniqueWork` is KEEP, so this is a no-op when a rebuild
+        // is already pending.
+        //
+        // Non-fatal by the same rule as everything else in this block: a
+        // WorkManager failure must not turn a completed Room restore into a
+        // failed one.
+        runCatching { com.aura.memory.ReembedWorker.enqueue(context) }
+            .onFailure { android.util.Log.w("BackupManager", "re-embed enqueue after restore failed (non-fatal): ${it.message}", it) }
 
         counts.copy(toolPolicies = toolPolicyCount, consciousness = consciousnessCount)
     }
@@ -671,7 +736,7 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      */
     private suspend fun writeRollbackSnapshot(): File? = runCatching {
         val backup = snapshot(appVersionName = ROLLBACK_VERSION_TAG, strict = true)
-        val file = File(context.cacheDir, ROLLBACK_FILE_NAME)
+        val file = File(context.filesDir, ROLLBACK_FILE_NAME)
         file.bufferedWriter().use { it.write(encodeToJson(backup)) }
         file
     }.onFailure {
@@ -1168,31 +1233,58 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * for a node) are torn down by deleting all edges first.
      */
     suspend fun purgeAll() = withContext(Dispatchers.IO) {
-        // Conversations, memories, hands, tasks are independent
-        // tables — we use a single bulk DELETE via a one-off
-        // Query to avoid N round-trips.
+        // Grouped by database, and each group inside its own transaction.
+        //
+        // This was ~65 unguarded DELETEs in source order, hopping between
+        // databases as the schema grew. A failure partway through left some
+        // tables emptied and others not, in whatever arrangement the ordering
+        // happened to produce, and the only record was a log line. Per-database
+        // transactions make each of the eleven all-or-nothing. They do not make
+        // the purge as a whole atomic — see [RestoreTransactions].
+        //
+        // Relative order inside each group is exactly what it was. Every
+        // ordering comment below survived the regrouping because none of them
+        // crossed a database: Room foreign keys cannot span database files, so
+        // no cross-database order here was ever load-bearing.
+
+        // Hoisted out of the transactions entirely. This is the one read in the
+        // method and the only WorkManager call, and neither belongs inside a
+        // SQLite transaction: a rollback cannot un-cancel a scheduled job, so
+        // doing it first makes the failure mode "jobs cancelled, rows kept",
+        // which is recoverable, rather than "rows gone, jobs still scheduled".
+        runCatching { handDao.getAll().map { it.id } }
+            .onFailure { android.util.Log.w("BackupManager", "hand cancel enumeration failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+            .forEach { id ->
+                runCatching { handScheduler.cancel(id) }
+                    .onFailure { android.util.Log.w("BackupManager", "hand cancel failed: ${it.message}", it) }
+            }
+
+        transactions?.memory { purgeMemory() } ?: purgeMemory()
+        transactions?.conversations { purgeConversations() } ?: purgeConversations()
+        transactions?.hands { purgeHands() } ?: purgeHands()
+        transactions?.tasks { purgeTasks() } ?: purgeTasks()
+        transactions?.proactive { purgeProactive() } ?: purgeProactive()
+        transactions?.evolution { purgeEvolution() } ?: purgeEvolution()
+        transactions?.agents { purgeAgents() } ?: purgeAgents()
+        transactions?.profile { purgeProfile() } ?: purgeProfile()
+        transactions?.dreams { purgeDreams() } ?: purgeDreams()
+        transactions?.agentRuns { purgeAgentRuns() } ?: purgeAgentRuns()
+        transactions?.strategyBandit { purgeStrategyBandit() } ?: purgeStrategyBandit()
+    }
+
+    private suspend fun purgeMemory() {
         memoryEditDao.deleteAll()
         documentDao.deleteAll()
         creativeProjectDao.deleteAll()
         memoryDao.deleteAll()
-        conversationDao.deleteAll()
+        // Edges before nodes: an edge outliving its node is the one shape the
+        // cascade cannot tidy after the fact.
         kgDao.deleteAllEdges()
         kgDao.deleteAllNodes()
-        handDao.getAll().forEach { handScheduler.cancel(it.id) }
-        handDao.deleteRunHistory()
-        handDao.deleteAll()
-        reminderDao.deleteAll()
-        taskDao.deleteAll()
-        proactiveEventDao.deleteAll()
-        evolutionProposalDao.deleteAll()
-        evolutionRevisionDao.deleteAll()
-        evolutionSettingsDao.deleteAll()
-        agentDao.deleteAllCustom()
-        userProfileDao.deleteAll()
-        // Schema v10: world model + creative + taste tables. Without
-        // these, restore→purge→restore would leave stale rows in the
-        // world/creative/taste tables and the "clean slate" promise
-        // of purgeAll would be a lie.
+        // Schema v10: world model + creative + taste tables. Without these,
+        // restore -> purge -> restore would leave stale rows and the "clean
+        // slate" promise of purgeAll would be a lie.
         beliefDao?.deleteAll()
         evidenceDao?.deleteAll()
         worldEventDao?.deleteAll()
@@ -1201,7 +1293,6 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         creativeRevisionDao?.deleteAll()
         creativeBranchDao?.deleteAll()
         canonFactDao?.deleteAll()
-        proactiveOutcomeDao?.deleteAll()
         livingEventDao?.deleteAll()
         correctionDao?.deleteAll()
         openQuestionDao?.deleteAll()
@@ -1210,47 +1301,98 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         livingWorldDao?.deleteAll()
         preferenceSignalDao?.deleteAll()
         styleProfileDao?.deleteAll()
-        // Schema v11: dream database.
-        dreamSummaryDao?.deleteAll()
-        routineDao?.deleteAll()
-        contradictionDao?.deleteAll()
-        kgEdgeProposalDao?.deleteAll()
         // Schema v13: memory feedback (audit trail for memory ratings).
         memoryFeedbackDao?.deleteAll()
         // Schema v26: harvested retrieval labels.
         retrievalLabelDao?.deleteAll()
         // Schema v27: notes before projects. The CASCADE would take the notes
-        // anyway, but relying on it means the order here silently decides whether
-        // a foreign-key error can happen, and explicit child-first never can.
+        // anyway, but relying on it means the order here silently decides
+        // whether a foreign-key error can happen, and explicit child-first
+        // never can.
         projectNoteDao?.deleteAll()
         projectDao?.deleteAll()
-        // Schema v28: before `beliefs` is cleared, so the CASCADE never has to.
+        // Schema v28. This line used to claim it ran "before `beliefs` is
+        // cleared, so the CASCADE never has to" — `beliefs` is cleared well
+        // above, so the CASCADE has always done this work and the table is
+        // already empty by the time this runs. Kept because an explicit delete
+        // costs nothing and does not depend on the cascade staying configured;
+        // the claim is corrected rather than the order, because reordering to
+        // match a comment is how a working purge acquires a new bug.
         claimResolutionDao?.deleteAll()
         // Schema v12: purge durable state previously dropped on roundtrip.
         documentChunkDao?.deleteAll()
         referenceIdentityDao?.deleteAll()
+        // Schema v13.
+        artifactDependencyDao?.deleteAll()
+        continuityIssueDao?.deleteAll()
+        creativeSimulationDao?.deleteAll()
+        routingOutcomeDao?.deleteAll()
+    }
+
+    private suspend fun purgeConversations() {
+        conversationDao.deleteAll()
+    }
+
+    private suspend fun purgeHands() {
+        // The WorkManager cancels for these rows already ran, above.
+        handDao.deleteRunHistory()
+        handDao.deleteAll()
+    }
+
+    private suspend fun purgeTasks() {
+        reminderDao.deleteAll()
+        taskDao.deleteAll()
+    }
+
+    private suspend fun purgeProactive() {
+        proactiveEventDao.deleteAll()
+        proactiveOutcomeDao?.deleteAll()
+        proactiveInteractionDao?.deleteAll()
+    }
+
+    private suspend fun purgeEvolution() {
+        evolutionProposalDao.deleteAll()
+        evolutionRevisionDao.deleteAll()
+        evolutionSettingsDao.deleteAll()
+        evolutionEvidenceDao?.deleteAll()
+        evolutionCandidateDao?.deleteAll()
+    }
+
+    private suspend fun purgeAgents() {
+        // Builtins are re-seeded on startup; only user-created agents are ours
+        // to delete.
+        agentDao.deleteAllCustom()
+        // Schema v16: council data.
+        agentStateDao?.deleteAll()
+        agentRelationshipDao?.deleteAll()
+        agentObservationDao?.deleteAll()
+        forumPostDao?.deleteAll()
+        forumVoteDao?.deleteAll()
+    }
+
+    private suspend fun purgeProfile() {
+        userProfileDao.deleteAll()
+    }
+
+    private suspend fun purgeDreams() {
+        // Schema v11: dream database.
+        dreamSummaryDao?.deleteAll()
+        routineDao?.deleteAll()
+        contradictionDao?.deleteAll()
+        kgEdgeProposalDao?.deleteAll()
+    }
+
+    private suspend fun purgeAgentRuns() {
         agentRunDao?.deleteAll()
         goalDao?.deleteAll()
         stepDao?.deleteAll()
         agentEventDao?.deleteAll()
         approvalRequestDao?.deleteAll()
         runCheckpointDao?.deleteAll()
-        // Schema v13.
-        artifactDependencyDao?.deleteAll()
-        continuityIssueDao?.deleteAll()
-        creativeSimulationDao?.deleteAll()
-        evolutionEvidenceDao?.deleteAll()
-        evolutionCandidateDao?.deleteAll()
-        proactiveInteractionDao?.deleteAll()
-        routingOutcomeDao?.deleteAll()
-        // P0 fix: purge strategy bandit weights
+    }
+
+    private suspend fun purgeStrategyBandit() {
         strategyBanditDao?.clear()
-        // Schema v16: purge council data
-        agentStateDao?.deleteAll()
-        agentRelationshipDao?.deleteAll()
-        agentObservationDao?.deleteAll()
-        forumPostDao?.deleteAll()
-        forumVoteDao?.deleteAll()
     }
 
     /**
@@ -1393,6 +1535,14 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
          */
         private const val KEY_CANARY_PLAINTEXT = "aura-backup-key-canary-v1"
 
+        /**
+         * Lives in `filesDir` for the same reason as the marker below, which
+         * said so first and was moved on its own. This file is the only copy of
+         * the user's pre-restore data while the import runs; leaving it in a
+         * directory the system may reclaim at any moment made the rollback
+         * unavailable exactly when memory pressure — the most likely cause of a
+         * failed import — made it most likely to be needed.
+         */
         private const val ROLLBACK_FILE_NAME = "aura-restore-rollback.json"
 
         private const val ROLLBACK_VERSION_TAG = "pre-restore-rollback"

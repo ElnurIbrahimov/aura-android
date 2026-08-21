@@ -13,7 +13,12 @@ import javax.inject.Singleton
  *
  * The activity sets itself in [FragmentActivity.onCreate] via
  * `holder.activity = this` and clears in [FragmentActivity.onDestroy] via
- * `holder.activity = null`.
+ * [clearIfCurrent] — never `holder.activity = null`, which is a different and
+ * wrong thing. Two activities register here (`MainActivity` and the widget's
+ * `QuickAskActivity`, which `MainActivity` can launch), so whichever is
+ * destroyed second would otherwise clear a slot the other still owns, and an
+ * unconditional clear on the way out of the overlay took the live main
+ * activity with it.
  */
 @Singleton
 class BiometricActivityHolder @Inject constructor() {
@@ -29,4 +34,22 @@ class BiometricActivityHolder @Inject constructor() {
         set(value) {
             activityRef = if (value != null) WeakReference(value) else null
         }
+
+    /**
+     * Clear the reference only if [candidate] is the activity currently held.
+     *
+     * The identity check is the whole point. `QuickAskActivity` sets itself
+     * here on top of a live `MainActivity`; without the check, whichever one
+     * is destroyed first hands a dead or absent activity to the next
+     * `BiometricPrompt`, and whichever is destroyed second wipes a slot that
+     * was never theirs.
+     *
+     * Reads and writes go through [activityRef] directly rather than the
+     * [activity] accessor so a reference whose activity has already been
+     * garbage-collected still clears rather than lingering as an empty
+     * [WeakReference].
+     */
+    fun clearIfCurrent(candidate: FragmentActivity) {
+        if (activityRef?.get() === candidate) activityRef = null
+    }
 }

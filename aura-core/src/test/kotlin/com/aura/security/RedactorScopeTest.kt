@@ -38,7 +38,14 @@ class RedactorScopeTest {
      * `ContactsSearchTool` is the load-bearing entry: the user named the contact,
      * and masking the answer defeats the tool. `CaptureScreenTool` returns a
      * base64 JPEG — there is no text for a regex to touch, and pretending
-     * otherwise would be a claim the code cannot honour. `NotificationsTool`
+     * otherwise would be a claim the code cannot honour.
+     *
+     * That argument is correct and was, for a while, the only thing said on the
+     * subject — which left the impression that nothing needed doing. A regex
+     * cannot redact an image, but a capture can be refused: `CaptureScreenTool`
+     * now declines while a password field is visible, on the same flag
+     * `ScreenControlGuard` uses to refuse acting. Not redaction, which is why
+     * the tool stays on this list, but not nothing either. `NotificationsTool`
      * *posts* a notification rather than reading one, so nothing captured passes
      * through it at all.
      */

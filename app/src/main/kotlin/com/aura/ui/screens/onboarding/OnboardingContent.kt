@@ -273,7 +273,8 @@ private fun CompleteStep(state: OnboardingUiState, modifier: Modifier = Modifier
             color = AuraThemeTokens.colors.textPrimary,
         )
         Text(
-            text = state.selectedDefaultModel?.let(::modelDisplayName) ?: "Local-only mode",
+            text = state.selectedDefaultModel?.let(::modelDisplayName)
+                ?: stringResource(R.string.onboarding_no_model_chosen),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,

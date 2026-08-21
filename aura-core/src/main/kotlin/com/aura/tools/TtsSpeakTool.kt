@@ -29,6 +29,11 @@ import javax.inject.Singleton
  * reports `missing_provider`. Android's own TextToSpeech is reachable through
  * the separate `tts_speak`-adjacent voice settings, not from here.
  *
+ * The retraction above stood for a while over a [definition] description that
+ * still made the claim — and that string is the one that goes on the wire to
+ * the model, so the only reader who acted on it was the one still being told
+ * the old thing. Both it and the user-facing error now say what the code does.
+ *
  * Risk: REMOTE_COST when using a cloud provider.
  */
 @Singleton
@@ -38,7 +43,7 @@ class TtsSpeakTool @Inject constructor(
 ) {
     fun definition() = ToolDefinition(
         name = "tts_speak",
-        description = "Convert text to speech. Uses ElevenLabs if configured, otherwise platform TTS. Set play=true to speak immediately; returns base64 audio when a cloud provider is used.",
+        description = "Convert text to speech using a configured cloud provider such as ElevenLabs. There is no built-in fallback: with no provider configured this returns missing_provider. Set play=true to speak immediately; returns base64 audio.",
         parameters = ToolParameters(
             properties = mapOf(
                 "text" to ToolProperty(type = "string", description = "Text to speak"),
@@ -66,7 +71,7 @@ class TtsSpeakTool @Inject constructor(
 
             if (provider == null) {
                 return@Tool ToolResult.Error(
-                    "No TTS provider configured. Add an ElevenLabs key in Settings or enable platform TTS.",
+                    "No TTS provider configured. Add an ElevenLabs key in Settings, or use the device's own voice from Settings → Voice.",
                     "missing_provider",
                 )
             }

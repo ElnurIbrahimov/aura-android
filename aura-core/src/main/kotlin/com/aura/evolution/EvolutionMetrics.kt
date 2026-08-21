@@ -12,10 +12,21 @@ import javax.inject.Singleton
  */
 @Singleton
 class EvolutionMetrics @Inject constructor() {
-    private val counters = mutableMapOf<String, Long>()
+    /**
+     * Concurrent, and updated through [java.util.concurrent.ConcurrentHashMap.merge].
+     *
+     * This is a `@Singleton` with three injectors, all of which record from
+     * coroutines on `Dispatchers.IO`. The counters were a plain `mutableMapOf`
+     * updated with a read-then-write, so concurrent records could interleave
+     * and lose one, and a resize during iteration could throw where nothing
+     * expects it. The counts exist to tell the user whether auto-improvement is
+     * helping — silently undercounting is the one failure that makes them
+     * worse than absent.
+     */
+    private val counters = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     fun record(event: String, delta: Long = 1) {
-        counters[event] = counters.getOrDefault(event, 0L) + delta
+        counters.merge(event, delta) { old, add -> old + add }
     }
 
     fun count(event: String): Long = counters.getOrDefault(event, 0L)

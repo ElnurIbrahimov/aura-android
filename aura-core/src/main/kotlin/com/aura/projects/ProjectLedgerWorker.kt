@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.aura.health.WorkerRunRecorder
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 
 /**
  * Runs the project ledger sweep on WorkManager's schedule.
@@ -31,9 +32,33 @@ class ProjectLedgerWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val sweep: ProjectLedgerSweep,
     private val recorder: WorkerRunRecorder? = null,
+    private val userPreferences: com.aura.data.UserPreferences? = null,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        // Self-gate, so an un-cancelled schedule is harmless.
+        //
+        // `ProactiveBootstrap` cancels this worker when the preference goes
+        // off, but a schedule that survives — an upgrade, a reconcile that
+        // failed, a boot that raced the DataStore read — would otherwise keep
+        // making a model call every fifteen minutes with the switch showing
+        // off. `BootReceiver` states this contract for every worker it
+        // re-schedules unconditionally, and it is the reason that file is
+        // allowed to be unconditional.
+        //
+        // Absent preferences (test construction) read as enabled, matching the
+        // default.
+        val enabled = userPreferences?.let {
+            runCatching { it.projectLedgerEnabled.first() }
+                .onFailure { e -> android.util.Log.w(WORKER_NAME, "preference read failed", e) }
+                .getOrDefault(true)
+        } ?: true
+        if (!enabled) {
+            recorder?.record(WORKER_NAME) {
+                Unit to WorkerRunRecorder.Result.skipped("the project ledger is switched off")
+            }
+            return Result.success()
+        }
         if (recorder != null) {
             recorder.record(WORKER_NAME) {
                 val outcome = sweep.sweep()

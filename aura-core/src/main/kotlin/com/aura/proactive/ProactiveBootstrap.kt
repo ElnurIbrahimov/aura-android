@@ -251,15 +251,18 @@ class ProactiveBootstrap @Inject constructor(
             }
         }
 
-        // Project ledger sweep. Scheduled unconditionally, like the re-embed
-        // worker above and for the same shape of reason: there is no coherent
-        // "off". The sweep reads only conversations the user attributed to a
-        // project, so on an install with none it finds nothing and skips, and a
-        // toggle would exist solely to switch off a feature that costs nothing
-        // when unused. What it can spend is bounded by BackgroundBudget.
+        // Project ledger reconciliation — same shape as place log and backup.
+        //
+        // This used to be scheduled unconditionally, argued as "there is no
+        // coherent off" because the sweep costs nothing on an install with no
+        // tagged conversations. That is true of an install with none, and says
+        // nothing about an install with several, where it is a model call every
+        // fifteen minutes that the user cannot stop. Defaults on, so nothing
+        // changes for anyone who has not gone looking for the switch.
         scope.launch {
-            runCatching { scheduler.scheduleProjectLedger() }
-                .onFailure { android.util.Log.w("ProactiveBootstrap", "project ledger schedule failed", it) }
+            userPreferences.projectLedgerEnabled.distinctUntilChanged().collect { ledgerOn ->
+                reconcileProjectLedger(ledgerOn)
+            }
         }
 
         // Living world reconciliation — its own flow, same reason as dream.
@@ -428,6 +431,14 @@ class ProactiveBootstrap @Inject constructor(
             if (placeOn) scheduler.schedulePlaceLog() else scheduler.cancelPlaceLog()
         } catch (e: Throwable) {
             android.util.Log.w("ProactiveBootstrap", "place log reconcile failed: ${e.message}")
+        }
+    }
+
+    private fun reconcileProjectLedger(ledgerOn: Boolean) {
+        try {
+            if (ledgerOn) scheduler.scheduleProjectLedger() else scheduler.cancelProjectLedger()
+        } catch (e: Throwable) {
+            android.util.Log.w("ProactiveBootstrap", "project ledger reconcile failed: ${e.message}")
         }
     }
 

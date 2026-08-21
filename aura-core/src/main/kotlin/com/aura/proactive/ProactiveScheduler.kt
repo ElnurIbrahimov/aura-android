@@ -194,6 +194,11 @@ class ProactiveScheduler @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(com.aura.place.PlaceLogWorker.UNIQUE_NAME)
     }
 
+    fun cancelProjectLedger() {
+        WorkManager.getInstance(context)
+            .cancelUniqueWork(com.aura.projects.ProjectLedgerWorker.UNIQUE_NAME)
+    }
+
     /**
      * The project ledger sweep, at WorkManager's fifteen-minute floor.
      *
@@ -202,10 +207,13 @@ class ProactiveScheduler @Inject constructor(
      * wakeup to log a failure. The same two constraints `DaemonWorker` carries,
      * for the same reason.
      *
-     * Not user-switchable, and deliberately: it reads conversations the user
-     * chose to attribute to a project and writes nothing new about them. The
-     * spend it can cause is bounded by `BackgroundBudget` like every other
-     * unattended caller, which is the control that actually matters.
+     * Gated on `projectLedgerEnabled`, which defaults on.
+     *
+     * This used to say it was "not user-switchable, and deliberately", on the
+     * grounds that it only reads conversations the user already attributed to a
+     * project and that `BackgroundBudget` bounds the spend. Both still true, and
+     * neither is an off switch. It was the only background worker here that
+     * could spend money with no way to stop it.
      */
     fun scheduleProjectLedger() {
         val request = PeriodicWorkRequestBuilder<com.aura.projects.ProjectLedgerWorker>(15, TimeUnit.MINUTES)

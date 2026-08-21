@@ -56,9 +56,33 @@ class RealtimeCallController @Inject constructor(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /**
+     * All four are @Volatile because [end] promises to be safe from any thread
+     * and these are what it reads.
+     *
+     * They are written from [start] on whatever scope opened the call, and read
+     * and nulled by [end], which is reachable from the mic pump when the budget
+     * runs out, from the notification's End action, from the UI, and from the
+     * error path — three distinct coroutines on two dispatchers. Without the
+     * annotation one thread could see a stale non-null [session] that another
+     * had already closed, or worse, see null for a socket still open and skip
+     * the close entirely. That last one is the expensive shape: an OpenAI
+     * Realtime socket bills per audio-minute for as long as it stays up, with
+     * nothing on screen to say it is.
+     *
+     * [OpenAiRealtimeProvider] annotates its own socket field for the same
+     * reason and says so there.
+     */
+    @Volatile
     private var session: RealtimeSession? = null
+
+    @Volatile
     private var eventJob: Job? = null
+
+    @Volatile
     private var micJob: Job? = null
+
+    @Volatile
     private var endJob: Job? = null
     private val budget = RealtimeBudget()
 
@@ -96,6 +120,15 @@ class RealtimeCallController @Inject constructor(
         session = opened
         budget.start()
         sink.start()
+        // Read here AND refreshed on the first frame below.
+        //
+        // `AndroidAudioCapture` attaches the AEC inside the flow builder that
+        // `capture.start()` returns, which does not run until `micJob` collects
+        // it five lines down. So on a real device this read is always false and
+        // the sheet told every user echo cancellation was unavailable, on every
+        // device, including the ones where it worked. A capture that already
+        // knows its own state answers correctly here; one that cannot know yet
+        // is corrected as soon as audio flows.
         _state.value = State(
             phase = Phase.LISTENING,
             remainingMs = budget.remainingMs(),
@@ -104,7 +137,14 @@ class RealtimeCallController @Inject constructor(
 
         eventJob = scope.launch { collectEvents(opened, toolContext) }
         micJob = scope.launch {
+            var echoRefreshed = false
             capture.start().collect { frame ->
+                if (!echoRefreshed) {
+                    echoRefreshed = true
+                    // By now the AEC either attached or did not, so this is the
+                    // first moment the answer is real on a device.
+                    _state.value = _state.value.copy(echoCancellation = capture.echoCancellationActive)
+                }
                 if (budget.isExpired()) {
                     end("the call reached its time limit")
                     return@collect
