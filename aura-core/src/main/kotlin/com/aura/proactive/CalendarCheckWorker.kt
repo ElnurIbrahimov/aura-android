@@ -54,7 +54,12 @@ class CalendarCheckWorker @AssistedInject constructor(
             // `ok("")` initialiser and BackgroundHealth showed a green calendar
             // check over a worker that had thrown on every run.
             lastOutcome = com.aura.health.WorkerRunRecorder.Result.failed(e)
-            Result.retry()
+            // Capped, like EvolutionWorker. An uncapped retry on a periodic
+            // worker is an unbounded backoff loop against a fault that is
+            // usually not transient, and WorkManager keeps every attempt
+            // alive across reboots. Three tries, then let the next scheduled
+            // run be the retry.
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }
 

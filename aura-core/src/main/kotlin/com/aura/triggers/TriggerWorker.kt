@@ -102,7 +102,24 @@ class TriggerWorker @AssistedInject constructor(
         private const val WORK_NAME = "trigger-engine"
 
         fun schedule(context: Context) {
+            // batteryNotLow, like every other periodic worker here.
+            //
+            // This one had no constraints at all: it woke every fifteen minutes
+            // regardless of battery, evaluated triggers, and could post a
+            // notification. On a phone at 5% that is the one background job most
+            // likely to be noticed and least likely to be wanted. Nothing else
+            // in this app schedules unconstrained, and the omission was never
+            // argued for anywhere — `DaemonWorker` and the project ledger both
+            // carry it, and the place log carries it too.
+            //
+            // No network constraint: unlike those, the trigger engine reads
+            // local state and does not need a connection to do useful work.
             val work = PeriodicWorkRequestBuilder<TriggerWorker>(15, TimeUnit.MINUTES)
+                .setConstraints(
+                    androidx.work.Constraints.Builder()
+                        .setRequiresBatteryNotLow(true)
+                        .build(),
+                )
                 .addTag("trigger")
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(

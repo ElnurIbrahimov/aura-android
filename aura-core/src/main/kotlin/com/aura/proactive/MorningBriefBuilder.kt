@@ -65,6 +65,25 @@ class MorningBriefBuilder @Inject constructor(
         private set
 
     suspend fun runNow(): androidx.work.ListenableWorker.Result {
+        // Self-gate on the preference.
+        //
+        // `BootReceiver` re-schedules ten workers unconditionally and its KDoc
+        // justifies that by stating every one of them either self-gates or is
+        // deliberately not switchable. This one did neither: it had a Settings
+        // switch that cancelled the schedule, and no check here, so turning
+        // morning briefs off and then rebooting brought them back — the boot
+        // rescheduler reinstated a job the user had switched off, and nothing
+        // between here and the notification would have noticed.
+        //
+        // A failed read is treated as enabled, matching the flow's own default.
+        val enabled = runCatching { userPreferences.morningBriefEnabled.first() }
+            .onFailure { android.util.Log.w("MorningBrief", "preference read failed", it) }
+            .getOrDefault(true)
+        if (!enabled) {
+            lastOutcome = com.aura.health.WorkerRunRecorder.Result.skipped("morning briefs are switched off")
+            return androidx.work.ListenableWorker.Result.success()
+        }
+
         val now = System.currentTimeMillis()
         val since24h = now - 24L * 60L * 60L * 1000L
         val cal = java.util.Calendar.getInstance()

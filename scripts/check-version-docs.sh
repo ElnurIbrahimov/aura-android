@@ -95,7 +95,11 @@ expect() {
 
 d_version_code() { grep -oE 'versionCode = [0-9]+' "$BUILD_FILE" | head -1 | grep -oE '[0-9]+'; }
 
-d_tools() { grep -c 'registry\.register(' "$CORE_MAIN/com/aura/tools/ToolsModule.kt"; }
+# Counts @IntoSet bindings, not `registry.register` calls: ToolsModule became
+# a multibinding module, so each tool is now one @Provides @IntoSet function
+# instead of a constructor parameter plus a register call eighty lines apart.
+# Same shape as d_providers below, which has always counted @StringKey.
+d_tools() { grep -c '@IntoSet' "$CORE_MAIN/com/aura/tools/ToolsModule.kt"; }
 
 d_providers() { grep -c '@StringKey(' "$CORE_MAIN/com/aura/providers/ProviderModule.kt"; }
 

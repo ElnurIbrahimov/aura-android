@@ -146,7 +146,12 @@ class DecayWorker @AssistedInject constructor(
             // left holding `ok("")`, so the run log recorded a healthy decay
             // pass over one that threw. See WorkerRunRecorder.Result.failed.
             lastOutcome = com.aura.health.WorkerRunRecorder.Result.failed(e)
-            Result.retry()
+            // Capped, like EvolutionWorker. An uncapped retry on a periodic
+            // worker is an unbounded backoff loop against a fault that is
+            // usually not transient, and WorkManager keeps every attempt
+            // alive across reboots. Three tries, then let the next scheduled
+            // run be the retry.
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }
 

@@ -179,19 +179,36 @@ class BackupCoverageAuditTest {
         )
     }
 
-    /** DAO writes in [entry] plus the private helpers it calls, one level down. */
+    /**
+     * DAO writes reachable from [entry] through the private helpers it
+     * calls, transitively.
+     *
+     * This walked exactly one level, which was enough while `writeRows`
+     * held every insert itself. It is now a dispatcher over per-database
+     * helpers, so the writes sit two levels below `writeEverything` and a
+     * fixed depth finds none of them — the gate would have reported the
+     * shared writer as empty, which is the same shape of confident-wrong
+     * failure this file already records once.
+     *
+     * Depth is bounded by the visited set rather than by a number, so
+     * another layer of grouping needs no edit here.
+     */
     private fun reachableDaoWrites(src: String, entry: String): Set<String> {
-        val body = functionBody(src, entry)
-        val direct = daosMatching(body, writeCall)
-        val calledHelpers = Regex("""\b(restore\w+|write\w+|insert\w+)\s*\(""")
-            .findAll(body)
-            .map { it.groupValues[1] }
-            .filter { it != entry }
-            .toSet()
-        val indirect = calledHelpers
-            .mapNotNull { name -> runCatching { functionBody(src, name) }.getOrNull() }
-            .flatMap { daosMatching(it, writeCall) }
-        return direct + indirect
+        val seen = mutableSetOf<String>()
+        val found = mutableSetOf<String>()
+        val queue = ArrayDeque(listOf(entry))
+        while (queue.isNotEmpty()) {
+            val name = queue.removeFirst()
+            if (!seen.add(name)) continue
+            val body = runCatching { functionBody(src, name) }.getOrNull() ?: continue
+            found += daosMatching(body, writeCall)
+            Regex("""\b(restore\w+|write\w+|insert\w+)\s*\(""")
+                .findAll(body)
+                .map { it.groupValues[1] }
+                .filterNot { it in seen }
+                .forEach { queue.addLast(it) }
+        }
+        return found
     }
 
     /**

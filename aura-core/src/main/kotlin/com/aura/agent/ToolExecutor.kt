@@ -68,6 +68,26 @@ class ToolExecutor @Inject constructor(
      */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val toolDispatcher = Dispatchers.IO.limitedParallelism(TOOL_PARALLELISM)
+
+    /**
+     * Marks a coroutine as already running inside a tool body.
+     *
+     * Some tools call [execute] again: `delegate_to_agent` is one, and hands
+     * and the realtime bridge reach it too. Because [toolDispatcher] caps at
+     * [TOOL_PARALLELISM] and the dispatch below parks its thread rather than
+     * suspending, a nested call needs a ninth slot while already holding one of
+     * the eight. Enough parallel delegations and every slot is held by a tool
+     * waiting for a slot — the budget drains, every call times out, and the
+     * symptom reads as a slow model rather than a starved dispatcher.
+     *
+     * The nested call is not the thing worth rationing: it is already accounted
+     * for by the outer one, which is holding a slot for its whole duration. So
+     * nesting is detected and sent to the unbounded pool.
+     */
+    private object InToolExecution :
+        kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+        object Key : kotlin.coroutines.CoroutineContext.Key<InToolExecution>
+    }
     suspend fun execute(name: String, argumentsJson: String, ctx: ToolContext): ToolResult {
         val tool = registry.get(name) ?: return ToolResult.Error("Unknown tool: $name", "unknown_tool")
 
@@ -141,8 +161,18 @@ class ToolExecutor @Inject constructor(
                 // withTimeout fires, so blocking calls are cancelled
                 // promptly. runBlocking bridges the suspend call into
                 // the non-suspend lambda runInterruptible requires.
-                runInterruptible(toolDispatcher) {
-                    runBlocking { tool.execute(call, ctx) }
+                // Nested tool calls skip the cap; see [InToolExecution].
+                val dispatcher =
+                    if (kotlin.coroutines.coroutineContext[InToolExecution.Key] != null) {
+                        Dispatchers.IO
+                    } else {
+                        toolDispatcher
+                    }
+                runInterruptible(dispatcher) {
+                    // The marker rides on the coroutine the tool body actually
+                    // runs in. `runBlocking` starts a fresh one, so passing it
+                    // here is what makes the check above see it on re-entry.
+                    runBlocking(InToolExecution) { tool.execute(call, ctx) }
                 }
             }
         } catch (e: TimeoutCancellationException) {
@@ -215,7 +245,27 @@ internal class RemoteCostApprovalGate {
         val requestingMessage: String,
     )
 
-    private val pending = mutableMapOf<Key, Pending>()
+    /**
+     * Bounded, evicting least-recently-used.
+     *
+     * Entries were only ever removed on approval. A prompt the user ignored,
+     * or answered with anything other than an explicit yes, stayed for the life
+     * of the process — and the key is (conversationId, toolName), so the set
+     * grows with every conversation that ever declined a paid tool. On an app
+     * used daily for months that is a slow leak in a singleton, of exactly the
+     * kind nothing reports until it matters.
+     *
+     * An LRU cap rather than an expiry: the entry exists to recognise an
+     * approval arriving on a later turn, which is a conversation-scoped notion
+     * with no natural deadline. Losing the oldest entry costs one extra
+     * confirmation prompt, which is the safe direction to fail — the failure
+     * mode of remembering too long is running a paid tool the user never
+     * approved.
+     */
+    private val pending = object : LinkedHashMap<Key, Pending>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Key, Pending>?): Boolean =
+            size > MAX_PENDING
+    }
 
     @Synchronized
     fun authorize(
@@ -253,6 +303,12 @@ internal class RemoteCostApprovalGate {
     }
 
     private companion object {
+        /**
+         * Enough to cover every tool the user might have pending across the
+         * handful of conversations they are actually moving between.
+         */
+        const val MAX_PENDING = 64
+
         val CONFIRMATIONS = setOf(
             "yes", "yes please", "yes confirm", "confirm", "confirmed",
             "go ahead", "do it", "continue", "approve", "approved",

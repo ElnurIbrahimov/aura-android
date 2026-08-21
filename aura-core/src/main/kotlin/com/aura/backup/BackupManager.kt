@@ -865,220 +865,310 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
     }
 
     /**
-     * Map + insert every table from [backup]. No internal error handling —
-     * [restore] owns the snapshot/rollback around this. Insert order
-     * matters: KG nodes before edges (FK), proactive events before
-     * interactions.
+     * Every entity list a restore writes, mapped up front.
+     *
+     * `writeRows` used to map all of this into locals and then write it, in one
+     * method, and the mapping had to come first: a `toEntity` that throws must
+     * not leave the database half-imported. That invariant is why this is a
+     * class rather than per-database mapping — constructing it does all the
+     * mapping and no database work, so a mapping failure still happens before
+     * the first insert.
+     *
+     * It is also what let `writeRows` be split at all. That method carried a
+     * comment saying it "is already at the JVM 64KB ceiling and cannot take
+     * another parameter", which is a real limit and was one schema version away
+     * from being hit.
+     */
+    private class RestoreRows(backup: AuraBackup) {
+
+    // Build ALL entity rows first (no DB calls) so a mapping
+    // failure can't leave the DB half-imported.
+    val memRows = backup.memories.map { it.toEntity() }
+    val editRows = backup.memoryEdits.map { it.toEntity() }
+    val documentRows = backup.documents.map { it.toEntity() }
+    val creativeRows = backup.creativeProjects.map { it.toEntity() }
+    val convRows = backup.conversations.map { it.toEntity() }
+    val nodeRows = backup.knowledgeGraph.nodes.map { it.toEntity() }
+    val edgeRows = backup.knowledgeGraph.edges.map { it.toEntity() }
+    val handRows = backup.hands.map { it.toEntity() }
+    val handRunRows = backup.handRuns.map { it.toEntity() }
+    val taskRows = backup.tasks.map { it.toEntity() }
+    val reminderRows = backup.reminders.map { it.toEntity() }
+    val proactiveRows = backup.proactiveEvents.map { it.toEntity() }
+    val profileRow = backup.userProfile?.toEntity()
+    val agentRows = backup.agents.map { it.toEntity() }
+    // Schema v10: world model + creative + taste. Until v0.30.x these
+    // were silently dropped on restore because the toEntity() mappers
+    // and the DAOs' insertAll() methods didn't exist.
+    val beliefRows = backup.beliefs.map { it.toEntity() }
+    val evidenceRows = backup.evidence.map { it.toEntity() }
+    val worldEventRows = backup.worldEvents.map { it.toEntity() }
+    val opportunityRows = backup.opportunities.map { it.toEntity() }
+    val creativeArtifactRows = backup.creativeArtifacts.map { it.toEntity() }
+    val creativeRevisionRows = backup.creativeRevisions.map { it.toEntity() }
+    val creativeBranchRows = backup.creativeBranches.map { it.toEntity() }
+    val canonFactRows = backup.canonFacts.map { it.toEntity() }
+    val proactiveOutcomeRows = backup.proactiveOutcomes.map { it.toEntity() }
+    val livingWorldRows = backup.livingWorlds.map { it.toEntity() }
+    val livingEventRows = backup.livingEvents.map { it.toEntity() }
+    val correctionRows = backup.corrections.map { it.toEntity() }
+    val openQuestionRows = backup.openQuestions.map { it.toEntity() }
+    val placeVisitRows = backup.placeVisits.map { it.toEntity() }
+    val creativeAnalysisRows = backup.creativeAnalysis.map { it.toEntity() }
+    val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
+    val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
+    // Schema v11: dream database.
+    val dreamSummaryRows = backup.dreamSummaries.map { it.toEntity() }
+    val routineRows = backup.routines.map { it.toEntity() }
+    val contradictionRows = backup.contradictions.map { it.toEntity() }
+    val kgEdgeProposalRows = backup.kgEdgeProposals.map { it.toEntity() }
+    // Schema v12 rows.
+    val memoryFeedbackRows = backup.memoryFeedback.map { it.toEntity() }
+    val retrievalLabelRows = backup.retrievalLabels.map { it.toEntity() }
+    val projectRows = backup.projects.map { it.toEntity() }
+    val projectNoteRows = backup.projectNotes.map { it.toEntity() }
+    val claimResolutionRows = backup.claimResolutions.map { it.toEntity() }
+    val documentChunkRows = backup.documentChunks.map { it.toEntity() }
+    val referenceIdentityRows = backup.referenceIdentities.map { it.toEntity() }
+    val agentRunRows = backup.agentRuns.map { it.toEntity() }
+    val goalRows = backup.agentGoals.map { it.toEntity() }
+    val stepRows = backup.agentSteps.map { it.toEntity() }
+    val agentEventRows = backup.agentEvents.map { it.toEntity() }
+    val agentApprovalRows = backup.agentApprovals.map { it.toEntity() }
+    val runCheckpointRows = backup.runCheckpoints.map { it.toEntity() }
+    val artifactDependencyRows = backup.artifactDependencies.map { it.toEntity() }
+    val continuityIssueRows = backup.continuityIssues.map { it.toEntity() }
+    val creativeSimulationRows = backup.creativeSimulations.map { it.toEntity() }
+    val evolutionEvidenceRows = backup.evolutionEvidence.map { it.toEntity() }
+    val evolutionCandidateRows = backup.evolutionCandidates.map { it.toEntity() }
+    val proactiveInteractionRows = backup.proactiveInteractions.map { it.toEntity() }
+    val routingOutcomeRows = backup.routingOutcomes.map { it.toEntity() }
+    }
+
+    /**
+     * Map + insert every table from [backup].
+     *
+     * No internal error handling — [restore] owns the snapshot and rollback
+     * around this. Writes are grouped by database and each group runs in its own
+     * transaction, so a failure leaves each database either fully written or
+     * untouched rather than arbitrary. Order inside a group is unchanged and
+     * still matters: KG nodes before edges, worlds before their events, projects
+     * before their notes, proactive events before their interactions.
      */
     private suspend fun writeRows(backup: AuraBackup): RestoreCounts {
-        // Build ALL entity rows first (no DB calls) so a mapping
-        // failure can't leave the DB half-imported.
-        val memRows = backup.memories.map { it.toEntity() }
-        val editRows = backup.memoryEdits.map { it.toEntity() }
-        val documentRows = backup.documents.map { it.toEntity() }
-        val creativeRows = backup.creativeProjects.map { it.toEntity() }
-        val convRows = backup.conversations.map { it.toEntity() }
-        val nodeRows = backup.knowledgeGraph.nodes.map { it.toEntity() }
-        val edgeRows = backup.knowledgeGraph.edges.map { it.toEntity() }
-        val handRows = backup.hands.map { it.toEntity() }
-        val handRunRows = backup.handRuns.map { it.toEntity() }
-        val taskRows = backup.tasks.map { it.toEntity() }
-        val reminderRows = backup.reminders.map { it.toEntity() }
-        val proactiveRows = backup.proactiveEvents.map { it.toEntity() }
-        val profileRow = backup.userProfile?.toEntity()
-        val agentRows = backup.agents.map { it.toEntity() }
-        // Schema v10: world model + creative + taste. Until v0.30.x these
-        // were silently dropped on restore because the toEntity() mappers
-        // and the DAOs' insertAll() methods didn't exist.
-        val beliefRows = backup.beliefs.map { it.toEntity() }
-        val evidenceRows = backup.evidence.map { it.toEntity() }
-        val worldEventRows = backup.worldEvents.map { it.toEntity() }
-        val opportunityRows = backup.opportunities.map { it.toEntity() }
-        val creativeArtifactRows = backup.creativeArtifacts.map { it.toEntity() }
-        val creativeRevisionRows = backup.creativeRevisions.map { it.toEntity() }
-        val creativeBranchRows = backup.creativeBranches.map { it.toEntity() }
-        val canonFactRows = backup.canonFacts.map { it.toEntity() }
-        val proactiveOutcomeRows = backup.proactiveOutcomes.map { it.toEntity() }
-        val livingWorldRows = backup.livingWorlds.map { it.toEntity() }
-        val livingEventRows = backup.livingEvents.map { it.toEntity() }
-        val correctionRows = backup.corrections.map { it.toEntity() }
-        val openQuestionRows = backup.openQuestions.map { it.toEntity() }
-        val placeVisitRows = backup.placeVisits.map { it.toEntity() }
-        val creativeAnalysisRows = backup.creativeAnalysis.map { it.toEntity() }
-        val preferenceSignalRows = backup.preferenceSignals.map { it.toEntity() }
-        val styleProfileRows = backup.styleProfiles.map { it.toEntity() }
-        // Schema v11: dream database.
-        val dreamSummaryRows = backup.dreamSummaries.map { it.toEntity() }
-        val routineRows = backup.routines.map { it.toEntity() }
-        val contradictionRows = backup.contradictions.map { it.toEntity() }
-        val kgEdgeProposalRows = backup.kgEdgeProposals.map { it.toEntity() }
-        // Schema v12 rows.
-        val memoryFeedbackRows = backup.memoryFeedback.map { it.toEntity() }
-        val retrievalLabelRows = backup.retrievalLabels.map { it.toEntity() }
-        val projectRows = backup.projects.map { it.toEntity() }
-        val projectNoteRows = backup.projectNotes.map { it.toEntity() }
-        val claimResolutionRows = backup.claimResolutions.map { it.toEntity() }
-        val documentChunkRows = backup.documentChunks.map { it.toEntity() }
-        val referenceIdentityRows = backup.referenceIdentities.map { it.toEntity() }
-        val agentRunRows = backup.agentRuns.map { it.toEntity() }
-        val goalRows = backup.agentGoals.map { it.toEntity() }
-        val stepRows = backup.agentSteps.map { it.toEntity() }
-        val agentEventRows = backup.agentEvents.map { it.toEntity() }
-        val agentApprovalRows = backup.agentApprovals.map { it.toEntity() }
-        val runCheckpointRows = backup.runCheckpoints.map { it.toEntity() }
-        val artifactDependencyRows = backup.artifactDependencies.map { it.toEntity() }
-        val continuityIssueRows = backup.continuityIssues.map { it.toEntity() }
-        val creativeSimulationRows = backup.creativeSimulations.map { it.toEntity() }
-        val evolutionEvidenceRows = backup.evolutionEvidence.map { it.toEntity() }
-        val evolutionCandidateRows = backup.evolutionCandidates.map { it.toEntity() }
-        val proactiveInteractionRows = backup.proactiveInteractions.map { it.toEntity() }
-        val routingOutcomeRows = backup.routingOutcomes.map { it.toEntity() }
+        val rows = RestoreRows(backup)
 
-        if (memRows.isNotEmpty() && editRows.isNotEmpty()) memoryDao.insertAllWithEdits(memRows, editRows)
-        else if (memRows.isNotEmpty()) memoryDao.insertAll(memRows)
-        else if (editRows.isNotEmpty()) memoryEditDao.insertAll(editRows)
-        if (documentRows.isNotEmpty()) documentDao.insertAll(documentRows)
-        if (creativeRows.isNotEmpty()) creativeProjectDao.insertAll(creativeRows)
-        if (convRows.isNotEmpty()) conversationDao.insertAll(convRows)
-        if (nodeRows.isNotEmpty()) kgDao.insertAllNodes(nodeRows)
-        if (edgeRows.isNotEmpty()) kgDao.insertAllEdges(edgeRows)
-        if (handRows.isNotEmpty()) {
-            handDao.insertAll(handRows)
-            handRows.forEach(handScheduler::schedule)
+        transactions?.memory { writeMemoryRows(rows) } ?: writeMemoryRows(rows)
+        transactions?.conversations { writeConversationRows(rows) } ?: writeConversationRows(rows)
+        transactions?.hands { writeHandRows(rows) } ?: writeHandRows(rows)
+        transactions?.tasks { writeTaskRows(rows) } ?: writeTaskRows(rows)
+        transactions?.proactive { writeProactiveRows(rows) } ?: writeProactiveRows(rows)
+        transactions?.dreams { writeDreamRows(rows) } ?: writeDreamRows(rows)
+        transactions?.agentRuns { writeAgentRunRows(rows) } ?: writeAgentRunRows(rows)
+        transactions?.evolution { writeEvolutionRows(rows) } ?: writeEvolutionRows(rows)
+        transactions?.profile { writeProfileRow(rows) } ?: writeProfileRow(rows)
+        transactions?.agents { writeAgentRows(rows) } ?: writeAgentRows(rows)
+
+        // Outside every transaction, and last.
+        //
+        // Both of these enqueue WorkManager jobs as a side effect of writing a
+        // row — `handScheduler.schedule` directly, and `restoreReminders`
+        // through `ReminderScheduler`, which inserts and then enqueues. A SQLite
+        // rollback cannot un-enqueue a job, so a scheduler call inside a
+        // transaction can outlive the row that justified it. Running them after
+        // the writes commit means the jobs only ever exist for rows that do.
+        rows.handRows.forEach { hand ->
+            runCatching { handScheduler.schedule(hand) }
+                .onFailure { android.util.Log.w("BackupManager", "hand schedule failed: " + it.message, it) }
         }
-        if (handRunRows.isNotEmpty()) handDao.insertAllRuns(handRunRows)
-        if (taskRows.isNotEmpty()) taskDao.insertAll(taskRows)
-        if (beliefRows.isNotEmpty()) beliefDao?.insertAll(beliefRows)
-        if (evidenceRows.isNotEmpty()) evidenceDao?.insertAll(evidenceRows)
-        if (worldEventRows.isNotEmpty()) worldEventDao?.insertAll(worldEventRows)
-        if (opportunityRows.isNotEmpty()) opportunityDao?.insertAll(opportunityRows)
-        if (creativeArtifactRows.isNotEmpty()) creativeArtifactDao?.insertAll(creativeArtifactRows)
-        if (creativeRevisionRows.isNotEmpty()) creativeRevisionDao?.insertAll(creativeRevisionRows)
-        if (creativeBranchRows.isNotEmpty()) creativeBranchDao?.insertAll(creativeBranchRows)
-        if (canonFactRows.isNotEmpty()) canonFactDao?.upsertAll(canonFactRows)
-        if (proactiveOutcomeRows.isNotEmpty()) proactiveOutcomeDao?.insertAll(proactiveOutcomeRows)
-        // Worlds strictly before their events: living_events carries a foreign
-        // key onto living_worlds, so the reverse order drops every event.
-        if (livingWorldRows.isNotEmpty()) livingWorldDao?.upsertAll(livingWorldRows)
-        if (livingEventRows.isNotEmpty()) livingEventDao?.upsertAll(livingEventRows)
-        if (correctionRows.isNotEmpty()) correctionDao?.insertAll(correctionRows)
-        if (openQuestionRows.isNotEmpty()) openQuestionDao?.insertAll(openQuestionRows)
-        if (placeVisitRows.isNotEmpty()) placeVisitDao?.insertAll(placeVisitRows)
-        // After revisions: the FK is ON DELETE CASCADE, so an analysis row
-        // inserted before its revision exists is rejected outright.
-        if (creativeAnalysisRows.isNotEmpty()) creativeAnalysisDao?.insertAll(creativeAnalysisRows)
-        if (preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(preferenceSignalRows)
-        if (styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(styleProfileRows)
-        // Schema v11: dream database.
-        if (dreamSummaryRows.isNotEmpty()) dreamSummaryDao?.insertAll(dreamSummaryRows)
-        if (routineRows.isNotEmpty()) routineDao?.insertAll(routineRows)
-        if (contradictionRows.isNotEmpty()) contradictionDao?.insertAll(contradictionRows)
-        if (kgEdgeProposalRows.isNotEmpty()) kgEdgeProposalDao?.insertAll(kgEdgeProposalRows)
-        // Schema v12: restore durable state previously dropped on roundtrip.
-        if (memoryFeedbackRows.isNotEmpty()) memoryFeedbackDao?.insertAll(memoryFeedbackRows)
-        if (retrievalLabelRows.isNotEmpty()) retrievalLabelDao?.upsertAll(retrievalLabelRows)
-        // Projects before their notes: `project_notes` carries a CASCADE foreign
-        // key into `projects`, and Room restores with `PRAGMA foreign_keys = ON`,
-        // so the reverse order rejects every note and loses the whole ledger.
-        if (projectRows.isNotEmpty()) projectDao?.upsertAll(projectRows)
-        if (projectNoteRows.isNotEmpty()) projectNoteDao?.upsertAll(projectNoteRows)
-        // After beliefRows above: claim_resolutions CASCADEs into `beliefs`, and
-        // Room restores with foreign keys on, so the reverse order rejects every
-        // verdict — the one table in the export nothing could reproduce.
-        if (claimResolutionRows.isNotEmpty()) claimResolutionDao?.upsertAll(claimResolutionRows)
-        if (documentChunkRows.isNotEmpty()) documentChunkDao?.insertAll(documentChunkRows)
-        if (referenceIdentityRows.isNotEmpty()) referenceIdentityDao?.insertAll(referenceIdentityRows)
-        if (goalRows.isNotEmpty()) goalDao?.insertAll(goalRows)
-        if (agentRunRows.isNotEmpty()) agentRunDao?.insertAll(agentRunRows)
-        if (stepRows.isNotEmpty()) stepDao?.upsertAll(stepRows)
-        if (agentEventRows.isNotEmpty()) agentEventDao?.insertAll(agentEventRows)
-        if (agentApprovalRows.isNotEmpty()) approvalRequestDao?.insertAll(agentApprovalRows)
-        if (runCheckpointRows.isNotEmpty()) runCheckpointDao?.upsertAll(runCheckpointRows)
-        // Schema v13. Creative rows depend on artifacts/projects, which are
-        // inserted above. Proactive interactions reference proactive events,
-        // so they must follow the proactiveEventDao insert below.
-        if (artifactDependencyRows.isNotEmpty()) artifactDependencyDao?.insertAll(artifactDependencyRows)
-        if (continuityIssueRows.isNotEmpty()) continuityIssueDao?.insertAll(continuityIssueRows)
-        if (creativeSimulationRows.isNotEmpty()) creativeSimulationDao?.insertAll(creativeSimulationRows)
-        if (evolutionEvidenceRows.isNotEmpty()) evolutionEvidenceDao?.insertAll(evolutionEvidenceRows)
-        if (evolutionCandidateRows.isNotEmpty()) evolutionCandidateDao?.insertAll(evolutionCandidateRows)
-        if (routingOutcomeRows.isNotEmpty()) routingOutcomeDao?.insertAll(routingOutcomeRows)
-        if (proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(proactiveRows)
-        if (proactiveInteractionRows.isNotEmpty()) proactiveInteractionDao?.insertAll(proactiveInteractionRows)
-        restoreReminders(reminderRows)
-        // Writing only. Clearing a profile the backup does not carry depends on the restore
-        // mode, and lives in writeEverything with the other mode-dependent deletes — this
-        // method is already at the JVM's 64KB ceiling and cannot take another parameter.
-        if (profileRow != null) userProfileDao.upsert(profileRow)
-        // Restore custom agents. Builtins are re-seeded on startup
-        // so we only insert non-builtin entries from the backup.
-        val customAgents = agentRows.filter { !it.isBuiltin }
-        if (customAgents.isNotEmpty()) agentDao.insertAll(customAgents)
+        restoreReminders(rows.reminderRows)
 
+        return countsFor(backup, rows)
+    }
+
+    /**
+     * Row counts for the restore report.
+     *
+     * Reads the mapped lists rather than — say — `backup.memories.size`,
+     * which would be the same number today and would stop being the same
+     * number the moment any mapper filters. `agents` is deliberately the
+     * unfiltered count: builtins are re-seeded rather than restored, so the
+     * number of agents the file carried is the honest figure to report.
+     */
+    private fun countsFor(backup: AuraBackup, r: RestoreRows): RestoreCounts {
         return RestoreCounts(
-            memories = memRows.size,
-            memoryEdits = editRows.size,
-            documents = documentRows.size,
-            creativeProjects = creativeRows.size,
-            conversations = convRows.size,
-            nodes = nodeRows.size,
-            edges = edgeRows.size,
-            hands = handRows.size,
-            handRuns = handRunRows.size,
-            tasks = taskRows.size,
-            reminders = reminderRows.size,
-            proactiveEvents = proactiveRows.size,
-            profile = if (profileRow != null) 1 else 0,
+            memories = r.memRows.size,
+            memoryEdits = r.editRows.size,
+            documents = r.documentRows.size,
+            creativeProjects = r.creativeRows.size,
+            conversations = r.convRows.size,
+            nodes = r.nodeRows.size,
+            edges = r.edgeRows.size,
+            hands = r.handRows.size,
+            handRuns = r.handRunRows.size,
+            tasks = r.taskRows.size,
+            reminders = r.reminderRows.size,
+            proactiveEvents = r.proactiveRows.size,
+            profile = if (r.profileRow != null) 1 else 0,
             evolutionProposals = backup.evolutionProposals.size,
             evolutionSettings = backup.evolutionSettings.size,
             evolutionRevisions = backup.evolutionRevisions.size,
-            agents = agentRows.size,
+            agents = r.agentRows.size,
             // Schema v10: previously missing from RestoreCounts entirely.
-            beliefs = beliefRows.size,
-            evidence = evidenceRows.size,
-            worldEvents = worldEventRows.size,
-            opportunities = opportunityRows.size,
-            creativeArtifacts = creativeArtifactRows.size,
-            creativeRevisions = creativeRevisionRows.size,
-            creativeBranches = creativeBranchRows.size,
-            canonFacts = canonFactRows.size,
-            proactiveOutcomes = proactiveOutcomeRows.size,
-            livingWorlds = livingWorldRows.size,
-            livingEvents = livingEventRows.size,
-            corrections = correctionRows.size,
-            openQuestions = openQuestionRows.size,
-            placeVisits = placeVisitRows.size,
-            creativeAnalysis = creativeAnalysisRows.size,
-            preferenceSignals = preferenceSignalRows.size,
-            styleProfiles = styleProfileRows.size,
+            beliefs = r.beliefRows.size,
+            evidence = r.evidenceRows.size,
+            worldEvents = r.worldEventRows.size,
+            opportunities = r.opportunityRows.size,
+            creativeArtifacts = r.creativeArtifactRows.size,
+            creativeRevisions = r.creativeRevisionRows.size,
+            creativeBranches = r.creativeBranchRows.size,
+            canonFacts = r.canonFactRows.size,
+            proactiveOutcomes = r.proactiveOutcomeRows.size,
+            livingWorlds = r.livingWorldRows.size,
+            livingEvents = r.livingEventRows.size,
+            corrections = r.correctionRows.size,
+            openQuestions = r.openQuestionRows.size,
+            placeVisits = r.placeVisitRows.size,
+            creativeAnalysis = r.creativeAnalysisRows.size,
+            preferenceSignals = r.preferenceSignalRows.size,
+            styleProfiles = r.styleProfileRows.size,
             // Schema v11: dream database.
-            dreamSummaries = dreamSummaryRows.size,
-            routines = routineRows.size,
-            contradictions = contradictionRows.size,
-            kgEdgeProposals = kgEdgeProposalRows.size,
+            dreamSummaries = r.dreamSummaryRows.size,
+            routines = r.routineRows.size,
+            contradictions = r.contradictionRows.size,
+            kgEdgeProposals = r.kgEdgeProposalRows.size,
             // Schema v12: durable state previously dropped on backup/restore.
-            memoryFeedback = memoryFeedbackRows.size,
-            retrievalLabels = retrievalLabelRows.size,
-            projects = projectRows.size,
-            projectNotes = projectNoteRows.size,
-            claimResolutions = claimResolutionRows.size,
-            documentChunks = documentChunkRows.size,
-            referenceIdentities = referenceIdentityRows.size,
-            agentRuns = agentRunRows.size,
-            agentGoals = goalRows.size,
-            agentSteps = stepRows.size,
-            agentEvents = agentEventRows.size,
-            agentApprovals = agentApprovalRows.size,
-            runCheckpoints = runCheckpointRows.size,
+            memoryFeedback = r.memoryFeedbackRows.size,
+            retrievalLabels = r.retrievalLabelRows.size,
+            projects = r.projectRows.size,
+            projectNotes = r.projectNoteRows.size,
+            claimResolutions = r.claimResolutionRows.size,
+            documentChunks = r.documentChunkRows.size,
+            referenceIdentities = r.referenceIdentityRows.size,
+            agentRuns = r.agentRunRows.size,
+            agentGoals = r.goalRows.size,
+            agentSteps = r.stepRows.size,
+            agentEvents = r.agentEventRows.size,
+            agentApprovals = r.agentApprovalRows.size,
+            runCheckpoints = r.runCheckpointRows.size,
             // Schema v13.
-            artifactDependencies = artifactDependencyRows.size,
-            continuityIssues = continuityIssueRows.size,
-            creativeSimulations = creativeSimulationRows.size,
-            evolutionEvidence = evolutionEvidenceRows.size,
-            evolutionCandidates = evolutionCandidateRows.size,
-            proactiveInteractions = proactiveInteractionRows.size,
-            routingOutcomes = routingOutcomeRows.size,
+            artifactDependencies = r.artifactDependencyRows.size,
+            continuityIssues = r.continuityIssueRows.size,
+            creativeSimulations = r.creativeSimulationRows.size,
+            evolutionEvidence = r.evolutionEvidenceRows.size,
+            evolutionCandidates = r.evolutionCandidateRows.size,
+            proactiveInteractions = r.proactiveInteractionRows.size,
+            routingOutcomes = r.routingOutcomeRows.size,
         )
+    }
+
+    private suspend fun writeMemoryRows(r: RestoreRows) {
+        if (r.memRows.isNotEmpty() && r.editRows.isNotEmpty()) memoryDao.insertAllWithEdits(r.memRows, r.editRows)
+        else if (r.memRows.isNotEmpty()) memoryDao.insertAll(r.memRows)
+        else if (r.editRows.isNotEmpty()) memoryEditDao.insertAll(r.editRows)
+        if (r.documentRows.isNotEmpty()) documentDao.insertAll(r.documentRows)
+        if (r.creativeRows.isNotEmpty()) creativeProjectDao.insertAll(r.creativeRows)
+        // Nodes before edges: an edge whose node does not exist yet is rejected.
+        if (r.nodeRows.isNotEmpty()) kgDao.insertAllNodes(r.nodeRows)
+        if (r.edgeRows.isNotEmpty()) kgDao.insertAllEdges(r.edgeRows)
+        if (r.beliefRows.isNotEmpty()) beliefDao?.insertAll(r.beliefRows)
+        if (r.evidenceRows.isNotEmpty()) evidenceDao?.insertAll(r.evidenceRows)
+        if (r.worldEventRows.isNotEmpty()) worldEventDao?.insertAll(r.worldEventRows)
+        if (r.opportunityRows.isNotEmpty()) opportunityDao?.insertAll(r.opportunityRows)
+        if (r.creativeArtifactRows.isNotEmpty()) creativeArtifactDao?.insertAll(r.creativeArtifactRows)
+        if (r.creativeRevisionRows.isNotEmpty()) creativeRevisionDao?.insertAll(r.creativeRevisionRows)
+        if (r.creativeBranchRows.isNotEmpty()) creativeBranchDao?.insertAll(r.creativeBranchRows)
+        if (r.canonFactRows.isNotEmpty()) canonFactDao?.upsertAll(r.canonFactRows)
+        // Worlds strictly before their events: living_events carries a foreign
+        // key onto living_worlds, so the reverse order drops every event.
+        if (r.livingWorldRows.isNotEmpty()) livingWorldDao?.upsertAll(r.livingWorldRows)
+        if (r.livingEventRows.isNotEmpty()) livingEventDao?.upsertAll(r.livingEventRows)
+        if (r.correctionRows.isNotEmpty()) correctionDao?.insertAll(r.correctionRows)
+        if (r.openQuestionRows.isNotEmpty()) openQuestionDao?.insertAll(r.openQuestionRows)
+        if (r.placeVisitRows.isNotEmpty()) placeVisitDao?.insertAll(r.placeVisitRows)
+        // After revisions: the FK is ON DELETE CASCADE, so an analysis row
+        // inserted before its revision exists is rejected outright.
+        if (r.creativeAnalysisRows.isNotEmpty()) creativeAnalysisDao?.insertAll(r.creativeAnalysisRows)
+        if (r.preferenceSignalRows.isNotEmpty()) preferenceSignalDao?.insertAll(r.preferenceSignalRows)
+        if (r.styleProfileRows.isNotEmpty()) styleProfileDao?.insertAll(r.styleProfileRows)
+        // Schema v12: restore durable state previously dropped on roundtrip.
+        if (r.memoryFeedbackRows.isNotEmpty()) memoryFeedbackDao?.insertAll(r.memoryFeedbackRows)
+        if (r.retrievalLabelRows.isNotEmpty()) retrievalLabelDao?.upsertAll(r.retrievalLabelRows)
+        // Projects before their notes: `project_notes` carries a CASCADE foreign
+        // key into `projects`, and Room restores with `PRAGMA foreign_keys = ON`,
+        // so the reverse order rejects every note and loses the whole ledger.
+        if (r.projectRows.isNotEmpty()) projectDao?.upsertAll(r.projectRows)
+        if (r.projectNoteRows.isNotEmpty()) projectNoteDao?.upsertAll(r.projectNoteRows)
+        // After beliefs above: claim_resolutions CASCADEs into `beliefs`, and
+        // Room restores with foreign keys on, so the reverse order rejects every
+        // verdict — the one table in the export nothing could reproduce.
+        if (r.claimResolutionRows.isNotEmpty()) claimResolutionDao?.upsertAll(r.claimResolutionRows)
+        if (r.documentChunkRows.isNotEmpty()) documentChunkDao?.insertAll(r.documentChunkRows)
+        if (r.referenceIdentityRows.isNotEmpty()) referenceIdentityDao?.insertAll(r.referenceIdentityRows)
+        // Schema v13. Creative rows depend on artifacts and projects, above.
+        if (r.artifactDependencyRows.isNotEmpty()) artifactDependencyDao?.insertAll(r.artifactDependencyRows)
+        if (r.continuityIssueRows.isNotEmpty()) continuityIssueDao?.insertAll(r.continuityIssueRows)
+        if (r.creativeSimulationRows.isNotEmpty()) creativeSimulationDao?.insertAll(r.creativeSimulationRows)
+        if (r.routingOutcomeRows.isNotEmpty()) routingOutcomeDao?.insertAll(r.routingOutcomeRows)
+    }
+
+    private suspend fun writeConversationRows(r: RestoreRows) {
+        if (r.convRows.isNotEmpty()) conversationDao.insertAll(r.convRows)
+    }
+
+    private suspend fun writeHandRows(r: RestoreRows) {
+        // The WorkManager side of this runs after the transaction commits.
+        if (r.handRows.isNotEmpty()) handDao.insertAll(r.handRows)
+        if (r.handRunRows.isNotEmpty()) handDao.insertAllRuns(r.handRunRows)
+    }
+
+    private suspend fun writeTaskRows(r: RestoreRows) {
+        // Reminders are not here: they schedule as they insert, so they run
+        // outside the transaction with the hand schedules.
+        if (r.taskRows.isNotEmpty()) taskDao.insertAll(r.taskRows)
+    }
+
+    private suspend fun writeProactiveRows(r: RestoreRows) {
+        if (r.proactiveOutcomeRows.isNotEmpty()) proactiveOutcomeDao?.insertAll(r.proactiveOutcomeRows)
+        // Events before interactions: proactive_interactions references them.
+        if (r.proactiveRows.isNotEmpty()) proactiveEventDao.insertAll(r.proactiveRows)
+        if (r.proactiveInteractionRows.isNotEmpty()) proactiveInteractionDao?.insertAll(r.proactiveInteractionRows)
+    }
+
+    private suspend fun writeDreamRows(r: RestoreRows) {
+        // Schema v11: dream database.
+        if (r.dreamSummaryRows.isNotEmpty()) dreamSummaryDao?.insertAll(r.dreamSummaryRows)
+        if (r.routineRows.isNotEmpty()) routineDao?.insertAll(r.routineRows)
+        if (r.contradictionRows.isNotEmpty()) contradictionDao?.insertAll(r.contradictionRows)
+        if (r.kgEdgeProposalRows.isNotEmpty()) kgEdgeProposalDao?.insertAll(r.kgEdgeProposalRows)
+    }
+
+    private suspend fun writeAgentRunRows(r: RestoreRows) {
+        if (r.goalRows.isNotEmpty()) goalDao?.insertAll(r.goalRows)
+        if (r.agentRunRows.isNotEmpty()) agentRunDao?.insertAll(r.agentRunRows)
+        if (r.stepRows.isNotEmpty()) stepDao?.upsertAll(r.stepRows)
+        if (r.agentEventRows.isNotEmpty()) agentEventDao?.insertAll(r.agentEventRows)
+        if (r.agentApprovalRows.isNotEmpty()) approvalRequestDao?.insertAll(r.agentApprovalRows)
+        if (r.runCheckpointRows.isNotEmpty()) runCheckpointDao?.upsertAll(r.runCheckpointRows)
+    }
+
+    private suspend fun writeEvolutionRows(r: RestoreRows) {
+        if (r.evolutionEvidenceRows.isNotEmpty()) evolutionEvidenceDao?.insertAll(r.evolutionEvidenceRows)
+        if (r.evolutionCandidateRows.isNotEmpty()) evolutionCandidateDao?.insertAll(r.evolutionCandidateRows)
+    }
+
+    private suspend fun writeProfileRow(r: RestoreRows) {
+        // Writing only. Clearing a profile the backup does not carry depends on
+        // the restore mode and lives in writeEverything with the other
+        // mode-dependent deletes.
+        r.profileRow?.let { userProfileDao.upsert(it) }
+    }
+
+    private suspend fun writeAgentRows(r: RestoreRows) {
+        // Builtins are re-seeded on startup, so only non-builtin entries from
+        // the backup are inserted.
+        val customAgents = r.agentRows.filter { !it.isBuiltin }
+        if (customAgents.isNotEmpty()) agentDao.insertAll(customAgents)
     }
 
     private suspend fun restorePreferences(p: PreferencesBackup) {

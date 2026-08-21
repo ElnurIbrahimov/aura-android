@@ -58,10 +58,10 @@ class ProjectSpineIsWiredTest {
      * Source with comments removed.
      *
      * Load-bearing, and this test shipped without it for one commit. Commenting
-     * out `registry.register(projectState.tool)` left the literal string in the
-     * file, `contains` still matched it, and the gate reported the tool wired
-     * while the model could not see it — the failure verified by mutation before
-     * this helper existed.
+     * out the ProjectStateTool binding left the literal string in the file,
+     * `contains` still matched it, and the gate reported the tool wired while
+     * the model could not see it — the failure verified by mutation before this
+     * helper existed.
      *
      * ENGINEERING_HISTORY records the same defect in
      * `ForegroundAppIsNeverStoredTest`, which fired on a *KDoc* because the scan
@@ -150,8 +150,13 @@ class ProjectSpineIsWiredTest {
     @Test
     fun `project_state is registered as a tool`() {
         val module = core("tools/ToolsModule.kt")
+        // Matches the multibinding, not a register call. ToolsModule became an
+        // @IntoSet module: a tool is now one `fun provideX(t: XTool): Tool`
+        // rather than a constructor parameter plus a `registry.register` line
+        // eighty rows away. The invariant is unchanged — the model must be
+        // able to see project_state — so only the shape being asserted moved.
         assertTrue(
-            module.contains("registry.register(projectState.tool)"),
+            module.contains("ProjectStateTool): Tool"),
             "ProjectStateTool is not registered in ToolsModule, so the model never sees " +
                 "project_state and 'where is ARC-AGI-2' falls back to a BM25 query — the exact " +
                 "behaviour the ledger was built to replace.",

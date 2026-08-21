@@ -94,6 +94,19 @@ private val COMPETENCE_TOOLS = setOf(
 private const val MAX_RETRY_AFTER_WAIT_MS = 10_000L
 
 /**
+ * Tools hidden from the wire because another tool already on it does the same
+ * job. See [MemoryAugmentedAgenticLoop.filterSearchTools]. Still registered
+ * and still callable by name; this only shapes the schema the model sees.
+ */
+private val SHADOWED_TOOLS = setOf(
+    "tavily_search",
+    "brave_search",
+    "image_generate",
+    "text_to_speech",
+    "web_search_capability",
+)
+
+/**
  * Tools gated behind the screen-control master switch. Hidden from the model
  * entirely when it is off, which is the default — so they cost nothing, and are
  * not reachable, for anyone who never opts in.
@@ -1817,17 +1830,36 @@ private suspend fun extractProfileFromText(text: String) {
     }
 
     /**
-     * Hide the standalone Tavily and Brave search tools from the model.
+     * Hide tools that duplicate another tool already on the wire.
      *
      * Since the M5 consolidation `web_search` dispatches to Tavily or Brave
      * internally when a key is configured, falling back to DuckDuckGo when it
-     * isn't. Offering the backends separately alongside it only creates
+     * is not. Offering the backends separately alongside it only creates
      * selection ambiguity — three tools that do the same job, two of which
      * fail without a key. So the model sees exactly one search tool, always.
      *
-     * Both stay registered in the [ToolRegistry]: direct dispatch, the Tools
-     * screen, hands, and tests still reach them by name. This filter only
-     * shapes what goes into the `tools` array on the wire.
+     * The same ambiguity existed in three more places and was never covered,
+     * because this filter was named after search and stopped there:
+     *
+     * - `image_generate` beside `image_gen`. These are not interchangeable and
+     *   the difference is invisible from the schema: `ImageGenCapabilityTool`
+     *   documents that it has **no free fallback** and reports `no_provider`
+     *   when nothing is configured, while `image_gen` does fall back. Which of
+     *   the two the model happened to pick decided whether the user got an
+     *   image or an error.
+     * - `text_to_speech` beside `tts_speak`. Both require a configured cloud
+     *   provider and neither falls back to the platform engine, so the second
+     *   name buys nothing and costs a choice.
+     * - `web_search_capability` beside `web_search`. Both search and both fall
+     *   back to DuckDuckGo. Two names for one job.
+     *
+     * In each pair the survivor is the one that degrades rather than refuses,
+     * because the model cannot see which is which and the failure is silent to
+     * it either way.
+     *
+     * Every one of these stays registered in the [ToolRegistry]: direct
+     * dispatch, the Tools screen, hands, and tests still reach them by name.
+     * This filter only shapes what goes into the `tools` array on the wire.
      *
      * The KDoc here used to describe key-conditional hiding ("hidden unless a
      * Tavily key is configured"), which the body never did, and an early
@@ -1838,7 +1870,7 @@ private suspend fun extractProfileFromText(text: String) {
      * since that guard was its only remaining reader.
      */
     private fun filterSearchTools(tools: List<ToolDefinition>): List<ToolDefinition> =
-        tools.filter { def -> def.name != "tavily_search" && def.name != "brave_search" }
+        tools.filter { def -> def.name !in SHADOWED_TOOLS }
 
     /**
      * Drop tools whose capability the user has not switched on.
