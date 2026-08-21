@@ -184,21 +184,19 @@ class PlayViewModel @Inject constructor(
 
     private suspend fun project(world: LivingWorldEntity, worldState: WorldState, note: String): PlayUiState {
         val now = System.currentTimeMillis()
-        val log = runCatching { store.recentEvents(world.id, LOG_LINES) }.getOrDefault(emptyList())
-            .map { it.narration.ifBlank { it.summary } }
-            .filter { it.isNotBlank() }
-
         val base = PlayUiState(
             loading = false,
             dayLabel = WorldClock.label(world.currentTick),
             behindDays = WorldClock.behind(world.currentTick, world.worldEpochMs, now, world.sessionTicksBurned),
-            log = log,
             note = note,
         )
 
         if (world.playerCharacterId.isBlank() || world.playerFactionId.isBlank()) {
             offered = emptyList()
             val characters = worldState.living().filter { it.kind == KIND_CHARACTER }
+            // No seat, no log. There is nobody for the history to have
+            // happened to yet, and showing the unfiltered stream here would
+            // be a free read of the world before choosing who to be in it.
             return base.copy(
                 seated = false,
                 choosingHouse = false,
@@ -209,9 +207,21 @@ class PlayViewModel @Inject constructor(
         val view = PlayerView.of(worldState, world.playerCharacterId, world.playerFactionId)
         offered = PlayerMoves.available(view)
 
+        // The log is part of the fog. A lie_told row says outright that a
+        // claim is false, so a raw event stream would end the fog in one line
+        // however careful the numbers above it were. Read wide and filtered
+        // down, because most of what happens in a world is not yours to see.
+        val log = runCatching { store.recentEvents(world.id, LOG_LINES * LOG_OVERREAD) }
+            .getOrDefault(emptyList())
+            .filter { PlayerView.witnessed(view, it.kind, it.actorId, it.targetId) }
+            .map { it.narration.ifBlank { it.summary } }
+            .filter { it.isNotBlank() }
+            .take(LOG_LINES)
+
         val places = worldState.living().filter { it.kind == KIND_LOCATION }.associateBy(SimEntity::id)
         val visible = view.others.filter { it.kind != KIND_LOCATION }
         return base.copy(
+            log = log,
             seated = view.self != null,
             youName = view.self?.name.orEmpty(),
             houseName = view.faction?.name.orEmpty(),
@@ -251,5 +261,15 @@ class PlayViewModel @Inject constructor(
         const val KIND_FACTION = "faction"
         const val KIND_LOCATION = "location"
         const val LOG_LINES = 12
+
+        /**
+         * How many rows to read for every one that survives the filter.
+         *
+         * Most of a world happens out of sight, so reading exactly
+         * [LOG_LINES] would usually render two or three. Bounded rather than
+         * a loop: a seat that has genuinely seen nothing should show an empty
+         * log, not walk the whole table looking for something to say.
+         */
+        const val LOG_OVERREAD = 8
     }
 }

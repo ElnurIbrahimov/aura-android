@@ -257,4 +257,61 @@ class PlayerViewTest {
         // the entities are still there, still fogged by an empty belief set.
         assertTrue(v.others.isNotEmpty())
     }
+
+    // ---- the event log is part of the fog ----------------------------------
+
+    private fun sees(kind: String, actorId: String, targetId: String = "") =
+        PlayerView.witnessed(view(fixture()), kind, actorId, targetId)
+
+    @Test
+    fun `a lie told about you is not in your log`() {
+        // The loudest leak in the design and the least obvious one. The row
+        // reads "Bramwatch lets it be known its might is greater THAN IT IS" —
+        // one line of that ends the fog however careful every number above it
+        // was. Propaganda that announced itself would not be propaganda.
+        assertFalse(sees(WorldEngine.KIND_LIE_TOLD, "f_bram"))
+        // Your own is yours to read: you know what you put about.
+        assertTrue(sees(WorldEngine.KIND_LIE_TOLD, "f_ash"))
+    }
+
+    @Test
+    fun `somebody else discovering the truth is not news you get`() {
+        // A reveal says an untruth was standing. Whose, and about what, is
+        // exactly the shape of somebody\'s ignorance — possibly yours.
+        assertFalse(sees(WorldEngine.KIND_BELIEF_REVEAL, "f_cor", targetId = "f_ash"))
+        assertTrue(sees(WorldEngine.KIND_BELIEF_REVEAL, "f_ash", targetId = "f_bram"))
+    }
+
+    @Test
+    fun `you see what happens in the room you are standing in`() {
+        // Bramwatch shares the keep with you; Cormere is out on the road.
+        assertTrue(sees(WorldEngine.KIND_STOCK_SHIFT, "f_bram"))
+        assertFalse(sees(WorldEngine.KIND_STOCK_SHIFT, "f_cor"))
+    }
+
+    @Test
+    fun `you see what is done to you wherever it is done from`() {
+        assertTrue(sees(WorldEngine.KIND_CLAIM_WON, "f_cor", targetId = "f_ash"))
+        assertTrue(sees(WorldEngine.KIND_RELATION_SHIFT, "f_cor", targetId = "c_you"))
+        assertFalse(sees(WorldEngine.KIND_CLAIM_WON, "f_cor", targetId = "f_bram"))
+    }
+
+    @Test
+    fun `time passing is not news and always shows`() {
+        // A quiet interval has no actor, so every other rule would hide it —
+        // and a log that silently skipped the fold would read as though those
+        // days never happened.
+        assertTrue(sees(WorldEngine.KIND_QUIET_INTERVAL, ""))
+    }
+
+    @Test
+    fun `an unplaced seat witnesses only its own doings`() {
+        val nowhere = fixture().let { s ->
+            s.copy(entities = s.entities.map { if (it.id == "c_you") it.copy(parentId = "") else it })
+        }
+        val v = view(nowhere)
+        assertTrue(PlayerView.witnessed(v, WorldEngine.KIND_STOCK_SHIFT, "f_ash", ""))
+        assertFalse(PlayerView.witnessed(v, WorldEngine.KIND_STOCK_SHIFT, "f_bram", ""))
+    }
+
 }
