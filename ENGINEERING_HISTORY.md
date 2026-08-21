@@ -464,7 +464,7 @@ Widget push-refresh verification stays on the device pass.
 clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Branch
 `fix/data-integrity-and-defect-sweep`.
 
-*2026-08-21 (the seat):* **3,653 unit tests / 547 suites, 0 failures** at v0.66.0,
+*2026-08-21 (the seat):* **3,655 unit tests / 547 suites, 0 failures** at v0.66.0,
 MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
 `:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
 

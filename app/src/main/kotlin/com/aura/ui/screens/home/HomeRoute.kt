@@ -66,6 +66,7 @@ fun HomeRoute(
         onOpenHands = onOpenHands,
         onOpenTools = onOpenTools,
         onOpenSkills = onOpenSkills,
+        onOpenLibrary = onOpenLibrary,
         onOpenCreative = onOpenCreative,
         onOpenProactive = {
             viewModel.onProactiveHistoryOpened()

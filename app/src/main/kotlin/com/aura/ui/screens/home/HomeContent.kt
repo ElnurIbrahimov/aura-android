@@ -540,6 +540,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeResolvedItems(
 
             onOpenSkills = onOpenSkills,
 
+            onOpenLibrary = onOpenLibrary,
+
             onOpenCreative = onOpenCreative,
 
             onOpenProactive = onOpenProactive,
