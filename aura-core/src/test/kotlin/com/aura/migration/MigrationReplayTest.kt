@@ -13,7 +13,7 @@ import com.aura.agent.sourceDir
 import com.aura.dream.DreamConsolidationModule
 import com.aura.profile.UserProfileModule
 import com.aura.hands.HandsModule
-import com.aura.memory.MemoryModule
+import com.aura.memory.MemoryMigrations
 import com.aura.proactive.ProactiveEventModule
 import com.aura.tasks.TasksModule
 import org.json.JSONObject
@@ -143,24 +143,24 @@ class MigrationReplayTest {
         DatabaseUnderTest(
             "com.aura.memory.MemoryDatabase",
             listOf(
-                MemoryModule.MIGRATION_1_2, MemoryModule.MIGRATION_2_3, MemoryModule.MIGRATION_3_4,
-                MemoryModule.MIGRATION_4_5, MemoryModule.MIGRATION_5_6, MemoryModule.MIGRATION_6_7,
-                MemoryModule.MIGRATION_7_8, MemoryModule.MIGRATION_8_9, MemoryModule.MIGRATION_9_10,
-                MemoryModule.MIGRATION_10_11, MemoryModule.MIGRATION_11_12, MemoryModule.MIGRATION_12_13,
-                MemoryModule.MIGRATION_13_14, MemoryModule.MIGRATION_14_15, MemoryModule.MIGRATION_15_16,
-                MemoryModule.MIGRATION_16_17,
-                MemoryModule.MIGRATION_17_18,
-                MemoryModule.MIGRATION_18_19,
-                MemoryModule.MIGRATION_19_20,
-                MemoryModule.MIGRATION_20_21,
-                MemoryModule.MIGRATION_21_22,
-                MemoryModule.MIGRATION_22_23,
-                MemoryModule.MIGRATION_23_24,
-                MemoryModule.MIGRATION_24_25,
-                MemoryModule.MIGRATION_25_26,
-                MemoryModule.MIGRATION_26_27,
-                MemoryModule.MIGRATION_27_28, MemoryModule.MIGRATION_28_29,
-                MemoryModule.MIGRATION_29_30, MemoryModule.MIGRATION_30_31,
+                MemoryMigrations.MIGRATION_1_2, MemoryMigrations.MIGRATION_2_3, MemoryMigrations.MIGRATION_3_4,
+                MemoryMigrations.MIGRATION_4_5, MemoryMigrations.MIGRATION_5_6, MemoryMigrations.MIGRATION_6_7,
+                MemoryMigrations.MIGRATION_7_8, MemoryMigrations.MIGRATION_8_9, MemoryMigrations.MIGRATION_9_10,
+                MemoryMigrations.MIGRATION_10_11, MemoryMigrations.MIGRATION_11_12, MemoryMigrations.MIGRATION_12_13,
+                MemoryMigrations.MIGRATION_13_14, MemoryMigrations.MIGRATION_14_15, MemoryMigrations.MIGRATION_15_16,
+                MemoryMigrations.MIGRATION_16_17,
+                MemoryMigrations.MIGRATION_17_18,
+                MemoryMigrations.MIGRATION_18_19,
+                MemoryMigrations.MIGRATION_19_20,
+                MemoryMigrations.MIGRATION_20_21,
+                MemoryMigrations.MIGRATION_21_22,
+                MemoryMigrations.MIGRATION_22_23,
+                MemoryMigrations.MIGRATION_23_24,
+                MemoryMigrations.MIGRATION_24_25,
+                MemoryMigrations.MIGRATION_25_26,
+                MemoryMigrations.MIGRATION_26_27,
+                MemoryMigrations.MIGRATION_27_28, MemoryMigrations.MIGRATION_28_29,
+                MemoryMigrations.MIGRATION_29_30, MemoryMigrations.MIGRATION_30_31,
             ),
         ),
         DatabaseUnderTest(

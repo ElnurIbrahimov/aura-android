@@ -48,7 +48,7 @@ class MemoryMigration11To12Test {
         )
         val db = helper.writableDatabase
         db.execSQL("INSERT INTO memories (id, content, source, category) VALUES ('m1','c','user','fact')")
-        MemoryModule.MIGRATION_11_12.migrate(db)
+        MemoryMigrations.MIGRATION_11_12.migrate(db)
         val cursor = db.query("SELECT scope FROM memories WHERE id = ?", arrayOf("m1"))
         assertTrue(cursor.moveToFirst())
         cursor.close()

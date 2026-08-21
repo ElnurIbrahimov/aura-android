@@ -108,6 +108,36 @@ android {
             // Read: <module>/build/reports/jacoco/jacocoTestReport/html/index.html
             enableUnitTestCoverage = true
             versionNameSuffix = "-debug"
+            // Debug stays universal on purpose. CI runs both instrumented
+            // suites on an x86_64 emulator, and filtering those ABIs out here
+            // would make the migration job fail to install rather than fail to
+            // pass, which is a worse failure to read.
+        }
+    }
+
+    splits {
+        abi {
+            // One APK per phone architecture, for release only.
+            //
+            // ONNX Runtime ships a native library per ABI and the build carries
+            // four: arm64-v8a, armeabi-v7a, x86 and x86_64. That is roughly
+            // 74 MB of the debug APK, and three quarters of it can never run on
+            // the device it was installed on. A universal APK made sense while
+            // the app had no native code; it acquired some and nothing revisited
+            // the packaging.
+            //
+            // x86 and x86_64 are dropped rather than split out: they exist for
+            // emulators, emulators run the debug build, and this project is
+            // sideloaded rather than served by Play, so there is no store to
+            // pick the right variant for a Chromebook.
+            //
+            // isUniversalApk stays false — a universal APK beside the splits is
+            // the one most likely to be grabbed by accident, and it is the one
+            // this exists to stop shipping.
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 

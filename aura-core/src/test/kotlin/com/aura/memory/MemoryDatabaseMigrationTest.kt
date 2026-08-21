@@ -7,39 +7,77 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+/**
+ * Runs on the JVM under Robolectric, not on a device.
+ *
+ * This is the largest migration suite in the project and it used to live in
+ * `androidTest`, which means it ran only in the sixty-minute emulator job —
+ * a cadence, not a gate. Migrations are the one thing here that can destroy
+ * data the user cannot get back, and they were the least frequently checked.
+ *
+ * `AgentDatabaseMigrationTest` already proved `MigrationTestHelper` works
+ * under Robolectric, and `aura-core/build.gradle.kts` already adds the
+ * exported schemas to the `test` source set as well as `androidTest`, so
+ * nothing needed building for this — only moving.
+ *
+ * The one accommodation is [dbPath]: Room 2.7+ checks that the name the SQLite
+ * driver was configured with matches the path actually opened, and a bare name
+ * fails under Robolectric.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [30])
 class MemoryDatabaseMigrationTest {
 
-    @get:Rule
+    @Rule
+    @JvmField
     val helper = MigrationTestHelper(
         InstrumentationRegistry.getInstrumentation(),
-        MemoryDatabase::class.java.canonicalName,
+        MemoryDatabase::class.java,
+        emptyList(),
         FrameworkSQLiteOpenHelperFactory(),
     )
 
+    /**
+     * Resolve a database name to the path Robolectric will actually open.
+     *
+     * Room 2.7+ checks that the name the SQLite driver was configured with
+     * matches the path requested, and under Robolectric those differ — the
+     * bare name fails with "this driver is configured to open a database
+     * named X but <temp dir>/X was requested". This file uses fifteen distinct
+     * names so each test gets a clean database, so it is a function rather
+     * than the single val the smaller suites use.
+     */
+    private fun dbPath(name: String): String =
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getDatabasePath(name).path
+
     @Test
     fun migrate1To2() {
-        val db = helper.createDatabase("test-aura-memory.db", 1)
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 1)
         db.close()
 
         helper.runMigrationsAndValidate(
-            "test-aura-memory.db",
+            dbPath("test-aura-memory.db"),
             2,
             true,
-            MemoryModule.MIGRATION_1_2,
+            MemoryMigrations.MIGRATION_1_2,
         )
     }
 
     @Test
     fun migrate1To2_preservesKgSchema() {
-        val db = helper.createDatabase("test-aura-memory.db", 1)
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 1)
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory.db",
+            dbPath("test-aura-memory.db"),
             2,
             true,
-            MemoryModule.MIGRATION_1_2,
+            MemoryMigrations.MIGRATION_1_2,
         )
 
         // Verify kg_nodes columns match the v2 schema.
@@ -87,7 +125,7 @@ class MemoryDatabaseMigrationTest {
     @Test
     fun migrate2To3_preservesMemories_andCreatesEditHistory() {
         // Start at v2 (post-KG, pre-edit-history).
-        val db = helper.createDatabase("test-aura-memory-v2.db", 2)
+        val db = helper.createDatabase(dbPath("test-aura-memory-v2.db"), 2)
         // Insert a memory row using the v2 schema (memories table exists,
         // kg_nodes and kg_edges exist, but memory_edits does not).
         db.execSQL(
@@ -99,10 +137,10 @@ class MemoryDatabaseMigrationTest {
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory-v2.db",
+            dbPath("test-aura-memory-v2.db"),
             3,
             true,
-            MemoryModule.MIGRATION_2_3,
+            MemoryMigrations.MIGRATION_2_3,
         )
 
         // Verify the memory survived.
@@ -132,7 +170,7 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate3To4_preservesRows_andAddsConversationProvenance() {
-        val db = helper.createDatabase("test-aura-memory-v3.db", 3)
+        val db = helper.createDatabase(dbPath("test-aura-memory-v3.db"), 3)
         db.execSQL(
             """
             INSERT INTO memories (id, content, source, category, importance, embedding, createdAt, accessedAt, accessCount, decayScore, tags, metadata)
@@ -142,10 +180,10 @@ class MemoryDatabaseMigrationTest {
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory-v3.db",
+            dbPath("test-aura-memory-v3.db"),
             4,
             true,
-            MemoryModule.MIGRATION_3_4,
+            MemoryMigrations.MIGRATION_3_4,
         )
 
         migrated.query(
@@ -161,14 +199,14 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate5To6_createsCreativeProjectStore() {
-        val db = helper.createDatabase("test-aura-memory-v5.db", 5)
+        val db = helper.createDatabase(dbPath("test-aura-memory-v5.db"), 5)
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory-v5.db",
+            dbPath("test-aura-memory-v5.db"),
             6,
             true,
-            MemoryModule.MIGRATION_5_6,
+            MemoryMigrations.MIGRATION_5_6,
         )
         migrated.query("PRAGMA table_info(creative_projects)").use { cursor ->
             val names = mutableSetOf<String>()
@@ -181,14 +219,14 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate4To5_createsDocumentLibrary() {
-        val db = helper.createDatabase("test-aura-memory-v4.db", 4)
+        val db = helper.createDatabase(dbPath("test-aura-memory-v4.db"), 4)
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory-v4.db",
+            dbPath("test-aura-memory-v4.db"),
             5,
             true,
-            MemoryModule.MIGRATION_4_5,
+            MemoryMigrations.MIGRATION_4_5,
         )
 
         migrated.query("PRAGMA table_info(documents)").use { cursor ->
@@ -205,15 +243,15 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate1To3_chained_preservesData() {
-        val db = helper.createDatabase("test-aura-memory-chained.db", 1)
+        val db = helper.createDatabase(dbPath("test-aura-memory-chained.db"), 1)
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory-chained.db",
+            dbPath("test-aura-memory-chained.db"),
             3,
             true,
-            MemoryModule.MIGRATION_1_2,
-            MemoryModule.MIGRATION_2_3,
+            MemoryMigrations.MIGRATION_1_2,
+            MemoryMigrations.MIGRATION_2_3,
         )
 
         // After chained migration, all three tables (memories, kg_nodes,
@@ -272,7 +310,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate6To18_fullChain_validatesAgainstHeadSchema() {
-        val name = "test-aura-memory-6-to-18.db"
+        val name = dbPath("test-aura-memory-6-to-18.db")
         val db = helper.createDatabase(name, 6)
         // Seed a row so the chain runs against a non-empty table. Column set
         // is the v6 shape; later migrations must carry it forward.
@@ -289,18 +327,18 @@ class MemoryDatabaseMigrationTest {
             name,
             18,
             true,
-            MemoryModule.MIGRATION_6_7,
-            MemoryModule.MIGRATION_7_8,
-            MemoryModule.MIGRATION_8_9,
-            MemoryModule.MIGRATION_9_10,
-            MemoryModule.MIGRATION_10_11,
-            MemoryModule.MIGRATION_11_12,
-            MemoryModule.MIGRATION_12_13,
-            MemoryModule.MIGRATION_13_14,
-            MemoryModule.MIGRATION_14_15,
-            MemoryModule.MIGRATION_15_16,
-            MemoryModule.MIGRATION_16_17,
-            MemoryModule.MIGRATION_17_18,
+            MemoryMigrations.MIGRATION_6_7,
+            MemoryMigrations.MIGRATION_7_8,
+            MemoryMigrations.MIGRATION_8_9,
+            MemoryMigrations.MIGRATION_9_10,
+            MemoryMigrations.MIGRATION_10_11,
+            MemoryMigrations.MIGRATION_11_12,
+            MemoryMigrations.MIGRATION_12_13,
+            MemoryMigrations.MIGRATION_13_14,
+            MemoryMigrations.MIGRATION_14_15,
+            MemoryMigrations.MIGRATION_15_16,
+            MemoryMigrations.MIGRATION_16_17,
+            MemoryMigrations.MIGRATION_17_18,
         )
 
         // The v16->v17 hop builds the FTS index and backfills it. A migration
@@ -331,7 +369,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate6To18_backfillsScopeOnPreexistingRows() {
-        val name = "test-aura-memory-scope-backfill.db"
+        val name = dbPath("test-aura-memory-scope-backfill.db")
         val db = helper.createDatabase(name, 6)
         db.execSQL(
             "INSERT INTO memories (id, content, source, category, importance, embedding, createdAt, accessedAt, " +
@@ -344,18 +382,18 @@ class MemoryDatabaseMigrationTest {
             name,
             18,
             true,
-            MemoryModule.MIGRATION_6_7,
-            MemoryModule.MIGRATION_7_8,
-            MemoryModule.MIGRATION_8_9,
-            MemoryModule.MIGRATION_9_10,
-            MemoryModule.MIGRATION_10_11,
-            MemoryModule.MIGRATION_11_12,
-            MemoryModule.MIGRATION_12_13,
-            MemoryModule.MIGRATION_13_14,
-            MemoryModule.MIGRATION_14_15,
-            MemoryModule.MIGRATION_15_16,
-            MemoryModule.MIGRATION_16_17,
-            MemoryModule.MIGRATION_17_18,
+            MemoryMigrations.MIGRATION_6_7,
+            MemoryMigrations.MIGRATION_7_8,
+            MemoryMigrations.MIGRATION_8_9,
+            MemoryMigrations.MIGRATION_9_10,
+            MemoryMigrations.MIGRATION_10_11,
+            MemoryMigrations.MIGRATION_11_12,
+            MemoryMigrations.MIGRATION_12_13,
+            MemoryMigrations.MIGRATION_13_14,
+            MemoryMigrations.MIGRATION_14_15,
+            MemoryMigrations.MIGRATION_15_16,
+            MemoryMigrations.MIGRATION_16_17,
+            MemoryMigrations.MIGRATION_17_18,
         )
 
         val cursor = migrated.query("SELECT scope FROM memories WHERE id = 'm2'")
@@ -380,7 +418,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate17To18_addsLivingWorldTablesWithCascadeAndUniqueness() {
-        val name = "test-aura-memory-17-to-18.db"
+        val name = dbPath("test-aura-memory-17-to-18.db")
         val db = helper.createDatabase(name, 17)
         // All twelve columns, because at v17 `creative_projects` declares every
         // one of them NOT NULL with no default. This INSERT listed ten and could
@@ -397,7 +435,7 @@ class MemoryDatabaseMigrationTest {
         )
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 18, true, MemoryModule.MIGRATION_17_18)
+        val migrated = helper.runMigrationsAndValidate(name, 18, true, MemoryMigrations.MIGRATION_17_18)
 
         migrated.execSQL("PRAGMA foreign_keys = ON")
         migrated.execSQL(
@@ -454,7 +492,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate18To23_fullChain_validatesAgainstHeadSchema() {
-        val name = "test-aura-memory-18-to-23.db"
+        val name = dbPath("test-aura-memory-18-to-23.db")
         val db = helper.createDatabase(name, 18)
         insertV18Memory(db, "m18", "chain test memory")
         db.close()
@@ -463,11 +501,11 @@ class MemoryDatabaseMigrationTest {
             name,
             23,
             true,
-            MemoryModule.MIGRATION_18_19,
-            MemoryModule.MIGRATION_19_20,
-            MemoryModule.MIGRATION_20_21,
-            MemoryModule.MIGRATION_21_22,
-            MemoryModule.MIGRATION_22_23,
+            MemoryMigrations.MIGRATION_18_19,
+            MemoryMigrations.MIGRATION_19_20,
+            MemoryMigrations.MIGRATION_20_21,
+            MemoryMigrations.MIGRATION_21_22,
+            MemoryMigrations.MIGRATION_22_23,
         )
 
         migrated.query("SELECT content FROM memories WHERE id = 'm18'").use {
@@ -501,12 +539,12 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate18To19_leavesPreexistingMemoriesLive() {
-        val name = "test-aura-memory-18-to-19.db"
+        val name = dbPath("test-aura-memory-18-to-19.db")
         val db = helper.createDatabase(name, 18)
         insertV18Memory(db, "m19", "pre-retirement memory")
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 19, true, MemoryModule.MIGRATION_18_19)
+        val migrated = helper.runMigrationsAndValidate(name, 19, true, MemoryMigrations.MIGRATION_18_19)
 
         migrated.query("SELECT retiredAt FROM memories WHERE id = 'm19'").use {
             assertTrue("pre-retirement row missing after migration", it.moveToFirst())
@@ -529,7 +567,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate22To23_creativeAnalysisCascadesAndIsUniquePerRevisionAndKind() {
-        val name = "test-aura-memory-22-to-23.db"
+        val name = dbPath("test-aura-memory-22-to-23.db")
         val db = helper.createDatabase(name, 22)
         db.execSQL(
             "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, templateId, " +
@@ -550,7 +588,7 @@ class MemoryDatabaseMigrationTest {
         )
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 23, true, MemoryModule.MIGRATION_22_23)
+        val migrated = helper.runMigrationsAndValidate(name, 23, true, MemoryMigrations.MIGRATION_22_23)
 
         migrated.execSQL("PRAGMA foreign_keys = ON")
         migrated.execSQL(
@@ -615,12 +653,12 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate25To26_addsClaimResolutionsWithALiveCascade() {
-        val name = "test-aura-memory-25-to-26.db"
+        val name = dbPath("test-aura-memory-25-to-26.db")
         val db = helper.createDatabase(name, 25)
         insertV18Memory(db, "m25", "pre-calibration memory")
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 26, true, MemoryModule.MIGRATION_25_26)
+        val migrated = helper.runMigrationsAndValidate(name, 26, true, MemoryMigrations.MIGRATION_25_26)
 
         migrated.query("SELECT content FROM memories WHERE id = 'm25'").use {
             assertTrue("memory did not survive the 25->26 hop", it.moveToFirst())
@@ -654,12 +692,12 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate24To25_addsProjectsWithALiveCascade() {
-        val name = "test-aura-memory-24-to-25.db"
+        val name = dbPath("test-aura-memory-24-to-25.db")
         val db = helper.createDatabase(name, 24)
         insertV18Memory(db, "m24", "pre-project memory")
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 25, true, MemoryModule.MIGRATION_24_25)
+        val migrated = helper.runMigrationsAndValidate(name, 25, true, MemoryMigrations.MIGRATION_24_25)
 
         migrated.query("SELECT content FROM memories WHERE id = 'm24'").use {
             assertTrue("memory did not survive the 24->25 hop", it.moveToFirst())
@@ -692,12 +730,12 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate23To24_addsRetrievalLabelsKeyedSoRetriesUpdate() {
-        val name = "test-aura-memory-23-to-24.db"
+        val name = dbPath("test-aura-memory-23-to-24.db")
         val db = helper.createDatabase(name, 23)
         insertV18Memory(db, "m23", "pre-label memory")
         db.close()
 
-        val migrated = helper.runMigrationsAndValidate(name, 24, true, MemoryModule.MIGRATION_23_24)
+        val migrated = helper.runMigrationsAndValidate(name, 24, true, MemoryMigrations.MIGRATION_23_24)
 
         migrated.query("SELECT content FROM memories WHERE id = 'm23'").use {
             assertTrue("memory did not survive the 23->24 hop", it.moveToFirst())
@@ -738,7 +776,7 @@ class MemoryDatabaseMigrationTest {
 
     @Test
     fun migrate28To29() {
-        val db = helper.createDatabase("test-aura-memory.db", 28)
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 28)
         db.execSQL(
             "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, " +
                 "templateId, metadataJson, turnCount, lastSessionEnded, createdAt, updatedAt) " +
@@ -753,10 +791,10 @@ class MemoryDatabaseMigrationTest {
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory.db",
+            dbPath("test-aura-memory.db"),
             29,
             true,
-            MemoryModule.MIGRATION_28_29,
+            MemoryMigrations.MIGRATION_28_29,
         )
 
         // The pre-v29 world survives with an empty genesis — the exact state
@@ -777,7 +815,7 @@ class MemoryDatabaseMigrationTest {
      */
     @Test
     fun migrate29To30() {
-        val db = helper.createDatabase("test-aura-memory.db", 29)
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 29)
         db.execSQL(
             "INSERT INTO open_questions (id, kind, subjectKind, subjectId, question, status, " +
                 "answerable, timesAsked, createdAt) " +
@@ -786,10 +824,10 @@ class MemoryDatabaseMigrationTest {
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory.db",
+            dbPath("test-aura-memory.db"),
             30,
             true,
-            MemoryModule.MIGRATION_29_30,
+            MemoryMigrations.MIGRATION_29_30,
         )
 
         // The pre-existing question survives, unscored — which is what an unscored row must
@@ -808,14 +846,14 @@ class MemoryDatabaseMigrationTest {
         // Somewhere durable to record what Aura generated. Images went to cacheDir with no
         // row anywhere, so Android could reclaim them and nothing would know they had ever
         // existed.
-        val db = helper.createDatabase("test-aura-memory.db", 30)
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 30)
         db.close()
 
         val migrated = helper.runMigrationsAndValidate(
-            "test-aura-memory.db",
+            dbPath("test-aura-memory.db"),
             31,
             true,
-            MemoryModule.MIGRATION_30_31,
+            MemoryMigrations.MIGRATION_30_31,
         )
 
         // Created empty on purpose. The files that were in cacheDir when this shipped may

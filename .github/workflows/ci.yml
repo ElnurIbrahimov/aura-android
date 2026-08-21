@@ -281,12 +281,20 @@ jobs:
   # to plug in a phone is not a gate. It is also the only path in this project
   # where a defect destroys a user's data irreversibly.
   #
-  # :aura-core's androidTest source set is *exclusively* the seven database
-  # migration suites — 26 methods, no Compose, no Hilt, no smoke tests — so
-  # connectedDebugAndroidTest on this module is precisely the migration chain
-  # and needs no test filter. :app's instrumented tests are deliberately left
-  # out: they need a Hilt runner and a fuller environment, and they are not the
-  # thing that loses data.
+  # :aura-core's androidTest source set is the remaining database migration
+  # suites plus the on-device embedder test — no Compose, no Hilt, no smoke
+  # tests — so connectedDebugAndroidTest on this module needs no test filter.
+  # :app's instrumented tests are deliberately left out: they need a Hilt
+  # runner and a fuller environment, and they are not the thing that loses
+  # data.
+  #
+  # This comment used to say the source set was "exclusively the seven database
+  # migration suites — 26 methods", which was wrong on both counts even then:
+  # OnDeviceEmbedderTest is also here, and the method count had moved. It is
+  # smaller again now that MemoryDatabaseMigrationTest — 19 methods, the
+  # largest of them — runs under Robolectric in build-test instead, on every
+  # push rather than once per emulator job. What is left here is what genuinely
+  # needs a device.
   #
   # An emulator, never a device. Running these against a real phone replaces
   # app data on it.

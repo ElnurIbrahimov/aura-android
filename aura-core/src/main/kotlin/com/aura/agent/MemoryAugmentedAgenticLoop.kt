@@ -180,7 +180,14 @@ class MemoryAugmentedAgenticLoop @Inject constructor(
     private val tasteEngine: com.aura.taste.TasteEngine? = null,
     private val traceSink: com.aura.agent.runtime.TraceSink? = null,
     private val reflectionEngine: ReflectionEngine? = null,
-    private val strategyBandit: StrategyBandit? = null,
+    // `strategyBandit` used to sit here, injected and never read: zero
+    // references in this class's body for its whole life. The real bandit is
+    // wired in ChatSendController, which selects a strategy before calling
+    // run() and records the outcome after, and StrategyBanditDeadWireTest
+    // pins that. Removing it is safe against the positional-construction
+    // hazard the KDoc above warns about, because the two suites that build
+    // this loop positionally pass only the nine required parameters and stop
+    // well before the defaulted block.
     private val llmProfileExtractor: com.aura.profile.LlmProfileExtractor? = null,
     private val tastePromptEnhancer: com.aura.taste.TastePromptEnhancer? = null,
     private val worldEventProducer: com.aura.world.WorldEventProducer? = null,

@@ -139,7 +139,7 @@ class MemoryMigration26To27Test {
         // index row before must leave it alone after.
         val db = openV16()
         db.insertMemory("m1", "kotlin coroutines")
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
         db.installLegacyUpdateTrigger()
 
         db.plantSentinel("m1")
@@ -149,7 +149,7 @@ class MemoryMigration26To27Test {
             db.ftsMatchIds("\"sentineltoken\"").isEmpty(),
         )
 
-        MemoryModule.MIGRATION_26_27.migrate(db)
+        MemoryMigrations.MIGRATION_26_27.migrate(db)
 
         db.plantSentinel("m1")
         db.touch("m1")
@@ -170,7 +170,7 @@ class MemoryMigration26To27Test {
         // indefinitely, and both would look correct in isolation.
         val db = openV16()
         db.insertMemory("m1", "kotlin coroutines")
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
         db.installLegacyUpdateTrigger()
 
         MemoryFtsSchema.installTriggers(db)
@@ -188,8 +188,8 @@ class MemoryMigration26To27Test {
     fun `after the migration, a touch leaves the index alone`() {
         val db = openV16()
         db.insertMemory("m1", "kotlin coroutines")
-        MemoryModule.MIGRATION_16_17.migrate(db)
-        MemoryModule.MIGRATION_26_27.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_26_27.migrate(db)
         db.plantSentinel("m1")
 
         db.touch("m1")
@@ -209,8 +209,8 @@ class MemoryMigration26To27Test {
         // often and would look like nothing at all until a search went wrong.
         val db = openV16()
         db.insertMemory("m1", "original wording")
-        MemoryModule.MIGRATION_16_17.migrate(db)
-        MemoryModule.MIGRATION_26_27.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_26_27.migrate(db)
         db.plantSentinel("m1")
 
         db.execSQL("UPDATE memories SET content = 'revised wording' WHERE id = 'm1'")
@@ -226,8 +226,8 @@ class MemoryMigration26To27Test {
         // reinstallTriggers drops all three and recreates them, so both of the
         // triggers this migration does not care about pass through it.
         val db = openV16()
-        MemoryModule.MIGRATION_16_17.migrate(db)
-        MemoryModule.MIGRATION_26_27.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_26_27.migrate(db)
 
         db.insertMemory("m2", "postgres full text search")
         assertEquals(listOf("m2"), db.ftsMatchIds("\"postgres\""))
@@ -245,8 +245,8 @@ class MemoryMigration26To27Test {
         // Asserted so the limit is recorded rather than assumed.
         val db = openV16()
         db.insertMemory("m1", "kotlin coroutines")
-        MemoryModule.MIGRATION_16_17.migrate(db)
-        MemoryModule.MIGRATION_26_27.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_26_27.migrate(db)
         db.plantSentinel("m1")
 
         db.execSQL(

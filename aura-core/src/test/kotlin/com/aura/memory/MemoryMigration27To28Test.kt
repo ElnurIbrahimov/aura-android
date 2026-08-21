@@ -88,7 +88,7 @@ class MemoryMigration27To28Test {
         db.execSQL("INSERT INTO documents (id, name) VALUES ('doc-1', 'manual.txt')")
         db.insertChunk("doc-1:0", "doc-1", 0, "the turbine housing is cast in one piece")
 
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
 
         assertEquals(listOf("doc-1:0"), db.indexedChunkIds("\"turbine\""))
         db.close()
@@ -102,7 +102,7 @@ class MemoryMigration27To28Test {
         val db = openV27()
         db.execSQL("INSERT INTO documents (id, name) VALUES ('doc-2', 'later.txt')")
 
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
         db.insertChunk("doc-2:0", "doc-2", 0, "written after the migration ran")
 
         assertEquals(listOf("doc-2:0"), db.indexedChunkIds("\"written\""))
@@ -113,7 +113,7 @@ class MemoryMigration27To28Test {
     fun `a deleted chunk leaves no index row behind`() {
         val db = openV27()
         db.execSQL("INSERT INTO documents (id, name) VALUES ('doc-3', 'transient.txt')")
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
         db.insertChunk("doc-3:0", "doc-3", 0, "ephemeral paragraph")
         assertTrue(db.indexedChunkIds("\"ephemeral\"").isNotEmpty())
 
@@ -132,7 +132,7 @@ class MemoryMigration27To28Test {
         // the document frequency of every term in the re-imported passage.
         val db = openV27()
         db.execSQL("INSERT INTO documents (id, name) VALUES ('doc-4', 'revised.txt')")
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
         db.insertChunk("doc-4:0", "doc-4", 0, "the coupling is bronze")
 
         db.execSQL(
@@ -154,9 +154,9 @@ class MemoryMigration27To28Test {
         val db = openV27()
         db.execSQL("INSERT INTO documents (id, name) VALUES ('doc-5', 'twice.txt')")
 
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
         db.insertChunk("doc-5:0", "doc-5", 0, "idempotent enough")
-        MemoryModule.MIGRATION_27_28.migrate(db)
+        MemoryMigrations.MIGRATION_27_28.migrate(db)
 
         // Backfilled a second time over a row the trigger had already indexed;
         // the insert trigger's delete-by-chunkId is what keeps that from

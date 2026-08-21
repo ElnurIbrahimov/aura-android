@@ -90,7 +90,7 @@ class MemoryMigration16To17Test {
         db.insertMemory("m1", "I love kotlin programming")
         db.insertMemory("m2", "I prefer python")
 
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
 
         // A migration that creates the table but forgets the backfill leaves
         // every pre-existing memory unsearchable, which is the whole store on
@@ -103,7 +103,7 @@ class MemoryMigration16To17Test {
     @Test
     fun `the insert trigger indexes rows added after the migration`() {
         val db = openV16()
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
 
         db.insertMemory("m3", "postgres full text search")
 
@@ -115,7 +115,7 @@ class MemoryMigration16To17Test {
     fun `the update trigger replaces stale content`() {
         val db = openV16()
         db.insertMemory("m1", "original wording")
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
 
         db.execSQL("UPDATE memories SET content = 'revised wording' WHERE id = 'm1'")
 
@@ -128,7 +128,7 @@ class MemoryMigration16To17Test {
     fun `the delete trigger removes rows from the index`() {
         val db = openV16()
         db.insertMemory("m1", "temporary note")
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
 
         db.execSQL("DELETE FROM memories WHERE id = 'm1'")
 
@@ -144,7 +144,7 @@ class MemoryMigration16To17Test {
         // document frequencies BM25 now depends on.
         val db = openV16()
         db.insertMemory("m1", "first version")
-        MemoryModule.MIGRATION_16_17.migrate(db)
+        MemoryMigrations.MIGRATION_16_17.migrate(db)
 
         db.execSQL(
             "INSERT OR REPLACE INTO memories (id, content, source, category, scope) " +

@@ -460,6 +460,66 @@ browser's WebViewClient consumed nothing, so an in-page redirect could reach `in
 or `javascript:`; `allowedInPageScheme` now restricts navigation to http(s), tested.
 Widget push-refresh verification stays on the device pass.
 
+*2026-08-21:* **3,579 unit tests, 0 failures, 0 skipped** at v0.66.0. Both lint tasks
+clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Branch
+`fix/data-integrity-and-defect-sweep`.
+
+The finding worth recording is that **a MERGE restore could empty all eleven
+databases.** `restore()` refuses to start without a pre-restore snapshot only when the
+mode is REPLACE, which is defensible — a merge is additive, every delete inside
+`writeEverything` is guarded on REPLACE. But the failure path then called `purgeAll()`
+*before* checking whether a snapshot existed to restore from, so with no snapshot the
+tables stayed empty and the only evidence was a log line. Two ordinary things produce no
+snapshot: the spool is written to disk and can fail or be evicted, and a merge never
+required one. Reading the spool before purging is the entire fix.
+
+It survived 3,547 green tests because every test of that path used `mockk(relaxed = true)`
+DAOs, where "the table was purged" is a recorded call rather than an absent row. The new
+`RestoreSurvivesFailureTest` uses real Room databases and, against the old ordering,
+reports `the user's pre-existing memory was destroyed by a failed merge: []`. This is
+§2.6 again in a new place: a mock cannot tell you your data is gone.
+
+Also closed: the rollback spool moved `cacheDir` — `filesDir` (the marker was moved
+there for this exact reason and the spool never followed); `purgeAll` and `writeRows` are
+grouped per database with one transaction each — the first `withTransaction` calls in
+this project, verified faithful by call set (64 deletes and 55 writes, none added or
+dropped); `ReembedWorker` is enqueued after a restore, which nothing did, so restored
+memories were unembedded until the next cold start rebuilt them by accident;
+`RealtimeCallController`'s four mutable fields are `@Volatile`, closing a race its own
+KDoc promised was closed and whose cost is an OpenAI socket billing per audio-minute;
+`ProviderKeys._values`, a write-only second plaintext copy of every decrypted API key,
+deleted; `capture_screen` refuses while a password field is visible, on the same flag
+`ScreenControlGuard` already uses to refuse acting.
+
+`ToolsModule` became an `@IntoSet` module: eighty parameters and eighty-two
+`registry.register` calls eighty lines apart, with nothing checking they agreed, are now
+one compiler-checked function per tool. `MemoryModule` split 1,195 lines into a 226-line
+DI graph and a 994-line `MemoryMigrations` ledger. `MemoryDatabaseMigrationTest` — 19
+methods, the largest migration suite — moved to `src/test` under Robolectric, so
+migrations are checked on every push instead of only in the emulator job. Release builds
+split by ABI: 28.2 MB for arm64-v8a against roughly 85 MB universal, three quarters of
+which could never run on the device it installed on.
+
+Three gates had to follow the new shapes rather than be weakened, and one refused to be
+weakened on its own. `check-version-docs` derives the tool count from
+`registry.register(` occurrences; the multibinding conversion took that to zero and it
+failed with *"a gate that cannot measure is not a gate, it is a claim that something was
+measured"* rather than reporting OK. `BackupCoverageAuditTest` walked one level to find
+DAO writes and they now sit two levels down; it walks transitively and discovers the
+eleven purge helpers from the dispatcher rather than naming them, because this file
+already records what happened the one time it guessed a private method name.
+
+`ProactiveMigration3To4Test` never called `MIGRATION_3_4`. It built a fresh head-version
+database, inserted a row, and checked the row came back — which would have passed with
+the migration deleted. Rewritten against a real v3 database. §2.6, again.
+
+**Still not run on a device.** Everything above is verified by tests that fail against the
+defect they describe; none of it has been exercised on a phone. The restore path
+especially deserves one real backup and one real restore from a file, and that remains the
+gate on encryption-at-rest: the eleven databases are still plaintext, and re-keying a
+database whose recovery mechanism is unproven is the wrong order to do those two things
+in.
+
 *2026-08-19:* **3,337 unit tests / 499 suites, 0 failures.** The Living World gained its
 belief layer (four commits on feat/world-author): deviations-from-truth inside WorldState —
 no row means accurate common knowledge — with witness/rumor/stale mechanics and discoveries

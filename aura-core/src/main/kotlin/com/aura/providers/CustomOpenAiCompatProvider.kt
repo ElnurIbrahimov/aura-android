@@ -267,7 +267,12 @@ class CustomOpenAiCompatProvider(
         try {
             // Defensive timeout — if the server never sends [DONE] or closes
             // the stream, the OkHttp read timeout is the primary backstop.
-            withTimeout(STREAM_READ_TIMEOUT_MS) {
+            // Shared with OpenAiCompatProvider rather than re-declared. This
+            // class already borrows that companion's NON_RETRYABLE_STATUS_CODES
+            // and both call the same OpenAiSseParser; the read timeout was the
+            // one value still duplicated, and two copies of a number that must
+            // agree is how they stop agreeing.
+            withTimeout(OpenAiCompatProvider.STREAM_READ_TIMEOUT_MS) {
                 for (chunk in channel) emit(chunk)
             }
         } catch (_: TimeoutCancellationException) {
@@ -326,7 +331,4 @@ class CustomOpenAiCompatProvider(
         activeEventSource = null
     }
 
-    companion object {
-        private const val STREAM_READ_TIMEOUT_MS = 5L * 60L * 1000L
-    }
 }
