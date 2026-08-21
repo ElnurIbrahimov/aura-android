@@ -35,6 +35,23 @@ cd "$(dirname "$0")/.." || exit 1
 ADB="${ADB:-adb}"
 PACKAGE="${AURA_PACKAGE:-com.aura.debug}"
 WORK="${TMPDIR:-/tmp}/aura-smoke-$$"
+
+# The same directory, spelled the way a native Windows program understands.
+#
+# On Git Bash, $WORK is a POSIX path like /tmp/aura-smoke-123 that only the
+# shell can resolve. The checks below hand that path to `python`, which on this
+# platform is the Windows interpreter and reads it literally — every query
+# then failed with "unable to open database file" while the script carried on
+# and reported on the empty results. That is worse than an error: "FTS index in
+# step with memories ()" is a pass produced by comparing nothing to nothing.
+#
+# cygpath is present on Git Bash and absent on Linux/macOS, where $WORK is
+# already native, so this is a no-op there.
+if command -v cygpath >/dev/null 2>&1; then
+  WORK_NATIVE=$(cygpath -m "$WORK")
+else
+  WORK_NATIVE="$WORK"
+fi
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -72,7 +89,7 @@ pull_db() {
 
 query() { python -c "
 import sqlite3, sys
-c = sqlite3.connect(r'''$WORK/m.db''')
+c = sqlite3.connect(r'''$WORK_NATIVE/m.db''')
 try:
     print(c.execute(sys.argv[1]).fetchone()[0])
 except Exception as e:
@@ -112,7 +129,17 @@ after=$(query "SELECT COUNT(*) FROM memories WHERE retiredAt IS NULL")
 if [ "$after" -gt "$before" ]; then
   cat=$(query "SELECT category FROM memories WHERE content LIKE '%$marker%'")
   ok "capture wrote a memory, categorised '$cat'"
-  # Clean up after ourselves — a smoke run must not leave litter in a real store.
+  # NOT cleaned up, despite what this comment used to claim.
+  #
+  # It said "a smoke run must not leave litter in a real store" and then left
+  # the row in place: the capture path writes through the app, and there is no
+  # write path back out of it from here. sqlite3 is not on the device, and
+  # pushing a modified database over a live one to delete four junk rows trades
+  # a tidy store for a corrupted one.
+  #
+  # So the row stays and is named. Every previous smoke row is listed at the end
+  # of this run too, because four of them accumulated before anyone noticed the
+  # claim was false.
   id=$(query "SELECT id FROM memories WHERE content LIKE '%$marker%'")
   "$ADB" shell "am start -a android.intent.action.PROCESS_TEXT -t text/plain \
     --es android.intent.extra.PROCESS_TEXT 'x' -n $PACKAGE/com.aura.capture.CaptureActivity" >/dev/null 2>&1
@@ -126,21 +153,53 @@ fi
 #
 # Two workers used to write no run row at all and two more recorded ok(""),
 # which in BackgroundHealth is indistinguishable from never having run.
+#
+# Judged on each worker's MOST RECENT run, not on all of history.
+#
+# The first real run of this script on a phone found seven blank details —
+# every one of them TriggerWorker, every one on the same evening, and all 148
+# TriggerWorker runs after that carrying a detail. The defect was real and had
+# already been fixed; the rows outlived it. Failing on all of history means
+# failing forever on archaeology, and a check that can never pass stops being
+# read.
+#
+# A rolling window was the first attempt and was worse: seven days happened to
+# straddle that one evening, so the same fixed defect failed or passed
+# depending on what day the script ran. The latest run per worker has no
+# arbitrary boundary and answers the question actually being asked — does the
+# code running right now produce a legible row.
+#
+# Historical blanks are still counted and shown, just not failed on.
 "$ADB" exec-out "run-as $PACKAGE cat /data/data/$PACKAGE/databases/aura-proactive.db" > "$WORK/p.db" 2>/dev/null
 "$ADB" exec-out "run-as $PACKAGE cat /data/data/$PACKAGE/databases/aura-proactive.db-wal" > "$WORK/p.db-wal" 2>/dev/null
 blank=$(python -c "
 import sqlite3
 try:
-    c = sqlite3.connect(r'''$WORK/p.db''')
-    rows = list(c.execute(\"SELECT worker, outcome, detail FROM worker_runs WHERE finishedAt > 0\"))
-    print(len([r for r in rows if not (r[2] or '').strip()]) if rows else 'NONE')
+    c = sqlite3.connect(r'''$WORK_NATIVE/p.db''')
+    rows = list(c.execute(\"SELECT worker, detail, finishedAt FROM worker_runs WHERE finishedAt > 0\"))
+    if not rows:
+        print('NONE')
+    else:
+        latest = {}
+        for w, d, f in rows:
+            if w not in latest or f > latest[w][1]:
+                latest[w] = (d, f)
+        stale = [w for w, (d, _) in latest.items() if not (d or '').strip()]
+        historical = len([r for r in rows if not (r[1] or '').strip()]) - len(stale)
+        out = str(len(stale))
+        if stale:
+            out += ' (' + ', '.join(sorted(stale)) + ')'
+        if historical > 0:
+            out += ' (+' + str(historical) + ' historical, already superseded)'
+        print(out)
 except Exception:
     print('NONE')
 ")
 case "$blank" in
   NONE) skip "no completed worker runs yet — nothing to judge" ;;
-  0)    ok   "every completed worker run carries a detail" ;;
-  *)    bad  "$blank completed worker run(s) recorded an empty detail" ;;
+  0)    ok   "every worker's latest run carries a detail" ;;
+  0\ *) ok   "every worker's latest run carries a detail $blank" ;;
+  *)    bad  "$blank worker(s) most recently recorded an empty detail" ;;
 esac
 
 # --- 5. the app starts ------------------------------------------------------
