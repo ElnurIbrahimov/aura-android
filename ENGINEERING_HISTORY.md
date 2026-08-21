@@ -464,6 +464,62 @@ Widget push-refresh verification stays on the device pass.
 clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Branch
 `fix/data-integrity-and-defect-sweep`.
 
+*2026-08-21 (the seat):* **3,643 unit tests / 547 suites, 0 failures** at v0.66.0,
+MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
+`:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
+
+`creative/livingworld` had been a complete strategy game with no player: beliefs
+already stored as deviations from truth, `ClaimPool` already resolving contested
+claims on what rivals *believe* each contender can bring, `SpreadLie` already
+moving nothing real. What was missing was a seat, a point of view, and a move.
+`WorldModel.kt` had said so itself — normalising state into Room "does not
+happen until the point-of-view work".
+
+`PlayerView` is the projection and `PlayerMoves` the verbs, and the rule both
+exist to keep is that **legality is computed against belief, never truth**. That
+is enforced by a signature rather than by discipline: `available()` takes a
+`View` and is never handed a `WorldState`, so an edit that wants ground truth
+has to add a parameter. Actions are journalled as `player_action` events
+carrying their `Effect`, which `WorldReplayer` reads back as a fourth history
+input — closing the tripwire that file had been carrying since it was
+written ("any future god-edit surface must land as a replayable event kind, or
+fork-at-past breaks silently").
+
+Three things the work found rather than added, all of the same shape — correct
+in isolation, silently wrong in composition:
+
+- **Only factions hold beliefs.** `SpreadLie` plants deviations in "every other
+  faction's" table and nothing ever writes one for a character, so a `PlayerView`
+  keyed to the player's character was reading a table that is always empty: a
+  player who can never be wrong about anything. Every test passed. The house is
+  the mind and the character its eyes; `Observe` now names who learns.
+- **The backup mappers drop columns silently.** `BackupCoverageAuditTest` proves
+  every *entity* has a backup representation and says nothing about fields, so
+  `payloadJson` would have been lost on restore and a restored world would
+  replay as one where the player never acted — plausibly, and quietly. A
+  name-set comparison now fails on the next dropped column rather than this one.
+- **The event log was the loudest leak.** Every number on the play screen was
+  fogged and the raw event stream rendered underneath them. A `lie_told` row
+  reads "Bramwatch lets it be known its might is greater *than it is*". One line
+  of that ends the fog however careful the projection was, and it would have
+  shipped with the thesis test green.
+
+`WorldSeeder` also seeded every entity with a blank `parentId`, because a world
+bible names characters, factions and places but never says who is where. That
+world runs perfectly well and cannot be *inhabited*: nobody is ever near anyone,
+looking around always finds an empty room, and half the design is inert without
+a single test failing.
+
+The thesis test is `PlayerMovesTest.a move sized against a lie is offered, and
+resolves against the truth`. The replay test is `PlayedWorldReplayTest`, which
+plays eight ticks with six moves and requires byte-identical `stateAt(8)` —
+with a negative control, because a replayer that ignored its actions argument
+would otherwise pass whenever the actions happened not to matter.
+
+**Not yet done:** a device pass. Nothing here has been run on a phone, so
+whether the loop is *fun* — whether conserved pools and threshold rules produce
+tension or noise — remains unanswered by anything in this file.
+
 The finding worth recording is that **a MERGE restore could empty all eleven
 databases.** `restore()` refuses to start without a pre-restore snapshot only when the
 mode is REPLACE, which is defensible — a merge is additive, every delete inside
