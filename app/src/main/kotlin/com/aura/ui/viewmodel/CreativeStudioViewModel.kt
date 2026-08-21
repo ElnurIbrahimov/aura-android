@@ -102,6 +102,8 @@ data class LivingWorldUi(
     val currentTick: Long,
     val worldEpochMs: Long,
     val sessionTicksBurned: Long,
+    /** Whether somebody is living in this world, for the way in to the play surface. */
+    val seated: Boolean,
     val factions: List<LivingFactionUi>,
     val events: List<LivingEventUi>,
     val eventCount: Int,
@@ -211,6 +213,7 @@ private fun com.aura.creative.livingworld.WorldState.toUi(
         currentTick = world.currentTick,
         worldEpochMs = world.worldEpochMs,
         sessionTicksBurned = world.sessionTicksBurned,
+        seated = world.playerCharacterId.isNotBlank() && world.playerFactionId.isNotBlank(),
         factions = factions,
         events = events.map {
             LivingEventUi(

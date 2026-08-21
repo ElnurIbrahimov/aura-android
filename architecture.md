@@ -213,7 +213,7 @@ a tie. Recorded hands are never scheduled: `screen_act` needs a session a person
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,650 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,653 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 82 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,

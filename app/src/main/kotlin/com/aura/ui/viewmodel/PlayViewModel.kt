@@ -152,6 +152,28 @@ class PlayViewModel @Inject constructor(
     }
 
     /**
+     * Step out of the world, leaving it running.
+     *
+     * Not an undo. The world keeps its tick, its burn and everything you
+     * caused; you simply stop being anybody in it, which is the state every
+     * world was in before you sat down.
+     */
+    fun leaveSeat() {
+        if (_state.value.busy) return
+        _state.value = _state.value.copy(busy = true)
+        viewModelScope.launch {
+            val note = runCatching { store.vacate(worldId, System.currentTimeMillis()) }
+                .fold(
+                    onSuccess = { "You have stepped out. The world goes on without you." },
+                    onFailure = { "Could not leave." },
+                )
+            pendingCharacterId = ""
+            reload(note)
+            _state.value = _state.value.copy(busy = false)
+        }
+    }
+
+    /**
      * Submit a move into the next tick, and advance it.
      *
      * An unknown id is dropped rather than guessed at: the only way to get one

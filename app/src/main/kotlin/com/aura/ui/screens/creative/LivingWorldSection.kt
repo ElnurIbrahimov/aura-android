@@ -115,7 +115,7 @@ internal fun LazyListScope.livingWorldSection(
         )
     }
 
-    item(key = "living-play") { TakeASeatCard(world.worldId, onPlay) }
+    item(key = "living-play") { TakeASeatCard(world.worldId, world.seated, onPlay) }
 
     item(key = "living-factions") {
         LivingCard(title = "Who holds what") {
@@ -513,15 +513,25 @@ private fun EventRow(
  * screen that could show either would eventually show the wrong one.
  */
 @Composable
-private fun TakeASeatCard(worldId: String, onPlay: (String) -> Unit) {
+private fun TakeASeatCard(worldId: String, seated: Boolean, onPlay: (String) -> Unit) {
     LivingCard(title = stringResource(R.string.play_take_a_seat)) {
         Text(
-            stringResource(R.string.play_take_a_seat_detail),
+            if (seated) {
+                stringResource(R.string.play_resume_detail)
+            } else {
+                stringResource(R.string.play_take_a_seat_detail)
+            },
             style = MaterialTheme.typography.bodySmall,
             color = AuraThemeTokens.colors.textSecondary,
         )
         Button(onClick = { onPlay(worldId) }, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.play_enter))
+            Text(
+                if (seated) {
+                    stringResource(R.string.play_resume)
+                } else {
+                    stringResource(R.string.play_enter)
+                },
+            )
         }
     }
 }

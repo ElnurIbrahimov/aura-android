@@ -18,8 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -82,7 +86,7 @@ fun PlayScreen(onBack: () -> Unit, viewModel: PlayViewModel = hiltViewModel()) {
                 contentPadding = padding,
                 verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
             ) {
-                item(key = "house") { HouseCard(state) }
+                item(key = "house") { HouseCard(state, viewModel) }
                 item(key = "here") { RoomCard(stringResource(R.string.play_here), state.here, state.placeName) }
                 item(key = "moves") { MovesCard(state, viewModel) }
                 if (state.elsewhere.isNotEmpty()) {
@@ -114,6 +118,13 @@ private fun SeatCard(state: PlayUiState, viewModel: PlayViewModel) {
         stringResource(R.string.play_seat_character)
     }
     PlayCard(title) {
+        if (state.note.isNotBlank()) {
+            Text(
+                state.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = AuraThemeTokens.colors.textSecondary,
+            )
+        }
         if (state.choices.isEmpty()) {
             Text(stringResource(R.string.play_seat_nobody), style = MaterialTheme.typography.bodySmall)
             return@PlayCard
@@ -139,7 +150,7 @@ private fun SeatCard(state: PlayUiState, viewModel: PlayViewModel) {
 }
 
 @Composable
-private fun HouseCard(state: PlayUiState) {
+private fun HouseCard(state: PlayUiState, viewModel: PlayViewModel) {
     PlayCard(state.houseName.ifBlank { stringResource(R.string.play_title) }) {
         Text(stringResource(R.string.play_house_detail), style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
         Holdings(state.holdings)
@@ -153,6 +164,47 @@ private fun HouseCard(state: PlayUiState) {
         }
         if (state.note.isNotBlank()) {
             Text(state.note, style = MaterialTheme.typography.bodySmall, color = AuraThemeTokens.colors.textSecondary)
+        }
+        HorizontalDivider(color = AuraThemeTokens.colors.borderSubtle)
+        LeaveRow(enabled = !state.busy, onLeave = viewModel::leaveSeat)
+    }
+}
+
+/**
+ * Stepping out, behind one confirmation.
+ *
+ * Inline rather than a dialog: an `AlertDialog` here would be the heavier
+ * thing for a choice that is not destructive — the world survives leaving it,
+ * and you can sit back down. The confirmation exists only because losing your
+ * seat to a mis-tap in the middle of a session is a genuinely annoying way to
+ * be interrupted.
+ */
+@Composable
+private fun LeaveRow(enabled: Boolean, onLeave: () -> Unit) {
+    var confirming by remember { mutableStateOf(false) }
+    if (!confirming) {
+        TextButton(onClick = { confirming = true }, enabled = enabled) {
+            Text(stringResource(R.string.play_leave))
+        }
+        return
+    }
+    Text(
+        stringResource(R.string.play_leave_confirm),
+        style = MaterialTheme.typography.bodySmall,
+        color = AuraThemeTokens.colors.textSecondary,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.sm)) {
+        TextButton(onClick = { confirming = false }) {
+            Text(stringResource(R.string.play_leave_stay))
+        }
+        TextButton(
+            onClick = {
+                confirming = false
+                onLeave()
+            },
+            enabled = enabled,
+        ) {
+            Text(stringResource(R.string.play_leave_go))
         }
     }
 }

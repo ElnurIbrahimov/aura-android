@@ -174,6 +174,28 @@ class LivingWorldStore @Inject constructor(
         worldDao.seat(worldId, characterId, factionId, now)
     }
 
+    /**
+     * Step out of a world, leaving it running.
+     *
+     * Blank ids are what an unseated world has always looked like, so this
+     * returns it to the state every world was in before anybody sat down:
+     * watched rather than played, and still ticking. Nothing is unwound. The
+     * days you played are days that happened, the burn stays counted, and
+     * the events you caused stay in the journal — leaving is stepping out of
+     * a world, not undoing one.
+     *
+     * Re-seating afterwards, including as somebody else, is deliberately not
+     * restricted. It does hand a determined player a way round the fog —
+     * your own side reads true, so sitting in a rival's chair shows you what
+     * they really hold — and that is accepted rather than overlooked. This
+     * is one person's sandbox on their own device; a player who wants to
+     * look can already read the database. Blocking it would cost the honest
+     * case, which is simply having picked wrong.
+     */
+    suspend fun vacate(worldId: String, now: Long) {
+        worldDao.seat(worldId, characterId = "", factionId = "", updatedAt = now)
+    }
+
     suspend fun topUnnarrated(worldId: String, floor: Double, limit: Int): List<LivingEventEntity> =
         eventDao.topUnnarrated(worldId, floor, limit)
 

@@ -496,7 +496,7 @@
     <string name="play_title">Your seat</string>
     <string name="play_back">Back</string>
     <string name="play_subtitle_default">A seat inside a living world</string>
-    <string name="play_subtitle_unseated">Nobody is living this one yet</string>
+    <string name="play_subtitle_unseated">Nobody is living this one</string>
     <string name="play_subtitle_at">%1$s, at %2$s</string>
     <string name="play_subtitle_nowhere">%1$s, nowhere in particular</string>
     <string name="play_gone">That world is gone</string>
@@ -519,4 +519,10 @@
     <string name="play_take_a_seat">Live in it</string>
     <string name="play_take_a_seat_detail">Everything above is the view from outside, where every number is true. Take a character and a house and you will only know what you are near.</string>
     <string name="play_enter">Take a seat</string>
+    <string name="play_resume">Back to your seat</string>
+    <string name="play_resume_detail">Everything above is the view from outside, where every number is true. Your own seat sees a good deal less.</string>
+    <string name="play_leave">Step out of this world</string>
+    <string name="play_leave_confirm">The world keeps running, and everything you did stays done. You can sit back down whenever you like.</string>
+    <string name="play_leave_stay">Stay</string>
+    <string name="play_leave_go">Step out</string>
 </resources>

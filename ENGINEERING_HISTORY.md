@@ -464,7 +464,7 @@ Widget push-refresh verification stays on the device pass.
 clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Branch
 `fix/data-integrity-and-defect-sweep`.
 
-*2026-08-21 (the seat):* **3,650 unit tests / 547 suites, 0 failures** at v0.66.0,
+*2026-08-21 (the seat):* **3,653 unit tests / 547 suites, 0 failures** at v0.66.0,
 MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
 `:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
 
@@ -544,6 +544,20 @@ was invisible from inside the piece that contained it.
   reports failure by returning rather than throwing, so the `runCatching` around
   it treated a refused commit as a success: a tap that appeared to work and did
   nothing.
+
+A seat can also be left, which the first cut had no way to do — you chose a
+character and a house once and were that person in that world permanently.
+Leaving blanks the two ids, which is what an unseated world has always looked
+like, so the world returns to being watched rather than played and keeps
+ticking. Nothing is unwound: the days you played happened, the burn stays
+counted, and the moves you made stay in the journal that replays the world.
+
+Re-seating afterwards, as somebody else, is deliberately not restricted, and
+that is accepted rather than overlooked: your own side reads true, so sitting
+in a rival's chair shows you what they really hold. This is one person's sandbox
+on their own device and a player who wants to look can already read the
+database; blocking it would cost the honest case, which is simply having picked
+wrong.
 
 **Not yet done:** a device pass. Nothing here has been run on a phone, so
 whether the loop is *fun* — whether conserved pools and threshold rules produce

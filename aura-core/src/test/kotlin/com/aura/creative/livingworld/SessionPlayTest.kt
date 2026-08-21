@@ -341,4 +341,65 @@ class SessionPlayTest {
         assertEquals(before, events.size, "an orphan action row was written for a tick nobody reached")
     }
 
+
+    @Test
+    fun `leaving a seat stops you being anybody without unwinding the world`() = runTest {
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        runner.step("w1", listOf(ActorEffect("f_a", Effect.SpreadLie("territory", 1_000))))
+        repeat(2) { runner.step("w1", emptyList()) }
+
+        store.vacate("w1", now = 5L)
+        val after = store.byId("w1")!!
+
+        assertEquals("", after.playerCharacterId)
+        assertEquals("", after.playerFactionId)
+
+        // Not an undo. The days you played are days that happened, the burn
+        // stays counted so ambient time carries on from there, and the move you
+        // made is still in the journal that replays this world.
+        assertEquals(3L, after.currentTick)
+        assertEquals(3L, after.sessionTicksBurned)
+        assertEquals(1, events.count { it.kind == WorldEngine.KIND_PLAYER_ACTION })
+    }
+
+    @Test
+    fun `an emptied seat can be filled by somebody else`() = runTest {
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        store.vacate("w1", now = 2L)
+        store.seat("w1", "c_bryn", "f_b", now = 3L)
+
+        val after = store.byId("w1")!!
+        assertEquals("c_bryn", after.playerCharacterId)
+        assertEquals("f_b", after.playerFactionId)
+
+        // And the new seat is genuinely the new house: the view is Bramwatch's,
+        // reading Bramwatch's holdings true rather than Ashfall's.
+        val view = seatedView()
+        assertEquals("f_b", view.factionId)
+        assertEquals("Bryn", view.self?.name)
+    }
+
+    @Test
+    fun `a world nobody is sitting in keeps its ambient clock`() = runTest {
+        // Leaving must not strand the world the way a dropped burn did. Three
+        // burned ticks and one real hour still owes exactly one tick.
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        repeat(3) { runner.step("w1", emptyList()) }
+        store.vacate("w1", now = 5L)
+
+        val after = store.byId("w1")!!
+        assertEquals(
+            1L,
+            WorldClock.behind(
+                after.currentTick,
+                after.worldEpochMs,
+                epoch + WorldClock.TICK_REAL_MS,
+                after.sessionTicksBurned,
+            ),
+        )
+    }
+
 }
