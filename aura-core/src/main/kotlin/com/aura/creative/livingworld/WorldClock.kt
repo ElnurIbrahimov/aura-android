@@ -26,22 +26,44 @@ object WorldClock {
      */
     const val TICK_REAL_MS: Long = 3_600_000L
 
-    /** The highest tick that has become due by [now]. Never negative. */
-    fun dueTick(worldEpochMs: Long, now: Long): Long {
-        if (now <= worldEpochMs) return 0L
-        return (now - worldEpochMs) / TICK_REAL_MS
+    /**
+     * The highest tick that has become due by [now]. Never negative.
+     *
+     * [sessionTicksBurned] is ticks the player advanced deliberately, and it
+     * adds rather than substitutes. Ambient time keeps running while you
+     * play: an evening that burns ten ticks leaves the world ten days
+     * further along *and* still owing whatever the wall clock produced
+     * meanwhile. Without it, `currentTick` would overshoot a due tick
+     * computed from elapsed time alone and the world would go quiet for as
+     * many hours as the session was long — the ambient half of the design
+     * silently switched off by playing.
+     *
+     * Required rather than defaulted for exactly that reason: a caller that
+     * forgets it gets a compile error instead of a world that stops.
+     */
+    fun dueTick(worldEpochMs: Long, now: Long, sessionTicksBurned: Long): Long {
+        if (now <= worldEpochMs) return sessionTicksBurned
+        return (now - worldEpochMs) / TICK_REAL_MS + sessionTicksBurned
     }
 
     /** How many ticks the stored state still owes the clock. Never negative. */
-    fun behind(currentTick: Long, worldEpochMs: Long, now: Long): Long {
-        val due = dueTick(worldEpochMs, now)
+    fun behind(currentTick: Long, worldEpochMs: Long, now: Long, sessionTicksBurned: Long): Long {
+        val due = dueTick(worldEpochMs, now, sessionTicksBurned)
         return if (due > currentTick) due - currentTick else 0L
     }
 
     /** Milliseconds until the next tick becomes due. Zero when one already is. */
-    fun msUntilNextTick(currentTick: Long, worldEpochMs: Long, now: Long): Long {
-        if (behind(currentTick, worldEpochMs, now) > 0L) return 0L
-        val nextDueAt = worldEpochMs + (currentTick + 1L) * TICK_REAL_MS
+    fun msUntilNextTick(
+        currentTick: Long,
+        worldEpochMs: Long,
+        now: Long,
+        sessionTicksBurned: Long,
+    ): Long {
+        if (behind(currentTick, worldEpochMs, now, sessionTicksBurned) > 0L) return 0L
+        // Burned ticks cost no wall time, so they are subtracted back out to
+        // find which real hour the next ambient tick lands on.
+        val wallTicksDone = currentTick - sessionTicksBurned
+        val nextDueAt = worldEpochMs + (wallTicksDone + 1L) * TICK_REAL_MS
         return if (nextDueAt > now) nextDueAt - now else 0L
     }
 

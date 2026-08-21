@@ -46,6 +46,22 @@ interface LivingWorldDao {
     @Query("UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, updatedAt = :updatedAt WHERE id = :id")
     suspend fun commitTick(id: String, tick: Long, stateJson: String, updatedAt: Long)
 
+    /**
+     * Commit a tick the player advanced on purpose.
+     *
+     * The burn is `+ :burned` in SQL rather than a value computed in Kotlin
+     * so that a session running while the hourly worker commits cannot lose
+     * a tick to a read-modify-write race.
+     */
+    @Query(
+        "UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, " +
+            "sessionTicksBurned = sessionTicksBurned + :burned, updatedAt = :updatedAt WHERE id = :id",
+    )
+    suspend fun commitPlayedTick(id: String, tick: Long, stateJson: String, burned: Long, updatedAt: Long)
+
+    @Query("UPDATE living_worlds SET playerCharacterId = :characterId, playerFactionId = :factionId, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun seat(id: String, characterId: String, factionId: String, updatedAt: Long)
+
     @Query("UPDATE living_worlds SET status = :status, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateStatus(id: String, status: String, updatedAt: Long)
 

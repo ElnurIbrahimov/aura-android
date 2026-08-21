@@ -746,6 +746,13 @@ data class LivingWorldBackup(
     // v28 export restores with genesis absent, which is what it had.
     val genesisJson: String = "",
     val status: String = "running",
+    /**
+     * The seat. Absent from every backup written before the game existed,
+     * which is why it defaults to unseated rather than being required.
+     */
+    val playerCharacterId: String = "",
+    val playerFactionId: String = "",
+    val sessionTicksBurned: Long = 0L,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -855,6 +862,15 @@ data class LivingEventBackup(
     val notability: Double = 0.0,
     val narration: String = "",
     val narratedAt: Long = 0L,
+    /**
+     * The serialised action on a `player_action` row.
+     *
+     * Load-bearing, not decorative. These rows are the journal
+     * [com.aura.creative.livingworld.WorldReplayer] replays a played world
+     * from — drop them and a restored world replays as one where you never
+     * acted, and forking to a past tick quietly yields the wrong branch.
+     */
+    val payloadJson: String = "",
     val createdAt: Long,
 )
 

@@ -878,4 +878,76 @@ class MemoryDatabaseMigrationTest {
             assertEquals("file:///data/generated_media/img.png", it.getString(2))
         }
     }
+
+    @Test
+    fun migrate31To32() {
+        // A seat inside a living world, and the journal its moves are written to.
+        //
+        // The only thing that can go wrong in four ADD COLUMNs is a NOT NULL
+        // column arriving without a default, which fails on any table that
+        // already has rows — so a world and an event are inserted at v31
+        // first and read back after. An empty database would pass this
+        // migration no matter how it was written.
+        val db = helper.createDatabase(dbPath("test-aura-memory.db"), 31)
+        db.execSQL(
+            "INSERT INTO creative_projects (id, name, description, genre, tone, worldJson, " +
+                "templateId, metadataJson, turnCount, lastSessionEnded, createdAt, updatedAt) " +
+                "VALUES ('p1', 'A Study in Ash', '', '', '', '{}', '', '{}', 0, 0, 1, 1)",
+        )
+        db.execSQL(
+            "INSERT INTO living_worlds (id, projectId, branchId, rootSeed, branchSalt, " +
+                "parentWorldId, forkedAtTick, worldEpochMs, currentTick, stateJson, genesisJson, " +
+                "status, createdAt, updatedAt) " +
+                "VALUES ('w1', 'p1', 'root', 42, 0, '', 0, 1000, 7, '{}', '{}', 'running', 1, 1)",
+        )
+        db.execSQL(
+            "INSERT INTO living_events (id, worldId, branchId, tickIndex, seq, kind, actorId, " +
+                "targetId, ruleId, magnitudeMilli, summary, notability, narration, narratedAt, createdAt) " +
+                "VALUES ('w1#7.0', 'w1', 'root', 7, 0, 'stock_shift', 'f_ash', '', 'r1', 500, " +
+                "'Ashfall lost ground', 0.4, '', 0, 1)",
+        )
+        db.close()
+
+        val migrated = helper.runMigrationsAndValidate(
+            dbPath("test-aura-memory.db"),
+            32,
+            true,
+            MemoryMigrations.MIGRATION_31_32,
+        )
+
+        // The world survived, and reads back unseated and unplayed rather than
+        // as a world with a null player.
+        migrated.query(
+            "SELECT playerCharacterId, playerFactionId, sessionTicksBurned, currentTick " +
+                "FROM living_worlds WHERE id = 'w1'",
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("", it.getString(0))
+            assertEquals("", it.getString(1))
+            assertEquals(0L, it.getLong(2))
+            assertEquals(7L, it.getLong(3))
+        }
+
+        // The event survived and carries an empty payload, which is what every
+        // engine-produced event will carry forever.
+        migrated.query("SELECT payloadJson, summary FROM living_events WHERE id = 'w1#7.0'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("", it.getString(0))
+            assertEquals("Ashfall lost ground", it.getString(1))
+        }
+
+        // And a seated world round-trips.
+        migrated.execSQL(
+            "UPDATE living_worlds SET playerCharacterId = 'c_you', playerFactionId = 'f_ash', " +
+                "sessionTicksBurned = 3 WHERE id = 'w1'",
+        )
+        migrated.query(
+            "SELECT playerCharacterId, sessionTicksBurned FROM living_worlds WHERE id = 'w1'",
+        ).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("c_you", it.getString(0))
+            assertEquals(3L, it.getLong(1))
+        }
+    }
+
 }

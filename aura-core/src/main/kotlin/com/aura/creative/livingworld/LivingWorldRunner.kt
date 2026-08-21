@@ -79,7 +79,8 @@ class LivingWorldRunner @Inject constructor(
         if (world.status != LivingWorldEntity.STATUS_RUNNING) return TickOutcome.NOTHING_DUE
 
         val startedAtTick = world.currentTick
-        var behind = WorldClock.behind(world.currentTick, world.worldEpochMs, now())
+        var behind =
+            WorldClock.behind(world.currentTick, world.worldEpochMs, now(), world.sessionTicksBurned)
         if (behind <= 0L) return TickOutcome.NOTHING_DUE
 
         var state = store.decode(world.stateJson)
@@ -109,20 +110,7 @@ class LivingWorldRunner @Inject constructor(
             tickBus?.progress(world.id, tick)
         }
 
-        // Score at commit time, against one bounded read of what came before.
-        // Novelty is the only factor that needs history, and asking for it once
-        // per slice keeps the scorer's promise of costing nothing per event.
-        val recent = runCatching { store.recentEvents(world.id, NotabilityScorer.NOVELTY_WINDOW) }
-            .onFailure { Log.w(TAG, "novelty window read failed: ${it.message}", it) }
-            .getOrDefault(emptyList())
-        val seen = HashMap<String, Int>()
-        for (row in recent) seen.merge(row.kind + "|" + row.actorId, 1, Int::plus)
-        val scored = events.map { event ->
-            val key = event.kind + "|" + event.actorId
-            val before = seen.getOrDefault(key, 0)
-            seen[key] = before + 1
-            ScoredEvent(event, NotabilityScorer.score(event, state, before))
-        }
+        val scored = score(world.id, events, state)
 
         if (tick == startedAtTick) {
             // Nothing advanced despite work being owed. Re-enqueueing here is
@@ -145,6 +133,72 @@ class LivingWorldRunner @Inject constructor(
         if (committed.isFailure) return TickOutcome.FAILED
         if (behind <= 0L) tickBus?.clear(world.id)
         return if (behind > 0L) TickOutcome.PAUSED_FOR_TIME else TickOutcome.CAUGHT_UP
+    }
+
+    /**
+     * Advance one world by exactly one tick, carrying [actions] into it.
+     *
+     * This is what makes an evening of play possible in a world that
+     * otherwise moves one tick an hour. The tick is *burned*: it counts
+     * toward [LivingWorldEntity.sessionTicksBurned], so the world really is
+     * a day further along and ambient time carries on from there rather than
+     * pausing for as long as the session lasted.
+     *
+     * Deliberately does not catch the world up first. A world that owes the
+     * wall clock three ticks still owes three after this one, because
+     * burning adds to the due tick as well as to the current tick. Playing
+     * is extra time, never borrowed time.
+     */
+    suspend fun step(
+        worldId: String,
+        actions: List<ActorEffect>,
+        now: () -> Long = System::currentTimeMillis,
+    ): TickOutcome {
+        val world = runCatching { store.byId(worldId) }
+            .onFailure { Log.w(TAG, "load failed for $worldId: ${it.message}", it) }
+            .getOrNull() ?: return TickOutcome.FAILED
+        if (world.status != LivingWorldEntity.STATUS_RUNNING) return TickOutcome.NOTHING_DUE
+
+        val tick = world.currentTick + 1L
+        val state = runCatching { store.decode(world.stateJson) }
+            .onFailure { Log.w(TAG, "state decode failed for $worldId: ${it.message}", it) }
+            .getOrNull() ?: return TickOutcome.FAILED
+        val result = WorldEngine.tick(state, world.id, world.rootSeed, world.branchSalt, tick, actions)
+        val scored = score(world.id, result.events, result.state)
+
+        val committed = runCatching {
+            withContext(NonCancellable) {
+                store.commitPlayedTicks(world, result.state, tick, burned = 1L, events = scored, now = now())
+            }
+        }.onFailure { Log.w(TAG, "played commit failed for $worldId at tick $tick: ${it.message}", it) }
+        if (committed.isFailure) return TickOutcome.FAILED
+
+        tickBus?.progress(world.id, tick)
+        return TickOutcome.CAUGHT_UP
+    }
+
+    /**
+     * Score at commit time, against one bounded read of what came before.
+     *
+     * Novelty is the only factor that needs history, and asking for it once
+     * per commit keeps the scorer's promise of costing nothing per event.
+     */
+    private suspend fun score(
+        worldId: String,
+        events: List<WorldEvent>,
+        state: WorldState,
+    ): List<ScoredEvent> {
+        val recent = runCatching { store.recentEvents(worldId, NotabilityScorer.NOVELTY_WINDOW) }
+            .onFailure { Log.w(TAG, "novelty window read failed: ${it.message}", it) }
+            .getOrDefault(emptyList())
+        val seen = HashMap<String, Int>()
+        for (row in recent) seen.merge(row.kind + "|" + row.actorId, 1, Int::plus)
+        return events.map { event ->
+            val key = event.kind + "|" + event.actorId
+            val before = seen.getOrDefault(key, 0)
+            seen[key] = before + 1
+            ScoredEvent(event, NotabilityScorer.score(event, state, before))
+        }
     }
 
     companion object {

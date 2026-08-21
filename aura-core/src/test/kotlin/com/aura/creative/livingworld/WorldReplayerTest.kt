@@ -64,14 +64,14 @@ class WorldReplayerTest {
     @Test
     fun `replaying a recorded fold span reproduces the straight run exactly`() {
         val straight = runnerHistory()
-        val replayed = WorldReplayer.stateAt(genesis(), segments(100L), folds, 100L)
+        val replayed = WorldReplayer.stateAt(genesis(), segments(100L), folds, emptyList(), 100L)
         assertEquals(hash(straight), hash(replayed), "the replay took a different road than the runner")
     }
 
     @Test
     fun `a target inside a folded span is refused, not approximated`() {
         assertFailsWith<IllegalArgumentException> {
-            WorldReplayer.stateAt(genesis(), segments(60L), folds, 60L)
+            WorldReplayer.stateAt(genesis(), segments(60L), folds, emptyList(), 60L)
         }
     }
 
@@ -82,7 +82,7 @@ class WorldReplayerTest {
             WorldReplayer.Segment("w-root", 7L, 0L, 0L, 20L),
             WorldReplayer.Segment("w-child", 7L, 999L, 20L, 40L),
         )
-        val replayed = WorldReplayer.stateAt(genesis(), chained, emptyList(), 40L)
+        val replayed = WorldReplayer.stateAt(genesis(), chained, emptyList(), emptyList(), 40L)
 
         var manual = genesis()
         for (tick in 1..20L) manual = WorldEngine.tick(manual, "w-root", 7L, 0L, tick).state

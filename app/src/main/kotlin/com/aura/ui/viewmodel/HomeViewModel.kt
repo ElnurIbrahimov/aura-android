@@ -217,7 +217,7 @@ class HomeViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 val behind = store.running().any {
                     com.aura.creative.livingworld.LivingWorldCatchUp.shouldEnqueue(
-                        it.currentTick, it.worldEpochMs, now,
+                        it.currentTick, it.worldEpochMs, now, it.sessionTicksBurned,
                     )
                 }
                 if (behind) {

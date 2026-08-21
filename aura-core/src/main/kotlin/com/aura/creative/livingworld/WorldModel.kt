@@ -225,7 +225,67 @@ sealed class Effect {
     @Serializable
     @SerialName("spread_lie")
     data class SpreadLie(val key: String, val deltaMilli: Long) : Effect()
+
+    /**
+     * Put the subject somewhere: set its `parentId` to [locationId].
+     *
+     * The only effect in the hierarchy that touches [SimEntity] rather than a
+     * stock, a relation or a belief. It exists because presence is half the
+     * game — what you can see is decided by where you stand — and there was
+     * previously no way for anything to move.
+     *
+     * Rules may use it too; nothing here is player-only. A rule that moves its
+     * subject is a migration, and works exactly the same way.
+     */
+    @Serializable
+    @SerialName("move_to")
+    data class MoveTo(val locationId: String) : Effect()
+
+    /**
+     * Look around: drop the subject's deviations about everything standing
+     * where the subject stands.
+     *
+     * The counterweight to [SpreadLie]. A lie costs the liar nothing and pays
+     * until truth outs, which by default takes as many ticks as the decay rate
+     * allows — so without a way to *check*, propaganda would be strictly
+     * dominant. Observing is that way, and its price is presence: you must be
+     * there, which means being somewhere else is a real cost.
+     *
+     * Deliberately not a partial correction. Standing in the room and counting
+     * is ground truth about that room; the fog is about distance, not about
+     * perception.
+     *
+     * [forId] is who *learns*, which is not always who looked. Only
+     * factions hold beliefs — [SpreadLie] plants deviations in "every other
+     * faction's" table and nothing ever writes one for a character — so a
+     * character who looks is the eyes of a house rather than a mind of its
+     * own. That is the seat's two ids again: the character has presence, the
+     * faction has knowledge, and this is the seam between them.
+     *
+     * Blank means the looker learns for itself, which is right for a faction
+     * standing somewhere and harmlessly inert for a character.
+     */
+    @Serializable
+    @SerialName("observe")
+    data class Observe(val forId: String = "") : Effect()
 }
+
+/**
+ * One effect, attributed to an actor who is not a rule.
+ *
+ * A player move is a god-edit on a world that must stay replayable, and
+ * [WorldReplayer] states the constraint: such an edit "must land as a
+ * replayable event kind, or fork-at-past breaks silently". So an action is not
+ * applied to state directly — it is submitted to the tick that has not run
+ * yet, journalled as a `player_action` event, and replayed from that journal.
+ *
+ * [actorId] is the entity the effect is applied *to*: [Effect.AdjustStock]
+ * moves that entity's stock, [Effect.ClaimPool] claims on its behalf,
+ * [Effect.MoveTo] moves it. Which is why the seat holds two ids: your character
+ * moves and observes, your faction claims and lies.
+ */
+@Serializable
+data class ActorEffect(val actorId: String, val effect: Effect)
 
 /**
  * Something that happened. Produced by the engine, never by a model.
@@ -259,6 +319,18 @@ data class WorldEvent(
     val reachPermille: Long = 0L,
     val surprisePermille: Long = 0L,
     val summary: String,
+    /**
+     * The action this event journals. Set only on `player_action` rows, and
+     * null on every event a rule produced.
+     *
+     * Events are already the replay journal — `quiet_interval` rows are how
+     * folds are recorded — and a player move has to be replayable by the
+     * same route or fork-at-past silently drops it. Carrying the [Effect]
+     * itself rather than squeezing it into `actorId`/`targetId`/
+     * `magnitudeMilli` means the decoder never has to guess, and a decoder
+     * that guesses wrong replays a different world than the one played.
+     */
+    val payload: Effect? = null,
 ) {
     /**
      * Deterministic identity. A re-run of the same tick regenerates the same id,

@@ -22,13 +22,26 @@ import kotlin.math.abs
  */
 object WorldEngine {
 
-    /** Advance exactly one tick. */
+    /**
+     * Advance exactly one tick.
+     *
+     * [actorEffects] are moves submitted by someone who is not a rule — the
+     * player, today. They are applied *before* rule conditions are evaluated,
+     * so the world answers what you did inside the same tick rather than a
+     * tick later: spend your grain and the famine rule sees the smaller pile.
+     * Their claims are pooled with everyone else's and resolved together, so
+     * taking contested ground stays a contest rather than a privilege.
+     *
+     * Each one is journalled as a [KIND_PLAYER_ACTION] event carrying the
+     * effect, which is what makes a world that was played replayable.
+     */
     fun tick(
         state: WorldState,
         worldId: String,
         rootSeed: Long,
         branchSalt: Long,
         tick: Long,
+        actorEffects: List<ActorEffect> = emptyList(),
     ): TickResult {
         val current = state.canonical()
         val seed = WorldRng.tickSeed(rootSeed, branchSalt, tick)
@@ -49,6 +62,38 @@ object WorldEngine {
         val byId = LinkedHashMap<String, SimEntity>(living.size * 2)
         for (entity in living) byId[entity.id] = entity
 
+        val claims = mutableListOf<Claim>()
+        val lies = mutableListOf<LieIntent>()
+        val moves = mutableListOf<MoveIntent>()
+        val looks = mutableListOf<Look>()
+
+        // The player moves first. Not favouritism — it is what separates an
+        // action from a wish: the rule conditions below are evaluated against
+        // stocks and relations that already carry what you just did, so the
+        // world can answer inside the tick you acted in.
+        //
+        // An action whose actor is unknown or dead is dropped rather than
+        // thrown on. Actions are submitted a tick ahead and an actor can die
+        // in between; a world that refused to tick because of one stale order
+        // would be a world one bad row can stop forever.
+        val actorBatch = mutableListOf<Pair<Firing, List<Effect>>>()
+        for (action in actorEffects) {
+            val subject = byId[action.actorId] ?: continue
+            actorBatch += Firing(PLAYER_ORDER, subject) to listOf(action.effect)
+            events += WorldEvent(
+                tick = tick,
+                seq = 0,
+                kind = KIND_PLAYER_ACTION,
+                actorId = subject.id,
+                summary = subject.name + " acts.",
+                payload = action.effect,
+            )
+        }
+        applyEffects(
+            actorBatch, stocks, relations, current.relations, byId, tick, events,
+            claims, lies, moves, looks,
+        )
+
         val firings = mutableListOf<Firing>()
         for (rule in current.rules) {
             if (!rule.enabled) continue
@@ -59,42 +104,44 @@ object WorldEngine {
                 firings += Firing(rule, subject)
             }
         }
+        applyEffects(
+            firings.map { it to it.rule.effects },
+            stocks, relations, current.relations, byId, tick, events,
+            claims, lies, moves, looks,
+        )
 
-        val claims = mutableListOf<Claim>()
-        val lies = mutableListOf<LieIntent>()
-        for (firing in firings) {
-            for (effect in firing.rule.effects) {
-                when (effect) {
-                    is Effect.AdjustStock -> applyStockDelta(
-                        stocks, firing, effect, tick, events,
-                    )
-                    is Effect.AdjustRelation -> applyRelationDelta(
-                        relations, current.relations, byId, firing, effect, tick, events,
-                    )
-                    is Effect.ClaimPool -> claims += Claim(firing, effect)
-                    // Deferred like claims, so application order is canonical
-                    // rather than firing-encounter order.
-                    is Effect.SpreadLie -> lies += LieIntent(firing, effect)
-                }
-            }
-        }
+        // Looking around resolves before claims and before the belief step,
+        // and the order of those two is the whole balance of the verb.
+        // Before claims, so what you counted with your own eyes is what you
+        // weigh the draw with. Before the belief step, so a lie told this
+        // same tick still lands on you — observing is a check on yesterday's
+        // propaganda, never a shield against today's.
+        val observedBeliefs =
+            if (looks.isEmpty()) decayedBeliefs
+            else observe(decayedBeliefs, looks, byId, stocks, tick, events)
 
         // Local index only, for the claim seam and the belief step.
-        val beliefIndex = HashMap<String, Long>(decayedBeliefs.size * 2)
-        for (belief in decayedBeliefs) {
+        val beliefIndex = HashMap<String, Long>(observedBeliefs.size * 2)
+        for (belief in observedBeliefs) {
             beliefIndex[beliefKey(belief.observerId, belief.subjectId, belief.key)] = belief.deviationMilli
         }
 
         resolveClaims(claims, stocks, byId, beliefIndex, seed, tick, events)
 
         val nextBeliefs =
-            beliefStep(decayedBeliefs, lies, events, stocks, living, current.relations, byId, seed, tick)
+            beliefStep(observedBeliefs, lies, events, stocks, living, current.relations, byId, seed, tick)
 
         val firedIds = firings.map { it.rule.id to it.subject.id }.toSet()
         val updatedRules = current.rules.map { rule -> recordFirings(rule, firedIds, tick) }
 
+        // Travel resolves last, so the tick you spent on the road happened
+        // where you set out from. Leaving is not a way to be already gone.
+        val movedEntities =
+            if (moves.isEmpty()) current.entities
+            else applyMoves(current.entities, moves, byId, tick, events)
+
         val next = WorldState(
-            entities = current.entities,
+            entities = movedEntities,
             stocks = stocks.values.toList(),
             relations = relations.values.toList(),
             rules = updatedRules,
@@ -158,6 +205,165 @@ object WorldEngine {
 
     private data class Firing(val rule: Rule, val subject: SimEntity)
     private data class Claim(val firing: Firing, val effect: Effect.ClaimPool)
+    private data class MoveIntent(val subjectId: String, val locationId: String)
+
+    /** Somebody looking around, and whose table the looking corrects. */
+    private data class Look(val looker: SimEntity, val learnerId: String)
+
+    /**
+     * The rule a player action wears so it can travel the path a rule's
+     * effect travels.
+     *
+     * Its id matches no real rule, so cooldown bookkeeping skips it and
+     * acting can never exhaust anything. It exists to hand
+     * [applyStockDelta] and [applyRelationDelta] the attribution they stamp
+     * on events, and for nothing else.
+     */
+    private val PLAYER_ORDER = Rule(id = KIND_PLAYER_ACTION, name = "your order")
+
+    /**
+     * Apply one batch of effects, deferring the four kinds whose outcome
+     * must not depend on the order they were encountered in.
+     *
+     * Called twice per tick — once for player actions, once for rule firings
+     * — against the same collectors, so a player claim and a rule claim reach
+     * [resolveClaims] indistinguishable from one another. That is the point:
+     * the engine has no idea which of its actors is a person.
+     */
+    @Suppress("LongParameterList")
+    private fun applyEffects(
+        batch: List<Pair<Firing, List<Effect>>>,
+        stocks: MutableMap<String, Stock>,
+        relations: MutableMap<String, Relation>,
+        sortedRelations: List<Relation>,
+        byId: Map<String, SimEntity>,
+        tick: Long,
+        events: MutableList<WorldEvent>,
+        claims: MutableList<Claim>,
+        lies: MutableList<LieIntent>,
+        moves: MutableList<MoveIntent>,
+        looks: MutableList<Look>,
+    ) {
+        for ((firing, effects) in batch) {
+            for (effect in effects) {
+                when (effect) {
+                    is Effect.AdjustStock -> applyStockDelta(stocks, firing, effect, tick, events)
+                    is Effect.AdjustRelation -> applyRelationDelta(
+                        relations, sortedRelations, byId, firing, effect, tick, events,
+                    )
+                    is Effect.ClaimPool -> claims += Claim(firing, effect)
+                    // Deferred like claims, so application order is canonical
+                    // rather than firing-encounter order.
+                    is Effect.SpreadLie -> lies += LieIntent(firing, effect)
+                    is Effect.MoveTo -> moves += MoveIntent(firing.subject.id, effect.locationId)
+                    is Effect.Observe -> looks += Look(
+                        looker = firing.subject,
+                        learnerId = effect.forId.ifBlank { firing.subject.id },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Drop every deviation the lookers hold about whatever stands where they
+     * stand.
+     *
+     * The counterweight to [Effect.SpreadLie]. A lie costs the liar nothing
+     * and pays until truth outs on its own, so without a way to *check*,
+     * propaganda would be strictly dominant. This is that way, and its price
+     * is presence: you have to be there, which makes being somewhere else a
+     * real cost.
+     *
+     * The correction is total, not partial. Standing in the room and
+     * counting is ground truth about that room; the fog here models
+     * distance, not eyesight. An unplaced looker sees nothing, which is why
+     * a blank `parentId` is skipped rather than treated as a place named "".
+     */
+    private fun observe(
+        beliefs: List<Belief>,
+        looks: List<Look>,
+        byId: Map<String, SimEntity>,
+        stocks: Map<String, Stock>,
+        tick: Long,
+        events: MutableList<WorldEvent>,
+    ): List<Belief> {
+        val cleared = LinkedHashSet<String>()
+        // Looking twice in one tick is looking once. Without this, two
+        // Observes would clear the same row and narrate it twice.
+        for (look in looks.distinctBy { it.looker.id to it.learnerId }) {
+            val here = look.looker.parentId
+            if (here.isBlank()) continue
+            for (belief in beliefs) {
+                if (belief.observerId != look.learnerId) continue
+                if (belief.deviationMilli == 0L) continue
+                val subject = byId[belief.subjectId] ?: continue
+                // Co-location is judged from where the *looker* stands. A
+                // house learns what its scout is standing next to, not what
+                // is next to the house.
+                if (subject.parentId != here) continue
+                cleared += beliefKey(belief.observerId, belief.subjectId, belief.key)
+                events += WorldEvent(
+                    tick = tick,
+                    seq = 0,
+                    kind = KIND_BELIEF_REVEAL,
+                    actorId = belief.observerId,
+                    targetId = belief.subjectId,
+                    magnitudeMilli = abs(belief.deviationMilli),
+                    // Seen with one pair of eyes. Nobody else learns anything,
+                    // which is what separates looking from a public reveal.
+                    reachPermille = 0L,
+                    stockKey = belief.key,
+                    surprisePermille = permille(
+                        abs(belief.deviationMilli),
+                        deviationCap(belief.subjectId, belief.key, stocks),
+                    ),
+                    summary = look.looker.name + " sees " + subject.name + "'s " +
+                        belief.key + " for what it is.",
+                )
+            }
+        }
+        if (cleared.isEmpty()) return beliefs
+        return beliefs.filterNot { beliefKey(it.observerId, it.subjectId, it.key) in cleared }
+    }
+
+    /**
+     * Put the movers where they said they were going.
+     *
+     * A destination that is not an entity in this world is refused rather
+     * than obeyed. A bogus `parentId` is how something falls out of every
+     * co-location check in the game at once — unreachable, unobservable, and
+     * unable to observe — which is a silent removal from the world wearing a
+     * move's clothes.
+     */
+    private fun applyMoves(
+        entities: List<SimEntity>,
+        moves: List<MoveIntent>,
+        byId: Map<String, SimEntity>,
+        tick: Long,
+        events: MutableList<WorldEvent>,
+    ): List<SimEntity> {
+        val destinations = LinkedHashMap<String, String>(moves.size * 2)
+        for (move in moves) {
+            val subject = byId[move.subjectId] ?: continue
+            val destination = byId[move.locationId] ?: continue
+            if (subject.parentId == move.locationId) continue
+            destinations[move.subjectId] = move.locationId
+            events += WorldEvent(
+                tick = tick,
+                seq = 0,
+                kind = KIND_MOVED,
+                actorId = subject.id,
+                targetId = destination.id,
+                summary = subject.name + " arrives at " + destination.name + ".",
+            )
+        }
+        if (destinations.isEmpty()) return entities
+        return entities.map { entity ->
+            val destination = destinations[entity.id]
+            if (destination == null) entity else entity.copy(parentId = destination)
+        }
+    }
 
     private fun advanceFlow(stock: Stock): Stock {
         // A pooled stock moves only by transfer. Letting a flow touch it would
@@ -598,6 +804,14 @@ object WorldEngine {
     const val KIND_QUIET_INTERVAL = "quiet_interval"
     const val KIND_BELIEF_REVEAL = "belief_reveal"
     const val KIND_LIE_TOLD = "lie_told"
+
+    /**
+     * A move made by somebody who is not a rule. Carries the [Effect] in
+     * [WorldEvent.payload], and is the row [WorldReplayer] reads back to
+     * replay a world that was played rather than only watched.
+     */
+    const val KIND_PLAYER_ACTION = "player_action"
+    const val KIND_MOVED = "moved"
 
     /** A grievance at or above this watches its object: enemies are observed. */
     const val WATCH_GRIEVANCE_MILLI = 400L

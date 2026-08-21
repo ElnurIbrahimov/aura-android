@@ -12,13 +12,13 @@ class LivingWorldCatchUpTest {
 
     @Test
     fun `on time and one behind stay quiet`() {
-        assertFalse(LivingWorldCatchUp.shouldEnqueue(currentTick = 10L, worldEpochMs = epoch, now = nowAtTick(10)))
-        assertFalse(LivingWorldCatchUp.shouldEnqueue(currentTick = 9L, worldEpochMs = epoch, now = nowAtTick(10)))
+        assertFalse(LivingWorldCatchUp.shouldEnqueue(currentTick = 10L, worldEpochMs = epoch, now = nowAtTick(10), sessionTicksBurned = 0L))
+        assertFalse(LivingWorldCatchUp.shouldEnqueue(currentTick = 9L, worldEpochMs = epoch, now = nowAtTick(10), sessionTicksBurned = 0L))
     }
 
     @Test
     fun `two or more behind asks for the catch-up`() {
-        assertTrue(LivingWorldCatchUp.shouldEnqueue(currentTick = 8L, worldEpochMs = epoch, now = nowAtTick(10)))
-        assertTrue(LivingWorldCatchUp.shouldEnqueue(currentTick = 0L, worldEpochMs = epoch, now = nowAtTick(500)))
+        assertTrue(LivingWorldCatchUp.shouldEnqueue(currentTick = 8L, worldEpochMs = epoch, now = nowAtTick(10), sessionTicksBurned = 0L))
+        assertTrue(LivingWorldCatchUp.shouldEnqueue(currentTick = 0L, worldEpochMs = epoch, now = nowAtTick(500), sessionTicksBurned = 0L))
     }
 }

@@ -11,6 +11,11 @@ package com.aura.creative.livingworld
 object LivingWorldCatchUp {
     const val BEHIND_TICKS = 2L
 
-    fun shouldEnqueue(currentTick: Long, worldEpochMs: Long, now: Long): Boolean =
-        WorldClock.behind(currentTick, worldEpochMs, now) >= BEHIND_TICKS
+    fun shouldEnqueue(
+        currentTick: Long,
+        worldEpochMs: Long,
+        now: Long,
+        sessionTicksBurned: Long,
+    ): Boolean =
+        WorldClock.behind(currentTick, worldEpochMs, now, sessionTicksBurned) >= BEHIND_TICKS
 }

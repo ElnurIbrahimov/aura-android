@@ -19,6 +19,12 @@ package com.aura.creative.livingworld
  * mutated outside the engine. That last clause is this object's tripwire: any
  * future god-edit surface must land as a replayable event kind, or fork-at-past
  * breaks silently.
+ *
+ * Player actions are the first such surface, and they honour it: each one is a
+ * `player_action` event carrying its [Effect], read back here as [ActionAt] and
+ * fed to the tick that received it. So a world that was *played* replays like a
+ * world that was only watched, and forking to a tick before a move yields a
+ * branch where the move genuinely has not happened yet.
  */
 object WorldReplayer {
 
@@ -35,6 +41,20 @@ object WorldReplayer {
     data class FoldSpan(val atTick: Long, val ticks: Long)
 
     /**
+     * A recorded action: one [ActorEffect] submitted into tick [atTick].
+     *
+     * [seq] is the position of the `player_action` row within its tick, and
+     * it is load-bearing rather than decorative. Claims and lies are
+     * deferred and resolved in a canonical order, so those are indifferent
+     * to it — but [Effect.AdjustStock] and [Effect.AdjustRelation] apply as
+     * they are encountered, and stocks clamp at zero and at capacity. Spend
+     * then earn is not the same world as earn then spend once either end of
+     * the range is touched, so a journal read back out of order replays a
+     * world that was never played.
+     */
+    data class ActionAt(val atTick: Long, val seq: Int, val action: ActorEffect)
+
+    /**
      * State at [targetTick], walking recorded folds and stepping the rest.
      *
      * Refuses a target strictly inside a folded span — the fold is atomic, so
@@ -46,6 +66,7 @@ object WorldReplayer {
         genesis: WorldState,
         segments: List<Segment>,
         folds: List<FoldSpan>,
+        actions: List<ActionAt>,
         targetTick: Long,
     ): WorldState {
         require(targetTick >= 0L) { "targetTick must be non-negative" }
@@ -55,7 +76,21 @@ object WorldReplayer {
             require(targetTick <= start || targetTick >= fold.atTick) {
                 "tick $targetTick is inside a folded span ($start, ${fold.atTick}) — no exact state exists there"
             }
+            // A fold is a closed-form shortcut over ticks nobody was awake
+            // for, and it cannot carry an action. If one is in there, the
+            // replay would quietly produce a world where you never acted —
+            // which is precisely the silent breakage this object exists to
+            // refuse. Loud is the only acceptable failure here.
+            require(actions.none { it.atTick > start && it.atTick < fold.atTick }) {
+                "an action sits inside folded span ($start, ${fold.atTick}) and cannot be replayed"
+            }
         }
+
+        // Grouped once rather than scanned per tick, and sorted within the
+        // tick because submission order decides contested draws.
+        val actionsByTick = actions
+            .groupBy { it.atTick }
+            .mapValues { (_, at) -> at.sortedBy { it.seq }.map { it.action } }
 
         var state = genesis
         var tick = 0L
@@ -67,7 +102,14 @@ object WorldReplayer {
             } else {
                 tick += 1
                 val segment = segmentFor(segments, tick)
-                state = WorldEngine.tick(state, segment.worldId, segment.rootSeed, segment.branchSalt, tick).state
+                state = WorldEngine.tick(
+                    state,
+                    segment.worldId,
+                    segment.rootSeed,
+                    segment.branchSalt,
+                    tick,
+                    actionsByTick[tick].orEmpty(),
+                ).state
             }
         }
         return state

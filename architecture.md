@@ -156,7 +156,7 @@ a score of 4 (text, description or id — never className + bounds, which total 
 a tie. Recorded hands are never scheduled: `screen_act` needs a session a person opens.
 
 ### Room Databases (11)
-- MemoryDB v31, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
+- MemoryDB v32, ConversationDB v6, ProactiveEventDB v7, TaskDB v6, EvolutionDB v4
 - DreamConsolidationDB v3, AgentDB v3, HandDB v2, UserProfileDB v2
 - AgentRunDB v1, StrategyBanditDB v1
 - Backup SCHEMA_VERSION 30 (restore is merge-or-replace, disk-spooled snapshot-rollback + non-cancellable insert phase; the rollback restores everything purgeAll clears, which it did not before v18)
@@ -213,7 +213,7 @@ a tie. Recorded hands are never scheduled: `screen_act` needs a session a person
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,583 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,630 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 82 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -303,7 +303,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 `MemoryStore.query` fuses six unweighted signals through RRF (`Retrieval.rankCandidates`,
 `k = 60`): BM25 text score, vector cosine, recency, access frequency, FadeMem decay, importance.
 
-- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v31), kept current by SQL
+- **Candidates** come from `memories_fts` (FTS4, MemoryDatabase v32), kept current by SQL
   triggers. Replaced six `content LIKE '%word%'` clauses, which capped the query at six terms
   and forced a full table scan.
 - **BM25** takes its corpus size and per-term document frequency from the index rather than from

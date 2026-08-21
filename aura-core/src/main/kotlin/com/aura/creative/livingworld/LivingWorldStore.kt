@@ -128,6 +128,29 @@ class LivingWorldStore @Inject constructor(
         worldDao.commitTick(world.id, throughTick, encode(newState), now)
     }
 
+    /**
+     * Commit ticks the player advanced deliberately, burning [burned] of
+     * them against the wall clock so ambient time keeps its own count.
+     */
+    suspend fun commitPlayedTicks(
+        world: LivingWorldEntity,
+        newState: WorldState,
+        throughTick: Long,
+        burned: Long,
+        events: List<ScoredEvent>,
+        now: Long,
+    ) {
+        if (events.isNotEmpty()) {
+            eventDao.upsertAll(events.map { it.event.toEntity(world, now, it.notability) })
+        }
+        worldDao.commitPlayedTick(world.id, throughTick, encode(newState), burned, now)
+    }
+
+    /** Put the player in a character and give them a faction to command. */
+    suspend fun seat(worldId: String, characterId: String, factionId: String, now: Long) {
+        worldDao.seat(worldId, characterId, factionId, now)
+    }
+
     suspend fun topUnnarrated(worldId: String, floor: Double, limit: Int): List<LivingEventEntity> =
         eventDao.topUnnarrated(worldId, floor, limit)
 
@@ -185,6 +208,42 @@ class LivingWorldStore @Inject constructor(
     }
 
     /**
+     * The recorded player actions along the chain, in the order the engine
+     * received them.
+     *
+     * Mirrors [resolveFoldSpans], because an action is history in the same
+     * sense a fold is: the tick cannot be recomputed without it.
+     *
+     * A row whose payload will not decode throws rather than being skipped.
+     * Skipping would hand [WorldReplayer] a shorter history and get back a
+     * plausible world that is not the one that was played — the exact silent
+     * failure the replayer refuses to be party to. The caller catches it and
+     * declines to fork.
+     */
+    suspend fun resolveActions(
+        segments: List<WorldReplayer.Segment>,
+        throughTick: Long,
+    ): List<WorldReplayer.ActionAt> {
+        val actions = mutableListOf<WorldReplayer.ActionAt>()
+        for (segment in segments) {
+            actions += eventDao
+                .ofKindUpTo(segment.worldId, WorldEngine.KIND_PLAYER_ACTION, minOf(segment.toTick, throughTick))
+                .filter { it.tickIndex > segment.fromTick }
+                .map { row ->
+                    WorldReplayer.ActionAt(
+                        atTick = row.tickIndex,
+                        seq = row.seq,
+                        action = ActorEffect(
+                            actorId = row.actorId,
+                            effect = payloadJson.decodeFromString(Effect.serializer(), row.payloadJson),
+                        ),
+                    )
+                }
+        }
+        return actions.sortedWith(compareBy({ it.atTick }, { it.seq }))
+    }
+
+    /**
      * Fork at a past tick, gated on genesis: pre-v29 worlds have none and are
      * honestly told no. The child's state is replayed from genesis along the
      * recorded fold spans, its clock anchor is shared, and its currentTick is
@@ -203,7 +262,8 @@ class LivingWorldStore @Inject constructor(
         val genesis = decode(parent.genesisJson)
         val segments = resolveSegments(parent, tick)
         val folds = resolveFoldSpans(segments, tick)
-        val state = runCatching { WorldReplayer.stateAt(genesis, segments, folds, tick) }
+        val actions = runCatching { resolveActions(segments, tick) }.getOrElse { return null }
+        val state = runCatching { WorldReplayer.stateAt(genesis, segments, folds, actions, tick) }
             .getOrElse { return null }
         val world = LivingWorldEntity(
             id = UUID.randomUUID().toString(),
@@ -300,6 +360,16 @@ class LivingWorldStore @Inject constructor(
     }
 }
 
+/**
+ * The codec for [WorldEvent.payload].
+ *
+ * File-level rather than a store field because the mapper below is a
+ * top-level function and the read side needs the identical configuration —
+ * an encoder and a decoder that disagree are how a journal becomes
+ * unreplayable.
+ */
+private val payloadJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
 internal fun WorldEvent.toEntity(world: LivingWorldEntity, now: Long, notability: Double = 0.0) = LivingEventEntity(
     id = idFor(world.id),
     worldId = world.id,
@@ -313,5 +383,6 @@ internal fun WorldEvent.toEntity(world: LivingWorldEntity, now: Long, notability
     magnitudeMilli = magnitudeMilli,
     summary = summary,
     notability = notability,
+    payloadJson = payload?.let { payloadJson.encodeToString(Effect.serializer(), it) }.orEmpty(),
     createdAt = now,
 )

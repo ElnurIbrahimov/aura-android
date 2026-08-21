@@ -62,6 +62,37 @@ data class LivingWorldEntity(
     @androidx.room.ColumnInfo(defaultValue = "")
     val genesisJson: String = "",
     val status: String = STATUS_RUNNING,
+    /**
+     * The character the player occupies, and the faction that character
+     * leads. Blank on a world nobody has taken a seat in — which is every
+     * world created before this column existed, and stays a valid state:
+     * an unseated world is watched rather than played, exactly as before.
+     *
+     * Two ids rather than one because they answer different questions.
+     * [playerCharacterId] decides what you can see (it has a `parentId`, so
+     * it is somewhere); [playerFactionId] decides what you can do (it holds
+     * the stocks a claim moves). Commanding more than you can see is the
+     * tension the seat exists to create.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "")
+    val playerCharacterId: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "")
+    val playerFactionId: String = "",
+    /**
+     * Ticks the player advanced deliberately, on top of the wall clock.
+     *
+     * [WorldClock] derives the due tick from elapsed real time, which is the
+     * whole point of an ambient world — it moves whether or not anybody is
+     * watching. A session adds to that rather than replacing it: the due
+     * tick becomes `elapsed + burned`, so playing through ten days really
+     * does leave the world ten days further along and the ambient clock
+     * carries on from there.
+     *
+     * Replay is indifferent to this. It walks ticks 0..N and never asks how
+     * any particular tick came to be due.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val sessionTicksBurned: Long = 0L,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = createdAt,
 ) {
@@ -121,5 +152,23 @@ data class LivingEventEntity(
     val narration: String = "",
     /** 0 means never narrated. Also the per-day narration budget counter. */
     val narratedAt: Long = 0L,
+    /**
+     * The serialised [Effect] for a `player_action` row. Blank on every
+     * event the engine produced itself.
+     *
+     * A player move is a god-edit on a world that must stay replayable, and
+     * [WorldReplayer] states the rule: such an edit "must land as a
+     * replayable event kind, or fork-at-past breaks silently". Events are
+     * already the replay journal — `quiet_interval` rows are how folds are
+     * recorded — so the move belongs here rather than in a table of its own.
+     *
+     * The existing columns nearly fit (`actorId`, `magnitudeMilli`,
+     * `targetId`) and deliberately are not reused: squeezing a sealed
+     * hierarchy into three loosely-typed fields makes the decoder guess, and
+     * a decoder that guesses wrong replays a different world than the one
+     * that was played.
+     */
+    @androidx.room.ColumnInfo(defaultValue = "")
+    val payloadJson: String = "",
     val createdAt: Long = System.currentTimeMillis(),
 )

@@ -101,6 +101,7 @@ data class LivingWorldUi(
     val worldId: String,
     val currentTick: Long,
     val worldEpochMs: Long,
+    val sessionTicksBurned: Long,
     val factions: List<LivingFactionUi>,
     val events: List<LivingEventUi>,
     val eventCount: Int,
@@ -209,6 +210,7 @@ private fun com.aura.creative.livingworld.WorldState.toUi(
         worldId = world.id,
         currentTick = world.currentTick,
         worldEpochMs = world.worldEpochMs,
+        sessionTicksBurned = world.sessionTicksBurned,
         factions = factions,
         events = events.map {
             LivingEventUi(

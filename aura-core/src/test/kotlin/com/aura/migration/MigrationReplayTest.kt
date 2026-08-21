@@ -161,6 +161,7 @@ class MigrationReplayTest {
                 MemoryMigrations.MIGRATION_26_27,
                 MemoryMigrations.MIGRATION_27_28, MemoryMigrations.MIGRATION_28_29,
                 MemoryMigrations.MIGRATION_29_30, MemoryMigrations.MIGRATION_30_31,
+                MemoryMigrations.MIGRATION_31_32,
             ),
         ),
         DatabaseUnderTest(

@@ -107,6 +107,7 @@ internal fun LazyListScope.livingWorldSection(
         WorldNowCard(
             world.currentTick,
             world.worldEpochMs,
+            world.sessionTicksBurned,
             world.live,
             project.world.storyCursorTick,
             viewModel,
@@ -252,6 +253,7 @@ private fun ForkTimelineDialog(onConfirm: (String) -> Unit, onDismiss: () -> Uni
 private fun WorldNowCard(
     currentTick: Long,
     worldEpochMs: Long,
+    sessionTicksBurned: Long,
     live: LivingLiveUi?,
     storyCursorTick: Long,
     viewModel: CreativeStudioViewModel,
@@ -261,8 +263,8 @@ private fun WorldNowCard(
     // anything writing to the database, so a stored figure would be stale the
     // moment it was written.
     val now = System.currentTimeMillis()
-    val behind = WorldClock.behind(currentTick, worldEpochMs, now)
-    val nextInMs = WorldClock.msUntilNextTick(currentTick, worldEpochMs, now)
+    val behind = WorldClock.behind(currentTick, worldEpochMs, now, sessionTicksBurned = sessionTicksBurned)
+    val nextInMs = WorldClock.msUntilNextTick(currentTick, worldEpochMs, now, sessionTicksBurned = sessionTicksBurned)
 
     LivingCard(title = WorldClock.label(currentTick)) {
         Text(

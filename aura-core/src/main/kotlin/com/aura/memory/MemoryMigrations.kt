@@ -972,6 +972,23 @@ object MemoryMigrations {
      * gone, and inventing rows for images that might not be there would put broken tiles in
      * the Library with nothing able to tell which were real.
      */
+    /**
+     * A seat inside a living world, and the journal its moves are written to.
+     *
+     * Five added columns, no table rewrites, no data touched. Every one
+     * carries a default that matches what the entity declares, so a world
+     * that existed before the seat did reads back as unseated and unplayed
+     * rather than as a world with a null player.
+     */
+    val MIGRATION_31_32 = object : Migration(31, 32) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE living_worlds ADD COLUMN playerCharacterId TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE living_worlds ADD COLUMN playerFactionId TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE living_worlds ADD COLUMN sessionTicksBurned INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE living_events ADD COLUMN payloadJson TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
     val MIGRATION_30_31 = object : Migration(30, 31) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
