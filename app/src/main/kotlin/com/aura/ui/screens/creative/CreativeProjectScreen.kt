@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun CreativeProjectScreen(
     projectId: String,
     onBack: () -> Unit,
+    onPlay: (String) -> Unit = {},
     viewModel: CreativeStudioViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -179,7 +180,7 @@ fun CreativeProjectScreen(
                 // history is thousands of events; inside one item, Compose
                 // measures all of it on every frame.
                 when (selectedTab) {
-                    LIVING_TAB -> livingWorldSection(state, viewModel)
+                    LIVING_TAB -> livingWorldSection(state, viewModel, onPlay)
                     MANUSCRIPT_TAB -> manuscriptSection(
                         state = state,
                         viewModel = viewModel,

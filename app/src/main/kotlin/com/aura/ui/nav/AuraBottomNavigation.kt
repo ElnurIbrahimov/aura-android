@@ -91,6 +91,15 @@ sealed class Route(val path: String) {
     data object Library : Route("library")
     data object Creative : Route("creative")
     data object CreativeProject : Route("creative/{projectId}")
+
+    /**
+     * A seat inside a living world.
+     *
+     * Keyed by world rather than by project because a project can hold
+     * several timelines and you take a seat in one of them — forking a world
+     * gives you a branch you can be somebody else in.
+     */
+    data object Play : Route("play/{worldId}")
     data object Production : Route("production")
     data object Proactive : Route("proactive")
     data object AgentRuns : Route("agent_runs")

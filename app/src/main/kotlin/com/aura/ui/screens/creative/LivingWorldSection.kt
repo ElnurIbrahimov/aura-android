@@ -58,6 +58,7 @@ import com.aura.ui.viewmodel.WorldBranchUi
 internal fun LazyListScope.livingWorldSection(
     state: CreativeStudioUiState,
     viewModel: CreativeStudioViewModel,
+    onPlay: (String) -> Unit = {},
 ) {
     val project = state.selectedProject ?: return
     val world = state.livingWorld
@@ -113,6 +114,8 @@ internal fun LazyListScope.livingWorldSection(
             viewModel,
         )
     }
+
+    item(key = "living-play") { TakeASeatCard(world.worldId, onPlay) }
 
     item(key = "living-factions") {
         LivingCard(title = "Who holds what") {
@@ -495,6 +498,30 @@ private fun EventRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 ) { Text(stringResource(R.string.fork_from_here)) }
             }
+        }
+    }
+}
+
+/**
+ * The way from watching to playing.
+ *
+ * This section is a spectator surface and is omniscient by construction —
+ * "Who holds what" below reads [com.aura.creative.livingworld.WorldState]
+ * directly and shows true numbers for everybody. That is correct here and
+ * fatal one screen over, so the seat gets its own destination rather than a
+ * mode toggle on this one: there is no way to half-render the fog, and a
+ * screen that could show either would eventually show the wrong one.
+ */
+@Composable
+private fun TakeASeatCard(worldId: String, onPlay: (String) -> Unit) {
+    LivingCard(title = stringResource(R.string.play_take_a_seat)) {
+        Text(
+            stringResource(R.string.play_take_a_seat_detail),
+            style = MaterialTheme.typography.bodySmall,
+            color = AuraThemeTokens.colors.textSecondary,
+        )
+        Button(onClick = { onPlay(worldId) }, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.play_enter))
         }
     }
 }

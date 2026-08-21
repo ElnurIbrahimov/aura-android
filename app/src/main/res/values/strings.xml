@@ -492,4 +492,31 @@
     <string name="library_writing">Writing</string>
     <string name="library_other">Other</string>
     <string name="everything">Everything</string>
+    <!-- Aura Game: a seat inside a living world -->
+    <string name="play_title">Your seat</string>
+    <string name="play_back">Back</string>
+    <string name="play_subtitle_default">A seat inside a living world</string>
+    <string name="play_subtitle_unseated">Nobody is living this one yet</string>
+    <string name="play_subtitle_at">%1$s, at %2$s</string>
+    <string name="play_subtitle_nowhere">%1$s, nowhere in particular</string>
+    <string name="play_gone">That world is gone</string>
+    <string name="play_gone_detail">It was deleted, or it never finished being made.</string>
+    <string name="play_seat_character">Who are you?</string>
+    <string name="play_seat_character_detail">Your character is where you stand, and you only know what you are near.</string>
+    <string name="play_seat_house">What do you command?</string>
+    <string name="play_seat_house_detail">Your house holds the ground and fights the wars. It is bigger than you can see.</string>
+    <string name="play_seat_nobody">There is nobody in this world to be. Seed it with characters first.</string>
+    <string name="play_house_detail">What you hold, and what you know you hold.</string>
+    <string name="play_here">Here with you</string>
+    <string name="play_elsewhere">Out there somewhere</string>
+    <string name="play_room_empty">Nobody.</string>
+    <string name="play_holds_nothing">Nothing worth counting.</string>
+    <string name="play_moves">What you can do</string>
+    <string name="play_behind">%1$d day(s) have passed that the world has not caught up to yet.</string>
+    <string name="play_wait">Let the day pass</string>
+    <string name="play_wait_detail">A day goes by whether or not you spend it. Time runs on its own besides.</string>
+    <string name="play_log">What has been happening</string>
+    <string name="play_take_a_seat">Live in it</string>
+    <string name="play_take_a_seat_detail">Everything above is the view from outside, where every number is true. Take a character and a house and you will only know what you are near.</string>
+    <string name="play_enter">Take a seat</string>
 </resources>

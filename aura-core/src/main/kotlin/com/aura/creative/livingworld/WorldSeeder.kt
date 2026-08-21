@@ -46,13 +46,39 @@ class WorldSeeder @Inject constructor() {
         val stocks = mutableListOf<Stock>()
         val relations = mutableListOf<Relation>()
 
-        for (faction in factions) {
+        // Everything that can be somewhere is put somewhere.
+        //
+        // A bible names characters, factions and places but never says who is
+        // where, and an unplaced entity has a blank `parentId` — which drops it
+        // out of every co-location check at once. A world seeded that way runs
+        // perfectly well and cannot be *inhabited*: nobody is ever near anyone,
+        // so looking around always finds an empty room and presence stops
+        // meaning anything.
+        //
+        // So houses are dealt round-robin around the map, and a character joins
+        // whichever house lists them. Round-robin rather than random because
+        // the whole engine is deterministic and a seed that was not would make
+        // the same bible produce a different world on every run. A world with
+        // no locations at all is left unplaced, which is the honest answer.
+        val places = bible.locations.sortedBy { it.id }
+        val seatOf = LinkedHashMap<String, String>()
+        for ((index, faction) in factions.withIndex()) {
+            val seat = if (places.isEmpty()) "" else places[index % places.size].id
+            seatOf[faction.id] = seat
             entities += SimEntity(
                 id = faction.id,
                 kind = KIND_FACTION,
                 name = faction.name,
+                parentId = seat,
                 sourceBibleId = faction.id,
             )
+        }
+
+        // First house to claim a character keeps them, so a character listed
+        // twice does not depend on iteration order for which hall they stand in.
+        val houseOf = LinkedHashMap<String, String>()
+        for (faction in factions) {
+            for (member in faction.members.sorted()) houseOf.putIfAbsent(member, faction.id)
         }
         for (location in bible.locations.sortedBy { it.id }) {
             entities += SimEntity(
@@ -62,11 +88,17 @@ class WorldSeeder @Inject constructor() {
                 sourceBibleId = location.id,
             )
         }
-        for (character in bible.characters.sortedBy { it.id }) {
+        for ((index, character) in bible.characters.sortedBy { it.id }.withIndex()) {
+            val withTheirHouse = houseOf[character.id]?.let { seatOf[it] }
             entities += SimEntity(
                 id = character.id,
                 kind = KIND_CHARACTER,
                 name = character.name,
+                // Unaffiliated characters are spread around rather than piled
+                // in one hall, so a seat taken at random still starts somewhere
+                // with something to look at.
+                parentId = withTheirHouse
+                    ?: if (places.isEmpty()) "" else places[index % places.size].id,
                 sourceBibleId = character.id,
             )
         }

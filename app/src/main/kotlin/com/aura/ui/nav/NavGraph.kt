@@ -43,6 +43,7 @@ import com.aura.ui.screens.hands.RecordedHandReviewScreen
 import com.aura.ui.screens.HistoryScreen
 import com.aura.ui.screens.creative.CreativeProjectScreen
 import com.aura.ui.screens.creative.CreativeStudioScreen
+import com.aura.ui.screens.game.PlayScreen
 import com.aura.ui.screens.home.HomeRoute
 import com.aura.ui.screens.skills.SkillsScreen
 import com.aura.ui.screens.KnowledgeGraphScreen
@@ -314,7 +315,18 @@ fun NavGraph(
                 CreativeProjectScreen(
                     projectId = projectId,
                     onBack = { navController.popBackStack() },
+                    onPlay = { worldId -> navController.navigate("play/" + worldId) },
                 )
+            }
+            composable(
+                route = Route.Play.path,
+                arguments = listOf(
+                    navArgument("worldId") { type = NavType.StringType },
+                ),
+            ) {
+                // worldId is read by PlayViewModel out of SavedStateHandle,
+                // so it is not threaded through the composable.
+                PlayScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.AgentRuns.path) {
                 AgentRunsScreen(

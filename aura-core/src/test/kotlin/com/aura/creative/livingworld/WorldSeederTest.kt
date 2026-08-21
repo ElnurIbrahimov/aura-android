@@ -125,4 +125,71 @@ class WorldSeederTest {
             "no faction ever took land — the default rules never contend, so nothing is at stake",
         )
     }
+
+    // ---- geography ---------------------------------------------------------
+
+    private fun peopled() = WorldBible(
+        factions = listOf(
+            WorldFaction(id = "f_a", name = "Ashfall", members = listOf("c_1")),
+            WorldFaction(id = "f_b", name = "Bramwatch", members = listOf("c_2")),
+        ),
+        locations = listOf(
+            WorldLocation(id = "l_1", name = "The Keep"),
+            WorldLocation(id = "l_2", name = "The Low Road"),
+        ),
+        characters = listOf(
+            WorldCharacter(id = "c_1", name = "Alder"),
+            WorldCharacter(id = "c_2", name = "Bryn"),
+            WorldCharacter(id = "c_3", name = "Corr"),
+        ),
+    )
+
+    private fun placeOf(state: WorldState, id: String) = state.entities.first { it.id == id }.parentId
+
+    @Test
+    fun `houses are dealt around the map rather than piled in one hall`() {
+        // A bible names places but never says who is where. If the seeder left
+        // that blank, every co-location check in the game would fail at once —
+        // looking around would always find an empty room and presence would
+        // stop meaning anything.
+        val state = seeder.seed(peopled())
+        assertEquals("l_1", placeOf(state, "f_a"))
+        assertEquals("l_2", placeOf(state, "f_b"))
+    }
+
+    @Test
+    fun `a character stands with the house that claims them`() {
+        val state = seeder.seed(peopled())
+        assertEquals(placeOf(state, "f_a"), placeOf(state, "c_1"))
+        assertEquals(placeOf(state, "f_b"), placeOf(state, "c_2"))
+        // Unaffiliated, so spread rather than piled — a seat taken at random
+        // still starts somewhere with something to look at.
+        assertTrue(placeOf(state, "c_3").isNotBlank())
+    }
+
+    @Test
+    fun `placement does not depend on the order the bible happens to list things`() {
+        val forward = seeder.seed(peopled())
+        val shuffled = peopled().let { b ->
+            b.copy(
+                factions = b.factions.reversed(),
+                locations = b.locations.reversed(),
+                characters = b.characters.reversed(),
+            )
+        }
+        val other = seeder.seed(shuffled)
+        for (id in listOf("f_a", "f_b", "c_1", "c_2", "c_3")) {
+            assertEquals(placeOf(forward, id), placeOf(other, id), "$id moved when the bible was reordered")
+        }
+    }
+
+    @Test
+    fun `a world with nowhere to stand leaves everyone unplaced`() {
+        // The honest answer rather than a fabricated location. Blank is already
+        // a valid state everywhere downstream: an unplaced looker sees nothing.
+        val state = seeder.seed(peopled().copy(locations = emptyList()))
+        assertEquals("", placeOf(state, "f_a"))
+        assertEquals("", placeOf(state, "c_1"))
+    }
+
 }
