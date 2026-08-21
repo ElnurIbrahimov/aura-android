@@ -43,21 +43,44 @@ interface LivingWorldDao {
     @Query("SELECT * FROM living_worlds ORDER BY id ASC")
     suspend fun all(): List<LivingWorldEntity>
 
-    @Query("UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun commitTick(id: String, tick: Long, stateJson: String, updatedAt: Long)
+    /**
+     * Advance a world, but only from the tick the caller read.
+     *
+     * `fromTick` is what makes two writers safe. The hourly worker and a
+     * play session both compute forward from whatever `currentTick` said
+     * when they started, and without this clause the slower one overwrites
+     * the faster — moving the world *backwards* and, worse, onto a state
+     * that does not contain an action the event journal says happened.
+     * Returns the number of rows changed: 0 means somebody else got there
+     * first and this work should be thrown away rather than forced.
+     */
+    @Query(
+        "UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, " +
+            "updatedAt = :updatedAt WHERE id = :id AND currentTick = :fromTick",
+    )
+    suspend fun commitTick(id: String, tick: Long, stateJson: String, updatedAt: Long, fromTick: Long): Int
 
     /**
      * Commit a tick the player advanced on purpose.
      *
      * The burn is `+ :burned` in SQL rather than a value computed in Kotlin
      * so that a session running while the hourly worker commits cannot lose
-     * a tick to a read-modify-write race.
+     * a tick to a read-modify-write race. `fromTick` guards the rest of the
+     * row for the same reason — see [commitTick].
      */
     @Query(
         "UPDATE living_worlds SET currentTick = :tick, stateJson = :stateJson, " +
-            "sessionTicksBurned = sessionTicksBurned + :burned, updatedAt = :updatedAt WHERE id = :id",
+            "sessionTicksBurned = sessionTicksBurned + :burned, updatedAt = :updatedAt " +
+            "WHERE id = :id AND currentTick = :fromTick",
     )
-    suspend fun commitPlayedTick(id: String, tick: Long, stateJson: String, burned: Long, updatedAt: Long)
+    suspend fun commitPlayedTick(
+        id: String,
+        tick: Long,
+        stateJson: String,
+        burned: Long,
+        updatedAt: Long,
+        fromTick: Long,
+    ): Int
 
     @Query("UPDATE living_worlds SET playerCharacterId = :characterId, playerFactionId = :factionId, updatedAt = :updatedAt WHERE id = :id")
     suspend fun seat(id: String, characterId: String, factionId: String, updatedAt: Long)

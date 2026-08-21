@@ -9,6 +9,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -41,14 +42,26 @@ class SessionPlayTest {
 
     init {
         coEvery { worldDao.byId(any()) } answers { worlds[firstArg()] }
-        coEvery { worldDao.commitPlayedTick(any(), any(), any(), any(), any()) } answers {
+        coEvery { worldDao.upsert(any()) } answers {
+            val world = firstArg<LivingWorldEntity>()
+            worlds[world.id] = world
+        }
+        // Conditional, exactly as the SQL is: a writer working from a stale
+        // read updates nothing and is told so.
+        coEvery { worldDao.commitPlayedTick(any(), any(), any(), any(), any(), any()) } answers {
             val id = firstArg<String>()
-            worlds[id] = worlds.getValue(id).copy(
-                currentTick = secondArg(),
-                stateJson = thirdArg(),
-                sessionTicksBurned = worlds.getValue(id).sessionTicksBurned + arg<Long>(3),
-                updatedAt = arg(4),
-            )
+            val current = worlds.getValue(id)
+            if (current.currentTick != arg<Long>(5)) {
+                0
+            } else {
+                worlds[id] = current.copy(
+                    currentTick = secondArg(),
+                    stateJson = thirdArg(),
+                    sessionTicksBurned = current.sessionTicksBurned + arg<Long>(3),
+                    updatedAt = arg(4),
+                )
+                1
+            }
         }
         coEvery { worldDao.seat(any(), any(), any(), any()) } answers {
             val id = firstArg<String>()
@@ -100,6 +113,9 @@ class SessionPlayTest {
             worldEpochMs = epoch,
             currentTick = 0L,
             stateJson = store.encode(WorldSeeder().seed(bible())),
+            // Fork-at-past is gated on genesis, so a world without one
+            // could not exercise the fork tests below at all.
+            genesisJson = store.encode(WorldSeeder().seed(bible())),
         )
         worlds[world.id] = world
         return world
@@ -205,4 +221,124 @@ class SessionPlayTest {
             "the world replayed differently than it was played",
         )
     }
+
+    @Test
+    fun `a fork keeps your seat`() = runTest {
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        runner.step("w1", listOf(ActorEffect("f_a", Effect.SpreadLie("territory", 1_000))))
+
+        val child = store.forkAt(store.byId("w1")!!, tick = 1L, branchId = "b2", branchName = "what if")
+        assertEquals("c_alder", child?.playerCharacterId, "the fork put you outside your own timeline")
+        assertEquals("f_a", child?.playerFactionId)
+    }
+
+    @Test
+    fun `a fork of a played world does not go quiet for as long as the session was`() = runTest {
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        repeat(4) { runner.step("w1", emptyList()) }
+
+        val child = store.forkAt(store.byId("w1")!!, tick = 4L, branchId = "b2", branchName = "what if")!!
+
+        // No wall-clock time has passed, so all four of those ticks were burned
+        // and the child inherits that. One real hour later it owes exactly one
+        // tick. A child that recorded none would be four ticks ahead of a clock
+        // that has to spend four hours catching up — the ambient half of the
+        // design switched off by the act of forking, silently.
+        assertEquals(4L, child.sessionTicksBurned)
+        assertEquals(
+            1L,
+            WorldClock.behind(
+                child.currentTick,
+                child.worldEpochMs,
+                epoch + WorldClock.TICK_REAL_MS,
+                child.sessionTicksBurned,
+            ),
+        )
+    }
+
+    @Test
+    fun `forking into the genuine past still owes the ticks since`() = runTest {
+        // The other direction, and the documented one: a fork at a tick the wall
+        // clock passed long ago owes everything since, and catches up along its
+        // own salt. Nothing about the burn should change that.
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        repeat(4) { runner.step("w1", emptyList()) }
+
+        val child = store.forkAt(store.byId("w1")!!, tick = 1L, branchId = "b3", branchName = "earlier")!!
+        assertEquals(1L, child.sessionTicksBurned)
+        assertEquals(
+            9L,
+            WorldClock.behind(
+                child.currentTick,
+                child.worldEpochMs,
+                epoch + 9 * WorldClock.TICK_REAL_MS,
+                child.sessionTicksBurned,
+            ),
+        )
+    }
+
+    @Test
+    fun `a writer working from a stale read loses rather than winning`() = runTest {
+        // step() added a second writer to a world the hourly worker also
+        // commits to. Without a guard the loser overwrites the winner, and the
+        // world can jump backwards — or worse, land on a state that does not
+        // contain an action its own journal says happened.
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        val stale = store.byId("w1")!!
+
+        assertEquals(TickOutcome.CAUGHT_UP, runner.step("w1", emptyList()))
+        assertEquals(1L, store.byId("w1")!!.currentTick)
+
+        val applied = store.commitPlayedTicks(
+            world = stale,
+            newState = store.decode(stale.stateJson),
+            throughTick = 1L,
+            burned = 1L,
+            events = emptyList(),
+            now = 9L,
+        )
+        assertFalse(applied, "the stale writer was allowed to overwrite the world")
+        assertEquals(1L, store.byId("w1")!!.currentTick)
+        assertEquals(1L, store.byId("w1")!!.sessionTicksBurned, "the burn was double counted")
+    }
+
+    @Test
+    fun `a rejected play writes no events`() = runTest {
+        // The half that matters. If the events landed and the tick did not, the
+        // journal would say an action happened at a tick the world never
+        // reached, and replay would diverge from stored state — which is the
+        // exact failure the journal exists to prevent.
+        start()
+        store.seat("w1", "c_alder", "f_a", now = 1L)
+        val stale = store.byId("w1")!!
+        runner.step("w1", emptyList())
+        val before = events.size
+
+        store.commitPlayedTicks(
+            world = stale,
+            newState = store.decode(stale.stateJson),
+            throughTick = 1L,
+            burned = 1L,
+            events = listOf(
+                ScoredEvent(
+                    WorldEvent(
+                        tick = 1L,
+                        seq = 0,
+                        kind = WorldEngine.KIND_PLAYER_ACTION,
+                        actorId = "f_a",
+                        summary = "Ashfall acts.",
+                        payload = Effect.SpreadLie("territory", 500),
+                    ),
+                    0.5,
+                ),
+            ),
+            now = 9L,
+        )
+        assertEquals(before, events.size, "an orphan action row was written for a tick nobody reached")
+    }
+
 }

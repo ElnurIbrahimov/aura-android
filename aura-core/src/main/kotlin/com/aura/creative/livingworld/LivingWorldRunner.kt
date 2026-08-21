@@ -16,6 +16,17 @@ enum class TickOutcome {
     /** Nothing was owed. */
     NOTHING_DUE,
 
+    /**
+     * Somebody else moved the world first, so this work was discarded.
+     *
+     * Distinct from [FAILED] because nothing went wrong: the world is fine,
+     * it is just further along than the caller thought. A play session gets
+     * this when the hourly worker beats it to a tick, and the honest answer
+     * is to show the player the world as it now stands rather than to
+     * pretend the move landed.
+     */
+    OVERTAKEN,
+
     FAILED,
 }
 
@@ -52,6 +63,11 @@ class LivingWorldRunner @Inject constructor(
                 TickOutcome.PAUSED_FOR_TIME -> return TickOutcome.PAUSED_FOR_TIME
                 TickOutcome.CAUGHT_UP -> sawWork = true
                 TickOutcome.FAILED -> sawWork = true
+                // runSlice never returns this — it discards an overtaken
+                // slice as CAUGHT_UP, because the world did advance, just
+                // not by this run. Listed rather than folded into an else
+                // so that a future path returning it has to be considered.
+                TickOutcome.OVERTAKEN -> sawWork = true
                 TickOutcome.NOTHING_DUE -> Unit
             }
         }
@@ -131,6 +147,14 @@ class LivingWorldRunner @Inject constructor(
         }.onFailure { Log.w(TAG, "commit failed for $worldId at tick $tick: ${it.message}", it) }
 
         if (committed.isFailure) return TickOutcome.FAILED
+        if (committed.getOrDefault(false) == false) {
+            // A play session moved the world while this slice was computing.
+            // Its work is stale — throwing it away costs one slice and keeps
+            // the session's tick, which is the one with a player action in
+            // it. The next run picks up from wherever the world now is.
+            Log.i(TAG, "slice for $worldId was overtaken at tick $tick; discarding it")
+            return TickOutcome.CAUGHT_UP
+        }
         if (behind <= 0L) tickBus?.clear(world.id)
         return if (behind > 0L) TickOutcome.PAUSED_FOR_TIME else TickOutcome.CAUGHT_UP
     }
@@ -172,6 +196,15 @@ class LivingWorldRunner @Inject constructor(
             }
         }.onFailure { Log.w(TAG, "played commit failed for $worldId at tick $tick: ${it.message}", it) }
         if (committed.isFailure) return TickOutcome.FAILED
+        if (committed.getOrDefault(false) == false) {
+            // The hourly worker got there first. Nothing was written — not
+            // the tick and not the action — so the move is simply not made,
+            // and the caller can offer it again against a world that has
+            // moved on. Silently succeeding here would be the worst outcome:
+            // a tap that appeared to work and did nothing.
+            Log.i(TAG, "play at tick $tick for $worldId was overtaken; the move was not made")
+            return TickOutcome.OVERTAKEN
+        }
 
         tickBus?.progress(world.id, tick)
         return TickOutcome.CAUGHT_UP

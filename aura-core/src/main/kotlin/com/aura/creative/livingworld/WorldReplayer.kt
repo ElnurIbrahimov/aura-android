@@ -81,8 +81,13 @@ object WorldReplayer {
             // replay would quietly produce a world where you never acted —
             // which is precisely the silent breakage this object exists to
             // refuse. Loud is the only acceptable failure here.
-            require(actions.none { it.atTick > start && it.atTick < fold.atTick }) {
-                "an action sits inside folded span ($start, ${fold.atTick}) and cannot be replayed"
+            // `atTick` is inclusive: the loop below jumps the cursor from
+            // `start` straight to `atTick` and never calls tick() for it, so
+            // the arrival tick is inside the span even though it reads like
+            // the far edge of it. A guard stopping one short would let
+            // through the one case that looks handled.
+            require(actions.none { it.atTick > start && it.atTick <= fold.atTick }) {
+                "an action sits inside folded span ($start, ${fold.atTick}] and cannot be replayed"
             }
         }
 

@@ -11,6 +11,7 @@ import com.aura.creative.livingworld.LivingWorldStore
 import com.aura.creative.livingworld.PlayerMoves
 import com.aura.creative.livingworld.PlayerView
 import com.aura.creative.livingworld.SimEntity
+import com.aura.creative.livingworld.TickOutcome
 import com.aura.creative.livingworld.WorldClock
 import com.aura.creative.livingworld.WorldState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -110,19 +111,21 @@ class PlayViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            val world = runCatching { store.byId(worldId) }.getOrNull()
-            if (world == null) {
-                _state.value = PlayUiState(loading = false, missing = true)
-                return@launch
-            }
-            val worldState = runCatching { store.decode(world.stateJson) }.getOrNull()
-            if (worldState == null) {
-                _state.value = PlayUiState(loading = false, missing = true)
-                return@launch
-            }
-            _state.value = project(world, worldState, note = _state.value.note)
+        viewModelScope.launch { reload(_state.value.note) }
+    }
+
+    private suspend fun reload(note: String) {
+        val world = runCatching { store.byId(worldId) }.getOrNull()
+        if (world == null) {
+            _state.value = PlayUiState(loading = false, missing = true)
+            return
         }
+        val worldState = runCatching { store.decode(world.stateJson) }.getOrNull()
+        if (worldState == null) {
+            _state.value = PlayUiState(loading = false, missing = true)
+            return
+        }
+        _state.value = project(world, worldState, note = note)
     }
 
     /** Take a seat, in two steps: who you are, then what you command. */
@@ -171,14 +174,37 @@ class PlayViewModel @Inject constructor(
      */
     fun waitADay() = step(emptyList())
 
+    /**
+     * Advance one tick and republish.
+     *
+     * [LivingWorldRunner.step] reports failure by returning rather than by
+     * throwing, so a `runCatching` alone would treat a refused commit as a
+     * success and leave the player looking at a tap that appeared to work and
+     * did nothing. Both the thrown and the returned failure land here.
+     *
+     * `busy` is held until the republish finishes rather than cleared when the
+     * step returns, because the gap between the two is a window where the
+     * screen is interactive and showing the world as it was before the move —
+     * and a tap in that window resolves against a stale list of offers.
+     */
     private fun step(actions: List<ActorEffect>) {
         if (_state.value.busy) return
         _state.value = _state.value.copy(busy = true, note = "")
         viewModelScope.launch {
-            runCatching { runner.step(worldId, actions) }
-                .onFailure { _state.value = _state.value.copy(busy = false, note = "The day would not turn.") }
-                .onSuccess { _state.value = _state.value.copy(busy = false) }
-            refresh()
+            val note = runCatching { runner.step(worldId, actions) }
+                .fold(
+                    onSuccess = { outcome ->
+                        when (outcome) {
+                            TickOutcome.CAUGHT_UP -> ""
+                            TickOutcome.OVERTAKEN -> "The world moved while you were deciding. Look again."
+                            TickOutcome.NOTHING_DUE -> "This world is not running."
+                            else -> "The day would not turn."
+                        }
+                    },
+                    onFailure = { "The day would not turn." },
+                )
+            reload(note)
+            _state.value = _state.value.copy(busy = false)
         }
     }
 

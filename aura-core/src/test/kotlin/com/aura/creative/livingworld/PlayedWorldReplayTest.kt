@@ -192,6 +192,35 @@ class PlayedWorldReplayTest {
     }
 
     @Test
+    fun `an action on the fold's own arrival tick is refused too`() {
+        // The seam, and the worst case of the lot. A fold covers
+        // `(start, atTick]` — the cursor jumps straight to `atTick` without
+        // ever calling `tick()` for it — so an action sitting exactly on that
+        // boundary is as unreplayable as one in the middle of the span. A
+        // guard that stops one short of it is worse than no guard, because
+        // it reads as though the case was considered.
+        val folds = listOf(WorldReplayer.FoldSpan(atTick = 20L, ticks = 10L))
+        val onTheSeam = listOf(
+            WorldReplayer.ActionAt(20L, 0, ActorEffect("f_ash", Effect.SpreadLie("territory", 500))),
+        )
+        assertFailsWith<IllegalArgumentException> {
+            WorldReplayer.stateAt(genesis(), segments(30L), folds, onTheSeam, 30L)
+        }
+    }
+
+    @Test
+    fun `an action on the tick a fold starts from is fine`() {
+        // The other side of the seam. `start` is the last tick before the
+        // fold and was simulated normally, so an action there replays. A
+        // guard that refused it would make ordinary play unforkable.
+        val folds = listOf(WorldReplayer.FoldSpan(atTick = 20L, ticks = 10L))
+        val justBefore = listOf(
+            WorldReplayer.ActionAt(10L, 0, ActorEffect("f_ash", Effect.SpreadLie("territory", 500))),
+        )
+        WorldReplayer.stateAt(genesis(), segments(30L), folds, justBefore, 30L)
+    }
+
+    @Test
     fun `an action inside a folded span is refused rather than silently dropped`() {
         // Folds collapse ticks nobody was awake for and cannot carry an action.
         // Replaying past one would produce a world where the move never

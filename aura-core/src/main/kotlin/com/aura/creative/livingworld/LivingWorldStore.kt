@@ -90,6 +90,11 @@ class LivingWorldStore @Inject constructor(
             currentTick = parent.currentTick,
             stateJson = parent.stateJson,
             genesisJson = parent.genesisJson,
+            // You are still you in the branch, and it stands at the same
+            // tick, so it owes the clock exactly what the parent owes.
+            playerCharacterId = parent.playerCharacterId,
+            playerFactionId = parent.playerFactionId,
+            sessionTicksBurned = parent.sessionTicksBurned,
         )
         worldDao.upsert(world)
         return world
@@ -115,22 +120,36 @@ class LivingWorldStore @Inject constructor(
      * events for good, because the ticks that produced them would never be
      * re-run.
      */
+    /** Returns false when another writer moved the world first and this work is stale. */
     suspend fun commitTicks(
         world: LivingWorldEntity,
         newState: WorldState,
         throughTick: Long,
         events: List<ScoredEvent>,
         now: Long,
-    ) {
+    ): Boolean {
+        // Events first, then the tick. Engine events are a pure function of
+        // (state, tick) with deterministic ids, so writing them for a tick
+        // that then loses the commit is harmless — whoever recomputes that
+        // tick writes the identical rows over the top.
         if (events.isNotEmpty()) {
             eventDao.upsertAll(events.map { it.event.toEntity(world, now, it.notability) })
         }
-        worldDao.commitTick(world.id, throughTick, encode(newState), now)
+        return worldDao.commitTick(world.id, throughTick, encode(newState), now, world.currentTick) > 0
     }
 
     /**
      * Commit ticks the player advanced deliberately, burning [burned] of
      * them against the wall clock so ambient time keeps its own count.
+     *
+     * Returns false when another writer moved the world first. The tick
+     * lands before its events here, the opposite way round from
+     * [commitTicks], and the asymmetry is the point: a played tick carries a
+     * `player_action` row that only this call will ever write. Writing it
+     * for a tick that then loses the commit would leave the journal claiming
+     * a move the stored state does not contain, which is precisely the
+     * divergence the journal exists to prevent. An engine event can be
+     * recomputed by anyone; a player's move cannot.
      */
     suspend fun commitPlayedTicks(
         world: LivingWorldEntity,
@@ -139,11 +158,15 @@ class LivingWorldStore @Inject constructor(
         burned: Long,
         events: List<ScoredEvent>,
         now: Long,
-    ) {
+    ): Boolean {
+        val applied = worldDao.commitPlayedTick(
+            world.id, throughTick, encode(newState), burned, now, world.currentTick,
+        ) > 0
+        if (!applied) return false
         if (events.isNotEmpty()) {
             eventDao.upsertAll(events.map { it.event.toEntity(world, now, it.notability) })
         }
-        worldDao.commitPlayedTick(world.id, throughTick, encode(newState), burned, now)
+        return true
     }
 
     /** Put the player in a character and give them a faction to command. */
@@ -277,6 +300,23 @@ class LivingWorldStore @Inject constructor(
             currentTick = tick,
             stateJson = encode(state),
             genesisJson = parent.genesisJson,
+            // You are still you in the branch. A fork is "what if I had
+            // done otherwise", which is not a question anybody asks from
+            // outside their own timeline.
+            playerCharacterId = parent.playerCharacterId,
+            playerFactionId = parent.playerFactionId,
+            // How much of the child's tick the wall clock did not pay for.
+            //
+            // The parent reached `currentTick` on `currentTick - burned`
+            // hours of real time, so anything past that mark was played
+            // rather than waited for. Fork below the mark and the child
+            // owes the ticks since, which is the documented behaviour —
+            // the counterfactual IS the catch-up. Fork above it and the
+            // child must inherit the burn, or it sits ahead of a clock
+            // that has to spend the length of the session catching up,
+            // and forking silently switches the ambient half off.
+            sessionTicksBurned = (tick - (parent.currentTick - parent.sessionTicksBurned))
+                .coerceAtLeast(0L),
         )
         worldDao.upsert(world)
         return world

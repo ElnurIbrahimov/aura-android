@@ -464,7 +464,7 @@ Widget push-refresh verification stays on the device pass.
 clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Branch
 `fix/data-integrity-and-defect-sweep`.
 
-*2026-08-21 (the seat):* **3,643 unit tests / 547 suites, 0 failures** at v0.66.0,
+*2026-08-21 (the seat):* **3,650 unit tests / 547 suites, 0 failures** at v0.66.0,
 MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
 `:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
 
@@ -515,6 +515,35 @@ resolves against the truth`. The replay test is `PlayedWorldReplayTest`, which
 plays eight ticks with six moves and requires byte-identical `stateAt(8)` —
 with a negative control, because a replayer that ignored its actions argument
 would otherwise pass whenever the actions happened not to matter.
+
+A review pass over the slice found four more, and the pattern held: every one
+was invisible from inside the piece that contained it.
+
+- **The fold guard was one tick short.** A fold covers `(start, atTick]` — the
+  replay cursor jumps straight to `atTick` without ever calling `tick()` for it
+  — but the guard refusing actions inside a folded span stopped at
+  `atTick - 1`. An action landing exactly on a fold's arrival tick was dropped
+  silently, which is the failure the guard was written to prevent, in the one
+  case that read as though it had been considered.
+- **A fork abandoned your seat and its burn.** Neither `fork` nor `forkAt`
+  carried `playerCharacterId`, `playerFactionId` or `sessionTicksBurned`, so
+  forking your own game put you outside your own timeline — and dropped the
+  burned count, leaving the child ahead of a clock that then had to spend the
+  length of the session catching up. The ambient half of the design, switched
+  off by the act of forking. The child now derives its burn from how far past
+  the parent's wall-clock mark the fork point sits.
+- **`step` added a second writer.** The hourly worker and a play session both
+  compute forward from whatever `currentTick` said when they started, and
+  nothing stopped the slower one overwriting the faster: the world could move
+  *backwards*, or land on a state that does not contain an action its own event
+  journal says happened. Both commits are now conditional on the tick the caller
+  read, and a played tick lands before its events (the opposite way round from
+  an engine slice) because a `player_action` row is the one event nobody else
+  will ever recompute.
+- **The play screen never noticed a failed step.** `LivingWorldRunner.step`
+  reports failure by returning rather than throwing, so the `runCatching` around
+  it treated a refused commit as a success: a tap that appeared to work and did
+  nothing.
 
 **Not yet done:** a device pass. Nothing here has been run on a phone, so
 whether the loop is *fun* — whether conserved pools and threshold rules produce

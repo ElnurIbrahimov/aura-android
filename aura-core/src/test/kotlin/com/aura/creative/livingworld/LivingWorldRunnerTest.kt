@@ -25,6 +25,14 @@ class LivingWorldRunnerTest {
     private val store = LivingWorldStore(worldDao, eventDao)
     private val runner = LivingWorldRunner(store)
 
+    init {
+        // commitTick returns rows-changed, and a relaxed mock answers 0 — which
+        // is the signal for "somebody else moved the world first, throw this
+        // slice away". Stated once here so a test that is not about contention
+        // does not silently become one.
+        coEvery { worldDao.commitTick(any(), any(), any(), any(), any()) } returns 1
+    }
+
     private val epoch = 1_700_000_000_000L
     private val hour = WorldClock.TICK_REAL_MS
 
@@ -51,7 +59,7 @@ class LivingWorldRunnerTest {
 
     private fun capturedTick(): Long {
         val tick = slot<Long>()
-        coVerify { worldDao.commitTick(any(), capture(tick), any(), any()) }
+        coVerify { worldDao.commitTick(any(), capture(tick), any(), any(), any()) }
         return tick.captured
     }
 
@@ -84,7 +92,7 @@ class LivingWorldRunnerTest {
             val w = world()
             coEvery { worldDao.byId("w1") } returns w
             val tick = slot<Long>()
-            coEvery { worldDao.commitTick(any(), capture(tick), any(), any()) } returns Unit
+            coEvery { worldDao.commitTick(any(), capture(tick), any(), any(), any()) } returns 1
             val now = epoch + days * 24 * hour
             runner.runSlice("w1", Long.MAX_VALUE, { false }, { now })
             val due = days * 24
@@ -120,7 +128,7 @@ class LivingWorldRunnerTest {
         coEvery { worldDao.byId("w1") } returns world(currentTick = 10L)
         val outcome = runner.runSlice("w1", Long.MAX_VALUE, { false }, { epoch + 10 * hour })
         assertEquals(TickOutcome.NOTHING_DUE, outcome)
-        coVerify(exactly = 0) { worldDao.commitTick(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { worldDao.commitTick(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -128,7 +136,7 @@ class LivingWorldRunnerTest {
         coEvery { worldDao.byId("w1") } returns world().copy(status = LivingWorldEntity.STATUS_PAUSED)
         val outcome = runner.runSlice("w1", Long.MAX_VALUE, { false }, { epoch + 100 * hour })
         assertEquals(TickOutcome.NOTHING_DUE, outcome)
-        coVerify(exactly = 0) { worldDao.commitTick(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { worldDao.commitTick(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -145,7 +153,7 @@ class LivingWorldRunnerTest {
         // events would be lost for good.
         coVerify(ordering = io.mockk.Ordering.ORDERED) {
             eventDao.upsertAll(any())
-            worldDao.commitTick(any(), any(), any(), any())
+            worldDao.commitTick(any(), any(), any(), any(), any())
         }
     }
 
