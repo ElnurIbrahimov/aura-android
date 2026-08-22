@@ -451,19 +451,11 @@ class DreamConsolidator @Inject constructor(
      * Cheap-model resolution matches [com.aura.agent.ConversationCompactor]:
      * MoA (3x cost) -> first non-MoA configured provider -> original.
      */
-    private suspend fun summarizeCluster(
+    internal suspend fun summarizeCluster(
         cluster: List<MemoryEntity>,
         modelUsed: String,
     ): String {
-        val joined = cluster.take(MAX_MEMBERS_IN_PROMPT)
-            .joinToString("\n---\n") { it.content }
-            .take(MAX_PROMPT_CHARS)
-
-        val prompt = """
-            Compress the following ${cluster.size} related memory entries into a single concise summary (2-3 sentences, max 500 chars). Preserve key facts and preferences. Remove duplicates and transient wording.
-
-            $joined
-        """.trimIndent()
+        val prompt = buildSummaryPrompt(cluster)
 
         val output = StringBuilder()
         providerRegistry.chat(
@@ -482,6 +474,53 @@ class DreamConsolidator @Inject constructor(
         }
         return output.toString().trim().take(MAX_SUMMARY_CHARS)
     }
+
+    /**
+     * The compression prompt, with every memory carrying the date it was written.
+     *
+     * Two things were wrong here and they compounded.
+     *
+     * The instruction ended "Remove duplicates and transient wording", and a date
+     * reads as transient wording. Gist-style consolidation drops dates and times
+     * on its own — measured at 3% temporal-expression retention, rising to 62%
+     * from an instruction to keep them — and this asked for the drop explicitly.
+     *
+     * The input was `it.content` alone, so no timestamp reached the model at all.
+     * That is the half that makes the other half unfixable by wording: "last
+     * Tuesday" cannot be resolved to a date by a reader who does not know when it
+     * was written, and a summary that keeps the phrase unresolved is worse than
+     * one that drops it — the phrase silently means something different every
+     * time it is read afterwards.
+     *
+     * So each entry is prefixed with its own [MemoryEntity.createdAt] and the
+     * model is asked to resolve against it. Ten entries at ~13 characters is ~130
+     * against [MAX_PROMPT_CHARS]; the budget was never the reason this was absent.
+     */
+    internal fun buildSummaryPrompt(cluster: List<MemoryEntity>): String {
+        val joined = cluster.take(MAX_MEMBERS_IN_PROMPT)
+            .joinToString("\n---\n") { "[${promptDate(it.createdAt)}] ${it.content}" }
+            .take(MAX_PROMPT_CHARS)
+
+        return buildString {
+            append("Compress the following ${cluster.size} related memory entries into a ")
+            append("single concise summary (2-3 sentences, max 500 chars). ")
+            append("Preserve key facts and preferences, and remove duplicates.\n")
+            append("Each entry is prefixed with the date it was recorded. Keep dates, ")
+            append("durations and the order things happened, and rewrite every relative ")
+            append("time expression as an absolute date using the prefix of the entry it ")
+            append("came from — \"last Tuesday\" in an entry dated 2026-03-14 becomes the ")
+            append("Tuesday before that date. A relative expression carried through ")
+            append("unresolved means something different every time it is read later.\n\n")
+            append(joined)
+        }
+    }
+
+    /** `yyyy-MM-dd` in the device's zone — the format the prompt tells the model to expect. */
+    private fun promptDate(epochMillis: Long): String =
+        java.time.Instant.ofEpochMilli(epochMillis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+            .toString()
 
     /**
      * A cheap model for the summarisation phases. MoA is excluded because it is
