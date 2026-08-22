@@ -15,8 +15,11 @@ import javax.inject.Singleton
  *  - CURIOSITY / kgGapCount: [com.aura.kg.KnowledgeGraphDao.gapNodeCount]
  *    — knowledge-graph nodes with fewer than 2 incident edges.
  *  - COHERENCE / contradictionCount:
- *    [com.aura.dream.ContradictionDao.unresolvedCount] — populated by
- *    DreamConsolidator's contradiction-report phase.
+ *    [com.aura.dream.ContradictionDao.unresolvedSince] — populated by
+ *    DreamConsolidator's contradiction-report phase, counted over the last
+ *    [CONTRADICTION_WINDOW_MS] rather than all time. Nothing resolves a
+ *    contradiction, so an all-time count could only ever rise and the drive
+ *    with it — the COMPETENCE defect in §2.4, recurring.
  *  - COMPETENCE / lowConfidenceSkillCount:
  *    [com.aura.agent.StrategyBanditDao.lowConfidenceCount] — bandit arms
  *    with enough observations and mean success below 0.5.
@@ -65,7 +68,9 @@ class DriveSignals @Inject constructor(
             val prev = cache
             val snapshot = Snapshot(
                 kgGapCount = countOr(prev?.kgGapCount ?: 0) { kgDao.gapNodeCount() },
-                contradictionCount = countOr(prev?.contradictionCount ?: 0) { contradictionDao.unresolvedCount() },
+                contradictionCount = countOr(prev?.contradictionCount ?: 0) {
+                    contradictionDao.unresolvedSince(System.currentTimeMillis() - CONTRADICTION_WINDOW_MS)
+                },
                 lowConfidenceSkillCount = countOr(prev?.lowConfidenceSkillCount ?: 0) { strategyBanditDao.lowConfidenceCount() },
                 refreshedAt = System.currentTimeMillis(),
                 // A fourth indexed COUNT per TTL window, on the same table the
@@ -89,5 +94,15 @@ class DriveSignals @Inject constructor(
 
     companion object {
         const val DEFAULT_TTL_MS = 5 * 60_000L
+
+        /**
+         * How far back COHERENCE looks for unresolved contradictions.
+         *
+         * Thirty days because that is roughly how long a contradiction stays
+         * worth acting on: past it, either the newer statement has stood
+         * unchallenged — which the trigger phrases ("no longer", "used to …
+         * but now") already assert — or nobody was ever going to look.
+         */
+        const val CONTRADICTION_WINDOW_MS = 30L * 24 * 60 * 60 * 1000
     }
 }

@@ -670,6 +670,102 @@ nothing can read back is a write nothing can prove. `EvolutionTypeConverters`' t
 are the standing UNUSED baseline: Room's generated code calls them and no source scan can
 see it.
 
+*2026-08-22 (temporal memory):* **3,656 unit tests / 547 suites, 0 failures, 0 skipped**
+at v0.66.0. All five gate scripts pass. Branch `fix/temporal-memory`, off
+`fix/reachability-sweep`.
+
+Three changes to how memory survives time: a prompt bug, one branch that made a changed
+fact indistinguishable from a duplicate, and three lines with the §2.4 shape.
+
+**Both summarisers asked to be given amnesia.** `DreamConsolidator.summarizeCluster` and
+`ConversationCompactor.buildPrompt` each ended their preservation list with *"remove …
+transient wording"*. A date reads as transient wording. The published figure for
+gist-style consolidation is 3.05% temporal-expression retention, rising to 62.39% under an
+instruction to preserve — an external result relayed by the research pass, not one
+measured here, and the direction is what matters: both prompts sat on the wrong side of a
+baseline that is already bad.
+
+The dream pass had the deeper half. It joined `it.content` alone, so no timestamp reached
+the model at all and no wording could have fixed it — "last Tuesday" cannot be resolved by
+a reader who does not know when it was written, and an unresolved relative expression
+carried into a summary is worse than a dropped one, because it means something different
+every time it is read afterwards and it is the summary that survives. Each member now
+arrives prefixed with its own `createdAt` as an absolute date, and the instruction asks
+for relative expressions to be *rewritten against that prefix* rather than merely kept.
+Ten prefixes cost about 130 of the 3,000-character budget; the absence of the data was the
+constraint, never the space. The compactor needed no data change — `Turn` already carried
+a timestamp and the prompt simply never said what the number was for.
+
+The load-bearing assertions are the negative ones, that "transient" does not appear.
+Re-adding that phrase is how this regresses, and it would regress silently: the summaries
+would still be written, just without the dates.
+
+**A changed fact was resolved by character count.** `MemoryStore.maybeStore` merged a near
+neighbour above 0.92 cosine by keeping whichever text was longer and writing it over the
+other in place. "I prefer dark mode" and "I prefer light mode" are near-identical to an
+embedder — same subject, opposite value — so a preference that changed was settled by
+length and left no trace. Nothing tested that branch, which is a fair part of why it
+lasted.
+
+Everything needed to do it properly already existed and had no automatic caller:
+`retiredAt` / `supersededBy` / `retiredReason` on the row, `retiredAt IS NULL` in every
+candidate query, retired rows carried through backup, and `CorrectionStore.noLongerTrue`
+performing supersession correctly whenever the user said so by hand. The store now does
+the same thing on its own, behind a containment guard — if the existing text contains the
+new one once case and whitespace are normalised, the new statement is a terser restatement
+and is skipped exactly as before. Otherwise newer wins and the old row is retired with
+`supersededBy` pointing at its replacement, under the same `superseded` reason string
+`CorrectionStore` writes, so a manual and an automatic supersession are indistinguishable
+to the history view and to `unretire`.
+
+Newer-wins is right because the two errors are not symmetric. Treating a contradiction as
+a restatement — the old behaviour — leaves a stale fact live and silent. Treating a
+restatement as a contradiction can drop a clause from the live text, which is visible,
+reversible, and bounded by the guard. The new row is written *before* the retirement, so a
+failed retirement costs the supersession and not the fact.
+
+No `CorrectionEntity` is written. A correction is something the user did; the triple on
+the row is the record of something the store did.
+
+**`MemoryStore.retired()` has a production caller for the first time.** Its KDoc claimed
+"the history view and rollback both read this" and there was no history view — the §2.4
+shape again, this time in a method that was tested. Shipping automatic retirement without
+one would have contradicted `CorrectionStore`'s own stated principle, that *"a correction
+whose effect the user cannot observe is indistinguishable from one that was dropped"* —
+and an automatic retirement is the worse case, because the user never asked for it and so
+has no reason to go looking. MindScreen now lists recent retired memories beside the
+corrections section with the reason, what replaced them, and an undo calling the existing
+`unretire`.
+
+**COHERENCE could only ever rise.** `DriveSignals` counted every unresolved contradiction
+ever written, and nothing anywhere writes RESOLVED — the same defect §2.4 records for
+COMPETENCE. `unresolvedCount()` is now `unresolvedSince(since)` and the drive passes a
+30-day window, which measures how incoherent this thing is *now* rather than how long it
+has been running. `observeUnresolvedCount()` is deliberately untouched: `MemoryViewModel`
+reads it as an all-time badge, which is a different question.
+
+**Two gaps left open rather than papered over.** Nothing writes `status = 'RESOLVED'`, so
+`ChangeLog`'s "Settled a contradiction" branch still cannot fire. The window makes the
+drive behave sanely without inventing a resolution state, and inventing one means deciding
+what resolution *means* — a design question wearing a bug's clothes.
+
+**A test that passed for the wrong reason, caught by mutating it.** Both mutation checks
+in the plan were run: deleting the containment guard, and restoring the "transient
+wording" phrasing. The first killed only one of the two tests that should have died. The
+survivor asserted `assertNull` on content the heuristic `WriteGate` had already refused as
+`NOTHING_DURABLE`, so it returned null before the dedup branch was ever reached and would
+have passed with the whole feature deleted. It now supplies the category and importance
+that the agentic loop's LLM gate supplies, and asserts the neighbour scan actually ran.
+§2.6, found by the one technique that finds it — and the reason to mutate every guard, not
+a representative one.
+
+**Not run on a device.** Two things need a phone and nothing above substitutes for them:
+stating a preference and then its opposite, to confirm recall returns only the new one and
+that the Mind screen shows the old one superseded with a working undo; and one dream cycle
+over dated memories, read back in `DreamsScreen`, to see whether the dates actually
+survived. The second is the entire point of the first change and no unit test can answer
+it — these tests assert the prompt, not the model.
+
 `creative/livingworld` had been a complete strategy game with no player: beliefs
 already stored as deviations from truth, `ClaimPool` already resolving contested
 claims on what rivals *believe* each contender can bring, `SpreadLie` already

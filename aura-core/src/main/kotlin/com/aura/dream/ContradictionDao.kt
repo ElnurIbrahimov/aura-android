@@ -38,8 +38,24 @@ interface ContradictionDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(contradictions: List<ContradictionEntity>): List<Long>
 
-    @Query("SELECT COUNT(*) FROM contradictions WHERE status = 'UNRESOLVED'")
-    suspend fun unresolvedCount(): Int
+    /**
+     * Contradictions still unresolved that were noticed since [since].
+     *
+     * Windowed, and the window is the whole point. This was an all-time count,
+     * and **nothing anywhere sets a contradiction to RESOLVED** — so the number
+     * could only ever rise, and the COHERENCE drive it feeds could only ever
+     * rise with it. ENGINEERING_HISTORY §2.4 records exactly this defect for
+     * COMPETENCE, which "had no satisfy() caller at all, so it could only ever
+     * climb"; it survived here.
+     *
+     * A drive should measure how incoherent things are now, not how many
+     * contradictions have ever been noticed. Bounding it by time answers that
+     * without inventing a resolution nobody performed — the honest fix for the
+     * missing RESOLVED writer is a RESOLVED writer, and that is recorded as
+     * open rather than faked here.
+     */
+    @Query("SELECT COUNT(*) FROM contradictions WHERE status = 'UNRESOLVED' AND createdAt >= :since")
+    suspend fun unresolvedSince(since: Long): Int
 
     @Query("SELECT COUNT(*) FROM contradictions WHERE status = 'UNRESOLVED'")
     fun observeUnresolvedCount(): Flow<Int>

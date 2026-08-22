@@ -6,8 +6,10 @@ import com.aura.kg.KnowledgeGraphDao
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DriveSignalsTest {
@@ -20,7 +22,7 @@ class DriveSignalsTest {
         val kg = mockk<KnowledgeGraphDao>(relaxed = true)
         coEvery { kg.gapNodeCount() } returns gaps
         val contra = mockk<ContradictionDao>(relaxed = true)
-        coEvery { contra.unresolvedCount() } returns contradictions
+        coEvery { contra.unresolvedSince(any()) } returns contradictions
         val bandit = mockk<StrategyBanditDao>(relaxed = true)
         coEvery { bandit.lowConfidenceCount() } returns lowConfidence
         return Triple(kg, contra, bandit)
@@ -44,7 +46,7 @@ class DriveSignalsTest {
         signals.get()
         signals.get()
         coVerify(exactly = 1) { kg.gapNodeCount() }
-        coVerify(exactly = 1) { contra.unresolvedCount() }
+        coVerify(exactly = 1) { contra.unresolvedSince(any()) }
         coVerify(exactly = 1) { bandit.lowConfidenceCount() }
     }
 
@@ -62,7 +64,7 @@ class DriveSignalsTest {
         val kg = mockk<KnowledgeGraphDao>(relaxed = true)
         coEvery { kg.gapNodeCount() } throws RuntimeException("db locked")
         val contra = mockk<ContradictionDao>(relaxed = true)
-        coEvery { contra.unresolvedCount() } returns 4
+        coEvery { contra.unresolvedSince(any()) } returns 4
         val bandit = mockk<StrategyBanditDao>(relaxed = true)
         coEvery { bandit.lowConfidenceCount() } throws RuntimeException("no table")
 
@@ -83,5 +85,27 @@ class DriveSignalsTest {
         assertEquals(9, signals.get(ttlMs = 0L).kgGapCount)
         // Second refresh: kg query throws — keep the last known count.
         assertEquals(9, signals.get(ttlMs = 0L).kgGapCount)
+    }
+
+    @Test
+    fun `COHERENCE counts recent contradictions, not every one ever noticed`() = runTest {
+        // Nothing in the app writes RESOLVED, so an all-time count could only
+        // ever rise and the drive with it — permanently at the top of
+        // mostUrgent() no matter what the user did. That is the COMPETENCE
+        // defect §2.4 records, recurring here. The window is what bounds it,
+        // so the window is what this asserts: a `since` of 0 would restore
+        // the old behaviour while every other test stayed green.
+        val (kg, contra, bandit) = daos()
+        val since = slot<Long>()
+        coEvery { contra.unresolvedSince(capture(since)) } returns 2
+
+        val before = System.currentTimeMillis()
+        DriveSignals(kg, contra, bandit).get()
+
+        val window = before - since.captured
+        assertTrue(
+            "COHERENCE must look back a bounded distance, not to the epoch; looked back $window ms",
+            window in (DriveSignals.CONTRADICTION_WINDOW_MS - 60_000)..(DriveSignals.CONTRADICTION_WINDOW_MS + 60_000),
+        )
     }
 }
