@@ -137,21 +137,27 @@ interface ApprovalRequestDao {
 }
 
 @Dao
+/**
+ * Backup and purge only.
+ *
+ * Nothing writes `agent_checkpoints` any more. `AgentRunStore.checkpoint` wrote
+ * a row listing the steps still PENDING; the only reader was
+ * `resumeFromCheckpoint`, which had no caller, because what actually resumes a
+ * run is `DagResolver.readySteps` re-deriving readiness from step status. Both
+ * are gone, along with `upsert`, `latestForRun` and `cleanupOld`, which existed
+ * only to serve them.
+ *
+ * The table stays so an existing backup still round-trips through
+ * [upsertAll] — dropping it is a Room migration, and migrations are the one
+ * change here that can destroy data the user cannot get back, so it belongs
+ * with the emulator suite on the device pass.
+ */
 interface RunCheckpointDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(checkpoint: RunCheckpointEntity)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(checkpoints: List<RunCheckpointEntity>)
 
-    @Query("SELECT * FROM agent_checkpoints WHERE agentRunId = :runId ORDER BY createdAt DESC LIMIT 1")
-    suspend fun latestForRun(runId: kotlin.String): RunCheckpointEntity?
-
     @Query("SELECT * FROM agent_checkpoints ORDER BY createdAt DESC")
     suspend fun allForBackup(): List<RunCheckpointEntity>
-
-    @Query("DELETE FROM agent_checkpoints WHERE agentRunId = :runId AND id != :keepId")
-    suspend fun cleanupOld(runId: kotlin.String, keepId: kotlin.String)
 
     @Query("DELETE FROM agent_checkpoints")
     suspend fun deleteAll()

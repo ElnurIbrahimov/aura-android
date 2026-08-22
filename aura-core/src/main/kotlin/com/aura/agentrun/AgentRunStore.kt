@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
 
 /**
  * Domain store wrapping [AgentRunDao], [GoalDao], [StepDao],
- * [AgentEventDao], [ApprovalRequestDao], and [RunCheckpointDao].
+ * [AgentEventDao] and [ApprovalRequestDao].
  *
  * Provides CRUD, DAG step planning, checkpoint/resume, and goal
  * verification. All mutations are mutex-protected per run.
@@ -23,7 +23,6 @@ class AgentRunStore @Inject constructor(
     private val stepDao: StepDao,
     private val eventDao: AgentEventDao,
     private val approvalDao: ApprovalRequestDao,
-    private val checkpointDao: RunCheckpointDao,
     private val dagResolver: DagResolver,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -153,20 +152,28 @@ class AgentRunStore @Inject constructor(
         emitEvent(step.agentRunId, "STEP_BLOCKED", stepId = stepId)
     }
 
-    suspend fun checkpoint(runId: kotlin.String): RunCheckpointEntity = mutex.withLock {
-        val steps = stepDao.forRun(runId)
-        val state = CheckpointState(
-            activeStepIds = steps.filter { it.status == "PENDING" || it.status == "RUNNING" }.map { it.id },
-        )
-        val checkpoint = RunCheckpointEntity(
-            id = UUID.randomUUID().toString(),
-            agentRunId = runId,
-            stateJson = json.encodeToString(state),
-        )
-        checkpointDao.upsert(checkpoint)
-        checkpointDao.cleanupOld(runId, checkpoint.id)
-        emitEvent(runId, "CHECKPOINT")
-        checkpoint
+    /**
+     * Record that the user restarted this run.
+     *
+     * This was `checkpoint(runId)`, and it wrote a `RunCheckpointEntity` whose
+     * `stateJson` listed the steps still PENDING. Nothing read it. The reader
+     * it was built for, `resumeFromCheckpoint`, had no caller either — what
+     * actually resumes a run is `DagResolver.readySteps` re-deriving readiness
+     * from persisted step status, which needs no snapshot and cannot go stale
+     * against one. So the snapshot recorded, at resume time, a fact the
+     * executor was about to recompute anyway.
+     *
+     * The event stays, because a run's timeline should say that someone
+     * restarted it. Its type does not: "CHECKPOINT" described the write that
+     * is gone, and RUN_RESUMED describes the thing that happened.
+     *
+     * `run_checkpoints` is left in the schema deliberately. Dropping a table is
+     * a Room migration, and migrations are the one change here that can destroy
+     * data the user cannot get back — so it wants the emulator suite, which is
+     * the device pass. Backup still round-trips the table; nothing writes it.
+     */
+    suspend fun markResumed(runId: kotlin.String) = mutex.withLock {
+        emitEvent(runId, "RUN_RESUMED")
     }
 
     suspend fun eventsForRun(runId: kotlin.String): List<AgentEventEntity> =
@@ -247,9 +254,4 @@ data class StepSpec(
      * instead of generating a UUID, so callers can reference it in
      * [dependsOn] of subsequent steps. */
     val id: kotlin.String? = null,
-)
-
-@Serializable
-data class CheckpointState(
-    val activeStepIds: List<kotlin.String> = emptyList(),
 )

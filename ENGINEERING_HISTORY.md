@@ -468,10 +468,12 @@ clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Bra
 MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
 `:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
 
-*2026-08-22 (the reachability sweep):* **3,613 unit tests / 545 suites, 0 failures** at
+*2026-08-22 (the reachability sweep):* **3,641 unit tests / 545 suites, 0 failures** at
 v0.66.0. Five gate scripts now, the fifth being new. Branch `fix/reachability-sweep`.
 
-The count went **down 42**, and the direction is the finding. An external read of the
+The count went **down 14** net — 121 declarations and the 59 tests that covered only
+them removed, 45 written for the behaviour that replaced them — and the direction is
+the finding. An external read of the
 repo took the standing diagnosis in §4 — that this project's most expensive defect is
 code built, tested, documented and reachable by nothing — and measured it: 69
 declarations referenced nowhere at all, and 52 more referenced only by tests. The second
@@ -587,26 +589,80 @@ missed it because `feed` collides with ordinary identifiers, which is why
 via a getter for Settings → Diagnostics"; Diagnostics never called the getter, so a
 dropped turn reported itself to a private field. It logs now.
 
-**Three gaps recorded rather than closed**, because closing them is design work and not
-this pass:
+**Three gaps recorded rather than closed** — and closed the same day, once each
+was looked at properly rather than described:
 
-- `AgentRunStore.checkpoint` is called by `AgentRunsViewModel.resume`, and
-  `resumeFromCheckpoint` had no caller — so checkpoints were written and never read. What
-  actually resumes a run is `DagResolver.readySteps` re-deriving readiness from persisted
-  step status, which is the better mechanism and makes the checkpoint table write-only.
-  The dead reader is gone; `latestForRun` stays as the observation point, and README's
-  "checkpoint/resume" should be read as "resume, by re-derivation".
-- `DagResolver.hasCycle` was never called, so a cyclic step graph produces no ready steps
-  and the run stalls with no error anywhere.
-- `TheoryOfMind.updateTopic` and `decayTopics` were the only writers of `UserModel.topics`
-  and neither had a production caller, so the two "User expertise / User learning" lines
-  in `toPrompt` could never render. The functions are gone; the field and the branches
-  stay, because `topics` is persisted, lives in the backup schema, and a restore from an
-  older file can still carry rows.
+- **Checkpoints were written and never read.** `AgentRunStore.checkpoint`, called
+  by `AgentRunsViewModel.resume`, wrote a `RunCheckpointEntity` whose `stateJson`
+  listed the steps still PENDING. Its only reader, `resumeFromCheckpoint`, had no
+  caller — because what actually resumes a run is `DagResolver.readySteps`
+  re-deriving readiness from persisted step status, which needs no snapshot and
+  cannot go stale against one. So the row recorded, at resume time, a fact the
+  executor was about to recompute anyway. The one thing worth keeping was the
+  event, and its type was wrong too: "CHECKPOINT" named the write that is gone.
+  It is `markResumed` now, emitting RUN_RESUMED, and `upsert`, `latestForRun` and
+  `cleanupOld` went with the payload. `agent_checkpoints` stays in the schema so
+  an existing backup still round-trips through it; dropping a table is a Room
+  migration, and migrations are the one change here that can destroy data the
+  user cannot get back, so that belongs with the emulator suite.
 
-**What was kept, and why.** Nine declarations are referenced only by tests and stay:
-`peekPendingGate`, `latestForRun`, `forDocument`, `countForDocument`,
-`registeredToolNames`, `contentFor`, `forConversation`, `setForTest`, `byCorrelationTag`.
+- **A cyclic step graph did not stall silently.** The record was wrong. The
+  executor's `else` branch has always failed an unsatisfiable graph — what it
+  could not do was say which of three quite different things had gone wrong, and
+  the sentence it used, "N steps pending with unmet dependencies", fitted the
+  commonest cause worst. `DagResolver.stuckReason` distinguishes a dependency
+  that **failed** (go and read that step's error), one that is **not in the run**
+  (the plan references a step that was never created), and a **cycle** (the plan
+  is not a DAG) — most actionable first, since a failed upstream step is both
+  commonest and the one the old wording mis-attributed. That is what `hasCycle`
+  was for; this time it has a caller. The reason reaches the user because
+  `AgentRunEntity.runDescription()` already prefers `errorMessage`.
+
+  The class KDoc said "Cycles are detected and rejected" while nothing detected
+  them and the rejection happened a file away. It says what the two files
+  actually do now.
+
+- **`UserModel.topics` had no writer.** `updateTopic` and `decayTopics` were the
+  only ones and neither had a production caller, so a map that is persisted and
+  carried through backup stayed empty forever and both of `toPrompt`'s topic
+  branches were unreachable. The evidence was already being extracted and thrown
+  away: `computeTechnicalDepth` scanned for eighteen technical terms, counted the
+  hits, and discarded which ones they were. One vocabulary, read twice —
+  `updateFromMessage` now records the subjects alongside the depth score, so a
+  term added for one is a term the other learns.
+
+  The model is deliberately asymmetric. **Using** a term is weak evidence of
+  knowing it; **asking about** one is stronger evidence of not knowing it, so the
+  downward step is larger. That is the shape `toPrompt`'s two branches were
+  always cut for — `level > 0.7` reads as expertise, `< 0.3` as learning.
+  Confidence decays on elapsed wall time with the one-week half-life the class
+  KDoc has always documented, and a topic under the floor is dropped rather than
+  kept at nearly zero: the map is a claim about a person, and a claim nobody is
+  confident about is one this should stop making. No new public API and no new
+  scheduled caller — decay rides the entry point the agentic loop already calls,
+  because a second one is what went unwired the first time.
+
+**And a bug that only became visible once the map existed.** The eighteen terms
+were matched as bare substrings, so "therapist", "capital" and "rapidly" all
+counted as `api`. That was invisible while the only consequence was a slightly
+inflated float nobody could trace. It stops being invisible the moment a topic
+map exists, because the prompt then tells the model "User expertise: api" on the
+strength of the user mentioning their therapist — a confident, specific, wrong
+claim about a person. Whole words now, plus an optional plural, with lookarounds
+on alphanumerics rather than `\b`, because `ci/cd` contains a non-word character
+and `\bci/cd\b` does not mean what it looks like it means.
+
+**Two more of the same class, found while closing those.** `AgentRunsUiState.events`
+was loaded by the ViewModel on every run selection and rendered by no composable,
+so ten `emitEvent` call sites wrote rows nothing could show — which would have
+made RUN_RESUMED just a renamed dead write. The run detail screen has a timeline
+now. And that screen's `Column` had no `verticalScroll` while rendering one row
+per step with no bound, so a run with more steps than fit on screen pushed its
+own Cancel and Resume buttons off the bottom.
+
+**What was kept, and why.** Eight declarations are referenced only by tests and stay:
+`peekPendingGate`, `forDocument`, `countForDocument`, `registeredToolNames`,
+`contentFor`, `forConversation`, `setForTest`, `byCorrelationTag`.
 Each is the sole observation point for a write production really performs — the FTS index
 is maintained by SQL triggers no Kotlin executes, `MemoryStore.query` writes a retrieval
 label on both of its return branches, `syncTools` both registers and unregisters. A write

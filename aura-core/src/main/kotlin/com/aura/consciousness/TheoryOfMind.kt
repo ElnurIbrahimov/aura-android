@@ -130,6 +130,13 @@ class TheoryOfMind @Inject constructor(
     /**
      * Update the user model from a message.
      * Heuristic: length, question marks, technical terms, sentiment markers.
+     *
+     * Topics are updated here rather than through a public `updateTopic` /
+     * `decayTopics` pair. Those existed, had no production caller, and were
+     * deleted on 2026-08-22 — so `UserModel.topics` was a persisted, backed-up
+     * map that nothing ever wrote, and [toPrompt]'s two topic lines could not
+     * render. One entry point that the loop already calls cannot be forgotten
+     * the way a second one was.
      */
     fun updateFromMessage(message: String) {
         val m = _model.value
@@ -154,6 +161,7 @@ class TheoryOfMind @Inject constructor(
         val frustration = computeFrustration(message)
 
         _model.value = m.copy(
+            topics = updateTopics(m.topics, message, m.lastInteractionAt, now),
             commStyle = m.commStyle.copy(
                 avgMessageLength = newAvg,
                 formality = formality,
@@ -216,12 +224,106 @@ class TheoryOfMind @Inject constructor(
     }
 
     private fun computeTechnicalDepth(text: String): Float {
-        val techTerms = listOf("api", "database", "kernel", "compiler", "algorithm", "protocol",
-            "architecture", "refactor", "async", "concurrent", "serialize", "gradient",
-            "matrix", "protocol", "schema", "migration", "deploy", "ci/cd", "docker")
-        val lower = text.lowercase()
-        val hits = techTerms.count { it in lower }
+        val hits = topicsIn(text).size
         return minOf(1f, hits / 5f + 0.3f)
+    }
+
+    /**
+     * Which known subjects this message is about.
+     *
+     * The same list [computeTechnicalDepth] scores on. It counted these hits
+     * and threw away which ones they were, while `UserModel.topics` — designed
+     * to hold exactly that, persisted, and carried through backup — stayed
+     * empty forever. One vocabulary, read twice, so a term added for depth
+     * scoring is a term the topic model learns too.
+     *
+     * A closed list, not free extraction, and that is the point: the map is
+     * bounded by construction, the model is deterministic, and a stray proper
+     * noun cannot become a claim about what the user knows.
+     */
+    private fun topicsIn(text: String): Set<String> {
+        val lower = text.lowercase()
+        return TERM_PATTERNS.entries
+            .filterTo(mutableSetOf()) { (_, pattern) -> pattern.containsMatchIn(lower) }
+            .mapTo(mutableSetOf()) { it.key }
+    }
+
+    /**
+     * Fold this message into the topic map, after ageing what was already there.
+     *
+     * Two directions, and the asymmetry is the whole model:
+     *
+     * - **Using** a term is weak evidence of knowing it. Level rises by
+     *   [LEVEL_STEP_USED].
+     * - **Asking about** a term is strong evidence of not knowing it. Level
+     *   falls by [LEVEL_STEP_ASKED], which is larger, because "how does the
+     *   scheduler work" is a much clearer signal than mentioning the scheduler
+     *   in passing.
+     *
+     * That is what [toPrompt]'s two topic branches were always shaped for —
+     * `level > 0.7` reads as expertise, `level < 0.3` as learning — and both
+     * were unreachable while nothing wrote the map.
+     *
+     * Confidence decays on elapsed wall time with a one-week half-life, which
+     * is the decay this class's KDoc has always documented. A topic that falls
+     * under [MIN_CONFIDENCE] is dropped rather than kept at nearly zero: the
+     * map is a claim about the user, and a claim nobody is confident about is
+     * one this should stop making.
+     */
+    private fun updateTopics(
+        existing: Map<String, TopicKnowledge>,
+        message: String,
+        lastInteractionAt: Long,
+        now: Long,
+    ): Map<String, TopicKnowledge> {
+        // First interaction ever: nothing has aged, so no decay to apply.
+        val elapsed = if (lastInteractionAt <= 0L) 0L else (now - lastInteractionAt).coerceAtLeast(0L)
+        val decay = if (elapsed == 0L) 1f else {
+            Math.pow(0.5, elapsed.toDouble() / TOPIC_HALF_LIFE_MS).toFloat()
+        }
+
+        val aged = existing.mapValues { (_, t) -> t.copy(confidence = t.confidence * decay) }
+            .filterValues { it.confidence >= MIN_CONFIDENCE }
+
+        val mentioned = topicsIn(message)
+        if (mentioned.isEmpty()) return aged
+
+        val asking = isQuestion(message)
+        val signal = if (asking) "asked" else "used"
+        val out = aged.toMutableMap()
+        for (topic in mentioned) {
+            val prior = out[topic] ?: TopicKnowledge(topic = topic)
+            val level = if (asking) {
+                prior.level - LEVEL_STEP_ASKED
+            } else {
+                prior.level + LEVEL_STEP_USED
+            }
+            out[topic] = prior.copy(
+                topic = topic,
+                level = level.coerceIn(0f, 1f),
+                // Evidence raises confidence regardless of direction: knowing
+                // the user is a novice is as much a fact as knowing they are not.
+                confidence = minOf(1f, maxOf(prior.confidence, MIN_CONFIDENCE) + CONFIDENCE_STEP),
+                interactions = prior.interactions + 1,
+                lastSeen = now,
+                // Bounded, newest last. Unbounded it would grow one entry per
+                // message per topic and be written to disk on every turn.
+                signals = (prior.signals + signal).takeLast(MAX_SIGNALS),
+            )
+        }
+        return out
+    }
+
+    /**
+     * Whether the message is asking about its subject rather than using it.
+     *
+     * A question mark is the strong form. The interrogative openers catch the
+     * ones typed without it, which is most of them in a chat box.
+     */
+    private fun isQuestion(text: String): Boolean {
+        if ('?' in text) return true
+        val lower = text.trimStart().lowercase()
+        return QUESTION_OPENERS.any { lower.startsWith(it) }
     }
 
     private fun computeValence(text: String): Float {
@@ -239,5 +341,54 @@ class TheoryOfMind @Inject constructor(
         val hits = markers.count { it in lower }
         val allCaps = text.count { it.isUpperCase() } > text.length * 0.3 && text.length > 5
         return minOf(1f, hits * 0.3f + if (allCaps) 0.3f else 0f)
+    }
+
+    private companion object {
+        /** The subjects this model can hold an opinion about. See [topicsIn]. */
+        val TECH_TERMS = listOf(
+            "api", "database", "kernel", "compiler", "algorithm", "protocol",
+            "architecture", "refactor", "async", "concurrent", "serialize", "gradient",
+            "matrix", "schema", "migration", "deploy", "ci/cd", "docker",
+        )
+
+        /**
+         * Whole words only, plus an optional plural.
+         *
+         * `computeTechnicalDepth` matched these as bare substrings, which made
+         * "therapist", "capital" and "rapidly" all count as `api`. That was
+         * invisible while the only consequence was a slightly inflated float
+         * nobody could trace back. It stops being invisible the moment the
+         * topic map exists, because the prompt then tells the model
+         * "User expertise: api" on the strength of the user mentioning their
+         * therapist — a confident, specific, wrong claim about a person.
+         *
+         * Lookarounds on alphanumerics rather than ``, because `ci/cd`
+         * contains a non-word character and `ci/cd` does not mean what it
+         * looks like it means.
+         */
+        val TERM_PATTERNS: Map<String, Regex> = TECH_TERMS.associateWith { term ->
+            Regex("(?<![a-z0-9])" + Regex.escape(term) + "s?(?![a-z0-9])")
+        }
+
+        val QUESTION_OPENERS = listOf(
+            "how ", "what ", "why ", "when ", "where ", "which ", "can i", "can you",
+            "should i", "is there", "do i", "does ",
+        )
+
+        /** One week, the half-life this class's KDoc has always documented. */
+        const val TOPIC_HALF_LIFE_MS = 7L * 24 * 60 * 60 * 1000
+
+        /** Below this a topic is dropped rather than kept as a claim nobody believes. */
+        const val MIN_CONFIDENCE = 0.05f
+
+        const val CONFIDENCE_STEP = 0.15f
+
+        /** Using a term is weak evidence of knowing it. */
+        const val LEVEL_STEP_USED = 0.08f
+
+        /** Asking about one is stronger evidence of not knowing it. */
+        const val LEVEL_STEP_ASKED = 0.12f
+
+        const val MAX_SIGNALS = 5
     }
 }

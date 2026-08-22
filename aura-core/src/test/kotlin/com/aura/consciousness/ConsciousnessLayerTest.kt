@@ -210,4 +210,190 @@ class ConsciousnessLayerTest {
         assertTrue(tom.model.value.emotionalState.valence < 0f)
     }
 
+    // ── TheoryOfMind: topic knowledge ──────────────────────────────
+    //
+    // `UserModel.topics` was persisted, carried through backup, and written by
+    // nothing: the only writers were a public `updateTopic`/`decayTopics` pair
+    // with no production caller. Both of toPrompt's topic branches were
+    // therefore unreachable. These pin the writer that replaced them.
+
+    @Test
+    fun `using a technical term is recorded as a topic`() {
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("I refactored the database migration this morning")
+
+        val topics = tom.model.value.topics
+        assertTrue("database should be recorded", "database" in topics)
+        assertTrue("migration should be recorded", "migration" in topics)
+        assertEquals(1, topics["database"]!!.interactions)
+        assertEquals(listOf("used"), topics["database"]!!.signals)
+    }
+
+    @Test
+    fun `a word outside the vocabulary is not a topic`() {
+        // The list is closed on purpose: the map stays bounded, the model stays
+        // deterministic, and a proper noun cannot become a claim about what the
+        // user knows.
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("Elnur went to Baku on Tuesday")
+
+        assertTrue(tom.model.value.topics.isEmpty())
+    }
+
+    @Test
+    fun `using a term raises its level and asking about it lowers it`() {
+        val used = TheoryOfMind(ctx())
+        repeat(4) { used.updateFromMessage("I rewrote the compiler pass again") }
+
+        val asked = TheoryOfMind(ctx())
+        repeat(4) { asked.updateFromMessage("how does the compiler pass work?") }
+
+        val fluent = used.model.value.topics["compiler"]!!.level
+        val learning = asked.model.value.topics["compiler"]!!.level
+        assertTrue("using a term should read as familiarity, was $fluent", fluent > 0.5f)
+        assertTrue("asking about it should read as learning, was $learning", learning < 0.5f)
+    }
+
+    @Test
+    fun `asking moves further than using, because it is the stronger signal`() {
+        val tom = TheoryOfMind(ctx())
+        tom.updateFromMessage("the compiler is fine")     // +0.08 -> 0.58
+        val afterUse = tom.model.value.topics["compiler"]!!.level
+        tom.updateFromMessage("why is the compiler slow") // -0.12 -> 0.46
+        val afterAsk = tom.model.value.topics["compiler"]!!.level
+
+        assertTrue(
+            "one question should more than undo one mention",
+            (afterUse - 0.5f) < (afterUse - afterAsk),
+        )
+    }
+
+    @Test
+    fun `a question without a question mark still reads as asking`() {
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("how do I run the migration")
+
+        assertTrue(tom.model.value.topics["migration"]!!.level < 0.5f)
+    }
+
+    @Test
+    fun `toPrompt names expertise once a topic is established`() {
+        // The branch that could never render. Eight mentions clear the 0.7 bar,
+        // and three samples clear toPrompt's own floor.
+        val tom = TheoryOfMind(ctx())
+        repeat(8) { tom.updateFromMessage("shipped the schema migration and the deploy") }
+
+        val prompt = tom.toPrompt()
+        assertTrue("expected an expertise line, got: $prompt", "User expertise:" in prompt)
+    }
+
+    @Test
+    fun `toPrompt names what the user is learning`() {
+        val tom = TheoryOfMind(ctx())
+        repeat(4) { tom.updateFromMessage("what is a gradient?") }
+
+        val prompt = tom.toPrompt()
+        assertTrue("expected a learning line, got: $prompt", "User learning:" in prompt)
+    }
+
+    @Test
+    fun `confidence decays on elapsed time and stale topics are dropped`() = runBlocking {
+        val tom = TheoryOfMind(ctx())
+        tom.updateFromMessage("the kernel scheduler")
+        assertTrue("kernel" in tom.model.value.topics)
+
+        // Rewind the clock by a year via a restore, which is the only way to
+        // set lastInteractionAt without a fake clock. One week is one halving;
+        // a year takes 0.45 well under the 0.05 floor.
+        val stale = tom.model.value.copy(
+            lastInteractionAt = System.currentTimeMillis() - 365L * 24 * 60 * 60 * 1000,
+        )
+        tom.restore(stale)
+        tom.updateFromMessage("nothing technical in this one")
+
+        assertTrue(
+            "a topic nobody is confident about should stop being claimed",
+            "kernel" !in tom.model.value.topics,
+        )
+    }
+
+    @Test
+    fun `a recent topic survives the decay pass`() {
+        val tom = TheoryOfMind(ctx())
+        tom.updateFromMessage("the kernel scheduler")
+        tom.updateFromMessage("unrelated chatter")
+
+        assertTrue("kernel" in tom.model.value.topics)
+    }
+
+    @Test
+    fun `signals stay bounded however long the conversation runs`() {
+        // Written to disk on every turn, so an unbounded list would grow the
+        // file one entry per message per topic, forever.
+        val tom = TheoryOfMind(ctx())
+        repeat(30) { tom.updateFromMessage("the api again") }
+
+        assertEquals(5, tom.model.value.topics["api"]!!.signals.size)
+        assertEquals(30, tom.model.value.topics["api"]!!.interactions)
+    }
+
+    @Test
+    fun `a term inside a longer word is not that term`() {
+        // "therapist", "capital" and "rapidly" all contain "api". As a bare
+        // substring match this only nudged a technicalDepth float nobody could
+        // trace; with a topic map behind it, it becomes the prompt telling the
+        // model "User expertise: api" because the user mentioned their
+        // therapist. Confident, specific, and wrong about a person.
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("I saw my therapist, then rapidly drove to the capital")
+
+        assertTrue(
+            "no topic should be claimed from any of those words",
+            tom.model.value.topics.isEmpty(),
+        )
+        assertEquals(
+            "technical depth reads the same vocabulary, so it must agree",
+            0.3f,
+            tom.model.value.commStyle.technicalDepth,
+            0.001f,
+        )
+    }
+
+    @Test
+    fun `a plural still names its topic`() {
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("we ran the migrations against both databases")
+
+        assertTrue("migration" in tom.model.value.topics)
+        assertTrue("database" in tom.model.value.topics)
+    }
+
+    @Test
+    fun `a term with punctuation in it is matched whole`() {
+        // "ci/cd" contains a non-word character, so  would not do what it
+        // looks like it does.
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("the ci/cd pipeline is green")
+
+        assertTrue("ci/cd" in tom.model.value.topics)
+    }
+
+    @Test
+    fun `technical depth and the topic map read the same vocabulary`() {
+        // They used to be two lists that could drift; depth counted the hits
+        // and discarded which ones they were.
+        val tom = TheoryOfMind(ctx())
+
+        tom.updateFromMessage("api database kernel compiler algorithm")
+
+        assertEquals(5, tom.model.value.topics.size)
+        assertEquals(1f, tom.model.value.commStyle.technicalDepth, 0.001f)
+    }
+
 }

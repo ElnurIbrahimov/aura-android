@@ -41,7 +41,7 @@ cd "$(dirname "$0")/.." || exit 1
 # in ENGINEERING_HISTORY §3. Lowering it is always welcome; raising it needs an
 # argument in the commit message, not a bump.
 BASELINE_UNUSED=2
-BASELINE_TEST_ONLY=9
+BASELINE_TEST_ONLY=8
 
 # Probed by running it, not by `command -v`. On Windows, `python3` resolves to a
 # Microsoft Store stub that exists, is on PATH, and fails to launch — so

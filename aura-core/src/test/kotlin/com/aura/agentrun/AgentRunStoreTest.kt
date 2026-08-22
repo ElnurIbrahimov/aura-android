@@ -17,9 +17,8 @@ class AgentRunStoreTest {
     private val stepDao = mockk<StepDao>(relaxed = true)
     private val eventDao = mockk<AgentEventDao>(relaxed = true)
     private val approvalDao = mockk<ApprovalRequestDao>(relaxed = true)
-    private val checkpointDao = mockk<RunCheckpointDao>(relaxed = true)
     private val dagResolver = mockk<DagResolver>(relaxed = true)
-    private val store = AgentRunStore(runDao, goalDao, stepDao, eventDao, approvalDao, checkpointDao, dagResolver)
+    private val store = AgentRunStore(runDao, goalDao, stepDao, eventDao, approvalDao, dagResolver)
 
     @Test
     fun createRun_persists_run_and_goal() = runTest {
@@ -86,19 +85,19 @@ class AgentRunStoreTest {
     }
 
     @Test
-    fun checkpoint_creates_and_cleans_old() = runTest {
-        coEvery { stepDao.forRun("run1") } returns listOf(
-            StepEntity(id = "s1", agentRunId = "run1", status = "PENDING"),
-            StepEntity(id = "s2", agentRunId = "run1", status = "SUCCESS"),
-        )
+    fun `markResumed records that a person restarted the run`() = runTest {
+        // Was `checkpoint`, which wrote a RunCheckpointEntity listing the still-
+        // PENDING steps. Nothing read it: the reader it was built for had no
+        // caller, and what resumes a run is DagResolver.readySteps re-deriving
+        // readiness from step status — so the snapshot recorded, at resume time,
+        // a fact the executor was about to recompute anyway.
+        val eventSlot = slot<AgentEventEntity>()
+        coEvery { eventDao.insert(capture(eventSlot)) } returns Unit
 
-        val cp = store.checkpoint("run1")
+        store.markResumed("run1")
 
-        assertNotNull(cp.id)
-        assertEquals("run1", cp.agentRunId)
-        assertTrue(cp.stateJson.contains("s1"))
-        assertTrue(!cp.stateJson.contains("s2"))
-        coVerify { checkpointDao.cleanupOld("run1", cp.id) }
+        assertEquals("RUN_RESUMED", eventSlot.captured.type)
+        assertEquals("run1", eventSlot.captured.agentRunId)
     }
 
     @Test

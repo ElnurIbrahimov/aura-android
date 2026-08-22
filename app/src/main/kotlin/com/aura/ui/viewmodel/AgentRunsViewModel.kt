@@ -137,7 +137,7 @@ class AgentRunsViewModel @Inject constructor(
     fun resume(runId: String) {
         viewModelScope.launch {
             agentRunStore.updateStatus(runId, "RUNNING")
-            agentRunStore.checkpoint(runId)
+            agentRunStore.markResumed(runId)
             loadRuns()
             refreshDetail(runId)
             // Re-enqueue the executor worker so it picks up PENDING steps.

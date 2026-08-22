@@ -109,9 +109,20 @@ class AgentRunExecutorWorker @AssistedInject constructor(
                 }
                 else -> {
                     // Hard stuck — no ready, no PENDING-with-met-deps, no
-                    // BLOCKED. The dep graph is unsatisfiable (cycles /
-                    // referenced deleted steps). Mark FAILED.
-                    agentRunStore.finish(runId, "FAILED", "Stuck: ${pending.size} steps pending with unmet dependencies")
+                    // BLOCKED. The dep graph is unsatisfiable.
+                    //
+                    // This used to say "Stuck: N steps pending with unmet
+                    // dependencies" for every cause, so an upstream step that
+                    // simply failed, a plan referencing a step that does not
+                    // exist, and a plan that is not a DAG all read identically
+                    // — and the commonest of the three was the one the wording
+                    // fit worst. `DagResolver.hasCycle` existed to tell them
+                    // apart and had no caller; `stuckReason` is that
+                    // distinction with one.
+                    val reason = dagResolver.stuckReason(steps)
+                        ?: "Stuck: ${pending.size} steps pending with unmet dependencies"
+                    Log.w(TAG, "Run $runId is stuck: $reason")
+                    agentRunStore.finish(runId, "FAILED", reason)
                 }
             }
             return Result.success()

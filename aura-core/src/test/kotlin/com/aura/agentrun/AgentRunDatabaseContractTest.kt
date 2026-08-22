@@ -235,23 +235,18 @@ class AgentRunDatabaseContractTest {
     }
 
     // --- RunCheckpoint ---
+    //
+    // Nothing writes this table any more; it survives so an existing backup
+    // still round-trips through it. What is left to hold is exactly that:
+    // restore can put rows in, and purge can take them out.
 
     @Test
-    fun `checkpoint latestForRun returns most recent`() = runBlocking {
-        checkpointDao.upsert(checkpoint("cp1", "r1").copy(createdAt = 1000L))
-        checkpointDao.upsert(checkpoint("cp2", "r1").copy(createdAt = 2000L))
-        val latest = checkpointDao.latestForRun("r1")
-        assertNotNull(latest)
-        assertEquals("cp2", latest!!.id)
-    }
+    fun `checkpoints restored from a backup survive the round trip`() = runBlocking {
+        checkpointDao.upsertAll(listOf(checkpoint("cp1", "r1"), checkpoint("cp2", "r1")))
 
-    @Test
-    fun `checkpoint cleanupOld removes all except keepId`() = runBlocking {
-        checkpointDao.upsert(checkpoint("cp1", "r1"))
-        checkpointDao.upsert(checkpoint("cp2", "r1"))
-        checkpointDao.cleanupOld("r1", "cp2")
-        assertNull(checkpointDao.latestForRun("r1")?.let { if (it.id == "cp1") it else null })
-        assertNotNull(checkpointDao.latestForRun("r1"))
+        val all = checkpointDao.allForBackup()
+
+        assertEquals(setOf("cp1", "cp2"), all.map { it.id }.toSet())
     }
 
     // --- Cross-entity ---
@@ -263,7 +258,7 @@ class AgentRunDatabaseContractTest {
         stepDao.upsert(step("s1", "r1"))
         eventDao.insert(event("e1", "r1"))
         approvalDao.upsert(approval("a1", "r1", "s1"))
-        checkpointDao.upsert(checkpoint("cp1", "r1"))
+        checkpointDao.upsertAll(listOf(checkpoint("cp1", "r1")))
 
         runDao.deleteAll()
         goalDao.deleteAll()

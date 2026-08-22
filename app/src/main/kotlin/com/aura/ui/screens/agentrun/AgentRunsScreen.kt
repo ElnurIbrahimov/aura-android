@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.aura.agentrun.AgentEventEntity
 import com.aura.agentrun.AgentRunEntity
 import com.aura.agentrun.ApprovalRequestEntity
 import com.aura.agentrun.StepEntity
@@ -89,6 +92,7 @@ fun AgentRunsScreen(
                 run = state.selectedRun!!,
                 steps = state.steps,
                 approvals = state.approvals,
+                events = state.events,
                 onBack = viewModel::clearSelection,
                 onApprove = viewModel::approve,
                 onDeny = viewModel::deny,
@@ -179,6 +183,13 @@ private fun AgentRunDetail(
     run: AgentRunEntity,
     steps: List<StepEntity>,
     approvals: List<ApprovalRequestEntity>,
+    /**
+     * The run's own account of itself. No default: `AgentRunsViewModel` has
+     * loaded this into state since the screen was written and no composable
+     * ever read it, so ten `emitEvent` call sites wrote rows that nothing could
+     * show — including the one that says a person restarted the run.
+     */
+    events: List<AgentEventEntity>,
     onBack: () -> Unit,
     onApprove: (String) -> Unit,
     onDeny: (String) -> Unit,
@@ -186,7 +197,13 @@ private fun AgentRunDetail(
     onCancel: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(AuraSpacing.md)) {
+    // Scrollable, which it was not. Steps render one row each with no bound,
+    // and the Cancel/Resume buttons sit after them — so a run with more steps
+    // than fit on screen pushed its own controls off the bottom.
+    Column(
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(AuraSpacing.md),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -207,6 +224,12 @@ private fun AgentRunDetail(
             Text(stringResource(R.string.steps), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             steps.forEach { step ->
                 StepRow(step)
+            }
+        }
+        if (events.isNotEmpty()) {
+            Text(stringResource(R.string.run_timeline), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            events.forEach { event ->
+                EventRow(event)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
@@ -272,6 +295,35 @@ private fun ApprovalCard(
         }
     }
 }
+
+/**
+ * One line of what the run did.
+ *
+ * The type is stored as `RUN_STARTED`/`STEP_BLOCKED`/`RUN_RESUMED`, which is
+ * the right shape for a column and the wrong one for a sentence, so it is
+ * humanised here rather than in the store — the database keeps the stable
+ * token, the screen shows the words.
+ */
+@Composable
+private fun EventRow(event: AgentEventEntity) {
+    val colors = AuraThemeTokens.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = formatTime(event.timestamp),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textSecondary,
+        )
+        Text(
+            text = "  ${humanEventType(event.type)}${event.toolName?.let { " · $it" }.orEmpty()}",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (event.success) colors.textPrimary else colors.error,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+private fun humanEventType(type: String): String =
+    type.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
 @Composable
 private fun StepRow(step: StepEntity) {

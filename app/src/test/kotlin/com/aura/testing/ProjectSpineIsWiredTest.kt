@@ -330,6 +330,66 @@ class ProjectSpineIsWiredTest {
     }
 
     @Test
+    fun `a run that cannot proceed says which of the three reasons it is`() {
+        // `DagResolver.hasCycle` was correct, tested, and had no caller — so the
+        // executor failed an unsatisfiable graph with one sentence for a failed
+        // dependency, a missing one and a cycle alike. `stuckReason` replaces it
+        // WITH a caller, and this is what keeps the caller.
+        assertTrue(
+            core("agentrun/AgentRunExecutorWorker.kt").contains("dagResolver.stuckReason("),
+            "the executor no longer asks why it is stuck, so every unsatisfiable graph goes " +
+                "back to reading as \"N steps pending with unmet dependencies\" — which is the " +
+                "wrong sentence for the commonest of the three causes.",
+        )
+    }
+
+    @Test
+    fun `a run's own account of itself reaches the screen`() {
+        // AgentRunsViewModel has loaded `events` into state since the screen was
+        // written and no composable read it, so ten emitEvent call sites wrote
+        // rows nothing could show. RUN_RESUMED would have been an eleventh.
+        val screen = app("ui/screens/agentrun/AgentRunsScreen.kt")
+        assertTrue(
+            screen.contains("events = state.events"),
+            "AgentRunDetail is not given the run's events, so the timeline is empty and every " +
+                "emitEvent in AgentRunStore writes a row nothing can show.",
+        )
+        assertTrue(
+            screen.contains("EventRow(event)"),
+            "the events are passed and not rendered, which is the same defect one level down.",
+        )
+        assertTrue(
+            app("ui/viewmodel/AgentRunsViewModel.kt").contains("agentRunStore.markResumed("),
+            "resuming a run records nothing, so the timeline cannot say a person restarted it.",
+        )
+    }
+
+    @Test
+    fun `the user model records what the user is talking about`() {
+        // `UserModel.topics` is persisted and carried through backup, and its
+        // only writers — updateTopic and decayTopics — had no production caller,
+        // so it stayed empty forever and both of toPrompt's topic branches were
+        // unreachable. The writer is inside updateFromMessage now, which the
+        // agentic loop already calls, because a second entry point is exactly
+        // what went unwired the first time.
+        val tom = core("consciousness/TheoryOfMind.kt")
+        assertTrue(
+            tom.contains("topics = updateTopics("),
+            "updateFromMessage no longer writes the topic map, so UserModel.topics goes back to " +
+                "being a persisted, backed-up map that nothing fills.",
+        )
+        assertTrue(
+            tom.contains("TERM_PATTERNS"),
+            "topic matching is back to bare substrings, which counts \"therapist\" as api and " +
+                "tells the model the user is an expert in it.",
+        )
+        assertTrue(
+            core("agent/MemoryAugmentedAgenticLoop.kt").contains("theoryOfMind?.updateFromMessage("),
+            "nothing calls updateFromMessage, so the whole user model is unreachable again.",
+        )
+    }
+
+    @Test
     fun `the living world can be switched off`() {
         // `UserPreferences.setLivingWorldEnabled` had no caller at all, so the
         // flow ProactiveBootstrap reconciles on could only ever carry its

@@ -460,6 +460,7 @@
     <string name="end_call">End call</string>
     <string name="delete_summary">Delete this summary</string>
     <string name="agent_colour">Colour</string>
+    <string name="run_timeline">Timeline</string>
     <string name="voice_mode">Voice mode</string>
     <string name="start">Start</string>
     <string name="built_in">Built-in</string>
