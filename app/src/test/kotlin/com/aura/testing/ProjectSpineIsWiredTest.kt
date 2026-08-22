@@ -121,6 +121,36 @@ class ProjectSpineIsWiredTest {
     }
 
     @Test
+    fun `a live call can be ended from the screen that started it`() {
+        // The other half of the path, and it was missing for as long as the
+        // first half was. `endCall` had zero callers anywhere — the test suite
+        // included — so the only exits from a running call were the
+        // notification's End action, the ten-minute budget, and navigating far
+        // enough away to clear the ViewModel.
+        //
+        // Asserted separately from the start path on purpose. The test above
+        // passed the whole time this was broken, which is the same lesson this
+        // file's KDoc already records about itself: a gate only protects what it
+        // actually asserts, and "reachable" is two claims, not one.
+        val route = app("ui/screens/chat/ChatRoute.kt")
+        assertTrue(
+            route.contains("LiveCallStatus("),
+            "ChatRoute does not render LiveCallStatus, so a running call has no UI at all.",
+        )
+        assertTrue(
+            route.contains("liveCallViewModel.endCall("),
+            "ChatRoute never calls endCall. The call can be started and not stopped, on a socket " +
+                "that bills per audio-minute and a microphone that stays live.",
+        )
+        val sheet = app("ui/voice/LiveCallSheet.kt")
+        assertTrue(
+            sheet.contains("onEndCall: () -> Unit,"),
+            "LiveCallStatus takes no onEndCall, or takes one with a default. The default is the " +
+                "defect: it turns a forgotten argument into a dead button instead of a build error.",
+        )
+    }
+
+    @Test
     fun `the ledger sweep is scheduled at startup`() {
         val bootstrap = core("proactive/ProactiveBootstrap.kt")
         assertTrue(
@@ -271,5 +301,56 @@ class ProjectSpineIsWiredTest {
                     "the rollback — see BackupCoverageAuditTest.",
             )
         }
+    }
+
+    @Test
+    fun `every ViewModel action a screen was built for has a screen calling it`() {
+        // Five methods, each the only implementation of a feature, each with no
+        // caller anywhere: the pin, the project tag from History, the dream
+        // summary delete, the agent colour and the creative thinking switch.
+        // Every one compiled, every one was covered by the ViewModel's own
+        // tests where it had them, and none could be reached by a thumb.
+        //
+        // Names rather than a pattern, deliberately. "A public ViewModel method
+        // must have a UI caller" is false in general — `scripts/check-dead-code.sh`
+        // counts the general case and this asserts the specific one.
+        val cases = listOf(
+            Triple("ui/screens/chat/ChatRoute.kt", "viewModel::togglePinTurn", "a turn cannot be pinned, and Turn.pinned goes back to being a column nothing writes"),
+            Triple("ui/screens/HistoryScreen.kt", "viewModel.setConversationProject(", "a conversation can only be tagged to a project while it is open, never afterwards"),
+            Triple("ui/screens/DreamsScreen.kt", "viewModel.deleteSummary(", "a dream summary the user disagrees with is permanent"),
+            Triple("ui/screens/AgentEditorScreen.kt", "viewModel.updateColor(", "every created agent keeps its template's accent and the marks stop telling agents apart"),
+            Triple("ui/screens/creative/CreativeProjectScreen.kt", "viewModel::toggleThinking", "thinkingEnabled is permanently true and the branch it guards has one side"),
+        )
+        for ((file, call, consequence) in cases) {
+            assertTrue(
+                app(file).contains(call),
+                "$file no longer calls $call — $consequence.",
+            )
+        }
+    }
+
+    @Test
+    fun `the living world can be switched off`() {
+        // `UserPreferences.setLivingWorldEnabled` had no caller at all, so the
+        // flow ProactiveBootstrap reconciles on could only ever carry its
+        // default — an hourly worker plus up to twelve model calls a day per
+        // world, with no way to stop it. The reconcile loop was correct the
+        // whole time; there was nothing on the other end of the switch.
+        assertTrue(
+            app("ui/settings/SettingsViewModel.kt").contains("userPreferences.setLivingWorldEnabled("),
+            "SettingsViewModel never writes the preference, so the switch has nothing behind it.",
+        )
+        assertTrue(
+            app("ui/screens/SettingsScreen.kt").contains("viewModel::setLivingWorldEnabled"),
+            "SettingsScreen does not pass the setter down, so the switch has nothing in front of it.",
+        )
+        assertTrue(
+            app("ui/settings/sections/PrivacySection.kt").contains("onCheckedChange = onSetLivingWorldEnabled"),
+            "PrivacySection renders no switch for it.",
+        )
+        assertTrue(
+            core("proactive/ProactiveBootstrap.kt").contains("userPreferences.livingWorldEnabled"),
+            "ProactiveBootstrap no longer reconciles on the preference, so flipping it changes nothing.",
+        )
     }
 }

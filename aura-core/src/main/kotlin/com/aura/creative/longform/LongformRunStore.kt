@@ -85,13 +85,6 @@ class LongformRunStore @Inject constructor(
 
     suspend fun get(jobId: String): CreativeGenerationJobEntity? = jobDao.getById(jobId)
 
-    suspend fun requestFor(jobId: String): LongformRequest? =
-        get(jobId)?.let { decodeRequest(it) }
-
-    fun decodeRequest(job: CreativeGenerationJobEntity): LongformRequest =
-        runCatching { json.decodeFromString(LongformRequest.serializer(), job.requestJson) }
-            .getOrDefault(LongformRequest())
-
     /** Runs this process should pick up on start — the reason a reboot does not lose work. */
     suspend fun pending(): List<CreativeGenerationJobEntity> =
         jobDao.pendingJobs().filter { it.capabilityKind == CAPABILITY_KIND }
@@ -144,8 +137,6 @@ class LongformRunStore @Inject constructor(
         val current = jobDao.getById(jobId) ?: return
         jobDao.upsert(current.copy(attempts = current.attempts + 1, updatedAt = System.currentTimeMillis()))
     }
-
-    suspend fun cleanupOlderThan(cutoff: Long) = jobDao.cleanupOld(cutoff)
 
     companion object {
         /**

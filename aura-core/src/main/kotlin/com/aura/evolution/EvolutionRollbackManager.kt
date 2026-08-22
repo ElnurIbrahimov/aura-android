@@ -50,18 +50,6 @@ class EvolutionRollbackManager @Inject constructor(
         return artifactResult
     }
 
-    suspend fun forceRollback(proposalId: kotlin.String): RollbackResult {
-        val proposal = proposalDao.getById(proposalId)
-            ?: return RollbackResult.Error("proposal not found")
-        if (proposal.status != ProposalStatus.APPLIED.name) {
-            return RollbackResult.Error("proposal is ${proposal.status}, not applied")
-        }
-        val artifactResult = restoreArtifact(proposal)
-        proposalDao.resolve(proposalId, ProposalStatus.ROLLED_BACK.name, "force-rolled back")
-        metrics.record("proposal.force_rolled_back")
-        return artifactResult
-    }
-
     private suspend fun restoreArtifact(proposal: EvolutionProposalEntity): RollbackResult {
         val action = runCatching { EvolutionAction.valueOf(proposal.action) }
             .onFailure { android.util.Log.w(TAG, "rollback: parse action failed: ${it.message}", it) }

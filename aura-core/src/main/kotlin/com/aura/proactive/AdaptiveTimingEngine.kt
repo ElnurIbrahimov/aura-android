@@ -77,28 +77,6 @@ class AdaptiveTimingEngine @Inject constructor(
     suspend fun isGoodTime(): Boolean = receptivityNow() >= GOOD_TIME_THRESHOLD
 
     /**
-     * The most receptive hour, or [DEFAULT_HOUR] when nothing is known.
-     *
-     * Has no production caller and deliberately keeps none — see the plan. The
-     * argmax is corrected anyway so it is not a trap: seeded at `-1f` rather
-     * than `0f`, because under the new scale a blank install is 0.5 everywhere
-     * and the old seed would have returned hour 0.
-     */
-    suspend fun bestTime(): Int {
-        val scores = hourlyEngagement()
-        if (scores.all { it == NEUTRAL }) return DEFAULT_HOUR
-        var bestHour = DEFAULT_HOUR
-        var bestScore = -1f
-        for (hour in 0..23) {
-            if (scores[hour] > bestScore) {
-                bestScore = scores[hour]
-                bestHour = hour
-            }
-        }
-        return bestHour
-    }
-
-    /**
      * Map a signed score onto `[0, 1]` with a genuine neutral.
      *
      * Saturating rather than linear so a single lucky hour cannot dominate, and

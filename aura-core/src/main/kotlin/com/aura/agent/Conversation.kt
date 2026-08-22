@@ -42,6 +42,8 @@ data class Conversation(
      * @param maxTurns Maximum raw tail size. Turns already represented by
      *                 [contextSummary] are skipped; the full turn list remains
      *                 available for UI display, forks, export, and persistence.
+     *                 A turn the user pinned is sent verbatim regardless of
+     *                 either cutoff — see [Turn.pinned].
      *
      * @param maxToolResultChars
      *                           before being sent to the model. The full
@@ -73,7 +75,22 @@ data class Conversation(
         }
         val summarizedPrefix = summaryThroughTurn.coerceIn(0, turns.size)
         val maxTurnStart = (turns.size - maxTurns.coerceAtLeast(0)).coerceAtLeast(0)
-        val visibleTurns = turns.drop(maxOf(summarizedPrefix, maxTurnStart))
+        val cutoff = maxOf(summarizedPrefix, maxTurnStart)
+        // A pinned turn is exempt from both cutoffs, and this is the only thing
+        // `Turn.pinned` has ever meant. The flag was persisted, carried through
+        // backup, and read by nothing at all — `ConversationStore.toggleTurnPin`
+        // wrote it and `ChatViewModel.togglePinTurn` called that, and no screen
+        // called either, so the whole feature was a column.
+        //
+        // Exemption rather than a separate section: order is what makes a
+        // transcript readable, and a pinned turn hoisted out of sequence would
+        // arrive after the summary that already describes it. `filterIndexed`
+        // keeps the original positions.
+        //
+        // It cannot resurrect an unbounded amount of context — pinning is a
+        // deliberate per-turn act, and the summary still covers everything else
+        // behind the cutoff.
+        val visibleTurns = turns.filterIndexed { index, turn -> index >= cutoff || turn.pinned }
         for (turn in visibleTurns) {
             turn.user?.let { userText ->
                 out += ProviderMessage(role = ProviderMessage.Role.user, content = userText)
@@ -285,7 +302,19 @@ data class Turn(
      * and the rating is only used locally for self-review.
      */
     val reaction: Reaction? = null,
-    /** Whether this turn is pinned by the user for quick reference. */
+    /**
+     * Keep this turn in the model's context, whatever else falls out of it.
+     *
+     * A pinned turn is exempt from both of [Conversation.toMessages]' cutoffs —
+     * the `maxTurns` tail and the compaction watermark — so the thing the
+     * conversation is actually about does not get summarised into a sentence
+     * forty turns later.
+     *
+     * "Pinned by the user for quick reference" is what this said while nothing
+     * read it: the flag was persisted and backed up and had no effect anywhere,
+     * because the only writer was reachable from no screen. Quick reference was
+     * never the point; a `pinned` column the UI could sort on would have been.
+     */
     val pinned: Boolean = false,
     /**
      * Extended-thinking / reasoning output from the model. Collected

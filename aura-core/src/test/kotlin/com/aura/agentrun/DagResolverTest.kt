@@ -55,41 +55,6 @@ class DagResolverTest {
         assertEquals("s2", ready.first().id)
     }
 
-    @Test
-    fun topologicalBatches_returns_correct_layers() {
-        val steps = listOf(
-            step("s1"),
-            step("s2"),
-            step("s3", dependsOn = "[\"s1\"]"),
-            step("s4", dependsOn = "[\"s1\",\"s2\"]"),
-            step("s5", dependsOn = "[\"s3\",\"s4\"]"),
-        )
-        val batches = resolver.topologicalBatches(steps)
-        assertTrue("Expected at least 3 batches, got ${batches.size}", batches.size >= 3)
-        // First batch should have s1 and s2 (no deps)
-        val firstBatch = batches.first()
-        assertTrue(firstBatch.any { it.id == "s1" })
-        assertTrue(firstBatch.any { it.id == "s2" })
-    }
-
-    @Test
-    fun hasCycle_returns_true_for_circular_dependency() {
-        val steps = listOf(
-            step("s1", dependsOn = "[\"s2\"]"),
-            step("s2", dependsOn = "[\"s1\"]"),
-        )
-        assertTrue(resolver.hasCycle(steps))
-    }
-
-    @Test
-    fun hasCycle_returns_false_for_valid_dag() {
-        val steps = listOf(
-            step("s1"),
-            step("s2", dependsOn = "[\"s1\"]"),
-            step("s3", dependsOn = "[\"s2\"]"),
-        )
-        assertFalse(resolver.hasCycle(steps))
-    }
 
     @Test
     fun readySteps_excludes_non_pending_steps() {

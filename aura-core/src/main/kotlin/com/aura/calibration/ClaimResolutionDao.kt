@@ -52,9 +52,6 @@ interface ClaimResolutionDao {
     )
     suspend fun scoredSince(since: Long, limit: Int = 500): List<ClaimResolutionEntity>
 
-    @Query("SELECT COUNT(*) FROM claim_resolutions WHERE verdict IN ('never_true', 'confirmed')")
-    suspend fun scoredCount(): Int
-
     /** Everything, including the unscorable — the Mind screen shows the split. */
     @Query("SELECT COUNT(*) FROM claim_resolutions")
     suspend fun totalCount(): Int

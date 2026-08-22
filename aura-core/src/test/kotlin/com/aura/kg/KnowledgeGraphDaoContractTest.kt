@@ -130,17 +130,6 @@ class KnowledgeGraphDaoContractTest {
     }
 
     @Test
-    fun `edgesTo returns incoming only`() = runBlocking {
-        dao.insertNode(node("n1", "A"))
-        dao.insertNode(node("n2", "B"))
-        dao.insertEdge(edge("e1", "n1", "n2"))
-        dao.insertEdge(edge("e2", "n2", "n1"))
-        val toN2 = dao.edgesTo("n2")
-        assertEquals(1, toN2.size)
-        assertEquals("e1", toN2.first().id)
-    }
-
-    @Test
     fun `deleteEdgesForNode removes all connected edges`() = runBlocking {
         dao.insertNode(node("n1", "A"))
         dao.insertNode(node("n2", "B"))

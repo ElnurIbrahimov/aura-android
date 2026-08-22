@@ -172,48 +172,6 @@ class TheoryOfMind @Inject constructor(
     }
 
     /**
-     * Record knowledge about a specific topic.
-     */
-    fun updateTopic(topic: String, levelDelta: Float, signal: String) {
-        val m = _model.value
-        val now = System.currentTimeMillis()
-        val existing = m.topics[topic]
-        val updated = if (existing != null) {
-            existing.copy(
-                level = minOf(1f, maxOf(0f, existing.level + levelDelta)),
-                interactions = existing.interactions + 1,
-                lastSeen = now,
-                confidence = minOf(1f, existing.confidence + 0.1f),
-                signals = (existing.signals + signal).takeLast(5),
-            )
-        } else {
-            TopicKnowledge(
-                topic = topic,
-                level = 0.5f + levelDelta,
-                confidence = 0.3f,
-                interactions = 1,
-                lastSeen = now,
-                signals = listOf(signal),
-            )
-        }
-        _model.value = m.copy(topics = m.topics + (topic to updated))
-    }
-
-    /**
-     * Apply time-based confidence decay to all topics.
-     * Call from a periodic worker (e.g. DecayWorker).
-     */
-    fun decayTopics(hoursElapsed: Float) {
-        val decayFactor = Math.exp(-0.693 * hoursElapsed / 168.0) // 1-week half-life
-        val m = _model.value
-        _model.value = m.copy(
-            topics = m.topics.mapValues { (_, tk) ->
-                tk.copy(confidence = tk.confidence * decayFactor.toFloat())
-            },
-        )
-    }
-
-    /**
      * Format for system prompt injection.
      * Returns empty string if no meaningful model has been built.
      */

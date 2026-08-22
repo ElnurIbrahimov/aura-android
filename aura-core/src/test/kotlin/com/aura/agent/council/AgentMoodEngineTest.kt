@@ -132,24 +132,6 @@ class AgentMoodEngineTest {
     }
 
     @Test
-    fun `isBurnedOut returns true when mood below threshold`() = runBlocking {
-        coEvery { stateStore.getState("agent_general") } returns AgentStateEntity(
-            agentId = "agent_general",
-            mood = 15f, // below 20
-        )
-        assertTrue(moodEngine.isBurnedOut("agent_general"))
-    }
-
-    @Test
-    fun `isBurnedOut returns false when mood above threshold`() = runBlocking {
-        coEvery { stateStore.getState("agent_general") } returns AgentStateEntity(
-            agentId = "agent_general",
-            mood = 50f,
-        )
-        assertFalse(moodEngine.isBurnedOut("agent_general"))
-    }
-
-    @Test
     fun `filterAvailable excludes exhausted agents`() = runBlocking {
         coEvery { stateStore.getState("agent_general") } returns AgentStateEntity(agentId = "agent_general", energy = 50f)
         coEvery { stateStore.getState("agent_researcher") } returns AgentStateEntity(agentId = "agent_researcher", energy = 10f)

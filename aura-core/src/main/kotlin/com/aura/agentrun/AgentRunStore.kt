@@ -169,18 +169,6 @@ class AgentRunStore @Inject constructor(
         checkpoint
     }
 
-    suspend fun resumeFromCheckpoint(runId: kotlin.String): List<StepEntity> {
-        val checkpoint = checkpointDao.latestForRun(runId) ?: return emptyList()
-        val state = runCatching { json.decodeFromString<CheckpointState>(checkpoint.stateJson) }
-            .onFailure {
-                android.util.Log.w("AgentRunStore", "failed to decode checkpoint for $runId: ${it.message}", it)
-            }
-            .getOrNull()
-            ?: return emptyList()
-        val steps = stepDao.forRun(runId)
-        return steps.filter { it.id in state.activeStepIds && it.status == "PENDING" }
-    }
-
     suspend fun eventsForRun(runId: kotlin.String): List<AgentEventEntity> =
         eventDao.forRun(runId)
 

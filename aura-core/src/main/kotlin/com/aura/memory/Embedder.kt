@@ -55,6 +55,37 @@ interface Embedder {
     fun dimension(): Int
 
     /**
+     * Whether [embed] produces vectors that carry *meaning*, as opposed to a
+     * hash sketch whose cosine is noise.
+     *
+     * This exists because `RetrievalConfig.DEFAULT`'s constants were calibrated
+     * against a 384-dim hash and are wrong for a real model in both directions
+     * — too conservative about vectors in candidate selection, too permissive
+     * about them in the relevance floor. `MemoryStore.activeConfig` switches to
+     * `RetrievalConfig.SEMANTIC` on this answer.
+     *
+     * It used to switch on `modelId() == OnDeviceEmbedder.MODEL_ID`, which is
+     * the on-device model and nothing else. `CloudEmbedder` returns whatever
+     * model the user configured, so the path README tells people to take —
+     * Settings → AI & Models, an Ollama Cloud embedding model — stored real
+     * semantic vectors and then scored them with `vectorPoolSize = 0`, i.e.
+     * with the vector arm of candidate selection switched off. The +0.311
+     * nDCG@10 the eval measured was unreachable from the documented
+     * instruction.
+     *
+     * Describes CONFIGURATION, not the vector in hand — the same split
+     * [modelId] and [dimension] already document. `CloudEmbedder` falls back to
+     * the hash when the network call fails; [embedTagged] is what reports that
+     * per row, and `isCurrent` is what keeps those rows out of cosine scoring
+     * until `ReembedWorker` repairs them.
+     *
+     * Defaults to `false` so a new embedder has to claim this rather than
+     * inherit it. Claiming it wrongly is worse than not claiming it: SEMANTIC's
+     * settings applied to hash vectors measured *worse* than DEFAULT.
+     */
+    fun isSemantic(): Boolean = false
+
+    /**
      * Embed [text] and report which model ACTUALLY produced the vector.
      *
      * [modelId] and [dimension] describe what this embedder is configured to

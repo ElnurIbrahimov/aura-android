@@ -63,14 +63,6 @@ class RedactorTest {
     }
 
     @Test
-    fun `text with no personal data is returned unchanged and reports so`() {
-        val plain = "Reply from Sam about the meeting"
-        assertEquals(plain, Redactor.scrub(plain))
-        assertFalse(Redactor.containsPersonalData(plain))
-        assertTrue(Redactor.containsPersonalData("mail me at sam@example.com"))
-    }
-
-    @Test
     fun `an email containing digits is not half-eaten by the phone rule`() {
         // Ordering matters: the phone pattern would otherwise claim part of the
         // address and leave an unreadable, still-identifying fragment.

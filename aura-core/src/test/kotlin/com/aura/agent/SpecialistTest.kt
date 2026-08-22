@@ -119,4 +119,60 @@ class SpecialistTest {
         assertTrue(Specialist.PhoneNative.toolsAllowed.contains("set_reminder"))
     }
 
+    // ------------------------------------------------------------------
+    // withOverrides — the Settings customisation rules
+    // ------------------------------------------------------------------
+    //
+    // These rules shipped twice: as `applyOverrides`/`applyToolOverrides` here,
+    // which nothing called, and inline in `ChatSendController`, which is the
+    // copy that actually ran. Tested here now, where the one surviving
+    // implementation lives.
+
+    @Test
+    fun `an override replaces the builtin prompt and tools`() {
+        val custom = Specialist.Coder.withOverrides(
+            promptOverrides = mapOf("coder" to "You write only Kotlin."),
+            toolOverrides = mapOf("coder" to setOf("code_interpreter")),
+        )
+
+        assertEquals("You write only Kotlin.", custom.systemPrompt)
+        assertEquals(setOf("code_interpreter"), custom.toolsAllowed)
+        assertEquals("coder", custom.name)
+    }
+
+    @Test
+    fun `an override for a different specialist is ignored`() {
+        val untouched = Specialist.Coder.withOverrides(
+            promptOverrides = mapOf("writer" to "Prose only."),
+            toolOverrides = mapOf("writer" to setOf("web_search")),
+        )
+
+        assertEquals(Specialist.Coder.systemPrompt, untouched.systemPrompt)
+        assertEquals(Specialist.Coder.toolsAllowed, untouched.toolsAllowed)
+    }
+
+    @Test
+    fun `blank and empty overrides reset to the builtin rather than erasing it`() {
+        // A cleared text field decodes as "", and an emptied tool list decodes
+        // as []. Neither is distinguishable from "the user never set one" in
+        // the JSON these come from, so both read as reset. Taking them
+        // literally would ship a specialist with no system prompt, or one
+        // silently stripped of every tool — a specialist that quietly stops
+        // being able to do its job is worse than one that ignores an edit.
+        val cleared = Specialist.Researcher.withOverrides(
+            promptOverrides = mapOf("researcher" to "   "),
+            toolOverrides = mapOf("researcher" to emptySet()),
+        )
+
+        assertEquals(Specialist.Researcher.systemPrompt, cleared.systemPrompt)
+        assertEquals(Specialist.Researcher.toolsAllowed, cleared.toolsAllowed)
+    }
+
+    @Test
+    fun `no overrides at all is the identity`() {
+        assertEquals(
+            Specialist.General,
+            Specialist.General.withOverrides(emptyMap(), emptyMap()),
+        )
+    }
 }

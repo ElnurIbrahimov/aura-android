@@ -322,7 +322,15 @@ class ChatSendController(
             var category: ProblemCategory? = null
             val events = try {
                 val conversation = state.value.conversation
-                // Apply user-defined specialist prompt overrides
+                // Apply user-defined specialist prompt and tool overrides.
+                //
+                // Decoding stays here — it is about the storage format, and a
+                // malformed blob has to fall back to the built-in specialist
+                // rather than take the turn down. Which override wins is
+                // `Specialist.withOverrides`, on the type it is about. Those
+                // rules used to be written out here as well as there, and the
+                // copy there had no caller: two implementations, one of them
+                // unreachable, free to disagree without anything failing.
                 val resolvedSpecialist = specialist?.let { s ->
                     val overridesJson = userPreferences.specialistOverrides.first()
                     val toolOverridesJson = userPreferences.specialistToolOverrides.first()
@@ -334,10 +342,7 @@ class ChatSendController(
                                 .decodeFromString<Map<String, List<String>>>(toolOverridesJson)
                                 .mapValues { it.value.toSet() }
                         } else emptyMap()
-                        val customPrompt = promptOverrides[s.name]
-                        val customTools = toolOverrides[s.name]
-                        val withPrompt = if (customPrompt.isNullOrBlank()) s else s.copy(systemPrompt = customPrompt)
-                        if (customTools != null && customTools.isNotEmpty()) withPrompt.copy(toolsAllowed = customTools) else withPrompt
+                        s.withOverrides(promptOverrides, toolOverrides)
                     } catch (e: Exception) { s }
                 }
                 // Deep research and complex multi-tool tasks need more steps

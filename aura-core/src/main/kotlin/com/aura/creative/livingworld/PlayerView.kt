@@ -213,5 +213,14 @@ object PlayerView {
         }
     }
 
-    private fun deviationKey(subjectId: String, key: String): String = "$subjectId $key"
+    /**
+     * Same separator the engine's own indices use, for the same reason.
+     *
+     * This separated on a space, which an entity id can legitimately contain —
+     * so `("house a", "coin")` and `("house", "a coin")` were one key. Nothing
+     * had collided, because ids are UUIDs by default and stock keys are
+     * constants; nothing was stopping it once an author supplied their own id.
+     */
+    private fun deviationKey(subjectId: String, key: String): String =
+        "$subjectId$KEY_SEP$key"
 }

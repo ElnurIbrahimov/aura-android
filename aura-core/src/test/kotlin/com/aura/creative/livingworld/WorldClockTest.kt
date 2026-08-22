@@ -49,19 +49,4 @@ class WorldClockTest {
         assertEquals(hour - 600_000L, remaining)
         assertTrue(remaining in 1..hour)
     }
-
-    @Test
-    fun `one tick is one world day`() {
-        assertEquals(30L, WorldClock.worldDay(30L))
-        assertEquals("Year 1, day 1", WorldClock.label(0L))
-        assertEquals("Year 1, day 360", WorldClock.label(359L))
-        assertEquals("Year 2, day 1", WorldClock.label(360L))
-    }
-
-    @Test
-    fun `a year of real use builds roughly twenty five world years`() {
-        val ticksInARealYear = 365L * 24L
-        val worldYears = WorldClock.worldDay(ticksInARealYear) / WorldClock.DAYS_PER_WORLD_YEAR
-        assertEquals(24L, worldYears)
-    }
 }

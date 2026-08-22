@@ -44,16 +44,6 @@ class ProactiveMessageStoreTest {
     }
 
     @Test
-    fun `peek does not consume the message`() = runTest {
-        store.setMessage("Still here")
-        val peeked = store.peekMessage()
-        assertEquals("Still here", peeked)
-        // Should still be consumable
-        val consumed = store.consumeMessage()
-        assertEquals("Still here", consumed)
-    }
-
-    @Test
     fun `consume returns null when no message set`() = runTest {
         val msg = store.consumeMessage()
         assertNull(msg)

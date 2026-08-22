@@ -26,7 +26,8 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Production Pipelines (novel, screenplay, short film, trailer, podcast drama, RPG campaign — stage-specific prompts)
 - Skills (installable skill cards, skill-backed tool dispatch)
 - Memory stack (Room + 6-signal RRF retrieval + FTS4 lexical candidates + corpus-weighted BM25 + LLM relevance rescoring (a prompt scorer, not a cross-encoder model — up to 5 extra model calls per recall) + query rewriting + 14-day FadeMem with access-frequency decay + heuristic + LLM WriteGate + recall caching)
-  - **Retrieval is lexical unless you set an embedding model.** This line said "cloud embeddings" and a default install has none: `ProviderKeys.embeddingModel` defaults to `""`, which falls through to `LocalEmbedder` — a 384-dim hash-and-project sketch whose own KDoc calls it a pseudo-embedding. `RetrievalConfig.vectorPoolSize` is also 0, measured: the vector arm scored 0.4837 against 0.7976 without it, because a hash sketch injects near-noise. Set an embedding model in Settings → AI & Models (Ollama Cloud) and `ReembedWorker` backfills. Whether the vector arm should then come back on is Gate B in ENGINEERING_HISTORY §3, and is a measurement, not an opinion.
+  - **Retrieval is lexical unless you set an embedding model.** A default install has none: `ProviderKeys.embeddingModel` defaults to `""`, which falls through to `LocalEmbedder` — a 384-dim hash-and-project sketch whose own KDoc calls it a pseudo-embedding. `RetrievalConfig.DEFAULT.vectorPoolSize` is 0, measured: the vector arm scored 0.4837 against 0.7976 with it on, because a hash sketch injects near-noise. Set an embedding model in Settings → AI & Models (Ollama Cloud) and `ReembedWorker` backfills.
+  - **And the settings follow the model, on both paths.** `MemoryStore.activeConfig` switches to `RetrievalConfig.SEMANTIC` — vector pool 25, relevance floor 0.50, the four query-blind signals down-weighted, together worth +0.311 nDCG@10 — as soon as the embedder in hand reports `isSemantic()`. It used to switch on `modelId() == OnDeviceEmbedder.MODEL_ID`, which is the 137 MB on-device download and nothing else, so the cloud path this README recommends stored real 768-dim vectors and then scored them with the vector arm of candidate selection switched off. Fixed 2026-08-22; the instruction above now produces the measured gain instead of most of the cost and none of it.
 - Knowledge graph (Room-backed, 11 node types, 18 edge types, LLM-extracted per turn, entity resolution via Levenshtein dedup)
 - **Curiosity ranked by consequence, not by confidence.** `CuriosityStore` refuses to author while a question is open, so exactly one exists at a time and the scan-time choice is the entire decision — spend it badly and nothing better can be asked until it closes. It was made by `kindBase x detectorConfidence`, which answers "am I sure I found a gap" and never "does this gap matter": a contradiction the detector was certain about, concerning something said once, outranked a gap in the entity half the graph points at. `ValueOfInformation` now weighs that per-kind judgement against how much of the model actually touches the subject (`accessCount`, `lastAccessed` — read off rows already loaded, so it costs no extra query) with reach saturating so one hub cannot swamp the ranking and recency decaying to a floor rather than a cliff. The consequence judgement rides `QuestionAuthor`'s existing single call rather than a new one, returning why knowing would change what Aura advises — stored on the question and shown in Mind, because a reason you can disagree with is the only way to find out whether the choice was good. With an empty graph and no access history the score reduces to the old priority exactly, so it degrades to what it replaced rather than to noise
 - Hands (user-defined automation macros, persisted, triggerable by phrase)
@@ -74,7 +75,7 @@ Then the 2026-08-13 pass, which found the code itself in good shape and every re
 - Backup/restore (JSON export/import, SecureDataStore for credentials, schema v30, 11 Room databases, merge-or-replace on import, disk-spooled snapshot-rollback when a restore fails mid-import, and a marker that reports an interrupted restore on next launch). v18 adds tool policies and all five consciousness components, which were never in a backup before.
 - Craft guidance is **data, not constants**. The genre and mode prompts in `GenreCraftPrompts` are seeded into `SkillsStore` as builtin skills on first run (`CraftSkills`), so the author can read and rewrite them, `use_skill("craft-novel")` returns them, and the evolution system's `PATCH_SKILL` action finally has real targets. The constants stay as the seed source *and* the fallback: a deleted, blank or unreadable skill drafts with the craft that shipped rather than with none. Builtins are editable and resettable, never deletable.
 - **A manuscript can leave the phone.** Export in the Manuscript tab compiles the drafted outline into one Markdown document and hands it to the share sheet — Drive, Obsidian, email, anywhere. Until now the only outbound paths in the app were images and URLs, so prose, the thing Creative Studio exists to produce, terminated in a Room table. Gaps are stated rather than hidden: a beat with no scene reads `*[not yet written]*`, one whose text cannot be recovered reads `*[scene text unavailable]*`, and scenes orphaned by a re-planned outline are counted in a footer instead of vanishing. Reads through `CreativeArtifactStore.currentRevision` rather than `currentContent`, whose `previewText` fallback would place 200-character stubs mid-novel that read like finished scenes.
-- 3,655 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
+- 3,613 unit tests, 0 failures (checked against the JUnit XML by `scripts/check-test-count.sh` in CI)
 - Coverage, measured 2026-08-20 (`./gradlew jacocoTestReport`): `aura-core` 53.4% line / 37.7% branch, `app` 15.7% line / 5.6% branch. The app figure is largely Compose UI, which JVM unit tests do not reach — it is what the instrumented suite and a device pass are for. Not gated: a coverage threshold turns "write a test that proves something" into "write a test that touches a line".
   - **Down 45, on purpose.** Deleting `SpecialistRouter`, `com.aura.pipeline.ProductionPipeline` and `AgentTextAccumulator` took their tests with them — all of it thorough coverage of code that had no production caller. ENGINEERING_HISTORY §4 records test count becoming the quality metric while screens went untested; a number that can only go up is the mechanism by which that happens.
 - 70 instrumented test methods (17 Room migration methods and 4 on-device embedder methods in :aura-core, 49 in :app — 39 Compose rendering, 5 launch and flow, 5 device smoke). Both suites **execute** in CI on an emulator: `:aura-core` in the `migrations` job, `:app` in `app-instrumented`, which excludes `DeviceSmokeTest` by name because it needs a real key. The 19-method `MemoryDatabaseMigrationTest` moved to `src/test` and now runs under Robolectric on every push instead of only in the emulator job — migrations are the one thing here that can destroy data the user cannot get back, and they were the least frequently checked. Record mode's own instrumented test only proves the screen opens and starts: the accessibility service is off on a fresh emulator and only the user can enable it, so demonstrating a task cannot be automated and the loop is unproven until the device pass
@@ -93,14 +94,31 @@ Note: all **chat** inference is cloud-side — there is no on-device LLM. There 
 ### Build the APK
 ```bash
 ./gradlew :app:assembleDebug
-# APK lands at: app/build/outputs/apk/debug/app-debug.apk
+# Two APKs land, one per ABI — there is no universal app-debug.apk:
+#   app/build/outputs/apk/debug/app-arm64-v8a-debug.apk    <- almost certainly this one
+#   app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
 ```
 
 ### Install on your phone
 ```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 ```
 Or transfer the APK to the phone and tap it (enable "Install from unknown sources" in Settings -> Apps).
+
+**Installing an older APK over a newer one will refuse to launch, not wipe your data.**
+Room throws `Can't downgrade database from version X to Y` when the database file is
+newer than the code that opens it, and the app stops there. Reinstall the newer APK and
+it comes back. Until 2026-08-22 the debug build — this build, the one these instructions
+tell you to sideload — carried `fallbackToDestructiveMigrationOnDowngrade()`, so backing
+out of a bad build silently emptied all eleven databases with nothing in the log tying
+the loss to the downgrade. Refusing is recoverable; purging is not.
+
+During schema churn, when the data is disposable and re-installing over a newer database
+is a daily event, opt back in per build:
+
+```bash
+./gradlew :app:assembleDebug -PdevDb    # downgrade wipes the databases instead of refusing
+```
 
 ### First-run setup
 1. Open Aura.
@@ -127,7 +145,7 @@ Or transfer the APK to the phone and tap it (enable "Install from unknown source
 +--------------------------------------------+
 | :app  (Compose UI, 5 tabs + routes)        |
 |   ViewModels (Hilt @HiltViewModel)         |
-|   34 nav destinations + 44 ViewModels      |
+|   34 nav destinations + 43 ViewModels      |
 +------------+-------------------------------+
              | depends on
 +------------v-------------------------------+

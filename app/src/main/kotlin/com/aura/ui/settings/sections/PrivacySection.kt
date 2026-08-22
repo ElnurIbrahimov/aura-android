@@ -51,6 +51,14 @@ fun PrivacySection(
     onSetPlaceLogEnabled: (Boolean) -> Unit = {},
     projectLedgerEnabled: Boolean = true,
     onSetProjectLedgerEnabled: (Boolean) -> Unit = {},
+    // No defaults. Every other background-worker switch here carries one, and
+    // this is the switch whose absence is the reason it is being added: the
+    // preference existed, `ProactiveBootstrap` collected it, and
+    // `setLivingWorldEnabled` had no caller anywhere, so the worker ran on
+    // every install and could not be stopped. A defaulted pair would let the
+    // next refactor drop the wire and restore that state silently.
+    livingWorldEnabled: Boolean,
+    onSetLivingWorldEnabled: (Boolean) -> Unit,
     onSetAppLock: (Boolean) -> Unit,
     onSetMorningBrief: (Boolean) -> Unit,
     onSetMorningBriefHour: (Int) -> Unit,
@@ -170,6 +178,38 @@ fun PrivacySection(
                 )
             }
             Switch(checked = projectLedgerEnabled, onCheckedChange = onSetProjectLedgerEnabled)
+        }
+
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Living worlds", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    // Directly below the project ledger because the argument is
+                    // the same one, and was already written in ProactiveBootstrap
+                    // for that worker: a thing that costs model calls on a
+                    // schedule the user cannot see needs a switch the user can
+                    // reach. This one had the preference and the reconcile
+                    // collector and no way to set it.
+                    //
+                    // Says the tick is free and the narration is not, because
+                    // they are billed differently and the honest answer to "what
+                    // does this cost" is "only when something notable happens".
+                    text = if (livingWorldEnabled) {
+                        "On - a creative project's world runs one day per hour in the " +
+                            "background. Simulating is free; writing up a notable day uses " +
+                            "your background model, capped at 12 a day per world"
+                    } else {
+                        "Off - worlds stop advancing on their own. Nothing is lost: the " +
+                            "simulation is deterministic and catches up from the clock when " +
+                            "you turn this back on"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.6f),
+                )
+            }
+            Switch(checked = livingWorldEnabled, onCheckedChange = onSetLivingWorldEnabled)
         }
 
         if (appAwarenessEnabled) {

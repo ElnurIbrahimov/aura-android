@@ -81,15 +81,6 @@ class ForumEngineTest {
     }
 
     @Test
-    fun vote_castsAndRetrieves() = runBlocking {
-        val postId = forum.post("thread_1", "agent_general", "proposal", "Suggest walk", "User needs fresh air")
-        forum.vote(postId, "agent_researcher", "for", "I agree")
-        forum.vote(postId, "agent_executive", "against", "Too busy today")
-        val votes = forum.votesFor(postId)
-        assertEquals(2, votes.size)
-    }
-
-    @Test
     fun tally_countsCorrectly() = runBlocking {
         val postId = forum.post("thread_1", "agent_general", "proposal", "Test", "Test")
         forum.vote(postId, "agent_researcher", "for")
@@ -155,13 +146,4 @@ class ForumEngineTest {
         assertEquals("approved", thread[0].status)
     }
 
-    @Test
-    fun deleteAll_clearsEverything() = runBlocking {
-        forum.post("thread_1", "agent_general", "debate", "Test", "Test")
-        val postId = forum.post("thread_1", "agent_general", "proposal", "Test2", "Test2")
-        forum.vote(postId, "agent_researcher", "for")
-        forum.deleteAll()
-        assertTrue(forum.recent().isEmpty())
-        assertTrue(forum.votesFor(postId).isEmpty())
-    }
 }

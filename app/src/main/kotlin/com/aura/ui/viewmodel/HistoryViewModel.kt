@@ -141,6 +141,9 @@ class HistoryViewModel @Inject constructor(
      */
     fun isPinned(conv: Conversation): Boolean = store.isPinned(conv)
 
+    /** Which project this conversation is tagged to, or null. */
+    fun projectOf(conv: Conversation): String? = store.projectOf(conv)
+
     /**
      * Debounced full-text search. 250ms keeps Room from being hammered
      * on every keystroke.

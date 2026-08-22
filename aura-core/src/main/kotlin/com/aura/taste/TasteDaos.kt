@@ -42,9 +42,6 @@ interface PreferenceSignalDao {
     @Query("DELETE FROM preference_signals WHERE projectId = '' OR projectId IS NULL")
     suspend fun deleteGlobal()
 
-    @Query("DELETE FROM preference_signals WHERE artifactId = :artifactId AND signalType = 'reaction'")
-    suspend fun deleteReactionsForArtifact(artifactId: kotlin.String)
-
     @Query("SELECT COUNT(*) FROM preference_signals")
     fun count(): Flow<Int>
 }
@@ -86,9 +83,6 @@ interface ReferenceIdentityDao {
 
     @Query("SELECT * FROM reference_identities WHERE projectId = :projectId ORDER BY identityType, name")
     suspend fun forProject(projectId: kotlin.String): List<ReferenceIdentityEntity>
-
-    @Query("SELECT * FROM reference_identities WHERE projectId = :projectId AND identityType = :type ORDER BY name")
-    suspend fun byType(projectId: kotlin.String, type: kotlin.String): List<ReferenceIdentityEntity>
 
     @Query("SELECT * FROM reference_identities WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): ReferenceIdentityEntity?

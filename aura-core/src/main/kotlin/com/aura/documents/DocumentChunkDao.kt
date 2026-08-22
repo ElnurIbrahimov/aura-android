@@ -18,15 +18,6 @@ interface DocumentChunkDao {
     @Update
     suspend fun update(chunk: DocumentChunkEntity)
 
-    @Query("SELECT * FROM document_chunks WHERE documentId = :documentId ORDER BY ordinal ASC")
-    fun observeForDocument(documentId: kotlin.String): Flow<List<DocumentChunkEntity>>
-
-    @Query("SELECT * FROM document_chunks WHERE documentId = :documentId ORDER BY ordinal ASC")
-    suspend fun forDocument(documentId: kotlin.String): List<DocumentChunkEntity>
-
-    @Query("SELECT * FROM document_chunks WHERE documentId = :documentId AND ordinal = :ordinal LIMIT 1")
-    suspend fun getByOrdinal(documentId: kotlin.String, ordinal: Int): DocumentChunkEntity?
-
     @Query("SELECT * FROM document_chunks WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): DocumentChunkEntity?
 
@@ -35,9 +26,6 @@ interface DocumentChunkDao {
 
     @Query("SELECT * FROM document_chunks WHERE embedding IS NULL")
     suspend fun allWithoutEmbeddings(): List<DocumentChunkEntity>
-
-    @Query("SELECT COUNT(*) FROM document_chunks WHERE documentId = :documentId")
-    suspend fun countForDocument(documentId: kotlin.String): Int
 
     @Query("DELETE FROM document_chunks WHERE documentId = :documentId")
     suspend fun deleteForDocument(documentId: kotlin.String)
@@ -94,6 +82,19 @@ interface DocumentChunkDao {
     ): List<DocumentChunkHit>
 
     /** Corpus size for the chunk index — the `N` in BM25's IDF, over documents only. */
+    /**
+     * Chunks of one document, in order.
+     *
+     * Kept although only tests call it: it is the only way to observe a write
+     * production really performs, and a write nothing can read back is a write
+     * nothing can prove.
+     */
+    @Query("SELECT * FROM document_chunks WHERE documentId = :documentId ORDER BY ordinal ASC")
+    suspend fun forDocument(documentId: String): List<DocumentChunkEntity>
+
+    @Query("SELECT COUNT(*) FROM document_chunks WHERE documentId = :documentId")
+    suspend fun countForDocument(documentId: String): Int
+
     @Query("SELECT COUNT(*) FROM document_chunks")
     suspend fun countChunks(): Int
 

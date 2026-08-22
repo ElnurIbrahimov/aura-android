@@ -189,7 +189,6 @@ class ToolRegistry @Inject constructor() {
     fun get(name: String): Tool? = tools[name]
     fun all(): List<Tool> = tools.values.toList()
     fun names(): List<String> = tools.keys.toList()
-    fun byRisk(min: ToolRisk): List<Tool> = tools.values.filter { it.risk.ordinal >= min.ordinal }
 
     /**
      * The tool schemas that go on the wire, **sorted by name**.

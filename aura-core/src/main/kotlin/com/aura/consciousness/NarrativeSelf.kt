@@ -128,16 +128,6 @@ class NarrativeSelf @Inject constructor(
     }
 
     /**
-     * Update the relationship state note.
-     */
-    fun updateRelationshipState(note: String) {
-        state = state.copy(
-            relationshipState = note.take(200),
-            lastUpdated = System.currentTimeMillis(),
-        )
-    }
-
-    /**
      * Set the core identity (from Soul / user override). This rarely changes.
      */
     fun setCoreIdentity(text: String) {

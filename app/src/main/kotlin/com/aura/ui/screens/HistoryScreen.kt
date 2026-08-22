@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -280,6 +282,9 @@ fun HistoryScreen(
                         },
                         onTogglePin = { viewModel.togglePinned(conv.id) },
                         onRename = { newTitle -> viewModel.setTitle(conv.id, newTitle) },
+                        currentProject = viewModel.projectOf(conv),
+                        availableProjects = state.availableProjects,
+                        onSetProject = { project -> viewModel.setConversationProject(conv.id, project) },
                     )
                     } else {
                         SwipeToDeleteContainer(onDelete = { viewModel.delete(conv.id) }) {
@@ -299,6 +304,9 @@ fun HistoryScreen(
                                 },
                                 onTogglePin = { viewModel.togglePinned(conv.id) },
                                 onRename = { newTitle -> viewModel.setTitle(conv.id, newTitle) },
+                                currentProject = viewModel.projectOf(conv),
+                                availableProjects = state.availableProjects,
+                                onSetProject = { project -> viewModel.setConversationProject(conv.id, project) },
                             )
                         }
                     }
@@ -329,6 +337,17 @@ private fun HistoryRow(
     onShare: () -> Unit,
     onTogglePin: () -> Unit,
     onRename: (String) -> Unit,
+    /** The project tag on this conversation, or null. */
+    currentProject: String?,
+    /** Every project name already in use, for the picker. */
+    availableProjects: List<String>,
+    /**
+     * No default. `HistoryViewModel.setConversationProject` had no caller, so
+     * the only way to tag a conversation was the chat header's picker — which
+     * means the tag could only be applied while the conversation was open, and
+     * never afterwards, to any of the ones already in this list.
+     */
+    onSetProject: (String?) -> Unit,
 ) {
     val fmt = SimpleDateFormat("MMM d, HH:mm", Locale.US)
     val lastTurn = conv.turns.lastOrNull()
@@ -337,6 +356,21 @@ private fun HistoryRow(
     // Long-press the row → rename dialog. Tap = open conversation.
     // Pin icon toggles the pinned flag.
     var showRenameDialog by androidx.compose.runtime.remember { mutableStateOf(false) }
+    var showProjectPicker by androidx.compose.runtime.remember { mutableStateOf(false) }
+
+    if (showProjectPicker) {
+        // The same sheet the chat header uses, so "which project is this in"
+        // has one answer and one way to change it.
+        com.aura.ui.components.ProjectPickerSheet(
+            current = currentProject,
+            projects = availableProjects,
+            onPick = { project ->
+                onSetProject(project)
+                showProjectPicker = false
+            },
+            onDismiss = { showProjectPicker = false },
+        )
+    }
 
     if (showRenameDialog) {
         var text by androidx.compose.runtime.remember { mutableStateOf(conv.title) }
@@ -424,6 +458,18 @@ private fun HistoryRow(
                 )
                 Spacer(Modifier.height(AuraSpacing.tiny))
                 Text(fmt.format(Date(conv.updatedAt)), style = MaterialTheme.typography.labelSmall, color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.4f))
+            }
+            IconButton(
+                onClick = { showProjectPicker = true },
+                modifier = Modifier.size(AuraSpacing.xxl),
+            ) {
+                Icon(
+                    imageVector = if (currentProject != null) Icons.Filled.Folder else Icons.Filled.FolderOpen,
+                    contentDescription = currentProject?.let { "In project $it" } ?: "Move to a project",
+                    tint = if (currentProject != null) AuraThemeTokens.colors.actionPrimary
+                           else AuraThemeTokens.colors.textPrimary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(AuraSpacing.xl2),
+                )
             }
             IconButton(
                 onClick = onTogglePin,

@@ -134,22 +134,4 @@ class PlaceLogTest {
         assertEquals(2, deleted)
         assertEquals(listOf(3.0), dao.recent(10).map { it.lat })
     }
-
-    @Test
-    fun `most frequent ranks by time spent, not by number of visits`() = runBlocking {
-        // One long stay at A, three brief ones at B.
-        dao.insert(PlaceVisitEntity(lat = 1.0, lon = 1.0, arrivedAt = now, lastSeenAt = now + 480 * minute))
-        repeat(3) { i ->
-            dao.insert(
-                PlaceVisitEntity(
-                    lat = 2.0,
-                    lon = 2.0,
-                    arrivedAt = now + i * 1000L,
-                    lastSeenAt = now + i * 1000L + 20 * minute,
-                ),
-            )
-        }
-
-        assertEquals(1.0, dao.mostFrequent(2).first().lat, "a place visited often outranked where the day was spent")
-    }
 }

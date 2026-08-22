@@ -203,38 +203,6 @@ class CorrectionStoreTest {
     }
 
     @Test
-    fun `undo puts back the memory and everything the correction reached`(): Unit = runBlocking {
-        val graph = db.knowledgeGraphDao()
-        graph.insertNode(NodeEntity(id = "n1", label = "Elnur", type = "person"))
-        graph.insertNode(NodeEntity(id = "n2", label = "Baku", type = "place"))
-        graph.insertEdge(
-            EdgeEntity(
-                id = "e1",
-                type = "lives_in",
-                sourceId = "n1",
-                targetId = "n2",
-                confidence = 0.91f,
-                sourceConversationId = "conv-1",
-                sourceTurnTimestamp = 1_000L,
-            ),
-        )
-        val id = storeFromTurn("Elnur lives in Baku")
-        val report = corrections.neverTrue(id, provenance = turn)
-
-        val undone = corrections.undo(report.correctionId)
-
-        assertTrue(store.searchByText("Baku").any { it.id == id })
-        assertNull(store.get(id)!!.retiredAt)
-        val restored = graph.getEdge("e1")
-        assertNotNull(restored)
-        assertEquals(0.91f, restored.confidence)
-        assertEquals(1, undone.propagated)
-        // The row stays, marked undone, so the history of the correction is
-        // itself recoverable.
-        assertTrue(corrections.forMemory(id).isEmpty())
-    }
-
-    @Test
     fun `undoing a supersession removes the replacement it created`(): Unit = runBlocking {
         val id = storeFromTurn("Elnur lives in Baku")
         val report = corrections.noLongerTrue(id, "Elnur lives in Istanbul", provenance = turn)

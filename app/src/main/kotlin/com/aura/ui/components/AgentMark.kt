@@ -166,5 +166,14 @@ private val AGENT_ACCENTS = listOf(
     Color(0xFFFF9F6E), // phone      — coral
 )
 
+/**
+ * How many accents there are to choose between.
+ *
+ * Exposed so the agent editor can offer exactly the palette [agentAccent]
+ * wraps into, rather than hardcoding a number that goes stale the day a colour
+ * is added.
+ */
+internal val AGENT_ACCENT_COUNT: Int = AGENT_ACCENTS.size
+
 internal fun agentAccent(index: Int): Color =
     AGENT_ACCENTS[((index % AGENT_ACCENTS.size) + AGENT_ACCENTS.size) % AGENT_ACCENTS.size]

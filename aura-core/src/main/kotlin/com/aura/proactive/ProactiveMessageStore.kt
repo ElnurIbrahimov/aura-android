@@ -46,11 +46,6 @@ class ProactiveMessageStore @Inject constructor(
         return message
     }
 
-    suspend fun peekMessage(): String? {
-        val prefs = context.proactiveMessageStore.data.first()
-        return prefs[KEY_MESSAGE]
-    }
-
     suspend fun clear() {
         context.proactiveMessageStore.edit { it.remove(KEY_MESSAGE); it.remove(KEY_TIMESTAMP) }
     }

@@ -31,20 +31,6 @@ class McpToolBridgeTest {
         McpToolInfo(serverId = serverId, name = name, description = desc, inputSchemaJson = "{}", serverName = "Test")
 
     @Test
-    fun `unregisterAll clears registered tools`() = runTest {
-        val config = McpServerConfig(id = "srv1", name = "Test", url = "http://localhost:3000")
-        every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
-        coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "search", "Search the web"))
-
-        bridge.syncTools(listOf(config))
-        assertEquals(1, bridge.registeredToolNames().size)
-
-        bridge.unregisterAll()
-        assertEquals(0, bridge.registeredToolNames().size)
-        assertNull(toolRegistry.get("search"))
-    }
-
-    @Test
     fun `disabled server is skipped`() = runTest {
         val config = McpServerConfig(id = "srv1", name = "Test", url = "http://localhost:3000", enabled = false)
         every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
@@ -91,36 +77,6 @@ class McpToolBridgeTest {
         bridge.syncTools(listOf(config))
         assertNotNull(toolRegistry.get("mcp_srv1_search"))
         assertTrue(bridge.registeredToolNames().contains("mcp_srv1_search"))
-    }
-
-    @Test
-    fun `stale tools are unregistered when server removed`() = runTest {
-        val config1 = McpServerConfig(id = "srv1", name = "Test1", url = "http://localhost:3000")
-        every { mcpClientManager.connectedServerIds() } returns listOf("srv1")
-        coEvery { mcpClientManager.listTools("srv1") } returns listOf(mockTool("srv1", "tool_a", "A"))
-
-        bridge.syncTools(listOf(config1))
-        // mockTool returns a name matching the MCP tool's own name.
-        // syncTools only registers with the mcp_<serverId>_ prefix when
-        // a native tool with the same name already exists in the
-        // registry. With no collision the tool is registered unprefixed,
-        // and unprefixed tools are owned by no particular server —
-        // syncTools(emptyList()) only cleans up prefixed tools. Use
-        // unregisterAll() (or trigger a collision) to clean unprefixed
-        // registrations. The realistic flow always has a serverId
-        // attached because the bridge is paired with a real
-        // McpServerConfig that has a stable id.
-        assertEquals(1, bridge.registeredToolNames().size)
-
-        bridge.syncTools(emptyList())
-        // With the ownership map, ALL registered tools (prefixed and
-        // unprefixed) are tracked by serverId. When the server is removed,
-        // its tools are correctly unregistered — no orphaned tools remain.
-        assertEquals(0, bridge.registeredToolNames().size)
-
-        // Explicit cleanup via unregisterAll also works
-        bridge.unregisterAll()
-        assertEquals(0, bridge.registeredToolNames().size)
     }
 
     @Test

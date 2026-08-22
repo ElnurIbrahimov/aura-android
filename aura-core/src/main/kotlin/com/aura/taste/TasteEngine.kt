@@ -57,29 +57,6 @@ class TasteEngine @Inject constructor(
     }
 
     /**
-     * Record a reaction (emoji or thumbs up/down).
-     */
-    suspend fun recordReaction(
-        projectId: kotlin.String = "",
-        artifactId: kotlin.String,
-        reaction: kotlin.String,
-        positive: kotlin.Boolean,
-    ) {
-        // Delete any previous reaction for this artifact so switching
-        // from 👍 to 👎 replaces the signal instead of accumulating
-        // contradictory rows.
-        signalDao.deleteReactionsForArtifact(artifactId)
-        recordSignal(
-            projectId = projectId,
-            signalType = "reaction",
-            category = "general",
-            artifactId = artifactId,
-            attributes = mapOf("reaction" to reaction),
-            weight = if (positive) 1.0f else -1.0f,
-        )
-    }
-
-    /**
      * Record a user edit (user modified the generated output).
      * The edit implies the original was insufficient.
      */

@@ -58,8 +58,4 @@ class CreativeBranchStore @Inject constructor(
         branchDao.upsert(branch.copy(status = "archived", updatedAt = System.currentTimeMillis()))
     }
 
-    suspend fun updateHead(branchId: String, headRevisionId: String) {
-        val branch = branchDao.getById(branchId) ?: return
-        branchDao.upsert(branch.copy(headRevisionId = headRevisionId, updatedAt = System.currentTimeMillis()))
-    }
 }

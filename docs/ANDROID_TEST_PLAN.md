@@ -6,7 +6,7 @@ How to manually exercise every feature of Aura on a real device or emulator.
 
 ```bash
 # Build + install on connected device
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 ```
 
 ## 1. First run

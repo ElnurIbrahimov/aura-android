@@ -1060,9 +1060,24 @@ class MemoryStore @Inject constructor(
      * vectors in candidate selection, too permissive about them in the relevance floor.
      * Applying [RetrievalConfig.SEMANTIC] to hash vectors is worse still — the vector pool
      * was measured off for exactly that reason.
+     *
+     * Asks the embedder rather than comparing its id. The comparison was
+     * `modelId() == OnDeviceEmbedder.MODEL_ID`, which is true for the on-device
+     * model and for nothing else — so a user who followed README's instruction
+     * to set an Ollama Cloud embedding model got real semantic vectors scored
+     * under hash settings: `vectorPoolSize = 0`, meaning a memory sharing no
+     * word with the query could never enter the candidate pool at all, and a
+     * `minRelevance` of 0.15 sitting at three sigma of a hash's noise floor.
+     * The +0.311 nDCG@10 the eval measured was unreachable from the documented
+     * instruction. See [Embedder.isSemantic].
+     *
+     * Safe while a corpus is half-converted: rows tagged with a different model
+     * are already excluded from the vector arm by `embedder.isCurrent` and
+     * scored 0 in fusion, so they fall back to the lexical signals rather than
+     * being rejected by the higher floor, and `ReembedWorker` repairs them.
      */
     private fun activeConfig(): RetrievalConfig =
-        if (embedder.modelId() == com.aura.memory.onnx.OnDeviceEmbedder.MODEL_ID) {
+        if (config.autoTuneToEmbedder && embedder.isSemantic()) {
             RetrievalConfig.SEMANTIC
         } else {
             config

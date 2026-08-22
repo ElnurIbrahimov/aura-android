@@ -36,6 +36,17 @@ class PrecomputedEmbedder private constructor(
     override fun dimension(): Int = dim
 
     /**
+     * True, and honestly so — these are real sentence-transformer vectors.
+     *
+     * It is safe to say so only because [RetrievalEvalRunner] sets
+     * `autoTuneToEmbedder = false`. Answering `false` here to protect the A/B
+     * would be the cheaper fix and the wrong one: it would put a lie in the
+     * fixture to stop production behaviour leaking into the measurement,
+     * instead of turning that behaviour off where the measurement is set up.
+     */
+    override fun isSemantic(): Boolean = true
+
+    /**
      * Look up [text]'s vector, or fail.
      *
      * Deliberately not a zero vector or a hash fallback on a miss. A missing

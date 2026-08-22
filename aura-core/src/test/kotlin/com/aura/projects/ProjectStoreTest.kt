@@ -269,16 +269,4 @@ class ProjectStoreTest {
         val subjects = runBlocking { store.activeSubjects(p.id) }.sorted()
         assertEquals(listOf("hosting", "payments"), subjects)
     }
-
-    @Test
-    fun `resolving a blocker is distinct from superseding it`() {
-        val p = project()
-        val blocker = note(p.id, "payments", "account not approved", ProjectNoteEntity.KIND_BLOCKER)!!
-        assertTrue(runBlocking { store.resolveNote(blocker.id) })
-
-        val row = runBlocking { noteDao.byId(blocker.id) }!!
-        assertEquals(ProjectNoteEntity.STATE_RESOLVED, row.state)
-        assertNull("nothing replaced it, so supersededBy must stay empty", row.supersededBy)
-        assertTrue(runBlocking { store.activeNotes(p.id) }.isEmpty())
-    }
 }

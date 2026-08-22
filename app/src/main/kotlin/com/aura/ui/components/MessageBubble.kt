@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
@@ -323,6 +324,17 @@ fun MessageBubble(
     onReact: (Reaction) -> Unit = {},
     onEdit: () -> Unit = {},
     onShare: () -> Unit = {},
+    /** Whether this turn is held in the model's context. See `Turn.pinned`. */
+    pinned: Boolean = false,
+    /**
+     * No default, unlike every callback above it.
+     *
+     * `Turn.pinned` was written, persisted and carried through backup while
+     * nothing read it and no screen could set it. A defaulted callback is how
+     * that state survives a refactor without anything failing — the shape the
+     * Library row on Home died of, through four levels of forwarding.
+     */
+    onTogglePin: () -> Unit,
 ) {
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
@@ -365,6 +377,8 @@ fun MessageBubble(
             onShowSources = onShowSources,
             onReact = onReact,
             onShare = onShare,
+            pinned = pinned,
+            onTogglePin = onTogglePin,
         )
     }
 }
@@ -471,6 +485,8 @@ private fun AssistantMessage(
     onShowSources: () -> Unit,
     onReact: (Reaction) -> Unit,
     onShare: () -> Unit = {},
+    pinned: Boolean = false,
+    onTogglePin: () -> Unit,
 ) {
     val springEased = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) {
@@ -656,6 +672,18 @@ private fun AssistantMessage(
                         icon = Icons.Filled.Share,
                         label = "Share",
                         onClick = onShare,
+                    )
+                    // Pin: keep this turn in context past compaction.
+                    //
+                    // Beside the reactions rather than behind an overflow menu,
+                    // because it is the only action here that changes what the
+                    // model can still see, rather than recording an opinion
+                    // about what it already said.
+                    BubbleAction(
+                        icon = Icons.Filled.PushPin,
+                        label = if (pinned) "Pinned to context" else "Pin to context",
+                        isActive = pinned,
+                        onClick = onTogglePin,
                     )
                     } // end if (showActions)
                 }

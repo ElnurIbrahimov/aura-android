@@ -468,6 +468,152 @@ clean, all four gate scripts pass, `assembleRelease` succeeds under real R8. Bra
 MemoryDB v31 → v32. Both lint tasks clean, all four gate scripts pass,
 `:app:assembleDebug` succeeds. Branch `feat/world-player-seat`.
 
+*2026-08-22 (the reachability sweep):* **3,613 unit tests / 545 suites, 0 failures** at
+v0.66.0. Five gate scripts now, the fifth being new. Branch `fix/reachability-sweep`.
+
+The count went **down 42**, and the direction is the finding. An external read of the
+repo took the standing diagnosis in §4 — that this project's most expensive defect is
+code built, tested, documented and reachable by nothing — and measured it: 69
+declarations referenced nowhere at all, and 52 more referenced only by tests. The second
+number is the worse one. Dead code with a passing test is dead code wearing a green
+checkmark, and §4 already records test count becoming the quality metric while screens
+went untested. This is the mechanism, counted.
+
+**Eight defects, in rough order of what they cost a user.**
+
+1. **A live call could be started and not stopped.** `LiveCallViewModel.endCall` had zero
+   callers — the test suite included — and `LiveCallStatus` rendered phase, remaining
+   time and the echo warning with no button. The only exits were the notification's End
+   action, the ten-minute budget, and navigating far enough away to clear the ViewModel.
+   The same file's KDoc warned that stopping the service over an open socket keeps
+   billing per audio-minute; nothing could stop either. `ProjectSpineIsWiredTest` gated
+   `startCall` and passed the whole time, which is the lesson that file already records
+   about itself: a gate only protects what it actually asserts, and "reachable" is two
+   claims, not one. It now asserts both.
+
+2. **The documented path to semantic memory never applied the settings that make it
+   worth having.** `MemoryStore.activeConfig` selected `RetrievalConfig.SEMANTIC` on
+   `embedder.modelId() == OnDeviceEmbedder.MODEL_ID` — the 137 MB on-device download and
+   nothing else. README tells the user to set an Ollama Cloud embedding model instead, so
+   that path stored real 768-dim vectors and scored them with `vectorPoolSize = 0`
+   (a memory sharing no word with the query cannot become a candidate at all) under a
+   relevance floor of 0.15, which is three sigma of a *hash's* noise. The measured
+   +0.311 nDCG@10 was unreachable from the instruction that promised it. The switch is
+   now `Embedder.isSemantic()`, implemented by each embedder and delegated through
+   `RoutedEmbedder`'s existing split.
+
+   The naive fix would have broken the Gate B experiment: `PrecomputedEmbedder` serves
+   real sentence-transformer vectors and now says so, which would have pushed *both* arms
+   of the A/B onto SEMANTIC and made the comparison measure a config against itself.
+   `RetrievalConfig.autoTuneToEmbedder` is off in `RetrievalEvalRunner`, in the same
+   `copy()` that already forces `touchOnRecall = false`, for the same reason: in the
+   harness the config *is* the experiment.
+
+3. **The debug build wiped every database on a downgrade.** `RoomConfig` enabled
+   `fallbackToDestructiveMigrationOnDowngrade()` under `BuildConfig.DEBUG`, and
+   `assembleDebug` + `adb install` is the sideload path README documents — so the build on
+   the phone was the build with the wipe. Backing out of a bad APK, the ordinary recovery
+   move, silently emptied all eleven databases. Now behind `-PdevDb`, off by default: a
+   downgrade throws on open and the app refuses to launch until the newer APK is back.
+   Louder, and recoverable, which the wipe was not. The doctrine was already written two
+   files away, in `BackupManager`: refusing is recoverable, purging is not.
+
+4. **`setLivingWorldEnabled` was a kill switch nobody could reach.** The preference
+   existed, defaulted on, and `ProactiveBootstrap` reconciled the scheduler on it live —
+   an hourly worker plus up to twelve model calls a day per world, with nothing anywhere
+   that could set it. The reconcile loop was correct the whole time; there was nothing on
+   the other end. Now a switch in Settings → Privacy, directly under the project ledger,
+   which is the same shape for the same reason and whose own argument in
+   `ProactiveBootstrap` — "a model call every fifteen minutes that the user cannot stop"
+   — was already written and not yet applied here. A sweep of every `UserPreferences`
+   setter and flow found this to be the only one.
+
+5. **`BackupManager.snapshot`'s KDoc described a tolerance six tables had.** Non-strict
+   export was documented to let one unreadable table cost its rows rather than the whole
+   backup; `readTable` wrapped six of about sixty. The other fifty-odd threw straight out
+   of `snapshot`, so one corrupt row in `memories` produced no file at all — on the run
+   where a backup is worth the most, because the database is already damaged and
+   everything else in it is still readable. Every table goes through `readTable` now, and
+   `unreadableTables` (which already existed, and was already asserted) starts covering
+   all of them. `strict = true` is unchanged: the pre-restore snapshot still aborts rather
+   than come back partial, which is the shape that makes a rollback destroy more than it
+   restores.
+
+   The read-before-purge ordering in `restore` also argued from a false premise — "the
+   cache it lives in can be evicted by the system at any moment". The spool is written to
+   `filesDir`, which is not reclaimed. The ordering is right for the other reasons given
+   there; a reason that is not true is worse than no reason, because the next reader
+   prices the risk by it.
+
+6. **Five ViewModel actions were the only implementation of a feature and had no caller.**
+   The dream-summary delete, the History project tag, the agent colour, the Creative
+   Studio thinking switch, and the turn pin. Each compiled, each was covered where the
+   ViewModel had tests, none could be reached by a thumb. All five are wired, and
+   `ProjectSpineIsWiredTest` names them — not as a pattern, because "a public ViewModel
+   method must have a UI caller" is false in general and the new `check-dead-code.sh`
+   counts the general case.
+
+   Pinning needed a meaning before a pin button was honest. `Turn.pinned` was persisted
+   and carried through backup and read by nothing. It now exempts a turn from both of
+   `toMessages`' cutoffs — the `maxTurns` tail and the compaction watermark — so the turn
+   a conversation is actually about does not get summarised into a sentence forty turns
+   later. Exemption rather than a hoisted section, because a pinned turn re-inserted after
+   the summary that already describes it reads as the model being told the same thing
+   twice, out of order.
+
+7. **Raw NUL bytes in Kotlin source.** `WorldEngine` held five, as composite-key
+   separators typed as literal control characters rather than the escape. `grep` reports
+   such a file as binary and prints no matches; when `PlayerView` carried one inside git's
+   8,000-byte binary-sniff window, git rendered two commits of it as
+   `Bin 7501 -> 9497 bytes` — no diff, no blame, no merge, on the newest file in the
+   repo. The five in `WorldEngine` escaped that only by sitting past the window, which one
+   deletion above them would have changed. All now go through one `KEY_SEP` constant,
+   which also picked up `PlayerView.deviationKey` — it had meanwhile drifted to a space,
+   a character an entity id can legitimately contain. Nothing had collided. Nothing was
+   stopping it.
+
+8. **One rule, two implementations, one of them unreachable.** `Specialist.applyOverrides`
+   and `applyToolOverrides` had no callers while `ChatSendController` wrote the same rules
+   out inline. Replaced by one `Specialist.withOverrides` on the type it is about, called
+   from the one place that needs it, and tested there — the shape where two copies can
+   disagree without anything failing is gone.
+
+**What the sweep found that the review had not.** `TextToSpeech.feed`/`flushStream` and
+their buffer were a complete second implementation of sentence-boundary streaming TTS
+with no caller; the working one is `ContinuousVoiceViewModel.speakSentence`. The scan
+missed it because `feed` collides with ordinary identifiers, which is why
+`check-dead-code.sh` documents itself as a lower bound rather than a proof.
+`ConversationKgExtractor` incremented a `droppedCount` whose KDoc said it was "surfaced
+via a getter for Settings → Diagnostics"; Diagnostics never called the getter, so a
+dropped turn reported itself to a private field. It logs now.
+
+**Three gaps recorded rather than closed**, because closing them is design work and not
+this pass:
+
+- `AgentRunStore.checkpoint` is called by `AgentRunsViewModel.resume`, and
+  `resumeFromCheckpoint` had no caller — so checkpoints were written and never read. What
+  actually resumes a run is `DagResolver.readySteps` re-deriving readiness from persisted
+  step status, which is the better mechanism and makes the checkpoint table write-only.
+  The dead reader is gone; `latestForRun` stays as the observation point, and README's
+  "checkpoint/resume" should be read as "resume, by re-derivation".
+- `DagResolver.hasCycle` was never called, so a cyclic step graph produces no ready steps
+  and the run stalls with no error anywhere.
+- `TheoryOfMind.updateTopic` and `decayTopics` were the only writers of `UserModel.topics`
+  and neither had a production caller, so the two "User expertise / User learning" lines
+  in `toPrompt` could never render. The functions are gone; the field and the branches
+  stay, because `topics` is persisted, lives in the backup schema, and a restore from an
+  older file can still carry rows.
+
+**What was kept, and why.** Nine declarations are referenced only by tests and stay:
+`peekPendingGate`, `latestForRun`, `forDocument`, `countForDocument`,
+`registeredToolNames`, `contentFor`, `forConversation`, `setForTest`, `byCorrelationTag`.
+Each is the sole observation point for a write production really performs — the FTS index
+is maintained by SQL triggers no Kotlin executes, `MemoryStore.query` writes a retrieval
+label on both of its return branches, `syncTools` both registers and unregisters. A write
+nothing can read back is a write nothing can prove. `EvolutionTypeConverters`' two methods
+are the standing UNUSED baseline: Room's generated code calls them and no source scan can
+see it.
+
 `creative/livingworld` had been a complete strategy game with no player: beliefs
 already stored as deviations from truth, `ClaimPool` already resolving contested
 claims on what rivals *believe* each contender can bring, `SpreadLie` already

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.aura.realtime.RealtimeAvailability
+import com.aura.ui.components.AuraSecondaryButton
 import com.aura.ui.theme.AuraSpacing
 import com.aura.ui.theme.AuraThemeTokens
 
@@ -104,6 +105,14 @@ fun LiveCallSheet(
  * The model name is always visible, for the same reason the sheet names the
  * switch: on a call where the assistant sounds different and remembers nothing,
  * the user deserves to know why without having to guess.
+ *
+ * [onEndCall] takes **no default**. This composable rendered phase, time remaining
+ * and the echo warning and no button for as long as it existed, so the only ways
+ * out of a call were the notification's End action, the ten-minute budget, and
+ * navigating far enough away to clear the ViewModel — while `LiveCallViewModel.endCall`
+ * sat with zero callers. A defaulted callback makes that a dead button rather than a
+ * compile error, which is exactly how the Library row on Home stayed dead through four
+ * levels of forwarding.
  */
 @Composable
 fun LiveCallStatus(
@@ -111,6 +120,7 @@ fun LiveCallStatus(
     modelName: String,
     remainingSeconds: Long,
     echoCancellation: Boolean,
+    onEndCall: () -> Unit,
 ) {
     val colors = AuraThemeTokens.colors
     Column(
@@ -133,6 +143,14 @@ fun LiveCallStatus(
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.error,
             )
+        }
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+        // Ends the SESSION, not just the service — `LiveCallViewModel.endCall`
+        // closes the socket first and stops the foreground service second, in
+        // that order, because stopping the service over an open socket keeps
+        // billing per audio-minute with nothing on screen to show for it.
+        AuraSecondaryButton(onClick = onEndCall) {
+            Text(stringResource(R.string.end_call))
         }
     }
 }

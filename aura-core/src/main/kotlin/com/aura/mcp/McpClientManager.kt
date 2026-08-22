@@ -154,12 +154,6 @@ class McpClientManager @Inject constructor(
     }
 
     /**
-     * Get health for all connected servers.
-     */
-    fun healthSnapshot(): List<McpServerHealth> =
-        connections.values.map { it.health }
-
-    /**
      * Get a list of all connected server IDs.
      */
     fun connectedServerIds(): List<kotlin.String> =

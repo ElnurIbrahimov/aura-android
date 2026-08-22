@@ -81,8 +81,4 @@ class CouncilViewModel @Inject constructor(
         }
     }
 
-    fun callEmergencyCouncil(topic: kotlin.String) {
-        // Phase 5 — emergency council uses RunLifeCouncilTool from chat
-        // For now, just navigate to chat with a pre-filled message
-    }
 }

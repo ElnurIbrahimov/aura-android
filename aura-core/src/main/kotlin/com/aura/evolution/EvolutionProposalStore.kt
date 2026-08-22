@@ -135,24 +135,4 @@ class EvolutionProposalStore @Inject constructor(
         val proposal = proposalDao.getById(id) ?: return
         proposalDao.upsert(proposal.copy(rollbackSnapshotJson = snapshotJson, updatedAt = System.currentTimeMillis()))
     }
-
-    suspend fun recordRevision(
-        proposalId: kotlin.String,
-        targetId: kotlin.String,
-        domain: EvolutionDomain,
-        beforeCiphertext: kotlin.String?,
-        afterCiphertext: kotlin.String?,
-        summary: kotlin.String,
-    ) {
-        revisionDao.upsert(
-            EvolutionRevisionEntity(
-                id = UUID.randomUUID().toString(),
-                proposalId = proposalId,
-                targetId = targetId,
-                domain = domain.name,
-                snapshotCiphertext = afterCiphertext ?: "",
-                metadataJson = summary,
-            )
-        )
-    }
 }

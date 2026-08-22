@@ -95,14 +95,6 @@ class AdaptiveTimingEngineTest {
     }
 
     @Test
-    fun `best time falls back to a sensible hour rather than midnight`() = runTest {
-        // The old argmax seeded bestScore at 0 and took strictly greater, so
-        // under a neutral-centred scale it would have returned hour 0.
-        coEvery { dao.recent(any()) } returns emptyList()
-        assertEquals(9, engine.bestTime())
-    }
-
-    @Test
     fun `a read failure degrades to neutral rather than to silence`() = runTest {
         coEvery { dao.recent(any()) } throws IllegalStateException("db gone")
         assertTrue(engine.isGoodTime(), "a database error should not permanently mute the assistant")

@@ -117,12 +117,6 @@ interface ProjectNoteDao {
     )
     suspend fun activeFor(projectId: String, limit: Int = 100): List<ProjectNoteEntity>
 
-    @Query(
-        "SELECT * FROM project_notes WHERE projectId = :projectId AND kind = :kind " +
-            "AND state = 'active' ORDER BY createdAt DESC LIMIT :limit",
-    )
-    suspend fun activeOfKind(projectId: String, kind: String, limit: Int = 50): List<ProjectNoteEntity>
-
     /**
      * Subjects already recorded for a project, for the extraction prompt.
      *

@@ -95,11 +95,4 @@ class ContextBudgetResolver @Inject constructor(
             outputCeiling = ceiling,
         )
     }
-
-    /**
-     * Returns a safe `maxTokens` value for the given model id, or `null`
-     * if the provider cannot be resolved (callers then fall back to the
-     * provider's own default).
-     */
-    suspend fun maxTokensFor(modelId: String): Int? = budgetsFor(modelId).maxTokens
 }

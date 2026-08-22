@@ -75,21 +75,4 @@ class CreativeBranchStoreTest {
         assertEquals("archived", slot.captured.status)
     }
 
-    @Test
-    fun updateHead_updates_head_revision_id() = runTest {
-        val existing = CreativeBranchEntity(
-            id = "b1",
-            projectId = "p1",
-            name = "main",
-            headRevisionId = "rev1",
-            status = "active",
-        )
-        coEvery { branchDao.getById("b1") } returns existing
-        val slot = slot<CreativeBranchEntity>()
-        coEvery { branchDao.upsert(capture(slot)) } returns Unit
-
-        store.updateHead("b1", "rev2")
-
-        assertEquals("rev2", slot.captured.headRevisionId)
-    }
 }

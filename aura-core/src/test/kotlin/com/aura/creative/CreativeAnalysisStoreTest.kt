@@ -148,16 +148,6 @@ class CreativeAnalysisStoreTest {
     }
 
     @Test
-    fun `re-analysing a revision replaces its result rather than adding a second`() = runBlocking {
-        val (first, _) = chain()
-        store.saveTension(first, "a1", report("Scene 1" to 2))
-        store.saveTension(first, "a1", report("Scene 1" to 9))
-
-        assertEquals(9, store.tensionFor(first)!!.scenes.single().tension)
-        assertEquals(1, db.creativeAnalysisDao().forArtifact("a1", CreativeAnalysisEntity.KIND_TENSION).size)
-    }
-
-    @Test
     fun `scenes that were flat and stayed flat are the notes nobody acted on`() = runBlocking {
         val (first, second) = chain()
         store.saveTension(first, "a1", report("Scene 1" to 2, "Scene 2" to 8))

@@ -160,29 +160,6 @@ class ClaimResolutionStoreTest {
 
     // ── Scoring ──────────────────────────────────────────────────────────
 
-    /**
-     * The single rule the whole design rests on. `no_longer_true` means the
-     * belief was right and the world moved; scoring it as a miss makes measured
-     * confidence fall as Aura learns more.
-     */
-    @Test
-    fun `no_longer_true is recorded but never scored`() {
-        belief("b1")
-        belief("b2")
-        belief("b3")
-        record("b1", ClaimResolutionEntity.VERDICT_NEVER_TRUE)
-        record("b2", ClaimResolutionEntity.VERDICT_CONFIRMED)
-        record("b3", ClaimResolutionEntity.VERDICT_NO_LONGER_TRUE)
-
-        val dao = db.claimResolutionDao()
-        assertEquals("all three must be kept", 3, runBlocking { dao.totalCount() })
-        assertEquals("only two carry a right/wrong signal", 2, runBlocking { dao.scoredCount() })
-        assertTrue(
-            runBlocking { dao.scoredSince(0L) }
-                .none { it.verdict == ClaimResolutionEntity.VERDICT_NO_LONGER_TRUE },
-        )
-    }
-
     @Test
     fun `outcome maps confirmed to one, never_true to zero, and world change to null`() {
         assertEquals(1f, ClaimResolutionEntity.outcome(ClaimResolutionEntity.VERDICT_CONFIRMED))

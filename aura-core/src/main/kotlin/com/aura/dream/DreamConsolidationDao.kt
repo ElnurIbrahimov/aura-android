@@ -35,9 +35,6 @@ interface DreamConsolidationDao {
     @Query("SELECT * FROM dream_summaries WHERE id = :id")
     suspend fun byId(id: String): DreamSummaryEntity?
 
-    @Query("SELECT * FROM dream_summaries WHERE clusterId = :clusterId")
-    suspend fun byClusterId(clusterId: String): DreamSummaryEntity?
-
     @Query("SELECT COUNT(*) FROM dream_summaries")
     suspend fun count(): Int
 

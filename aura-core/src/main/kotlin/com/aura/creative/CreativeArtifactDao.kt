@@ -53,14 +53,8 @@ interface CreativeArtifactDao {
     @Query("SELECT * FROM creative_artifacts ORDER BY updatedAt DESC")
     suspend fun allForBackup(): List<CreativeArtifactEntity>
 
-    @Query("SELECT COUNT(*) FROM creative_artifacts WHERE projectId = :projectId")
-    suspend fun countForProject(projectId: kotlin.String): Int
-
     @Query("DELETE FROM creative_artifacts WHERE id = :id")
     suspend fun delete(id: kotlin.String)
-
-    @Query("DELETE FROM creative_artifacts WHERE projectId = :projectId")
-    suspend fun deleteAllForProject(projectId: kotlin.String)
 
     @Query("DELETE FROM creative_artifacts")
     suspend fun deleteAll()
@@ -102,9 +96,6 @@ interface CreativeRevisionDao {
 
     @Query("SELECT * FROM creative_revisions ORDER BY createdAt DESC")
     suspend fun allForBackup(): List<CreativeRevisionEntity>
-
-    @Query("DELETE FROM creative_revisions WHERE artifactId = :artifactId")
-    suspend fun deleteForArtifact(artifactId: kotlin.String)
 
     /**
      * Current-revision text of this project's scenes containing [term].

@@ -125,6 +125,7 @@ aura-android-clean/
 - Tool ceiling is WRITE_LOCAL; screen control excluded by name as well as risk. Gates are made impossible rather than handled
 - `RealtimeVoiceService` (typed `microphone` FGS) keeps a call alive backgrounded; its End action closes the socket, not just the service
 - **Entry point:** `ChatRoute`'s mic button opens `LiveCallSheet` (live call or push-to-talk), and `LiveCallViewModel` starts the service before the controller — a call opened before the FGS exists is one the system may kill mid-sentence. Everything above this line was true and unreachable until 2026-08-18: nothing constructed `RealtimeCallController`, and `LiveCallSheet` had no caller. `ProjectSpineIsWiredTest` gates the path now
+- **Exit point:** `LiveCallStatus` carries an End call button wired to `LiveCallViewModel.endCall`, which closes the socket first and stops the foreground service second. Until 2026-08-22 that method had no caller and the status line had no button, so a running call could be left only from the notification, by outlasting the ten-minute budget, or by clearing the ViewModel. `onEndCall` takes no default, so dropping the wire is a build error rather than a dead button — and the gate above asserts the exit separately from the entry, because it passed for as long as this was broken
 - `seedContext` is deliberately empty. A realtime session is a different model with no access to the conversation's memory, and the sheet says so before the user taps; seeding it partially would make that warning false rather than the call better
 - `RealtimeCallController`'s state is mutated by three concurrent coroutines (event collector, mic pump, end job). It carried a private `update` extension doing `value = block(value)` that shadowed kotlinx's atomic one at all nine call sites — a lost-update race that was harmless only while nothing could reach it
 
@@ -213,7 +214,7 @@ a tie. Recorded hands are never scheduled: `screen_act` needs a session a person
 - Hilt 2.60.1, Room 2.8.4, WorkManager 2.11.2
 - minSdk 26, targetSdk 35, compileSdk 37
 - Release: R8 minification + resource shrinking, upload-keystore signing via `local.properties`
-- 3,655 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
+- 3,613 unit tests, 0 failures (gated by `scripts/check-test-count.sh`)
 - 82 registered tools, 17 provider configurations (8 provider classes — 10 of the 17 are
   `OllamaCloudProvider` with a different base URL; the other 7 are `AnthropicProvider`,
   `GeminiProvider`, `GroqProvider`, `OpenRouterProvider`, `MoaProvider`,
@@ -311,6 +312,7 @@ The system message is composed per step in `MemoryAugmentedAgenticLoop`. Order m
 - **Stopword-only queries** fall back to a substring LIKE — `MATCH ''` is a SQLite syntax error,
   not an empty result.
 - **No lexical overlap** falls back to a bounded vector scan (2,000 most-active scoped rows).
+- **Settings follow the embedder, per query.** `MemoryStore.activeConfig` returns `RetrievalConfig.SEMANTIC` when `embedder.isSemantic()` and `config.autoTuneToEmbedder` is on, and `config` otherwise. Both halves matter: the semantic preset applied to hash vectors measured 0.4837 against 0.7976, and a semantic model at the hash-era defaults buys +0.011 where the pair buys +0.311. It asked `modelId() == OnDeviceEmbedder.MODEL_ID` until 2026-08-22, which meant the cloud embedding path — the one README recommends — never reached the preset at all. `autoTuneToEmbedder` is off in `RetrievalEvalRunner` only, because there the config is the experiment and an auto-switch would collapse both arms of the Gate B A/B onto one setting.
 - **Reranking** runs over the top 20 when ≥5 candidates survive. It is an LLM prompt scorer on a cheap model — 4 candidates per call, batches in parallel, so up to 5 remote calls per recall — not a cross-encoder model. `RetrievalConfig.rerankMode` defaults to `RerankMode.LLM`; the enum's only other value is `OFF`, the kill switch. There is no local cross-encoder mode to select, and the reranker is skipped entirely when the caller passes no model.
 
 ## Consciousness layer

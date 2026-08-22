@@ -67,9 +67,6 @@ object WorldClock {
         return if (nextDueAt > now) nextDueAt - now else 0L
     }
 
-    /** World days elapsed at [tick]. One tick is one day, so this is the identity. */
-    fun worldDay(tick: Long): Long = tick
-
     /** A plain "Year 3, day 42" label. No calendar system is assumed. */
     fun label(tick: Long): String {
         val year = tick / DAYS_PER_WORLD_YEAR

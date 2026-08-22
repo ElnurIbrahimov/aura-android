@@ -102,26 +102,6 @@ class AgentRunStoreTest {
     }
 
     @Test
-    fun resumeFromCheckpoint_returns_pending_active_steps() = runTest {
-        val cp = RunCheckpointEntity(
-            id = "cp1",
-            agentRunId = "run1",
-            stateJson = """{"activeStepIds":["s1","s3"]}""",
-        )
-        coEvery { checkpointDao.latestForRun("run1") } returns cp
-        coEvery { stepDao.forRun("run1") } returns listOf(
-            StepEntity(id = "s1", agentRunId = "run1", status = "PENDING"),
-            StepEntity(id = "s2", agentRunId = "run1", status = "SUCCESS"),
-            StepEntity(id = "s3", agentRunId = "run1", status = "PENDING"),
-        )
-
-        val resumable = store.resumeFromCheckpoint("run1")
-        assertEquals(2, resumable.size)
-        assertTrue(resumable.any { it.id == "s1" })
-        assertTrue(resumable.any { it.id == "s3" })
-    }
-
-    @Test
     fun requestApproval_creates_and_emits_event() = runTest {
         val approvalSlot = slot<ApprovalRequestEntity>()
         coEvery { approvalDao.upsert(capture(approvalSlot)) } returns Unit

@@ -50,13 +50,6 @@ class ConsciousnessLayerTest {
     }
 
     @Test
-    fun `NarrativeSelf updateRelationshipState sets note`() {
-        val ns = NarrativeSelf(ctx())
-        ns.updateRelationshipState("Strong, collaborative")
-        assertTrue(ns.toPrompt().contains("Relationship"))
-    }
-
-    @Test
     fun `NarrativeSelf reset preserves identity anchors`() {
         val ns = NarrativeSelf(ctx())
         ns.updateFromDream("growth", listOf("c1"), listOf("q1"))
@@ -217,31 +210,4 @@ class ConsciousnessLayerTest {
         assertTrue(tom.model.value.emotionalState.valence < 0f)
     }
 
-    @Test
-    fun `TheoryOfMind updateTopic adds new topic`() {
-        val tom = TheoryOfMind(ctx())
-        tom.updateTopic("Kotlin", 0.3f, "user wrote Kotlin code")
-        assertTrue(tom.model.value.topics.containsKey("Kotlin"))
-        assertEquals(1, tom.model.value.topics["Kotlin"]!!.interactions)
-    }
-
-    @Test
-    fun `TheoryOfMind updateTopic increases existing topic level`() {
-        val tom = TheoryOfMind(ctx())
-        tom.updateTopic("Python", 0.2f, "first mention")
-        tom.updateTopic("Python", 0.3f, "second mention")
-        val topic = tom.model.value.topics["Python"]!!
-        assertEquals(2, topic.interactions)
-        assertTrue(topic.level > 0.5f)
-    }
-
-    @Test
-    fun `TheoryOfMind decayTopics reduces confidence`() {
-        val tom = TheoryOfMind(ctx())
-        tom.updateTopic("Rust", 0.5f, "user asked about Rust")
-        val before = tom.model.value.topics["Rust"]!!.confidence
-        tom.decayTopics(168f) // 1 week
-        val after = tom.model.value.topics["Rust"]!!.confidence
-        assertTrue(after < before)
-    }
 }

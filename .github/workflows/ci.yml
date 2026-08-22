@@ -97,6 +97,15 @@ jobs:
       - name: Hardcoded user-visible strings
         run: bash scripts/check-hardcoded-strings.sh
 
+      # The 2026-08-22 sweep removed 121 declarations that nothing could reach,
+      # 59 of which had passing tests. That work is worth nothing if the count
+      # regrows, and it regrows the way the hardcoded-string count did: one PR
+      # at a time, each addition individually defensible. A ratchet, not a
+      # proof — the script states what it cannot see rather than implying it
+      # sees everything.
+      - name: Unreachable declarations
+        run: bash scripts/check-dead-code.sh
+
   build-test:
     needs: gates
     runs-on: ubuntu-latest

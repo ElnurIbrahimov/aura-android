@@ -113,14 +113,6 @@ class AffinityTracker @Inject constructor(
     }
 
     /**
-     * Invalidate the directive cache. Call after recordTurn() if the
-     * level may have changed.
-     */
-    fun invalidateCache() {
-        cachedDirective = null
-    }
-
-    /**
      * The stored score and last-interaction timestamp, before decay.
      *
      * [load] applies decay before returning, which is correct for reading the

@@ -122,9 +122,6 @@ interface CorrectionDao {
     @Query("SELECT * FROM corrections WHERE id = :id")
     suspend fun byId(id: String): CorrectionEntity?
 
-    @Query("SELECT * FROM corrections WHERE targetId = :targetId AND undoneAt IS NULL ORDER BY createdAt DESC")
-    suspend fun forTarget(targetId: String): List<CorrectionEntity>
-
     /**
      * Live scoped demotions, for the recall path.
      *

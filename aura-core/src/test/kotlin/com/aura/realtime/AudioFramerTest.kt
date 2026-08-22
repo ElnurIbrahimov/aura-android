@@ -114,20 +114,4 @@ class AudioFramerTest {
         assertEquals(24_000 * 2 * 20 / 1000, AudioFormatSpec.FRAME_BYTES)
         assertEquals(20, AudioFormatSpec.bytesToMs(AudioFormatSpec.FRAME_BYTES.toLong()))
     }
-
-    @Test
-    fun `byte and millisecond conversions round-trip`() {
-        // playedMs is computed from this, and it is what the server truncates
-        // to on barge-in — an error here desynchronises the conversation.
-        listOf(20L, 100L, 1_000L, 60_000L).forEach { ms ->
-            assertEquals(ms, AudioFormatSpec.bytesToMs(AudioFormatSpec.msToBytes(ms)))
-        }
-    }
-
-    @Test
-    fun `one minute of audio is the expected size`() {
-        // Sanity on the constant itself: 24kHz * 2 bytes * 60s ≈ 2.9MB/min,
-        // which is the number the metered-connection warning is based on.
-        assertEquals(24_000L * 2 * 60, AudioFormatSpec.msToBytes(60_000))
-    }
 }

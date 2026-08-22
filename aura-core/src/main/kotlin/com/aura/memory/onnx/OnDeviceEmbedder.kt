@@ -49,6 +49,9 @@ class OnDeviceEmbedder(
 
     override fun dimension(): Int = DIMENSION
 
+    /** nomic-embed-text-v1.5. The reason `RetrievalConfig.SEMANTIC` exists. */
+    override fun isSemantic(): Boolean = true
+
     /** True once the model file is present and can be loaded. */
     fun isAvailable(): Boolean = modelFile.isFile && modelFile.length() > MIN_MODEL_BYTES
 

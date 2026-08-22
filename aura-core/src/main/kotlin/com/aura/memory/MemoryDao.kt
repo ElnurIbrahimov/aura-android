@@ -52,15 +52,6 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE category = :category AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
     suspend fun byCategory(category: String, limit: Int = 50): List<MemoryEntity>
 
-    @Query("SELECT * FROM memories WHERE scope = :scope AND retiredAt IS NULL ORDER BY accessedAt DESC LIMIT :limit")
-    suspend fun byScope(scope: String, limit: Int = 50): List<MemoryEntity>
-
-    @Query("SELECT * FROM memories WHERE (scope = 'general' OR scope LIKE :scopePrefix) AND retiredAt IS NULL ORDER BY accessedAt DESC LIMIT :limit")
-    suspend fun withinScope(scopePrefix: String, limit: Int = 50): List<MemoryEntity>
-
-    @Query("SELECT * FROM memories WHERE scope IN (:scopes) AND retiredAt IS NULL ORDER BY createdAt DESC LIMIT :limit")
-    suspend fun byScopes(scopes: List<String>, limit: Int = 50): List<MemoryEntity>
-
     @Query(
         "SELECT * FROM memories WHERE scope IN (:scopes) AND content LIKE :query ESCAPE '\\' " +
             "AND retiredAt IS NULL ORDER BY decayScore DESC LIMIT :limit",
@@ -385,9 +376,6 @@ interface MemoryFeedbackDao {
 
     @Query("SELECT * FROM memory_feedback ORDER BY createdAt ASC")
     suspend fun all(): List<MemoryFeedbackEntity>
-
-    @Query("SELECT * FROM memory_feedback WHERE memoryId = :memoryId ORDER BY createdAt DESC LIMIT :limit")
-    suspend fun byMemoryId(memoryId: String, limit: Int = 20): List<MemoryFeedbackEntity>
 
     @Query("SELECT COUNT(*) FROM memory_feedback WHERE memoryId = :memoryId AND kind = :kind")
     suspend fun count(memoryId: String, kind: String): Int

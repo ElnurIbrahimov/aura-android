@@ -123,27 +123,19 @@ interface RetrievalLabelDao {
     @Query("SELECT * FROM retrieval_labels ORDER BY createdAt ASC")
     suspend fun all(): List<RetrievalLabelEntity>
 
+    /**
+     * Every label harvested from one conversation, newest turn last.
+     *
+     * Kept although only tests call it: it is the only way to observe a write
+     * production really performs, and a write nothing can read back is a write
+     * nothing can prove.
+     * `MemoryStore.query` writes a row per returned memory on both the lexical
+     * and the vector-fallback branch, and `RetrievalLabelHarvestIsWiredTest`
+     * proves it through this query. The fallback branch has its own `return`
+     * and its own history of being forgotten.
+     */
     @Query("SELECT * FROM retrieval_labels WHERE conversationId = :conversationId ORDER BY turnTimestamp ASC, rank ASC")
     suspend fun forConversation(conversationId: String): List<RetrievalLabelEntity>
-
-    /** The judge's work queue. */
-    @Query("SELECT * FROM retrieval_labels WHERE sampled = 1 AND grade IS NULL ORDER BY createdAt ASC LIMIT :limit")
-    suspend fun ungradedSampled(limit: Int): List<RetrievalLabelEntity>
-
-    /**
-     * How many distinct turns are already sampled since [since].
-     *
-     * Counted by turn rather than by row because sampling draws to a target
-     * number of *queries*. A rate cannot reach the ~50-query floor
-     * `docs/RETRIEVAL_EVAL.md` sets: 30 days at a plausible 20 recall-turns a
-     * day is ~600 turns, and 5% of that is ~30 queries — permanently below the
-     * point where a 3% retrieval gain is distinguishable from luck.
-     */
-    @Query(
-        "SELECT COUNT(DISTINCT conversationId || '|' || turnTimestamp) FROM retrieval_labels " +
-            "WHERE sampled = 1 AND createdAt >= :since",
-    )
-    suspend fun countSampledTurnsSince(since: Long): Int
 
     /**
      * Grade one (query, memory) pair.

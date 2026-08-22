@@ -50,9 +50,6 @@ class CreativeAnalysisStore @Inject constructor(
         true
     }.onFailure { Log.w(TAG, "storing tension failed", it) }.getOrDefault(false)
 
-    suspend fun tensionFor(revisionId: String): TensionReport? =
-        read(revisionId, CreativeAnalysisEntity.KIND_TENSION)
-
     /**
      * How this revision's tension differs from the one it was written from.
      *

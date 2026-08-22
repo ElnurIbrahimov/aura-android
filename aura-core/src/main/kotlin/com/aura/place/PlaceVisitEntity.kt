@@ -102,13 +102,6 @@ interface PlaceVisitDao {
     @Query("SELECT * FROM place_visits WHERE arrivedAt >= :since ORDER BY arrivedAt DESC LIMIT :limit")
     suspend fun since(since: Long, limit: Int): List<PlaceVisitEntity>
 
-    /** Places seen most often, for "the usual place". */
-    @Query(
-        "SELECT * FROM place_visits GROUP BY lat, lon " +
-            "ORDER BY SUM(lastSeenAt - arrivedAt) DESC LIMIT :limit",
-    )
-    suspend fun mostFrequent(limit: Int): List<PlaceVisitEntity>
-
     @Query("SELECT COUNT(*) FROM place_visits")
     suspend fun count(): Int
 

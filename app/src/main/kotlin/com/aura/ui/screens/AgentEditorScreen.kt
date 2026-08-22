@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -36,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.aura.ui.components.AGENT_ACCENT_COUNT
+import com.aura.ui.components.AgentMark
 import com.aura.ui.theme.AuraThemeTokens
 import com.aura.ui.viewmodel.AgentEditorViewModel
 import com.aura.ui.theme.AuraSpacing
@@ -133,6 +136,35 @@ fun AgentEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
+        Spacer(modifier = Modifier.height(AuraSpacing.xs))
+
+        // Colour. `AgentEditorViewModel.updateColor` existed with no caller, so
+        // every agent a user created kept whichever accent its template seeded
+        // and the field was decoration in the schema. It is not decoration on
+        // screen: AgentChip and AgentPickerSheet both render it, and telling two
+        // agents apart at a glance is the whole job of a mark.
+        //
+        // The swatches ARE AgentMark, at the size it renders elsewhere, so the
+        // choice is made against what it will actually look like rather than
+        // against a colour dot that resembles it.
+        Text(
+            text = stringResource(R.string.agent_colour),
+            style = MaterialTheme.typography.labelLarge,
+            color = AuraThemeTokens.colors.textPrimary.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(AuraSpacing.xxs))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+            repeat(AGENT_ACCENT_COUNT) { index ->
+                AgentMark(
+                    agentName = state.name.ifBlank { "Aura" },
+                    accentIndex = index,
+                    selected = state.color == index,
+                    modifier = Modifier.clickable(enabled = !state.isBuiltin) {
+                        viewModel.updateColor(index)
+                    },
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(AuraSpacing.xs))
 
         // Description

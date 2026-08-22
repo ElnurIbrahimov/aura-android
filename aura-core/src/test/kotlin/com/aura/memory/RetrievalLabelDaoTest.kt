@@ -133,36 +133,4 @@ class RetrievalLabelDaoTest {
 
         assertNull(dao.forConversation("c1").first().grade)
     }
-
-    /** The judge's work queue: sampled turns that have not been graded yet. */
-    @Test
-    fun `ungraded sampled rows are what the judge picks up`() = runBlocking {
-        dao.upsert(label(memoryId = "sampled-ungraded", sampled = true, grade = null))
-        dao.upsert(label(memoryId = "sampled-graded", sampled = true, grade = 2))
-        dao.upsert(label(memoryId = "unsampled", sampled = false, grade = null))
-
-        val pending = dao.ungradedSampled(limit = 10)
-
-        assertEquals(1, pending.size)
-        assertEquals("sampled-ungraded", pending.first().memoryId)
-    }
-
-    /**
-     * Sampling draws to a target count rather than a fixed rate, so the store
-     * has to be able to ask how many turns are already marked in the window.
-     * A 5% rate cannot reach the ~50-query floor `RETRIEVAL_EVAL.md` sets:
-     * 30 days at a plausible 20 recall-turns a day is ~600 turns, which is
-     * ~30 queries — permanently below the noise floor.
-     */
-    @Test
-    fun `sampled turns are counted by turn, not by row`() = runBlocking {
-        // One turn, three recalled memories — that is one sampled *query*.
-        dao.upsert(label(turnTimestamp = 1_000L, memoryId = "m1", sampled = true))
-        dao.upsert(label(turnTimestamp = 1_000L, memoryId = "m2", sampled = true))
-        dao.upsert(label(turnTimestamp = 1_000L, memoryId = "m3", sampled = true))
-        dao.upsert(label(turnTimestamp = 2_000L, memoryId = "m1", sampled = true))
-        dao.upsert(label(turnTimestamp = 3_000L, memoryId = "m1", sampled = false))
-
-        assertEquals(2, dao.countSampledTurnsSince(0L))
-    }
 }

@@ -165,17 +165,15 @@ class McpToolBridge @Inject constructor(
         }
     }
 
-
-    /** Remove all MCP-registered tools from the registry. */
-    fun unregisterAll() {
-        for (name in registeredNames) {
-            toolRegistry.unregister(name)
-        }
-        registeredNames.clear()
-        registeredNameToServerId.clear()
-    }
-
-    /** Names currently registered by this bridge. */
+    /**
+     * Names currently registered by this bridge.
+     *
+     * Kept although only tests call it: it is the only way to observe what
+     * [syncTools] did, and what it does is both halves of the lifecycle —
+     * registering a connected server's tools and unregistering the ones whose
+     * server left the list or dropped its connection. A registry that silently
+     * keeps a disconnected server's tools shows the model tools that cannot run.
+     */
     fun registeredToolNames(): Set<kotlin.String> = registeredNames.toSet()
 
     private fun mcpToolName(serverId: kotlin.String, toolName: kotlin.String): kotlin.String =

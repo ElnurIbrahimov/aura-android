@@ -126,7 +126,6 @@ class ConsciousnessPersistenceTest {
         val first = TheoryOfMind(ctx(dir))
         first.updateFromMessage("Can you refactor the async database migration schema?")
         first.updateFromMessage("The deploy protocol is broken again, why is it still failing")
-        first.updateTopic("kotlin", levelDelta = 0.4f, signal = "discussed coroutines")
         first.save()
 
         val second = TheoryOfMind(ctx(dir))
@@ -135,7 +134,12 @@ class ConsciousnessPersistenceTest {
         val model = second.model.value
         assertEquals(2, model.commStyle.sampleCount)
         assertTrue("technical depth should have been learned", model.commStyle.technicalDepth > 0.3f)
-        assertEquals(0.9f, model.topics["kotlin"]!!.level, 0.001f)
+        // No topic assertion: `updateTopic` and `decayTopics` were the only
+        // writers of `UserModel.topics` and neither had a production caller, so
+        // the map was always empty in the app. They are gone; the field and its
+        // two `toPrompt` branches stay, because `topics` is persisted and lives
+        // in the backup schema, and a restore from an older file can still
+        // carry rows.
         assertNotEquals(0L, model.lastInteractionAt)
     }
 

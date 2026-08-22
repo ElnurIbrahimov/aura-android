@@ -144,29 +144,33 @@ data class Specialist(
 
         /** Lookup by name. */
         fun byName(name: String): Specialist? = ALL.find { it.name == name }
+    }
 
-        /**
-         * Apply user overrides to the built-in specialists. Returns
-         * the specialist with its systemPrompt replaced if an
-         * override exists in the map, otherwise the original.
-         */
-        fun applyOverrides(overrides: Map<String, String>): List<Specialist> =
-            ALL.map { s ->
-                val custom = overrides[s.name]
-                if (custom.isNullOrBlank()) s
-                else s.copy(systemPrompt = custom)
-            }
-
-        /**
-         * Apply user-defined tool overrides. Returns specialists with
-         * their toolsAllowed replaced if an override exists in the map.
-         * Empty map or missing key = keep the default toolsAllowed.
-         */
-        fun applyToolOverrides(overrides: Map<String, Set<String>>): List<Specialist> =
-            ALL.map { s ->
-                val customTools = overrides[s.name]
-                if (customTools == null || customTools.isEmpty()) s
-                else s.copy(toolsAllowed = customTools)
-            }
+    /**
+     * This specialist with the user's Settings overrides applied.
+     *
+     * Blank or missing keeps the built-in, for both halves: an empty prompt is
+     * how a text field looks after the user clears it, and an empty tool set
+     * would silently disarm the specialist rather than reset it. "Absent" and
+     * "deliberately empty" are not distinguishable in the JSON these maps are
+     * decoded from, so the safe reading is the only available one.
+     *
+     * There were two functions here — `applyOverrides` and `applyToolOverrides`,
+     * both returning the whole of [ALL] — and neither had a caller.
+     * `ChatSendController` had the same rules written out again inline, which
+     * is the shape that lets the two copies disagree without anything failing.
+     * One function, on the type it is about, called from the one place that
+     * needs it.
+     */
+    fun withOverrides(
+        promptOverrides: Map<String, String>,
+        toolOverrides: Map<String, Set<String>>,
+    ): Specialist {
+        val prompt = promptOverrides[name]
+        val tools = toolOverrides[name]
+        return copy(
+            systemPrompt = if (prompt.isNullOrBlank()) systemPrompt else prompt,
+            toolsAllowed = if (tools.isNullOrEmpty()) toolsAllowed else tools,
+        )
     }
 }

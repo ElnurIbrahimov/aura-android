@@ -72,12 +72,6 @@ private class FakeProactiveEventDaoForCount : ProactiveEventDao {
     override suspend fun byCorrelationTag(tag: String, limit: Int): List<ProactiveEventEntity> =
         rows.filter { it.correlationTag == tag }.sortedByDescending { it.timestamp }.take(limit)
 
-    override suspend fun deleteByCorrelationTag(tag: kotlin.String): Int {
-        val before = rows.size
-        rows.removeAll { it.correlationTag == tag }
-        return before - rows.size
-    }
-
     override suspend fun countByType(type: kotlin.String): Int =
         rows.count { it.eventType == type }
 }

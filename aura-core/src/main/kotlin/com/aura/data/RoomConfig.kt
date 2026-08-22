@@ -12,8 +12,19 @@ import com.aura.core.BuildConfig
  * Applies:
  * - Schema export (production builds validate migrations).
  * - Explicit migrations.
- * - Debug-only destructive fallback on downgrade so developers don't get blocked
- *   during schema churn; upgrades always require explicit migrations.
+ * - Destructive fallback on downgrade **only** under `-PdevDb`; upgrades always
+ *   require explicit migrations.
+ *
+ * That last line used to read "debug-only", which sounds like a developer
+ * safeguard and was not one: README's install instructions build
+ * `:app:assembleDebug` and `adb install` it, so the sideloaded APK on the phone
+ * was the build with the wipe enabled. Installing a previous APK — the ordinary
+ * way to back out of a bad build — emptied all eleven databases silently.
+ *
+ * With the flag off, a downgrade throws `Can't downgrade database from version
+ * X to Y` when the database is opened, so the app refuses to launch until the
+ * newer APK is reinstalled. Louder and worse-looking; recoverable, which the
+ * wipe is not.
  */
 object RoomConfig {
 
@@ -38,7 +49,7 @@ object RoomConfig {
             .addMigrations(*migrations)
             .apply {
                 callback?.let { addCallback(it) }
-                if (BuildConfig.DEBUG) {
+                if (BuildConfig.ALLOW_DESTRUCTIVE_DOWNGRADE) {
                     fallbackToDestructiveMigrationOnDowngrade()
                 }
             }

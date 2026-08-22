@@ -250,15 +250,6 @@ class MemoryDaoContractTest {
     // --- Scope queries ---
 
     @Test
-    fun `byScopes filters to specified scopes`() = runBlocking {
-        dao.insert(memory("general fact"))
-        dao.insert(memory("private fact", scope = "agent:agent_1"))
-        val hits = dao.byScopes(listOf("agent:agent_1"), limit = 10)
-        assertEquals(1, hits.size)
-        assertEquals("private fact", hits.first().content)
-    }
-
-    @Test
     fun `allByScopes returns all rows in scopes`() = runBlocking {
         dao.insert(memory("fact 1"))
         dao.insert(memory("fact 2", scope = "agent:agent_1"))
@@ -291,18 +282,6 @@ class MemoryDaoContractTest {
         assertEquals("limit must cap the scan", 2, hits.size)
         assertEquals("most active first", "hot", hits[0].content)
         assertEquals("second most active", "warm", hits[1].content)
-    }
-
-    @Test
-    fun `withinScope matches general plus prefix`() = runBlocking {
-        dao.insert(memory("general fact"))
-        dao.insert(memory("project fact", scope = "project:p1"))
-        dao.insert(memory("other fact", scope = "agent:agent_1"))
-        val hits = dao.withinScope("project:%", limit = 10)
-        // general always included + prefix matches
-        assertTrue(hits.any { it.content == "general fact" })
-        assertTrue(hits.any { it.content == "project fact" })
-        assertTrue(!hits.any { it.content == "other fact" })
     }
 
     // --- Category and decay ---

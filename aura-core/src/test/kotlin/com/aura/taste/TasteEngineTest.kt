@@ -40,26 +40,6 @@ class TasteEngineTest {
     }
 
     @Test
-    fun recordReaction_positive_uses_positive_weight() = runTest {
-        val signalSlot = slot<PreferenceSignalEntity>()
-        coEvery { signalDao.upsert(capture(signalSlot)) } returns Unit
-
-        engine.recordReaction("p1", "a1", "thumbs_up", true)
-
-        assertTrue(signalSlot.captured.weight > 0)
-    }
-
-    @Test
-    fun recordReaction_negative_uses_negative_weight() = runTest {
-        val signalSlot = slot<PreferenceSignalEntity>()
-        coEvery { signalDao.upsert(capture(signalSlot)) } returns Unit
-
-        engine.recordReaction("p1", "a1", "thumbs_down", false)
-
-        assertTrue(signalSlot.captured.weight < 0)
-    }
-
-    @Test
     fun recordEdit_uses_negative_weight() = runTest {
         val signalSlot = slot<PreferenceSignalEntity>()
         coEvery { signalDao.upsert(capture(signalSlot)) } returns Unit

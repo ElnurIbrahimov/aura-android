@@ -121,16 +121,6 @@ class AgentRunDatabaseContractTest {
     }
 
     @Test
-    fun `activeRuns returns only non-terminal statuses`() = runBlocking {
-        runDao.upsert(run("r1", status = "RUNNING"))
-        runDao.upsert(run("r2", status = "COMPLETED"))
-        runDao.upsert(run("r3", status = "PAUSED"))
-        val active = runDao.activeRuns()
-        assertEquals(2, active.size)
-        assertTrue(active.none { it.status == "COMPLETED" })
-    }
-
-    @Test
     fun `recent orders by startedAt DESC`() = runBlocking {
         runDao.upsert(run("r1").copy(startedAt = 1000L))
         runDao.upsert(run("r2").copy(startedAt = 2000L))
@@ -169,24 +159,6 @@ class AgentRunDatabaseContractTest {
         assertEquals("test goal", got!!.description)
     }
 
-    @Test
-    fun `markAchieved sets isAchieved and achievedAt`() = runBlocking {
-        goalDao.upsert(goal("g1", "r1"))
-        goalDao.markAchieved("g1", true, 99999L)
-        val got = goalDao.getById("g1")!!
-        assertTrue(got.isAchieved)
-        assertEquals(99999L, got.achievedAt)
-    }
-
-    @Test
-    fun `deleteForRun removes goals for a specific run`() = runBlocking {
-        goalDao.upsert(goal("g1", "r1"))
-        goalDao.upsert(goal("g2", "r2"))
-        goalDao.deleteForRun("r1")
-        assertNull(goalDao.forRun("r1"))
-        assertNotNull(goalDao.forRun("r2"))
-    }
-
     // --- Step CRUD ---
 
     @Test
@@ -222,13 +194,6 @@ class AgentRunDatabaseContractTest {
         assertEquals("RUNNING", got.status)
     }
 
-    @Test
-    fun `step setPostcondition sets postconditionResult`() = runBlocking {
-        stepDao.upsert(step("s1", "r1"))
-        stepDao.setPostcondition("s1", """{"passed":true}""")
-        assertEquals("""{"passed":true}""", stepDao.getById("s1")!!.postconditionResult)
-    }
-
     // --- AgentEvent ---
 
     @Test
@@ -238,13 +203,6 @@ class AgentRunDatabaseContractTest {
         val events = eventDao.forRun("r1")
         assertEquals(2, events.size)
         assertEquals("e2", events.first().id) // earlier timestamp first
-    }
-
-    @Test
-    fun `recentForRun limits results`() = runBlocking {
-        for (i in 0 until 10) eventDao.insert(event("e$i", "r1").copy(timestamp = i.toLong()))
-        val recent = eventDao.recentForRun("r1", limit = 3)
-        assertEquals(3, recent.size)
     }
 
     // --- ApprovalRequest ---

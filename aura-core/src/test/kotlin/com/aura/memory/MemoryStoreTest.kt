@@ -551,4 +551,92 @@ class MemoryStoreTest {
         val id = localStore.store("test2", "user", "preference", 0.5f, scope = "general")
         assertNotNull(id, "store must return an id even if evolutionHooks.onMemoryStored throws")
     }
+
+    /**
+     * A semantic embedder that is not the on-device model — i.e. exactly what
+     * `CloudEmbedder` is once an embedding model is set in Settings.
+     */
+    private class SemanticEmbedder : Embedder {
+        override suspend fun embed(text: String) = FloatArray(768) { 0.1f }
+        override fun modelId() = "nomic-embed-text"
+        override fun dimension() = 768
+        override fun isSemantic() = true
+    }
+
+    @Test
+    fun `a cloud embedding model opens the vector arm of candidate selection`() = runTest {
+        // The defect: activeConfig switched on `modelId() == OnDeviceEmbedder.MODEL_ID`,
+        // so the ONLY embedder that could ever reach RetrievalConfig.SEMANTIC was the
+        // 137 MB on-device download. README tells the user to set an Ollama Cloud
+        // embedding model instead — and that path stored real 768-dim semantic vectors
+        // and then scored them with vectorPoolSize = 0, which means the vector arm of
+        // candidate selection never runs and a memory sharing no word with the query
+        // cannot become a candidate at all.
+        //
+        // Verified through the DAO rather than by reading the config, because the
+        // config is private and the DAO call is the whole point: it is the only place
+        // a relevance signal reaches pool SELECTION.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        val hit = MemoryEntity(
+            id = "m1", content = "kotlin coroutines", source = "user", category = "fact",
+            importance = 0.5f, embedding = null,
+            createdAt = 1L, accessedAt = 1L, accessCount = 0, decayScore = 1.0f,
+            tags = "", metadata = "", scope = "general",
+        )
+        // Non-empty, so the vector FALLBACK branch (which calls the same DAO method)
+        // is not reached and the only possible caller is the pool arm.
+        coEvery { dao.searchFts(any(), any(), any()) } returns listOf(hit)
+        coEvery { dao.vectorScanCandidates(any(), any()) } returns emptyList()
+
+        MemoryStore(dao, SemanticEmbedder(), WriteGate(), memoryEditDao, memoryFeedbackDao)
+            .query("what did I say about coroutines")
+
+        coVerify(atLeast = 1) { dao.vectorScanCandidates(any(), any()) }
+    }
+
+    @Test
+    fun `a hash embedder leaves the vector arm shut`() = runTest {
+        // The other direction, and it is not symmetry for its own sake: SEMANTIC's
+        // settings applied to hash vectors measured 0.4837 against 0.7976 — actively
+        // worse than doing nothing. A switch that turned on for everyone would be a
+        // regression dressed as a fix.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        val hit = MemoryEntity(
+            id = "m1", content = "kotlin coroutines", source = "user", category = "fact",
+            importance = 0.5f, embedding = null,
+            createdAt = 1L, accessedAt = 1L, accessCount = 0, decayScore = 1.0f,
+            tags = "", metadata = "", scope = "general",
+        )
+        coEvery { dao.searchFts(any(), any(), any()) } returns listOf(hit)
+
+        MemoryStore(dao, FakeEmbedder(384), WriteGate(), memoryEditDao, memoryFeedbackDao)
+            .query("what did I say about coroutines")
+
+        coVerify(exactly = 0) { dao.vectorScanCandidates(any(), any()) }
+    }
+
+    @Test
+    fun `the eval harness can refuse the auto-switch`() = runTest {
+        // RetrievalEvalRunner sets this, and the Gate B A/B is meaningless without it:
+        // PrecomputedEmbedder serves real sentence-transformer vectors and reports
+        // isSemantic() = true, so an unconditional upgrade would push BOTH arms of the
+        // comparison onto SEMANTIC and the experiment would measure the difference
+        // between a config and itself.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        val hit = MemoryEntity(
+            id = "m1", content = "kotlin coroutines", source = "user", category = "fact",
+            importance = 0.5f, embedding = null,
+            createdAt = 1L, accessedAt = 1L, accessCount = 0, decayScore = 1.0f,
+            tags = "", metadata = "", scope = "general",
+        )
+        coEvery { dao.searchFts(any(), any(), any()) } returns listOf(hit)
+
+        MemoryStore(
+            dao, SemanticEmbedder(), WriteGate(), memoryEditDao, memoryFeedbackDao,
+            null, null, null,
+            RetrievalConfig.DEFAULT.copy(autoTuneToEmbedder = false),
+        ).query("what did I say about coroutines")
+
+        coVerify(exactly = 0) { dao.vectorScanCandidates(any(), any()) }
+    }
 }

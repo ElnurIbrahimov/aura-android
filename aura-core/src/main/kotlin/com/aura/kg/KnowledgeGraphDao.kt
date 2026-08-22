@@ -116,9 +116,6 @@ interface KnowledgeGraphDao {
         edges.forEach { insertEdge(it) }
     }
 
-    @Query("SELECT * FROM kg_edges WHERE targetId = :targetId")
-    suspend fun edgesTo(targetId: String): List<EdgeEntity>
-
     /**
      * The claims Aura extracted from one conversation turn.
      *

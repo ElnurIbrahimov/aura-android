@@ -40,6 +40,12 @@ fun ChatTimeline(
     onReact: (Long, Reaction) -> Unit = { _, _ -> },
     onEditMessage: (Int, String) -> Unit = { _, _ -> },
     onShareMessage: (String) -> Unit = {},
+    /**
+     * Toggle whether turn [index] survives compaction. No default: this is the
+     * only writer of `Turn.pinned`, a field that was persisted and backed up
+     * for months while nothing set it and nothing read it.
+     */
+    onTogglePin: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (state.conversationLoading) {
@@ -96,6 +102,12 @@ fun ChatTimeline(
                             timestamp = turn.timestamp,
                             groupedWithPrevious = continuesRun,
                             onEdit = { onEditMessage(index, it) },
+                            pinned = turn.pinned,
+                            // Required, and the user half renders no action row,
+                            // so nothing calls it. Passed rather than defaulted
+                            // because the default is what let the flag stay
+                            // unreachable in the first place.
+                            onTogglePin = { onTogglePin(index) },
                         )
                     }
                     turn.assistant?.let { rawAssistant ->
@@ -142,6 +154,8 @@ fun ChatTimeline(
                             onShowSources = onShowSourcesForLastTurn,
                             onReact = { reaction -> onReact(turn.timestamp, reaction) },
                             onShare = { onShareMessage(assistant) },
+                            pinned = turn.pinned,
+                            onTogglePin = { onTogglePin(index) },
                         )
                     }
                     turn.toolTurns.forEach { toolTurn ->

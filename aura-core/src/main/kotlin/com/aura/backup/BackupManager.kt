@@ -302,6 +302,19 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * where those tables were genuinely empty. Roll that back after a
      * `purgeAll` and the rows are gone, with nothing in the log tying the loss
      * to the restore.
+     *
+     * The first paragraph is true of **every** table now. For a long time it
+     * described six of them — the evolution three, the forum two and tool
+     * policies — while the other fifty-odd read straight off their DAO, so any
+     * one of them throwing took the whole export with it. `strict` was
+     * unaffected by that (an unwrapped read aborts either way, which is what
+     * strict wants); what was missing was the tolerance the non-strict path
+     * promised, on the run that matters most — the one where the database is
+     * already damaged.
+     *
+     * What is deliberately NOT wrapped: `preferences` and `usage` are not
+     * tables, `consciousness` carries [strict] into its own reader, and
+     * `keyCanary` is computed. Each of those failing is a reason to fail.
      */
     internal suspend fun snapshot(
         appVersionName: String,
@@ -316,86 +329,90 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
         val backup = AuraBackup(
             exportedAt = now,
             appVersionName = appVersionName,
-            memories = memoryDao.allForExport().map { it.toBackup() },
-            memoryEdits = memoryEditDao.allForBackup().map { it.toBackup() },
-            documents = documentDao.allForBackup().map { it.toBackup() },
-            creativeProjects = creativeProjectDao.allForBackup().map { it.toBackup() },
-            conversations = conversationDao.allForExport().map { it.toBackup() },
+            memories = readTable(strict, "memories", unreadable) { memoryDao.allForExport().map { it.toBackup() } },
+            memoryEdits = readTable(strict, "memory edits", unreadable) { memoryEditDao.allForBackup().map { it.toBackup() } },
+            documents = readTable(strict, "documents", unreadable) { documentDao.allForBackup().map { it.toBackup() } },
+            creativeProjects = readTable(strict, "creative projects", unreadable) { creativeProjectDao.allForBackup().map { it.toBackup() } },
+            conversations = readTable(strict, "conversations", unreadable) { conversationDao.allForExport().map { it.toBackup() } },
+            // Each side wrapped separately rather than the pair: they are two
+            // tables and either can fail on its own, and edges without nodes
+            // still restore — `writeEverything` inserts nodes first and Room
+            // drops orphan edges, which is a smaller loss than the whole file.
             knowledgeGraph = KnowledgeGraphBackup(
-                nodes = kgDao.allNodes().map { it.toBackup() },
-                edges = kgDao.allEdges().map { it.toBackup() },
+                nodes = readTable(strict, "knowledge graph nodes", unreadable) { kgDao.allNodes().map { it.toBackup() } },
+                edges = readTable(strict, "knowledge graph edges", unreadable) { kgDao.allEdges().map { it.toBackup() } },
             ),
-            hands = handDao.getAll().map { it.toBackup() },
-            handRuns = handDao.allRunsForBackup().map { it.toBackup() },
-            tasks = taskDao.all().map { it.toBackup() },
-            reminders = reminderDao.allForBackup().map { it.toBackup() },
-            proactiveEvents = proactiveEventDao.allForBackup().map { it.toBackup() },
-            userProfile = userProfileDao.get()?.toBackup(),
+            hands = readTable(strict, "hands", unreadable) { handDao.getAll().map { it.toBackup() } },
+            handRuns = readTable(strict, "hand runs", unreadable) { handDao.allRunsForBackup().map { it.toBackup() } },
+            tasks = readTable(strict, "tasks", unreadable) { taskDao.all().map { it.toBackup() } },
+            reminders = readTable(strict, "reminders", unreadable) { reminderDao.allForBackup().map { it.toBackup() } },
+            proactiveEvents = readTable(strict, "proactive events", unreadable) { proactiveEventDao.allForBackup().map { it.toBackup() } },
+            userProfile = readRow(strict, "user profile", unreadable) { userProfileDao.get()?.toBackup() },
             preferences = snapshotPreferences(userPreferences),
             usage = usageTracker.snapshot.value,
-            agents = agentDao.allOnce().map { it.toBackup() },
+            agents = readTable(strict, "agents", unreadable) { agentDao.allOnce().map { it.toBackup() } },
             // Schema v10: world model, creative artifacts, taste.
-            beliefs = beliefDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            evidence = evidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            worldEvents = worldEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            opportunities = opportunityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            creativeArtifacts = creativeArtifactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            beliefs = readTable(strict, "beliefs", unreadable) { beliefDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            evidence = readTable(strict, "evidence", unreadable) { evidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            worldEvents = readTable(strict, "world events", unreadable) { worldEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            opportunities = readTable(strict, "opportunities", unreadable) { opportunityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            creativeArtifacts = readTable(strict, "creative artifacts", unreadable) { creativeArtifactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
             // CreativeRevision and CreativeBranch had types in AuraBackup.kt
             // since v0.30.0 but BackupManager never populated them, so
             // every snapshot silently wrote emptyList() for these fields.
             // Until v0.30.x they were dropped on roundtrip; this wires
             // them through snapshot+restore symmetrically.
-            creativeRevisions = creativeRevisionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            creativeBranches = creativeBranchDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            canonFacts = canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            proactiveOutcomes = proactiveOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            livingWorlds = livingWorldDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            livingEvents = livingEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            corrections = correctionDao?.allForExport()?.map { it.toBackup() } ?: emptyList(),
-            openQuestions = openQuestionDao?.allForExport()?.map { it.toBackup() } ?: emptyList(),
-            placeVisits = placeVisitDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            creativeAnalysis = creativeAnalysisDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            preferenceSignals = preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            styleProfiles = styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            creativeRevisions = readTable(strict, "creative revisions", unreadable) { creativeRevisionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            creativeBranches = readTable(strict, "creative branches", unreadable) { creativeBranchDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            canonFacts = readTable(strict, "canon facts", unreadable) { canonFactDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            proactiveOutcomes = readTable(strict, "proactive outcomes", unreadable) { proactiveOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            livingWorlds = readTable(strict, "living worlds", unreadable) { livingWorldDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            livingEvents = readTable(strict, "living events", unreadable) { livingEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            corrections = readTable(strict, "corrections", unreadable) { correctionDao?.allForExport()?.map { it.toBackup() } ?: emptyList() },
+            openQuestions = readTable(strict, "open questions", unreadable) { openQuestionDao?.allForExport()?.map { it.toBackup() } ?: emptyList() },
+            placeVisits = readTable(strict, "place visits", unreadable) { placeVisitDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            creativeAnalysis = readTable(strict, "creative analysis", unreadable) { creativeAnalysisDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            preferenceSignals = readTable(strict, "preference signals", unreadable) { preferenceSignalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            styleProfiles = readTable(strict, "style profiles", unreadable) { styleProfileDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
             // Schema v11: dream database.
-            dreamSummaries = dreamSummaryDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            routines = routineDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            contradictions = contradictionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            kgEdgeProposals = kgEdgeProposalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            dreamSummaries = readTable(strict, "dream summaries", unreadable) { dreamSummaryDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            routines = readTable(strict, "routines", unreadable) { routineDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            contradictions = readTable(strict, "contradictions", unreadable) { contradictionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            kgEdgeProposals = readTable(strict, "kg edge proposals", unreadable) { kgEdgeProposalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
             // Schema v12: durable state previously dropped on backup/restore.
-            memoryFeedback = memoryFeedbackDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            memoryFeedback = readTable(strict, "memory feedback", unreadable) { memoryFeedbackDao?.all()?.map { it.toBackup() } ?: emptyList() },
             // Schema v26: harvested retrieval labels.
-            retrievalLabels = retrievalLabelDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            retrievalLabels = readTable(strict, "retrieval labels", unreadable) { retrievalLabelDao?.all()?.map { it.toBackup() } ?: emptyList() },
             // Schema v27: projects and every ledger row, superseded ones included —
             // exporting only the active row would restore a project that has never
             // changed its mind. See AuraBackupSchema27.
-            projects = projectDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            projectNotes = projectNoteDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            projects = readTable(strict, "projects", unreadable) { projectDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            projectNotes = readTable(strict, "project notes", unreadable) { projectNoteDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
             // Schema v28: the only rows here that a person produced by hand.
-            claimResolutions = claimResolutionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            documentChunks = documentChunkDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            referenceIdentities = referenceIdentityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            agentRuns = agentRunDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            agentGoals = goalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            agentSteps = stepDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            agentEvents = agentEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            agentApprovals = approvalRequestDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            runCheckpoints = runCheckpointDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            artifactDependencies = artifactDependencyDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            continuityIssues = continuityIssueDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            creativeSimulations = creativeSimulationDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            evolutionEvidence = evolutionEvidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            evolutionCandidates = evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
+            claimResolutions = readTable(strict, "claim resolutions", unreadable) { claimResolutionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            documentChunks = readTable(strict, "document chunks", unreadable) { documentChunkDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            referenceIdentities = readTable(strict, "reference identities", unreadable) { referenceIdentityDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            agentRuns = readTable(strict, "agent runs", unreadable) { agentRunDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            agentGoals = readTable(strict, "agent goals", unreadable) { goalDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            agentSteps = readTable(strict, "agent steps", unreadable) { stepDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            agentEvents = readTable(strict, "agent events", unreadable) { agentEventDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            agentApprovals = readTable(strict, "agent approvals", unreadable) { approvalRequestDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            runCheckpoints = readTable(strict, "run checkpoints", unreadable) { runCheckpointDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            artifactDependencies = readTable(strict, "artifact dependencies", unreadable) { artifactDependencyDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            continuityIssues = readTable(strict, "continuity issues", unreadable) { continuityIssueDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            creativeSimulations = readTable(strict, "creative simulations", unreadable) { creativeSimulationDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            evolutionEvidence = readTable(strict, "evolution evidence", unreadable) { evolutionEvidenceDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            evolutionCandidates = readTable(strict, "evolution candidates", unreadable) { evolutionCandidateDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
             evolutionProposals = readTable(strict, "evolution proposals", unreadable) { evolutionProposalDao.allForBackup().map { it.toBackup() } },
             evolutionSettings = readTable(strict, "evolution settings", unreadable) { evolutionSettingsDao.all().map { it.toBackup() } },
             evolutionRevisions = readTable(strict, "evolution revisions", unreadable) { evolutionRevisionDao.allForBackup().map { it.toBackup() } },
-            proactiveInteractions = proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            routingOutcomes = routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList(),
-            strategyBandit = strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList(),
+            proactiveInteractions = readTable(strict, "proactive interactions", unreadable) { proactiveInteractionDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            routingOutcomes = readTable(strict, "routing outcomes", unreadable) { routingOutcomeDao?.allForBackup()?.map { it.toBackup() } ?: emptyList() },
+            strategyBandit = readTable(strict, "strategy bandit", unreadable) { strategyBanditDao?.all()?.map { it.toBackup() } ?: emptyList() },
             // Schema v16: council — agent state, relationships, observations, forum.
-            agentStates = agentStateDao?.allOnce()?.map { it.toBackup() } ?: emptyList(),
-            agentRelationships = agentRelationshipDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
-            agentObservations = agentObservationDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList(),
+            agentStates = readTable(strict, "agent states", unreadable) { agentStateDao?.allOnce()?.map { it.toBackup() } ?: emptyList() },
+            agentRelationships = readTable(strict, "agent relationships", unreadable) { agentRelationshipDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList() },
+            agentObservations = readTable(strict, "agent observations", unreadable) { agentObservationDao?.let { dao -> dao.allOnce().map { it.toBackup() } } ?: emptyList() },
             // Uncapped, like agentStates/agentRelationships/agentObservations
             // above. `recent(200)` truncated the exported forum and then
             // derived the votes from the same truncated list, so a rollback
@@ -422,6 +439,13 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
      * partial. A partial snapshot is the dangerous shape: it reads as "those
      * tables were empty", so the rollback purges and then restores less than
      * it destroyed.
+     *
+     * Every table goes through here now. Six did, and the KDoc on [snapshot]
+     * described the tolerance as though it were general — so an export from a
+     * database with one corrupt table threw out of `snapshot` and produced no
+     * file at all, which is the state in which a backup is worth the most. The
+     * six were the ones a previous incident had touched; the other fifty-odd
+     * were never a decision.
      */
     private suspend fun <T> readTable(
         strict: Boolean,
@@ -435,6 +459,27 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
             unreadable += label
         }
         .getOrDefault(emptyList())
+
+    /**
+     * [readTable] for a single row rather than a list.
+     *
+     * Separate because the missing value is `null` here and `emptyList()`
+     * there, and a generic "default" parameter would let a caller pass
+     * something that reads as real data. There is exactly one caller — the user
+     * profile — and one caller is not yet a reason to generalise.
+     */
+    private suspend fun <T> readRow(
+        strict: Boolean,
+        label: String,
+        unreadable: MutableList<String>,
+        read: suspend () -> T?,
+    ): T? = runCatching { read() }
+        .onFailure { error ->
+            Log.w("BackupManager", "$label snapshot failed: ${error.message}", error)
+            if (strict) throw error
+            unreadable += label
+        }
+        .getOrNull()
 
     /**
      * Snapshot the five consciousness stores, or null when none are wired.
@@ -590,11 +635,18 @@ private fun com.aura.evolution.EvolutionRevisionEntity.toBackup() = EvolutionRev
                         //
                         // Purging first meant that a spool which could not be
                         // read left every table empty with nothing to put back,
-                        // and there are two ordinary ways for it to be
-                        // unreadable: the cache it lives in can be evicted by
-                        // the system at any moment, and MERGE never required one
-                        // in the first place — only REPLACE refuses to start
-                        // without it.
+                        // and there are ordinary ways for it to be unreadable:
+                        // MERGE never required one in the first place — only
+                        // REPLACE refuses to start without it — and the write
+                        // itself can fail on a full disk, which is one of the
+                        // states a large import reaches.
+                        //
+                        // This used to argue from the spool living in a cache
+                        // the system can evict. It does not: `writeRollbackSnapshot`
+                        // writes to `filesDir`, which is never reclaimed under
+                        // us. The ordering is right for the reasons above, and
+                        // a reason that is not true is worse than no reason —
+                        // the next person to read it prices the risk wrongly.
                         //
                         // On the merge path that purge was pure loss. Every
                         // delete inside `writeEverything` is guarded on REPLACE,

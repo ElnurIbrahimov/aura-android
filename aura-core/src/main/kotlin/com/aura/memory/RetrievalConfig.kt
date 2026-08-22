@@ -203,6 +203,23 @@ data class RetrievalConfig(
      * Past the deadline the recall proceeds on the lexical signal alone.
      */
     val embedTimeoutMs: Long = 4_000L,
+    /**
+     * Whether [MemoryStore] may replace these settings with [SEMANTIC] when the
+     * embedder in hand reports `isSemantic()`.
+     *
+     * On for the app, where the right settings depend on a model that can
+     * finish downloading, or be configured in Settings, while the process is
+     * running — so the choice has to be made per query rather than once at
+     * startup.
+     *
+     * **Off in the retrieval eval harness**, for the same reason
+     * `RetrievalEvalRunner` already forces `touchOnRecall = false`: there the
+     * config *is* the experiment. `PrecomputedEmbedder` serves real
+     * sentence-transformer vectors and answers `isSemantic()` honestly, so an
+     * auto-switch would quietly collapse both arms of the Gate B A/B onto
+     * SEMANTIC and the comparison would measure nothing.
+     */
+    val autoTuneToEmbedder: Boolean = true,
 ) {
     companion object {
         /** The shipped behaviour when vectors are a hash sketch and cannot be trusted. */

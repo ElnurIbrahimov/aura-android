@@ -83,28 +83,12 @@ class AgentStateStoreTest {
     }
 
     @Test
-    fun ensureState_idempotent() = runBlocking {
-        store.ensureState("agent_general")
-        store.ensureState("agent_general")
-        val all = store.allStatesOnce()
-        assertEquals(1, all.size)
-    }
-
-    @Test
     fun setMoodEnergy_clampsToRange() = runBlocking {
         store.ensureState("agent_general")
         store.setMoodEnergy("agent_general", 150f, -20f)
         val state = store.getState("agent_general")!!
         assertEquals(100f, state.mood, 0.1f)
         assertEquals(0f, state.energy, 0.1f)
-    }
-
-    @Test
-    fun setGoal_updatesGoal() = runBlocking {
-        store.ensureState("agent_general")
-        store.setGoal("agent_general", "Help user sleep better")
-        val state = store.getState("agent_general")!!
-        assertEquals("Help user sleep better", state.currentGoal)
     }
 
     @Test
@@ -169,28 +153,6 @@ class AgentStateStoreTest {
     // ── Observations ──
 
     @Test
-    fun addObservation_storesAndRetrieves() = runBlocking {
-        store.addObservation("agent_general", "user", content = "User seems stressed about deadlines")
-        val obs = store.observationsForAgent("agent_general")
-        assertEquals(1, obs.size)
-        assertTrue(obs[0].content.contains("stressed"))
-    }
-
-    @Test
-    fun unresolvedObservations_returnsOnlyUnresolved() = runBlocking {
-        store.addObservation("agent_general", "user", content = "Observation 1")
-        store.addObservation("agent_general", "user", content = "Observation 2")
-        val obs = store.unresolvedObservations("agent_general")
-        assertEquals(2, obs.size)
-        // Resolve the first one (by insertion order — oldest first)
-        val first = obs.first { it.content == "Observation 1" }
-        store.resolveObservation(first.id)
-        val remaining = store.unresolvedObservations("agent_general")
-        assertEquals(1, remaining.size)
-        assertEquals("Observation 2", remaining[0].content)
-    }
-
-    @Test
     fun resolveAllForAgent_resolvesByTargetType() = runBlocking {
         store.addObservation("agent_general", "user", content = "User obs 1")
         store.addObservation("agent_general", "agent", content = "Agent obs 1")
@@ -200,14 +162,4 @@ class AgentStateStoreTest {
         assertEquals("agent", userObs[0].targetType)
     }
 
-    @Test
-    fun deleteAll_clearsEverything() = runBlocking {
-        store.ensureState("agent_general")
-        store.recordInteraction("a", "b", 10f)
-        store.addObservation("agent_general", "user", content = "test")
-        store.deleteAll()
-        assertTrue(store.allStatesOnce().isEmpty())
-        assertNull(store.getRelationship("a", "b"))
-        assertTrue(store.observationsForAgent("agent_general").isEmpty())
-    }
 }

@@ -100,9 +100,6 @@ class LivingWorldStore @Inject constructor(
         return world
     }
 
-    fun observeEvents(worldId: String, limit: Int = DEFAULT_EVENT_PAGE): Flow<List<LivingEventEntity>> =
-        eventDao.observeRecent(worldId, limit)
-
     suspend fun running(): List<LivingWorldEntity> = worldDao.running()
 
     suspend fun setStatus(worldId: String, status: String) {

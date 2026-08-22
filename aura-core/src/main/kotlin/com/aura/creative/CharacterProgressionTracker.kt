@@ -101,34 +101,6 @@ class CharacterProgressionTracker @Inject constructor(
         }
     }
 
-    /**
-     * Build a progression summary for injection into the world bible context.
-     * This gives the model awareness of where each character is in their arc.
-     */
-    fun buildProgressionSummary(
-        entries: List<ProgressionEntry>,
-    ): String {
-        if (entries.isEmpty()) return ""
-        val byCharacter = entries.groupBy { it.characterName }
-        return buildString {
-            appendLine("CHARACTER PROGRESSIONS:")
-            for ((name, characterEntries) in byCharacter) {
-                append("- $name: ")
-                // Show the progression as a chain
-                val chain = characterEntries.sortedBy { it.timestamp }
-                val states = chain.map { e ->
-                    val parts = mutableListOf<String>()
-                    parts.add(e.emotionalState)
-                    if (e.changeDescription.isNotBlank()) parts.add(e.changeDescription)
-                    if (e.newBelief.isNotBlank()) parts.add("now believes: ${e.newBelief}")
-                    if (e.newRelationship.isNotBlank()) parts.add(e.newRelationship)
-                    parts.joinToString(" → ")
-                }
-                appendLine(states.joinToString(" | ") { "(${it})" })
-            }
-        }
-    }
-
     private suspend fun resolveModel(): String {
         userPreferences.defaultModel.first()?.takeIf(String::isNotBlank)?.let { return it }
         for (provider in providerRegistry.configured()) {

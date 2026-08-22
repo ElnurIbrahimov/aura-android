@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -143,7 +145,7 @@ fun DreamsScreen(
                     )
                 }
                 items(summaries, key = { it.id }) { summary ->
-                    SummaryCard(summary)
+                    SummaryCard(summary, onDelete = { viewModel.deleteSummary(summary.id) })
                 }
             }
             if (routines.isNotEmpty()) {
@@ -208,15 +210,37 @@ fun DreamsScreen(
 }
 
 @Composable
-private fun SummaryCard(summary: DreamSummaryEntity) {
+private fun SummaryCard(
+    summary: DreamSummaryEntity,
+    /**
+     * No default. `DreamsViewModel.deleteSummary` existed with no caller, so a
+     * dream summary the user disagreed with was permanent — the consolidator
+     * writes them unattended and nothing could take one back.
+     */
+    onDelete: () -> Unit,
+) {
     AuraCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             verticalArrangement = Arrangement.spacedBy(AuraSpacing.xxs),
         ) {
-            Text(
-                summary.compressedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    summary.compressedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                // Deletes the summary, never the memories it was made from.
+                // Consolidation is lossy by design and the sources stay in the
+                // memory store, so this discards a bad reading rather than the
+                // reading material.
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Filled.DeleteOutline,
+                        contentDescription = stringResource(R.string.delete_summary),
+                        tint = AuraThemeTokens.colors.textSecondary,
+                    )
+                }
+            }
             if (summary.dominantTags.isNotBlank()) {
                 Text(
                     summary.dominantTags.split(",").joinToString("  ") { "#${it.trim()}" },

@@ -52,6 +52,16 @@ class CloudEmbedder @Inject constructor(
     }
 
     /**
+     * True exactly when [modelId] resolves to something other than the hash.
+     *
+     * Deliberately the same condition, so the two answers cannot drift: a blank
+     * `embeddingModel` means this class is a pass-through to [localEmbedder],
+     * and a pass-through to a hash sketch must not pull retrieval onto
+     * `RetrievalConfig.SEMANTIC`.
+     */
+    override fun isSemantic(): Boolean = providerKeys.embeddingModel.isNotBlank()
+
+    /**
      * Embedding dimensionality, learned from the wire rather than declared here.
      *
      * This used to be a hardcoded model→dimension table with a 384 default for

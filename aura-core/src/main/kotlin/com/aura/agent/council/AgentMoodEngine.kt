@@ -80,15 +80,6 @@ class AgentMoodEngine @Inject constructor(
     }
 
     /**
-     * Whether an agent is in burnout (cynical, abstains more).
-     * Mood below threshold = burned out.
-     */
-    suspend fun isBurnedOut(agentId: kotlin.String): Boolean {
-        val state = stateStore.getState(agentId) ?: return false
-        return state.mood < BURNOUT_THRESHOLD
-    }
-
-    /**
      * Filter agents who can participate (not exhausted).
      * Returns the subset of [agentIds] with energy above threshold.
      */

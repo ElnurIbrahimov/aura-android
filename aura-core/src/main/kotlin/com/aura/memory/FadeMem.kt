@@ -20,8 +20,4 @@ object FadeMem {
         val floor = (1.0 - totalDays / 730.0).coerceIn(0.0, 1.0)
         return (decay * floor).toFloat().coerceIn(0f, 1f)
     }
-
-    fun shouldKeep(memory: MemoryEntity, now: Long = System.currentTimeMillis()): Boolean {
-        return compute(memory.createdAt, memory.accessedAt, now) > 0.01f
-    }
 }

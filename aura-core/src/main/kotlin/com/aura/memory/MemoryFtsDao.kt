@@ -19,7 +19,16 @@ interface MemoryFtsDao {
     @Query("SELECT COUNT(*) FROM memories_fts")
     suspend fun count(): Int
 
-    /** The indexed content for a memory id, or null when the triggers missed it. */
+    /**
+     * The indexed content for a memory id, or null when the triggers missed it.
+     *
+     * Kept although only tests call it: it is the only way to observe a write
+     * production really performs, and a write nothing can read back is a write
+     * nothing can prove.
+     * The index is maintained by SQL triggers, which no Kotlin code executes —
+     * so this is the only way to tell a working trigger from a silently empty
+     * index, and an empty index returns no candidates and no error.
+     */
     @Query("SELECT content FROM memories_fts WHERE memoryId = :memoryId")
     suspend fun contentFor(memoryId: String): String?
 }

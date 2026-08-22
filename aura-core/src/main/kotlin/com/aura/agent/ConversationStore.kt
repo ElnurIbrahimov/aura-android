@@ -310,13 +310,6 @@ class ConversationStore @Inject constructor(
     }
 
     /**
-     * Return all unique project names from the conversation list.
-     */
-    suspend fun allProjects(): List<String> {
-        return recent(limit = 200).mapNotNull { projectOf(it) }.distinct()
-    }
-
-    /**
      * Recent conversations with pinned ones sorted to the top.
      * The list is otherwise ordered by updatedAt desc, same as
      * [recent]. Pinned items also have a stable insertion order
@@ -514,7 +507,6 @@ class ConversationStore @Inject constructor(
         )
     }
 }
-
 
 /** Fast cosine similarity between two same-dimension float arrays. */
 private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {

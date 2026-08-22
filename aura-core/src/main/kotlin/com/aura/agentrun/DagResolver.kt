@@ -24,42 +24,6 @@ class DagResolver @Inject constructor() {
         }
     }
 
-    /**
-     * Topological sort of steps. Returns batches of steps that can
-     * execute in parallel. Throws if a cycle is detected.
-     */
-    fun topologicalBatches(steps: List<StepEntity>): List<List<StepEntity>> {
-        val stepMap = steps.associateBy { it.id }
-        val depthCache = mutableMapOf<kotlin.String, Int>()
-        val inProgress = mutableSetOf<kotlin.String>()
-
-        fun depthOf(step: StepEntity): Int {
-            if (step.id in depthCache) return depthCache[step.id]!!
-            if (step.id in inProgress) throw IllegalStateException("Cycle detected at step ${step.id}")
-            inProgress.add(step.id)
-
-            val depIds = parseDependsOn(step.dependsOn)
-            val maxDepDepth = depIds.mapNotNull { depId ->
-                stepMap[depId]?.let { depthOf(it) + 1 }
-            }.maxOrNull() ?: 0
-
-            inProgress.remove(step.id)
-            depthCache[step.id] = maxDepDepth
-            return maxDepDepth
-        }
-
-        // Compute depth for each step
-        for (step in steps) depthOf(step)
-
-        // Group by depth
-        val maxDepth = depthCache.values.maxOrNull() ?: 0
-        val batches = (0..maxDepth).map { mutableListOf<StepEntity>() }
-        for (step in steps) {
-            val d = depthCache[step.id]!!
-            batches[d].add(step)
-        }
-        return batches
-    }
 
     /**
      * Returns true if all dependencies of [step] have status=SUCCESS.
@@ -90,18 +54,6 @@ class DagResolver @Inject constructor() {
      */
     fun blockedStepIds(steps: List<StepEntity>): List<kotlin.String> {
         return steps.filter { it.status == "BLOCKED" }.map { it.id }
-    }
-
-    /**
-     * Returns true if a cycle exists in the dependency graph.
-     */
-    fun hasCycle(steps: List<StepEntity>): kotlin.Boolean {
-        return try {
-            topologicalBatches(steps)
-            false
-        } catch (e: IllegalStateException) {
-            true
-        }
     }
 
     /**

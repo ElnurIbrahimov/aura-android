@@ -82,6 +82,12 @@ fun ChatContent(
     onClear: () -> Unit,
     onEditMessage: (Int, String) -> Unit = { _, _ -> },
     onShareMessage: (String) -> Unit = {},
+    /**
+     * Toggle whether turn [index] survives compaction. No default: this is the
+     * only writer of `Turn.pinned`, a field that was persisted and backed up
+     * for months while nothing set it and nothing read it.
+     */
+    onTogglePin: (Int) -> Unit,
     onStopTts: () -> Unit = {},
     onSendSuggestion: (String) -> Unit,
     onRetry: () -> Unit,
@@ -179,6 +185,9 @@ fun ChatContent(
                 state.conversationLoading -> ChatTimeline(
                     state = state,
                     listState = listState,
+                    // Nothing is on screen to tap yet; passed because the
+                    // parameter is required, which is the point of it being so.
+                    onTogglePin = onTogglePin,
                     modifier = Modifier.weight(1f),
                 )
                 state.conversation.turns.isEmpty() && !state.streaming -> {
@@ -192,6 +201,7 @@ fun ChatContent(
                     onReact = onReact,
                     onEditMessage = onEditMessage,
                     onShareMessage = onShareMessage,
+                    onTogglePin = onTogglePin,
                     modifier = Modifier.weight(1f),
                 )
             }

@@ -790,13 +790,25 @@ object WorldEngine {
     private fun permille(value: Long, cap: Long): Long =
         if (cap <= 0L) 0L else (value * 1_000L / cap).coerceIn(0L, 1_000L)
 
+    /**
+     * Composite map keys, joined on [KEY_SEP].
+     *
+     * The separator was a raw NUL byte typed into the string literal rather
+     * than the escape. It produces the same string and it made the source
+     * hostile to every tool that reads it: `grep` reports this file as binary
+     * and prints no matches, and when `PlayerView.kt` carried one inside
+     * git's 8,000-byte binary-sniff window git rendered two commits of it as
+     * `Bin 7501 -> 9497 bytes` — no diff, no blame, no merge. These five
+     * escaped that only by sitting past the window, which one deletion above
+     * them would have changed.
+     */
     private fun beliefKey(observerId: String, subjectId: String, key: String): String =
-        "$observerId $subjectId $key"
+        "$observerId$KEY_SEP$subjectId$KEY_SEP$key"
 
-    private fun stockKey(entityId: String, key: String): String = "$entityId $key"
+    private fun stockKey(entityId: String, key: String): String = "$entityId$KEY_SEP$key"
 
     private fun relationKey(relation: Relation): String =
-        "${relation.fromId} ${relation.toId} ${relation.kind}"
+        "${relation.fromId}$KEY_SEP${relation.toId}$KEY_SEP${relation.kind}"
 
     const val KIND_STOCK_SHIFT = "stock_shift"
     const val KIND_RELATION_SHIFT = "relation_shift"

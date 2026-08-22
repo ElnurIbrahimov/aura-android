@@ -136,19 +136,6 @@ class ModelRoleRouter @Inject constructor(
     }
 
     /**
-     * Observable form of [explicit] — emits the user's own choice for [role],
-     * or null when they have not made one.
-     *
-     * Named for what it does. It was `observe`, which read as the observable
-     * counterpart of [resolve] but shared none of its fallbacks, so a subscriber
-     * saw null for a role that [resolve] would happily answer.
-     */
-    fun observeExplicit(role: ModelRole): Flow<kotlin.String?> =
-        userPreferences.forRole(role).map { roleModel ->
-            roleModel.takeIf { !it.isNullOrBlank() }
-        }
-
-    /**
      * Returns true if any model is configured for [role] (either
      * role-specific or the default fallback).
      */

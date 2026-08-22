@@ -418,6 +418,7 @@ fun ChatRoute(
             }
             context.startActivity(android.content.Intent.createChooser(intent, "Share"))
         },
+        onTogglePin = viewModel::togglePinTurn,
         onStopTts = viewModel::stopTts,
         onSendSuggestion = { prompt ->
             followLiveEdge = true
@@ -605,6 +606,7 @@ fun ChatRoute(
             modelName = state.effectiveModel.substringAfter(':'),
             remainingSeconds = liveCall.remainingMs / 1000,
             echoCancellation = liveCall.echoCancellation,
+            onEndCall = { liveCallViewModel.endCall() },
         )
     }
 

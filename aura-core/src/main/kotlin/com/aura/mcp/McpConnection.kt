@@ -217,9 +217,6 @@ internal class McpConnection(
     @Volatile
     private var sessionId: kotlin.String? = null
 
-    /** Visible for tests. */
-    internal fun currentSessionId(): kotlin.String? = sessionId
-
     private fun buildHttpRequest(bodyJson: kotlin.String): Request {
         val builder = Request.Builder().url(config.url)
             .post(bodyJson.toRequestBody(mediaTypeJson))

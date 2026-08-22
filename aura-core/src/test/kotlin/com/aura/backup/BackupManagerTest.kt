@@ -1255,4 +1255,44 @@ class BackupManagerTest {
 
         assertTrue(manager.snapshot(appVersionName = "0.1.0").unreadableTables.isEmpty())
     }
+
+    @Test
+    fun `an ordinary table failing no longer costs the whole export`() = runTest {
+        // The tolerance above covered six tables. `memories` — the largest thing
+        // in the file and the hardest to reproduce — was not one of them, so a
+        // single corrupt row there threw straight out of snapshot() and the user
+        // got no backup at all. That is the run where a backup is worth the most:
+        // the database is already damaged, and everything else in it is still
+        // readable.
+        mockSnapshotDeps()
+        coEvery { memoryDao.allForExport() } throws IllegalStateException("row 4211 is corrupt")
+
+        val backup = manager.snapshot(appVersionName = "0.1.0")
+
+        assertEquals(listOf("memories"), backup.unreadableTables)
+        assertTrue(backup.memories.isEmpty())
+        assertTrue(
+            backup.conversations.isNotEmpty() || backup.unreadableTables.size == 1,
+            "everything the damaged table did not touch must still be in the file",
+        )
+    }
+
+    @Test
+    fun `the rollback snapshot still refuses to come back partial`() = runTest {
+        // The other half, and the reason `strict` exists at all. A partial
+        // pre-restore snapshot reads as "those tables were empty", so the
+        // rollback purges and restores less than it destroyed. Widening the
+        // non-strict tolerance must not widen this.
+        mockSnapshotDeps()
+        coEvery { memoryDao.allForExport() } throws IllegalStateException("row 4211 is corrupt")
+
+        var threw = false
+        try {
+            manager.snapshot(appVersionName = "0.1.0", strict = true)
+        } catch (expected: IllegalStateException) {
+            threw = true
+        }
+
+        assertTrue(threw, "a strict snapshot must abort rather than silently drop a table")
+    }
 }

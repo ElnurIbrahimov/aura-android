@@ -416,20 +416,6 @@ private fun AnnotatedString.Builder.appendInlineMarkdownClickable(text: String, 
 }
 
 /**
- * Check if text contains markdown code blocks.
- */
-fun hasCodeBlock(text: String): Boolean = codeBlockRegex.containsMatchIn(text)
-
-/**
- * Extract code blocks from text. Returns list of (language, code) pairs.
- */
-fun extractCodeBlocks(text: String): List<Pair<String, String>> {
-    return codeBlockRegex.findAll(text).map { match ->
-        Pair(match.groupValues[1], match.groupValues[2])
-    }.toList()
-}
-
-/**
  * Render a markdown string as a Compose Column.
  * Code blocks are rendered as separate boxed sections; the rest is
  * rendered as AnnotatedString in Text composables. Tables are

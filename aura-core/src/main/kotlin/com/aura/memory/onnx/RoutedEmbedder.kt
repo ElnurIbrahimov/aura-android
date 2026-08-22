@@ -39,6 +39,16 @@ class RoutedEmbedder(
     override fun dimension(): Int =
         if (useOnDevice()) onDevice.dimension() else fallback.dimension()
 
+    /**
+     * Delegated through the same split as [modelId] and [dimension], so the
+     * answer changes at the same instant they do — the moment the 137 MB
+     * download lands, and the moment a cloud embedding model is configured.
+     * A `CloudEmbedder` fallback with a model set is semantic; one without is
+     * a hash sketch wearing this class's name.
+     */
+    override fun isSemantic(): Boolean =
+        if (useOnDevice()) onDevice.isSemantic() else fallback.isSemantic()
+
     override suspend fun embed(text: String): FloatArray = embed(text, EmbedKind.DOCUMENT)
 
     /**

@@ -83,7 +83,4 @@ object Redactor {
         }
         return out
     }
-
-    /** True when [scrub] would change [text]. For tests and for logging counts. */
-    fun containsPersonalData(text: String): Boolean = scrub(text) != text
 }

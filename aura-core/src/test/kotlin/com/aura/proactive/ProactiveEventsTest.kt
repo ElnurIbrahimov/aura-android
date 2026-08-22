@@ -284,7 +284,6 @@ class ProactiveEventsTest {
  * timestamp DESC, `countSince(since)` over timestamp > since).
  */
 private class FakeProactiveEventDao : ProactiveEventDao {
-    override suspend fun deleteByCorrelationTag(tag: kotlin.String): Int = 0
     private val rows = mutableListOf<ProactiveEventEntity>()
 
     override suspend fun insert(event: ProactiveEventEntity): Long {

@@ -87,9 +87,6 @@ class ProjectStore @Inject constructor(
     suspend fun activeNotes(projectId: String, limit: Int = 100): List<ProjectNoteEntity> =
         noteDao.activeFor(projectId, limit)
 
-    suspend fun activeNotesOfKind(projectId: String, kind: String, limit: Int = 50): List<ProjectNoteEntity> =
-        noteDao.activeOfKind(projectId, kind, limit)
-
     /** The vocabulary the extractor should prefer, so subjects converge. */
     suspend fun activeSubjects(projectId: String): List<String> = noteDao.activeSubjects(projectId)
 
@@ -169,10 +166,6 @@ class ProjectStore @Inject constructor(
         }
         return note
     }
-
-    /** Mark a blocker cleared. Distinct from superseded — nothing replaced it. */
-    suspend fun resolveNote(noteId: String): Boolean =
-        noteDao.resolve(noteId, System.currentTimeMillis()) > 0
 
     private companion object {
         const val TAG = "ProjectStore"

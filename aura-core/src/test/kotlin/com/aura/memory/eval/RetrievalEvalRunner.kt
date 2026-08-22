@@ -85,7 +85,16 @@ class RetrievalEvalRunner(
             // `touch` mutates accessedAt/accessCount/decayScore, all of which
             // feed fusion, so query N+1 would see a corpus altered by query N
             // and the whole run would depend on query order.
-            val evalConfig = config.copy(touchOnRecall = false)
+            //
+            // autoTuneToEmbedder forced off for the same class of reason. In the
+            // app, `MemoryStore.activeConfig` upgrades to RetrievalConfig.SEMANTIC
+            // whenever the embedder reports real vectors — which is the fix that
+            // finally reaches cloud embedding models. Here it would be a bug:
+            // PrecomputedEmbedder serves genuine sentence-transformer vectors and
+            // says so, so the upgrade would fire on the semantic arm of every
+            // Gate B A/B and silently overwrite the settings the experiment is
+            // varying. In this harness the config IS the experiment.
+            val evalConfig = config.copy(touchOnRecall = false, autoTuneToEmbedder = false)
             val store = MemoryStore(
                 dao,
                 embedder,

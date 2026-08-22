@@ -78,9 +78,6 @@ interface WorldEventDao {
     @Query("SELECT * FROM world_events WHERE consumed = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun unconsumed(limit: Int = 100): List<WorldEventEntity>
 
-    @Query("SELECT * FROM world_events WHERE agentScope IN (:scopes) AND consumed = 0 ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun unconsumedInScopes(scopes: List<String>, limit: Int = 100): List<WorldEventEntity>
-
     @Query("SELECT * FROM world_events ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<WorldEventEntity>>
 
@@ -108,9 +105,6 @@ interface OpportunityDao {
 
     @Query("SELECT * FROM opportunities WHERE status = 'proposed' ORDER BY urgency DESC, benefit DESC LIMIT :limit")
     fun observeProposed(limit: Int = 50): Flow<List<OpportunityEntity>>
-
-    @Query("SELECT * FROM opportunities WHERE agentScope IN (:scopes) AND status = 'proposed' ORDER BY urgency DESC, benefit DESC LIMIT :limit")
-    fun observeProposedInScopes(scopes: List<String>, limit: Int = 50): Flow<List<OpportunityEntity>>
 
     @Query("SELECT * FROM opportunities WHERE status = 'proposed' AND (snoozeUntil = 0 OR snoozeUntil <= :now) ORDER BY urgency DESC, benefit DESC LIMIT :limit")
     suspend fun pending(now: kotlin.Long, limit: Int = 50): List<OpportunityEntity>

@@ -26,12 +26,8 @@ class AgentStateStore @Inject constructor(
 
     // ── State ──
 
-    fun allStates(): Flow<List<AgentStateEntity>> = stateDao.all()
-
     suspend fun getState(agentId: kotlin.String): AgentStateEntity? =
         stateDao.getByAgent(agentId)
-
-    suspend fun allStatesOnce(): List<AgentStateEntity> = stateDao.allOnce()
 
     /**
      * Ensure a state row exists for [agentId]. If missing, create one
@@ -45,10 +41,6 @@ class AgentStateStore @Inject constructor(
 
     suspend fun setMoodEnergy(agentId: kotlin.String, mood: Float, energy: Float) {
         stateDao.updateMoodEnergy(agentId, mood.coerceIn(0f, 100f), energy.coerceIn(0f, 100f), System.currentTimeMillis())
-    }
-
-    suspend fun setGoal(agentId: kotlin.String, goal: kotlin.String) {
-        stateDao.updateGoal(agentId, goal, System.currentTimeMillis())
     }
 
     suspend fun recordParticipation(agentId: kotlin.String) {
@@ -116,15 +108,8 @@ class AgentStateStore @Inject constructor(
         ))
     }
 
-    suspend fun observationsForAgent(agentId: kotlin.String, limit: Int = 20): List<AgentObservationEntity> =
-        obsDao.forAgent(agentId, limit)
-
     suspend fun unresolvedObservations(agentId: kotlin.String, limit: Int = 10): List<AgentObservationEntity> =
         obsDao.unresolvedForAgent(agentId, limit)
-
-    suspend fun resolveObservation(id: Long) {
-        obsDao.resolve(id)
-    }
 
     suspend fun resolveAllForAgent(agentId: kotlin.String, targetType: kotlin.String) {
         obsDao.resolveAllForAgent(agentId, targetType)

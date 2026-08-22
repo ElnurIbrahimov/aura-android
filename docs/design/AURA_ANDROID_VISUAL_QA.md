@@ -21,7 +21,7 @@ After any connected-test run, reinstall the exact APK before screenshots because
 
 ```bash
 ADB="$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe"
-"$ADB" install -r app/build/outputs/apk/debug/app-debug.apk
+"$ADB" install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 "$ADB" shell am start -W -n com.aura.debug/com.aura.MainActivity
 "$ADB" shell dumpsys activity activities
 "$ADB" shell uiautomator dump /sdcard/aura.xml

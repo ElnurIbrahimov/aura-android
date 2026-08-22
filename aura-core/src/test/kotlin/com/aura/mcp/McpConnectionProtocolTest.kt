@@ -104,27 +104,6 @@ class McpConnectionProtocolTest {
         }
 
     @Test
-    fun `session id from initialize is echoed on subsequent requests`() = runBlocking {
-        server.dispatcher = jsonRpcDispatcher(sessionId = "session-abc-123")
-        val conn = connection()
-
-        val health = conn.initialize()
-        assertEquals(McpConnectionState.CONNECTED, health.state)
-        assertEquals("session-abc-123", conn.currentSessionId())
-
-        conn.listTools()
-
-        // Request order: initialize, notifications/initialized, tools/list.
-        val initRequest = server.takeRequest()
-        assertNull("initialize is sent before any session id exists", initRequest.getHeader("Mcp-Session-Id"))
-        val notification = server.takeRequest()
-        assertEquals("session-abc-123", notification.getHeader("Mcp-Session-Id"))
-        val toolsRequest = server.takeRequest()
-        assertEquals("session-abc-123", toolsRequest.getHeader("Mcp-Session-Id"))
-        assertEquals("tools/list", requestMethod(toolsRequest))
-    }
-
-    @Test
     fun `notifications initialized is sent after a successful initialize`() = runBlocking {
         server.dispatcher = jsonRpcDispatcher()
         val conn = connection()

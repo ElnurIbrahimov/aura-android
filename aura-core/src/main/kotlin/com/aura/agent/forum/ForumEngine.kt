@@ -62,10 +62,6 @@ class ForumEngine @Inject constructor(
         ))
     }
 
-    /** Get all votes for a post. */
-    suspend fun votesFor(postId: Long): List<ForumVoteEntity> =
-        voteDao.forPost(postId)
-
     /** Tally votes: returns (for, against, abstain) counts. */
     suspend fun tally(postId: Long): VoteTally {
         val forVotes = voteDao.count(postId, "for")

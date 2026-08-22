@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -210,7 +211,7 @@ fun CreativeProjectScreen(
                     else -> item {
                         when (selectedTab) {
                             0 -> WorldBibleEditor(project = project, onSave = viewModel::saveWorld)
-                            2 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration)
+                            2 -> WritingRoom(state.output, state.generating, state.wordCount, viewModel::generate, viewModel::cancelGeneration, state.thinkingEnabled, viewModel::toggleThinking)
                             4 -> SimulationRoom(project, state.output, state.generating, viewModel::generate, viewModel::cancelGeneration, viewModel::canonizeSimulation)
                             5 -> CouncilRoom(state.output, state.generating, viewModel::runCouncil, viewModel::cancelGeneration)
                             6 -> CraftRoom(state.output, state.generating, viewModel::applyCraftTool, viewModel::cancelGeneration)
@@ -292,6 +293,14 @@ private fun WritingRoom(
     wordCount: Int,
     onGenerate: (CreativeMode, String, String) -> Unit,
     onCancel: () -> Unit,
+    thinkingEnabled: Boolean,
+    /**
+     * No default. `CreativeStudioViewModel.toggleThinking` had no caller, so
+     * `thinkingEnabled` was permanently true and the branch it guards —
+     * `if (thinkingEnabled) thinkingBudget else 0` — could only ever take one
+     * side. A switch with no way to flip it is a constant with extra steps.
+     */
+    onToggleThinking: () -> Unit,
 ) {
     var mode by remember { mutableStateOf(CreativeMode.DRAFT) }
     var prompt by remember { mutableStateOf("") }
@@ -315,6 +324,29 @@ private fun WritingRoom(
             label = { Text(promptLabel(mode)) },
             supportingText = { Text(mode.instruction) },
         )
+        // Extended thinking costs tokens and latency on every generate, and
+        // drafting prose is the mode where it buys least — a scene does not
+        // need a reasoning budget the way a continuity check does. Beside the
+        // generate button rather than in Settings, because the answer changes
+        // per run and the cost lands on this button.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Switch(checked = thinkingEnabled, onCheckedChange = { onToggleThinking() })
+            Column {
+                Text(stringResource(R.string.extended_thinking), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = if (thinkingEnabled) {
+                        "The model reasons before it writes. Slower, and it costs thinking tokens"
+                    } else {
+                        "Straight to the draft. Cheaper and faster; weaker on continuity and plot logic"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AuraThemeTokens.colors.textSecondary,
+                )
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(AuraSpacing.xs), modifier = Modifier.align(Alignment.End)) {
             if (generating) {
                 OutlinedButton(onClick = onCancel) {

@@ -59,9 +59,6 @@ interface EvolutionCandidateDao {
     @Query("UPDATE evolution_candidates SET status = :status, updatedAt = :timestamp, reflectionResult = :reflection WHERE id = :id")
     suspend fun setStatus(id: kotlin.String, status: kotlin.String, reflection: kotlin.String = "", timestamp: kotlin.Long = System.currentTimeMillis())
 
-    @Query("DELETE FROM evolution_candidates WHERE createdAt <= :cutoff AND status IN ('REJECTED', 'PROMOTED', 'AUTO_APPLIED')")
-    suspend fun deleteStale(cutoff: kotlin.Long): Int
-
     @Query("SELECT * FROM evolution_candidates ORDER BY createdAt ASC")
     suspend fun allForBackup(): List<EvolutionCandidateEntity>
 
@@ -116,14 +113,8 @@ interface EvolutionProposalDao {
     @Query("UPDATE evolution_proposals SET status = :status, updatedAt = :timestamp, outcomeNote = :note WHERE id = :id")
     suspend fun setStatus(id: kotlin.String, status: kotlin.String, note: kotlin.String = "", timestamp: kotlin.Long = System.currentTimeMillis())
 
-    @Query("UPDATE evolution_proposals SET applySagaJson = :saga WHERE id = :id")
-    suspend fun setApplySaga(id: kotlin.String, saga: kotlin.String)
-
     @Query("UPDATE evolution_proposals SET status = :status, resolvedAt = :timestamp, outcomeNote = :note WHERE id = :id")
     suspend fun resolve(id: kotlin.String, status: kotlin.String, note: kotlin.String, timestamp: kotlin.Long = System.currentTimeMillis())
-
-    @Query("DELETE FROM evolution_proposals WHERE resolvedAt <= :cutoff AND status IN ('REJECTED', 'ROLLED_BACK', 'SUPERSEDED')")
-    suspend fun deleteResolvedOlderThan(cutoff: kotlin.Long): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(proposals: List<EvolutionProposalEntity>)
@@ -145,9 +136,6 @@ interface EvolutionRevisionDao {
 
     @Query("SELECT * FROM evolution_revisions WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): EvolutionRevisionEntity?
-
-    @Query("SELECT COUNT(*) FROM evolution_revisions WHERE domain = :domain AND targetId = :targetId")
-    suspend fun revisionCount(domain: kotlin.String, targetId: kotlin.String): Int
 
     @Query("SELECT * FROM evolution_revisions ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recent(limit: Int): List<EvolutionRevisionEntity>
@@ -172,9 +160,6 @@ interface EvolutionSettingsDao {
 
     @Query("SELECT * FROM evolution_settings")
     suspend fun all(): List<EvolutionSettingsEntity>
-
-    @Query("UPDATE evolution_settings SET enabled = :enabled, updatedAt = :timestamp WHERE domain = :domain")
-    suspend fun setEnabled(domain: kotlin.String, enabled: kotlin.Boolean, timestamp: kotlin.Long = System.currentTimeMillis())
 
     @Query("UPDATE evolution_settings SET autoApplyApproved = :approved, updatedAt = :timestamp WHERE domain = :domain")
     suspend fun setAutoApplyApproved(domain: kotlin.String, approved: kotlin.Boolean, timestamp: kotlin.Long = System.currentTimeMillis())

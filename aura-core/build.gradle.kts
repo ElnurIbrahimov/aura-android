@@ -16,6 +16,31 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
+
+        // Whether Room may WIPE every database rather than refuse to open one
+        // whose file is newer than the code. Opt-in, per invocation:
+        //
+        //     ./gradlew :app:assembleDebug -PdevDb
+        //
+        // This was `BuildConfig.DEBUG`, and the debug build is the one README
+        // tells you to sideload — so installing a previous APK on the phone
+        // silently emptied all eleven databases with nothing in the log tying
+        // the loss to the downgrade. The alternative failure is loud and
+        // recoverable: without the fallback Room throws "Can't downgrade
+        // database from version X to Y" and the app does not launch, which is
+        // fixed by reinstalling the newer APK. The doctrine is already written
+        // in BackupManager for exactly this trade: refusing is recoverable,
+        // purging is not.
+        //
+        // Kept for schema churn, where re-installing over a newer database is a
+        // daily event and the data is disposable — but that is a choice made per
+        // build by the person who knows which it is, not a property of the
+        // build type.
+        buildConfigField(
+            "boolean",
+            "ALLOW_DESTRUCTIVE_DOWNGRADE",
+            project.hasProperty("devDb").toString(),
+        )
     }
 
     buildTypes {

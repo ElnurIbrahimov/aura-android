@@ -21,9 +21,6 @@ interface AgentRunDao {
     @Query("SELECT * FROM agent_runs WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): AgentRunEntity?
 
-    @Query("SELECT * FROM agent_runs WHERE status IN ('PENDING', 'PLANNING', 'RUNNING', 'PAUSED') ORDER BY startedAt DESC")
-    suspend fun activeRuns(): List<AgentRunEntity>
-
     @Query("SELECT * FROM agent_runs ORDER BY startedAt DESC")
     fun observeAll(): Flow<List<AgentRunEntity>>
 
@@ -63,12 +60,6 @@ interface GoalDao {
     @Update
     suspend fun update(goal: GoalEntity)
 
-    @Query("UPDATE agent_goals SET isAchieved = :achieved, achievedAt = :timestamp WHERE id = :id")
-    suspend fun markAchieved(id: kotlin.String, achieved: kotlin.Boolean, timestamp: kotlin.Long)
-
-    @Query("DELETE FROM agent_goals WHERE agentRunId = :agentRunId")
-    suspend fun deleteForRun(agentRunId: kotlin.String)
-
     @Query("DELETE FROM agent_goals")
     suspend fun deleteAll()
 }
@@ -99,9 +90,6 @@ interface StepDao {
     @Query("UPDATE agent_steps SET status = :status, startedAt = :timestamp WHERE id = :id")
     suspend fun markStarted(id: kotlin.String, status: kotlin.String, timestamp: kotlin.Long)
 
-    @Query("UPDATE agent_steps SET postconditionResult = :result WHERE id = :id")
-    suspend fun setPostcondition(id: kotlin.String, result: kotlin.String)
-
     @Query("DELETE FROM agent_steps")
     suspend fun deleteAll()
 }
@@ -116,9 +104,6 @@ interface AgentEventDao {
 
     @Query("SELECT * FROM agent_events WHERE agentRunId = :runId ORDER BY timestamp ASC")
     suspend fun forRun(runId: kotlin.String): List<AgentEventEntity>
-
-    @Query("SELECT * FROM agent_events WHERE agentRunId = :runId ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun recentForRun(runId: kotlin.String, limit: Int = 100): List<AgentEventEntity>
 
     @Query("SELECT * FROM agent_events ORDER BY timestamp ASC")
     suspend fun allForBackup(): List<AgentEventEntity>

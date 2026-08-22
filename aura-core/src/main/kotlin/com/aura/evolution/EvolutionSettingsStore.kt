@@ -22,10 +22,6 @@ class EvolutionSettingsStore @Inject constructor(
         }
     }
 
-    suspend fun setEnabled(domain: EvolutionDomain, enabled: kotlin.Boolean) {
-        dao.upsert(get(domain).copy(enabled = enabled, updatedAt = System.currentTimeMillis()))
-    }
-
     suspend fun setAutoApplyApproved(domain: EvolutionDomain, approved: kotlin.Boolean) {
         dao.upsert(get(domain).copy(autoApplyApproved = approved, updatedAt = System.currentTimeMillis()))
     }
@@ -33,8 +29,6 @@ class EvolutionSettingsStore @Inject constructor(
     suspend fun setReflectionEnabled(domain: EvolutionDomain, enabled: kotlin.Boolean) {
         dao.upsert(get(domain).copy(reflectionEnabled = enabled, updatedAt = System.currentTimeMillis()))
     }
-
-    suspend fun ensureDefaults() { all() }
 
     private fun defaultFor(domain: EvolutionDomain): EvolutionSettingsEntity =
         EvolutionSettingsEntity(domain = domain.name)

@@ -97,14 +97,6 @@ class ConversationKgExtractor private constructor(
      */
     @Volatile private var running: Boolean = false
 
-    /**
-     * Stats for diagnostics. Surfaced via a getter for Settings →
-     * Diagnostics so the user can see "X turns were dropped because
-     * the queue overflowed".
-     */
-    @Volatile private var droppedCount: Int = 0
-    fun getDroppedCount(): Int = droppedCount
-
     /** Visible for testing / teardown. */
     fun shutdown() {
         scope.cancel()
@@ -117,21 +109,30 @@ class ConversationKgExtractor private constructor(
      * turns arrive within the debounce window, they are queued and
      * all processed in order — none are dropped.
      *
-     * If the queue overflows (the consumer is too slow), the
-     * oldest entries are dropped and a counter is incremented
-     * for Diagnostics to surface.
+     * If the queue overflows (the consumer is too slow), the oldest entries
+     * are dropped and each drop is logged.
+     *
+     * It used to increment a `droppedCount` whose KDoc said it was "surfaced
+     * via a getter for Settings → Diagnostics". Diagnostics never called the
+     * getter, so the count was written and readable by nothing — a drop that
+     * reports itself only to a private field is a silent drop with extra steps.
      */
     fun extract(
         turnText: String,
         provenance: ConversationProvenance = ConversationProvenance(),
     ) {
         if (turnText.isBlank()) return
-        // Enforce the cap. Drop the oldest if at capacity and
-        // count it. Newer turns are more relevant than older ones
-        // for KG extraction.
+        // Enforce the cap. Drop the oldest if at capacity. Newer turns are
+        // more relevant than older ones for KG extraction.
         if (pending.size >= MAX_PENDING) {
             val dropped = pending.poll()
-            if (dropped != null) droppedCount += 1
+            if (dropped != null) {
+                Log.w(
+                    "KgExtractor",
+                    "extraction queue full at $MAX_PENDING; dropped the oldest turn. " +
+                        "The knowledge graph will be missing whatever it described.",
+                )
+            }
         }
         pending.add(PendingExtraction(turnText, provenance))
 

@@ -9,6 +9,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -57,6 +58,38 @@ class RoutedEmbedderTest {
 
         assertEquals(OnDeviceEmbedder.MODEL_ID, router.modelId())
         assertEquals(768, router.dimension())
+    }
+
+    @Test
+    fun `isSemantic follows whichever embedder is actually answering`() {
+        // The property MemoryStore.activeConfig switches on. It used to switch on
+        // `modelId() == OnDeviceEmbedder.MODEL_ID` instead, which is why a cloud
+        // embedding model — a real semantic model, configured exactly as README
+        // instructs — was scored with vectorPoolSize = 0 and a relevance floor set
+        // at the noise level of a hash.
+        val semanticFallback = object : Embedder {
+            override suspend fun embed(text: String) = FloatArray(768) { 0.1f }
+            override fun modelId() = "nomic-embed-text"
+            override fun dimension() = 768
+            override fun isSemantic() = true
+        }
+
+        assertTrue(
+            RoutedEmbedder(onDevice(false), semanticFallback, store(false)).isSemantic(),
+            "a cloud embedding model behind the router is semantic; this is the case the " +
+                "old modelId comparison could never see",
+        )
+        assertFalse(
+            RoutedEmbedder(onDevice(false), hash, store(false)).isSemantic(),
+            "a hash sketch is not semantic, and SEMANTIC's settings measured WORSE than " +
+                "DEFAULT when applied to one",
+        )
+
+        val model = onDevice(true).also { every { it.isSemantic() } returns true }
+        assertTrue(
+            RoutedEmbedder(model, hash, store(true)).isSemantic(),
+            "with the on-device model loaded the answer comes from it, not from the fallback",
+        )
     }
 
     @Test

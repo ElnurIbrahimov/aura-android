@@ -57,20 +57,6 @@ class ToolPolicyStore @Inject constructor(
         }
     }
 
-    suspend fun removePolicy(toolName: kotlin.String) {
-        context.toolPolicyPrefs.edit { prefs ->
-            val current = prefs[KEY_POLICIES]?.let { raw ->
-                runCatching {
-                    json.decodeFromString<Map<kotlin.String, ToolPolicy>>(raw)
-                }.onFailure {
-                    android.util.Log.w("ToolPolicyStore", "failed to decode policies for remove: ${it.message}", it)
-                }.getOrDefault(emptyMap())
-            } ?: emptyMap()
-            val updated = current - toolName
-            prefs[KEY_POLICIES] = if (updated.isEmpty()) "" else json.encodeToString(updated)
-        }
-    }
-
     /**
      * Replace the whole policy map in one write.
      *

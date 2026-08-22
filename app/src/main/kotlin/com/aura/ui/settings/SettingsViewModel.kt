@@ -241,6 +241,7 @@ data class SettingsUiState(
     val appAwarenessEnabled: Boolean = false,
     val placeLogEnabled: Boolean = false,
     val projectLedgerEnabled: Boolean = true,
+    val livingWorldEnabled: Boolean = true,
     /** Last dream cycle timestamp, 0 = never. */
     val dreamLastRunAt: Long = 0L,
     /** One-line stats from the last cycle. Empty if never ran. */
@@ -469,6 +470,7 @@ class SettingsViewModel @Inject constructor(
             val appAwarenessEnabled = userPreferences.appAwarenessEnabled.first()
             val placeLogEnabled = userPreferences.placeLogEnabled.first()
             val projectLedgerEnabled = userPreferences.projectLedgerEnabled.first()
+            val livingWorldEnabled = userPreferences.livingWorldEnabled.first()
             val triggersEnabled = userPreferences.triggersEnabled.first()
             val storedPolicies = runCatching { userPreferences.interruptionPolicies.first() }
                 .onFailure { Log.w(TAG, "interruption policies read failed: ${it.message}", it) }
@@ -577,6 +579,7 @@ class SettingsViewModel @Inject constructor(
                 appAwarenessEnabled = appAwarenessEnabled,
                 placeLogEnabled = placeLogEnabled,
                 projectLedgerEnabled = projectLedgerEnabled,
+                livingWorldEnabled = livingWorldEnabled,
                 dreamLastRunAt = dreamLastRunAt,
                 dreamLastRunStats = dreamLastRunStats,
                 dreamTotalSummaries = dreamTotalSummaries,
@@ -670,13 +673,6 @@ class SettingsViewModel @Inject constructor(
             userPreferences.setMoaAggregatorModel(model)
             _state.update { it.copy(moaAggregatorModel = model) }
             modelCatalogRepository.refreshProvider("moa", force = true)
-        }
-    }
-
-    fun markFirstRunComplete() {
-        viewModelScope.launch {
-            userPreferences.setFirstRunComplete(true)
-            _state.update { it.copy(firstRunComplete = true) }
         }
     }
 
@@ -953,6 +949,23 @@ class SettingsViewModel @Inject constructor(
      * The schedule follows the preference through `ProactiveBootstrap`, which
      * collects this flow and cancels the worker when it goes off. Nothing is
      * scheduled or cancelled from here.
+     *
+     * `UserPreferences.setLivingWorldEnabled` had no caller at all until this
+     * existed, so the flow `ProactiveBootstrap` reconciles on could only ever
+     * carry its default. The reconcile loop, the worker and the preference were
+     * all correct; there was simply nothing on the other end of the switch.
+     */
+    fun setLivingWorldEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setLivingWorldEnabled(enabled)
+            _state.update { it.copy(livingWorldEnabled = enabled) }
+        }
+    }
+
+    /**
+     * The schedule follows the preference through `ProactiveBootstrap`, which
+     * collects this flow and cancels the worker when it goes off. Nothing is
+     * scheduled or cancelled from here.
      */
     fun setProjectLedgerEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -1032,7 +1045,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-
 
     fun setThemeMode(mode: String) {
         viewModelScope.launch {

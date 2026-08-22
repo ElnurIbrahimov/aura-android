@@ -62,9 +62,4 @@ class McpClientManagerTest {
         assertTrue(ids.isEmpty())
     }
 
-    @Test
-    fun healthSnapshot_returns_empty_when_none_connected() = runTest {
-        val snapshot = manager.healthSnapshot()
-        assertTrue(snapshot.isEmpty())
-    }
 }

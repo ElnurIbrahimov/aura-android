@@ -43,9 +43,6 @@ interface KgEdgeProposalDao {
     @Query("SELECT * FROM kg_edge_proposals ORDER BY similarity DESC, createdAt DESC")
     suspend fun allForBackup(): List<KgEdgeProposalEntity>
 
-    @Query("DELETE FROM kg_edge_proposals WHERE status = 'PENDING' AND createdAt < :beforeMs")
-    suspend fun expireOlderThan(beforeMs: Long): Int
-
     @Query("DELETE FROM kg_edge_proposals")
     suspend fun deleteAll()
 }

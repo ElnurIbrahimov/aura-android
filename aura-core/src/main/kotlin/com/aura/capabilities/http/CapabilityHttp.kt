@@ -30,11 +30,6 @@ import kotlin.coroutines.coroutineContext
 object CapabilityHttp {
     val json: Json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    fun applyAuth(builder: Request.Builder, apiKey: String, scheme: String = "Bearer") {
-        if (apiKey.isBlank()) return
-        builder.header("Authorization", "$scheme $apiKey")
-    }
-
     fun buildJsonBody(vararg pairs: Pair<String, Any?>): String = buildJsonObject {
         for ((k, v) in pairs) {
             when (v) {
@@ -93,16 +88,5 @@ object CapabilityHttp {
             )
         }
         if (rawBody.isBlank()) throw CapabilityCatalogException.MalformedResponseException("Empty response body")
-    }
-
-    /**
-     * Run [block] on Dispatchers.IO with cooperative cancellation. Callers
-     * inside coroutineScope will throw CancellationException if the parent
-     * Job is cancelled.
-     */
-    suspend fun <T> withIoCancellation(block: () -> T): T {
-        return runInterruptible(Dispatchers.IO) { block() }.also {
-            currentCoroutineContext().ensureActive()
-        }
     }
 }

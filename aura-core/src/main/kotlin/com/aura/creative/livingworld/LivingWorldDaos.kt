@@ -30,9 +30,6 @@ interface LivingWorldDao {
     fun observeAllForProject(projectId: String): Flow<List<LivingWorldEntity>>
 
     @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
-    fun observeForProjectAndBranch(projectId: String, branchId: String): Flow<LivingWorldEntity?>
-
-    @Query("SELECT * FROM living_worlds WHERE projectId = :projectId AND branchId = :branchId LIMIT 1")
     suspend fun forProjectAndBranch(projectId: String, branchId: String): LivingWorldEntity?
 
     /** Every world a tick worker should advance. */
@@ -143,12 +140,6 @@ interface LivingEventDao {
             "ORDER BY notability DESC, tickIndex DESC LIMIT :limit",
     )
     suspend fun topNotableOfKinds(worldId: String, kinds: List<String>, limit: Int): List<LivingEventEntity>
-
-    @Query(
-        "SELECT * FROM living_events WHERE worldId = :worldId AND tickIndex BETWEEN :fromTick AND :toTick " +
-            "ORDER BY tickIndex ASC, seq ASC",
-    )
-    suspend fun inTickRange(worldId: String, fromTick: Long, toTick: Long): List<LivingEventEntity>
 
     /** Drives the top-K narration pick, and the timeline's "big moments" filter. */
     @Query(

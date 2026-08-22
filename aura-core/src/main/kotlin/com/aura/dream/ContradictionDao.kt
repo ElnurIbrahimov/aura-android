@@ -47,9 +47,6 @@ interface ContradictionDao {
     @Query("SELECT COUNT(*) FROM contradictions")
     suspend fun count(): Int
 
-    @Query("DELETE FROM contradictions WHERE status IN ('RESOLVED', 'DISMISSED') AND createdAt < :beforeMs")
-    suspend fun purgeOldResolved(beforeMs: Long): Int
-
     @Query("DELETE FROM contradictions")
     suspend fun deleteAll()
 }

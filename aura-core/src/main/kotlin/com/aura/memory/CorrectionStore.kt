@@ -197,9 +197,6 @@ class CorrectionStore @Inject constructor(
         return Report(correctionId, "Put back. ${propagationSentence(restored, restored = true)}", restored.size)
     }
 
-    /** Corrections against [memoryId] that are still standing. */
-    suspend fun forMemory(memoryId: String): List<CorrectionEntity> = dao.forTarget(memoryId)
-
     suspend fun recent(limit: Int = 50): List<CorrectionEntity> = dao.recent(limit)
 
     // ── one hop ─────────────────────────────────────────────────

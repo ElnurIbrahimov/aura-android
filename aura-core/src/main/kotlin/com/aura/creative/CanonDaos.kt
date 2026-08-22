@@ -21,9 +21,6 @@ interface CanonFactDao {
     @Query("SELECT * FROM canon_facts WHERE projectId = :projectId AND branchId = :branchId AND subjectType = :type AND subjectId = :subjectId AND status = 'active'")
     suspend fun forSubject(projectId: kotlin.String, branchId: kotlin.String, type: kotlin.String, subjectId: kotlin.String): List<CanonFactEntity>
 
-    @Query("SELECT * FROM canon_facts WHERE projectId = :projectId AND branchId = :branchId AND predicate = :predicate AND status = 'active'")
-    suspend fun byPredicate(projectId: kotlin.String, branchId: kotlin.String, predicate: kotlin.String): List<CanonFactEntity>
-
     @Query("SELECT * FROM canon_facts WHERE id = :id LIMIT 1")
     suspend fun getById(id: kotlin.String): CanonFactEntity?
 
@@ -72,9 +69,6 @@ interface ContinuityIssueDao {
     @Query("SELECT * FROM continuity_issues WHERE projectId = :projectId AND branchId = :branchId AND status = 'open' ORDER BY severity DESC, createdAt DESC")
     fun observeOpen(projectId: kotlin.String, branchId: kotlin.String): Flow<List<ContinuityIssueEntity>>
 
-    @Query("SELECT * FROM continuity_issues WHERE projectId = :projectId AND branchId = :branchId ORDER BY severity DESC, createdAt DESC")
-    suspend fun forBranch(projectId: kotlin.String, branchId: kotlin.String): List<ContinuityIssueEntity>
-
     @Query("SELECT * FROM continuity_issues WHERE artifactId = :artifactId AND status = 'open'")
     suspend fun forArtifact(artifactId: kotlin.String): List<ContinuityIssueEntity>
 
@@ -99,12 +93,6 @@ interface ContinuityIssueDao {
 interface ArtifactDependencyDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(dep: ArtifactDependencyEntity)
-
-    @Query("SELECT * FROM artifact_dependencies WHERE sourceArtifactId = :artifactId")
-    suspend fun dependentsOf(artifactId: kotlin.String): List<ArtifactDependencyEntity>
-
-    @Query("SELECT * FROM artifact_dependencies WHERE targetArtifactId = :artifactId")
-    suspend fun dependenciesOf(artifactId: kotlin.String): List<ArtifactDependencyEntity>
 
     @Query("DELETE FROM artifact_dependencies WHERE sourceArtifactId = :sourceId AND targetArtifactId = :targetId")
     suspend fun delete(sourceId: kotlin.String, targetId: kotlin.String)

@@ -4,6 +4,26 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
+ * Separator for the composite keys of the local indices built inside a tick
+ * and inside a projection: `entityId + key`, `observerId + subjectId + key`,
+ * `fromId + toId + kind`.
+ *
+ * NUL because it cannot occur in an entity id, a stock key or a relation kind,
+ * so two different tuples cannot collide onto one key. Written as the escape
+ * rather than as a literal control character in the source: `WorldEngine.kt`
+ * held five raw NUL bytes, which makes `grep` call the file binary and print
+ * no matches at all, and `PlayerView.kt` held one inside git's 8,000-byte
+ * binary-sniff window and diffed as `Bin 7501 -> 9497 bytes` for two commits.
+ *
+ * Shared rather than duplicated because `PlayerView` had meanwhile drifted to
+ * a space, which is a character an id can legitimately contain. Nothing had
+ * collided; nothing was stopping it either.
+ *
+ * Never persisted. Every index that uses it is local to one call.
+ */
+internal const val KEY_SEP = "\u0000"
+
+/**
  * The state of one living world at one tick.
  *
  * Every collection is a **sorted list, never a map**. Kotlin does not specify

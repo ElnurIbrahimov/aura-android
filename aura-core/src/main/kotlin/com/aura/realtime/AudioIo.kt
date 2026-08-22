@@ -77,8 +77,6 @@ object AudioFormatSpec {
 
     /** Milliseconds represented by [bytes] of PCM16 mono at [SAMPLE_RATE_HZ]. */
     fun bytesToMs(bytes: Long): Long = bytes * 1000 / (SAMPLE_RATE_HZ.toLong() * BYTES_PER_SAMPLE * CHANNELS)
-
-    fun msToBytes(ms: Long): Long = ms * SAMPLE_RATE_HZ * BYTES_PER_SAMPLE * CHANNELS / 1000
 }
 
 /**

@@ -457,6 +457,9 @@
     <string name="save_trigger">Save trigger</string>
     <string name="live_call">Live call</string>
     <string name="call">Call</string>
+    <string name="end_call">End call</string>
+    <string name="delete_summary">Delete this summary</string>
+    <string name="agent_colour">Colour</string>
     <string name="voice_mode">Voice mode</string>
     <string name="start">Start</string>
     <string name="built_in">Built-in</string>

@@ -49,11 +49,17 @@ interface ProactiveEventDao {
     @Query("DELETE FROM proactive_events WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
 
+    /**
+     * Every event carrying one correlation tag.
+     *
+     * Kept although only tests call it: it is the only way to observe a write
+     * production really performs, and a write nothing can read back is a write
+     * nothing can prove.
+     * `correlationTag` has exactly one writer — living-world reports — and this
+     * is what proves the tag survives the write.
+     */
     @Query("SELECT * FROM proactive_events WHERE correlationTag = :tag ORDER BY timestamp DESC LIMIT :limit")
     suspend fun byCorrelationTag(tag: String, limit: Int = 20): List<ProactiveEventEntity>
-
-    @Query("DELETE FROM proactive_events WHERE correlationTag = :tag")
-    suspend fun deleteByCorrelationTag(tag: kotlin.String): Int
 
     /** Count events by eventType. Used by Settings to show daemon thought count. */
     @Query("SELECT COUNT(*) FROM proactive_events WHERE eventType = :type")
@@ -64,9 +70,6 @@ interface ProactiveEventDao {
 interface ProactiveInteractionDao {
     @Insert
     suspend fun insert(interaction: ProactiveInteractionEntity): Long
-
-    @Query("SELECT * FROM proactive_interactions WHERE eventId = :eventId ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun forEvent(eventId: Long, limit: Int = 20): List<ProactiveInteractionEntity>
 
     @Query("SELECT action, COUNT(*) as count FROM proactive_interactions GROUP BY action")
     suspend fun summary(): List<ActionCount>

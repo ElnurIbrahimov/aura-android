@@ -25,9 +25,6 @@ interface RoutineDao {
     @Query("SELECT * FROM routines ORDER BY occurrenceCount DESC, lastSeenAt DESC")
     suspend fun all(): List<RoutineEntity>
 
-    @Query("SELECT * FROM routines WHERE occurrenceCount >= :minCount ORDER BY occurrenceCount DESC")
-    suspend fun withMinOccurrences(minCount: Int = 3): List<RoutineEntity>
-
     @Query("SELECT * FROM routines ORDER BY occurrenceCount DESC, lastSeenAt DESC")
     fun observeAll(): Flow<List<RoutineEntity>>
 
@@ -39,9 +36,6 @@ interface RoutineDao {
 
     @Query("SELECT COUNT(*) FROM routines")
     suspend fun count(): Int
-
-    @Query("SELECT COUNT(*) FROM routines WHERE occurrenceCount >= :minCount")
-    suspend fun countWithMinOccurrences(minCount: Int = 3): Int
 
     @Query("SELECT COUNT(*) FROM routines")
     fun observeCount(): Flow<Int>
