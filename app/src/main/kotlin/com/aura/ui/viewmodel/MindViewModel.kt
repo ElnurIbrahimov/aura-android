@@ -31,6 +31,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MindViewModel @Inject constructor(
     private val correctionStore: CorrectionStore,
+    private val memoryStore: com.aura.memory.MemoryStore,
     private val openQuestionDao: OpenQuestionDao,
     private val dreamDao: DreamConsolidationDao,
     private val changeLog: ChangeLog,
@@ -41,6 +42,19 @@ class MindViewModel @Inject constructor(
 
     private val _corrections = MutableStateFlow<List<CorrectionEntity>>(emptyList())
     val corrections: StateFlow<List<CorrectionEntity>> = _corrections.asStateFlow()
+
+    /**
+     * Memories that stopped being retrievable, newest first.
+     *
+     * `MemoryStore.retired` existed, was tested, and had no production caller —
+     * its KDoc named a history view that was never built. That was survivable
+     * while the only writer was an explicit user correction; it stopped being
+     * survivable when `maybeStore` began superseding a fact on its own, because
+     * `CorrectionStore`'s own rule is that a change the user cannot observe is
+     * indistinguishable from one that was dropped.
+     */
+    private val _retired = MutableStateFlow<List<com.aura.memory.MemoryEntity>>(emptyList())
+    val retired: StateFlow<List<com.aura.memory.MemoryEntity>> = _retired.asStateFlow()
 
     private val _questions = MutableStateFlow<List<OpenQuestionEntity>>(emptyList())
     val questions: StateFlow<List<OpenQuestionEntity>> = _questions.asStateFlow()
@@ -102,6 +116,9 @@ class MindViewModel @Inject constructor(
             _corrections.value = runCatching { correctionStore.recent(CORRECTIONS) }
                 .onFailure { Log.w(TAG, "corrections read failed", it) }
                 .getOrDefault(emptyList())
+            _retired.value = runCatching { memoryStore.retired(RETIRED) }
+                .onFailure { Log.w(TAG, "retired memories read failed", it) }
+                .getOrDefault(emptyList())
             _questions.value = runCatching {
                 openQuestionDao.byStatus(OpenQuestionEntity.STATUS_OPEN, QUESTIONS)
             }.onFailure { Log.w(TAG, "questions read failed", it) }.getOrDefault(emptyList())
@@ -125,6 +142,23 @@ class MindViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Put a retired memory back into recall, exactly as it was.
+     *
+     * Reaches `MemoryStore.unretire` rather than `CorrectionStore.undo`: an
+     * automatic supersession writes no correction row, on purpose — a
+     * correction is something the user did. The row's own retiredAt /
+     * supersededBy / retiredReason is the whole record, and this is what puts
+     * it back.
+     */
+    fun unretire(memoryId: String) {
+        viewModelScope.launch {
+            runCatching { memoryStore.unretire(memoryId) }
+                .onFailure { Log.w(TAG, "unretire failed", it) }
+            refresh()
+        }
+    }
+
     /** Undo a correction, putting back whatever it retracted. */
     fun undoCorrection(id: String) {
         viewModelScope.launch {
@@ -137,6 +171,7 @@ class MindViewModel @Inject constructor(
     private companion object {
         const val TAG = "MindViewModel"
         const val CORRECTIONS = 20
+        const val RETIRED = 20
         const val QUESTIONS = 5
         const val PROJECTS = 8
         const val NOTES = 12

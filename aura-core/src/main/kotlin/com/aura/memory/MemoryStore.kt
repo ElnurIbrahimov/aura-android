@@ -107,9 +107,7 @@ class MemoryStore @Inject constructor(
         // Semantic dedup: scan recent memories with embeddings for
         // cosine similarity > 0.92. This catches paraphrased versions
         // of the same fact ("I like dark mode" vs "I prefer dark
-        // mode") that exact-match misses. When a match is found, we
-        // merge — keep the richer (longer) version and re-null its
-        // embedding so the next recall re-embeds with the updated text.
+        // mode") that exact-match misses.
         // Bounded to the most recent [SEMANTIC_DEDUP_SCAN_LIMIT] embedded
         // rows: the previous full-table scan decoded every embedding in
         // the DB under the mutex on every auto-store, an O(N) cost that
@@ -118,36 +116,41 @@ class MemoryStore @Inject constructor(
         val existing = runCatching { dao.recentWithEmbeddings(SEMANTIC_DEDUP_SCAN_LIMIT) }
             .onFailure { Log.w("MemoryStore", "recentWithEmbeddings failed during dedup", it) }
             .getOrDefault(emptyList())
-        if (existing.isNotEmpty()) {
-            val match = existing.firstOrNull { mem ->
-                mem.embedding?.let {
-                    cosineSimilarity(embedding, Embedder.fromBytes(it)) > SEMANTIC_DEDUP_THRESHOLD
-                } == true
-            }
-            if (match != null) {
-                // Merge: keep the longer content (richer version of
-                // the fact). If the new content is longer, replace
-                // the existing memory's content and re-null the
-                // embedding. If the existing is longer or same, skip.
-                if (content.length > match.content.length) {
-                    runCatching {
-                        dao.update(match.copy(
-                            content = content,
-                            embedding = null,
-                            accessedAt = System.currentTimeMillis(),
-                        ))
-                    }.onFailure { Log.w("MemoryStore", "dao.update during dedup merge failed", it) }
-                }
-                // Either way, we don't store a new memory.
-                return@withLock null
-            }
+        val neighbour = existing.firstOrNull { mem ->
+            mem.embedding?.let {
+                cosineSimilarity(embedding, Embedder.fromBytes(it)) > SEMANTIC_DEDUP_THRESHOLD
+            } == true
+        }
+        // A near neighbour was two different situations resolved as one, by
+        // length: the branch kept whichever text had more characters and
+        // overwrote the other in place.
+        //
+        // "I prefer dark mode" and "I prefer light mode" are near-identical to
+        // an embedder — same subject, opposite value — so a changed preference
+        // was decided by character count and the change left no trace. The
+        // machinery to do it properly was already here and had no automatic
+        // caller: retire(supersededBy, reason) is what CorrectionStore uses when
+        // the user says a fact has changed.
+        //
+        // Two errors are possible and they are not symmetric. Reading a
+        // contradiction as a restatement leaves a stale fact live and silent.
+        // Reading a restatement as a contradiction costs a clause from the live
+        // text, is visible in Mind, and is undone by unretire. So the newer
+        // statement wins by default, and the guard below is what keeps the
+        // asymmetry honest.
+        if (neighbour != null) {
+            // Containment: the new text is already inside the old one, so it is
+            // the same fact said with less. Storing it would displace the richer
+            // wording for nothing — "working on ARC-AGI-2" must not supersede
+            // "working on ARC-AGI-2, targeting 95% with a 7B model".
+            if (saysNoMore(content, neighbour.content)) return@withLock null
         }
 
         // Delegate to store() so maybeStore-inserted rows carry the same
         // fields (embeddingModel/embeddingVersion) and fire the same
         // evolution hooks as direct stores. The embedder call inside
         // store() is a cache hit — embed(content) ran above.
-        store(
+        val storedId = store(
             content = content,
             source = source,
             category = resolvedCategory,
@@ -155,6 +158,37 @@ class MemoryStore @Inject constructor(
             scope = scope,
             provenance = provenance,
         )
+        if (neighbour != null) {
+            // The old row keeps an end date and a pointer to what replaced it,
+            // rather than being overwritten. Failing here must not lose the row
+            // that was just stored, so it is logged rather than thrown: the
+            // worst case is two live rows saying similar things, which is what
+            // the dedup existed to avoid and not what it existed to prevent.
+            runCatching {
+                retire(neighbour.id, supersededBy = storedId, reason = REASON_SUPERSEDED)
+            }.onFailure {
+                Log.w("MemoryStore", "superseding ${neighbour.id} with $storedId failed: ${it.message}", it)
+            }
+        }
+        storedId
+    }
+
+    /**
+     * True when [candidate] says nothing [existing] does not already say.
+     *
+     * Deliberately containment and not similarity: the embedder has already
+     * decided these two are about the same thing, and the only question left is
+     * whether the new one adds anything. Case and run-length whitespace are
+     * normalised because a restatement rarely arrives byte-identical.
+     *
+     * It will miss a paraphrased truncation — "prefers dark mode" against "I
+     * prefer dark mode because of eye strain" is not containment — and that
+     * memory will supersede rather than be skipped. That is the error this
+     * whole branch is chosen to make: recoverable, and visible.
+     */
+    private fun saysNoMore(candidate: String, existing: String): Boolean {
+        fun normalise(text: String) = text.lowercase().replace(WHITESPACE_RUN, " ").trim()
+        return normalise(existing).contains(normalise(candidate))
     }
 
     /**
@@ -677,6 +711,8 @@ class MemoryStore @Inject constructor(
     }
 
     companion object {
+        /** Collapses runs of whitespace so a restatement can be compared to its original. */
+        private val WHITESPACE_RUN = Regex("\\s+")
         /** How many candidates RRF overfetches for the reranker pool. */
         const val RERANK_POOL_SIZE = 20
         /** Minimum candidates to justify reranker LLM calls. */
@@ -960,7 +996,7 @@ class MemoryStore @Inject constructor(
     suspend fun retire(
         id: String,
         supersededBy: String? = null,
-        reason: String = "superseded",
+        reason: String = REASON_SUPERSEDED,
         now: Long = System.currentTimeMillis(),
     ): Boolean {
         val changed = dao.retire(id, supersededBy, reason, now) > 0

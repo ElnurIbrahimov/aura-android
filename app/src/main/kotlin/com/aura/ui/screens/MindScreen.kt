@@ -104,6 +104,7 @@ fun MindScreen(
             )
             openQuestionsSection(mindViewModel)
             correctionsSection(mindViewModel)
+            retiredSection(mindViewModel)
             tasteSection(tasteViewModel, showEmptyState = false)
             consolidationSection(mindViewModel, onOpenConsolidation)
             item {
@@ -375,6 +376,66 @@ private fun LazyListScope.correctionsSection(viewModel: MindViewModel) {
             }
         }
     }
+}
+
+/**
+ * Facts that stopped being true, and what replaced them.
+ *
+ * Retirement has two writers now. One is a correction the user made; the other
+ * is `MemoryStore.maybeStore` noticing that a new statement contradicts one it
+ * already held, which it used to resolve by keeping whichever sentence was
+ * longer. That second writer is why this section exists: `CorrectionStore`'s own
+ * rule is that a change the user cannot observe is indistinguishable from one
+ * that was dropped, and until now `MemoryStore.retired` had no reader outside
+ * its tests.
+ *
+ * Shows the reason and the replacement rather than just the text, because the
+ * question a person actually has here is "why did it stop believing that", and
+ * "superseded" and "retracted" are different answers.
+ */
+private fun LazyListScope.retiredSection(viewModel: MindViewModel) {
+    item {
+        val retired by viewModel.retired.collectAsStateWithLifecycle()
+        if (retired.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(AuraSpacing.xs)) {
+                SectionHeading("No longer believed (${retired.size})")
+                for (memory in retired) {
+                    AuraCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    memory.content,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textDecoration = TextDecoration.LineThrough,
+                                )
+                                Text(
+                                    retiredLabel(memory.retiredReason, memory.supersededBy != null),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AuraThemeTokens.colors.textSecondary,
+                                )
+                            }
+                            TextButton(onClick = { viewModel.unretire(memory.id) }) {
+                                Text(stringResource(R.string.undo))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Why a memory stopped being retrievable, in a sentence.
+ *
+ * The reason strings are the ones `CorrectionStore` writes, so a supersession
+ * the user made and one Aura made read identically here — which is the point.
+ * That they were both reversible was already true; that both are visible is new.
+ */
+private fun retiredLabel(reason: String?, hasReplacement: Boolean): String = when {
+    reason == com.aura.memory.REASON_RETRACTED -> "You said this was never true"
+    hasReplacement -> "Replaced by something newer"
+    else -> "No longer retrievable"
 }
 
 /** The nightly work, summarised. The full detail keeps its own screen. */
