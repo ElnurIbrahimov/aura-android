@@ -178,4 +178,75 @@ class ChangedFactsSupersedeTest {
         assertNotNull(newId, "the store must survive a failed retirement")
         coVerify(exactly = 1) { dao.insert(any()) }
     }
+
+    @Test
+    fun `containment is checked against every neighbour, not just the newest`() = runTest {
+        // The first cut asked firstOrNull, so the guard only ever saw the most
+        // recently written neighbour. A richer row one position further down was
+        // invisible: the terser restatement was stored anyway AND retired a
+        // different memory, leaving the fuller wording live beside a redundant
+        // copy of itself. Both halves of that are the opposite of the intent.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        coEvery { dao.existsByContent(any()) } returns 0
+        // recentWithEmbeddings orders newest first, so the row that contains the
+        // candidate is deliberately NOT the one the old code would have looked at.
+        coEvery { dao.recentWithEmbeddings(any()) } returns listOf(
+            neighbour("newer", "Dark mode preferred, always"),
+            neighbour("older", "I prefer dark mode because of eye strain"),
+        )
+
+        val newId = store(dao).maybeStore(
+            "i prefer dark mode",
+            "user",
+            category = "preference",
+            importance = 0.8f,
+        )
+
+        assertNull(newId, "a live row already says this and more")
+        coVerify(exactly = 0) { dao.insert(any()) }
+        coVerify(exactly = 0) { dao.retire(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `every contradicted neighbour is retired, not only the newest`() = runTest {
+        // More than one live row saying nearly the same thing is the normal case
+        // here, not the corner: the merge-by-length branch this replaces spent the
+        // app's whole history producing exactly that. Retiring one of three would
+        // leave recall still answering with two stale phrasings after being told
+        // the preference changed — the promise, unkept, on the only installs that
+        // have been running long enough to care.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        coEvery { dao.existsByContent(any()) } returns 0
+        coEvery { dao.recentWithEmbeddings(any()) } returns listOf(
+            neighbour("dup1", "I prefer dark mode"),
+            neighbour("dup2", "I like dark mode"),
+            neighbour("dup3", "Dark mode, always"),
+        )
+
+        val newId = store(dao).maybeStore("I prefer light mode", "user")
+
+        assertNotNull(newId)
+        for (stale in listOf("dup1", "dup2", "dup3")) {
+            coVerify(exactly = 1) { dao.retire(stale, newId, REASON_SUPERSEDED, any()) }
+        }
+    }
+
+    @Test
+    fun `one failed retirement does not strand the others`() = runTest {
+        // Retirements are caught individually. Sharing one runCatching across the
+        // loop would let the first failure skip every neighbour after it, which is
+        // the same staleness the loop exists to clear, arrived at by accident.
+        val dao = mockk<MemoryDao>(relaxed = true)
+        coEvery { dao.existsByContent(any()) } returns 0
+        coEvery { dao.recentWithEmbeddings(any()) } returns listOf(
+            neighbour("bad", "I prefer dark mode"),
+            neighbour("good", "I like dark mode"),
+        )
+        coEvery { dao.retire("bad", any(), any(), any()) } throws IllegalStateException("db locked")
+
+        val newId = store(dao).maybeStore("I prefer light mode", "user")
+
+        assertNotNull(newId)
+        coVerify(exactly = 1) { dao.retire("good", newId, REASON_SUPERSEDED, any()) }
+    }
 }

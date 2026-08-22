@@ -451,7 +451,7 @@ class DreamConsolidator @Inject constructor(
      * Cheap-model resolution matches [com.aura.agent.ConversationCompactor]:
      * MoA (3x cost) -> first non-MoA configured provider -> original.
      */
-    internal suspend fun summarizeCluster(
+    private suspend fun summarizeCluster(
         cluster: List<MemoryEntity>,
         modelUsed: String,
     ): String {
@@ -497,12 +497,19 @@ class DreamConsolidator @Inject constructor(
      * against [MAX_PROMPT_CHARS]; the budget was never the reason this was absent.
      */
     internal fun buildSummaryPrompt(cluster: List<MemoryEntity>): String {
-        val joined = cluster.take(MAX_MEMBERS_IN_PROMPT)
+        // The count has to describe what follows, not the cluster it came
+        // from. This announced `cluster.size` while showing at most
+        // MAX_MEMBERS_IN_PROMPT of them, so a 25-member cluster asked the
+        // model to compress 25 entries and handed it 10 — and now that each
+        // one arrives dated, a model told to keep the order of 25 things it
+        // cannot see has been handed a contradiction rather than a task.
+        val members = cluster.take(MAX_MEMBERS_IN_PROMPT)
+        val joined = members
             .joinToString("\n---\n") { "[${promptDate(it.createdAt)}] ${it.content}" }
             .take(MAX_PROMPT_CHARS)
 
         return buildString {
-            append("Compress the following ${cluster.size} related memory entries into a ")
+            append("Compress the following ${members.size} related memory entries into a ")
             append("single concise summary (2-3 sentences, max 500 chars). ")
             append("Preserve key facts and preferences, and remove duplicates.\n")
             append("Each entry is prefixed with the date it was recorded. Keep dates, ")

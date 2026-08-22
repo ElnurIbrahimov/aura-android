@@ -116,7 +116,18 @@ class MemoryStore @Inject constructor(
         val existing = runCatching { dao.recentWithEmbeddings(SEMANTIC_DEDUP_SCAN_LIMIT) }
             .onFailure { Log.w("MemoryStore", "recentWithEmbeddings failed during dedup", it) }
             .getOrDefault(emptyList())
-        val neighbour = existing.firstOrNull { mem ->
+        // Every neighbour above the threshold, not the first one found.
+        //
+        // firstOrNull was wrong in both directions and the reason is the same
+        // history: the old merge-by-length branch left near-duplicates lying
+        // around for as long as this app has run, so more than one live row
+        // saying nearly the same thing is the NORMAL case here, not the corner.
+        // Checking containment against only the newest let a terser restatement
+        // through whenever some other neighbour happened to be newer — storing a
+        // redundant row AND retiring the wrong one — and retiring only the
+        // newest left every older duplicate live and recallable, which is
+        // exactly the staleness this change exists to end.
+        val neighbours = existing.filter { mem ->
             mem.embedding?.let {
                 cosineSimilarity(embedding, Embedder.fromBytes(it)) > SEMANTIC_DEDUP_THRESHOLD
             } == true
@@ -138,13 +149,12 @@ class MemoryStore @Inject constructor(
         // text, is visible in Mind, and is undone by unretire. So the newer
         // statement wins by default, and the guard below is what keeps the
         // asymmetry honest.
-        if (neighbour != null) {
-            // Containment: the new text is already inside the old one, so it is
-            // the same fact said with less. Storing it would displace the richer
-            // wording for nothing — "working on ARC-AGI-2" must not supersede
-            // "working on ARC-AGI-2, targeting 95% with a 7B model".
-            if (saysNoMore(content, neighbour.content)) return@withLock null
-        }
+        // Containment against ANY of them: if some live row already says this and
+        // more, the new text is the same fact said with less and storing it would
+        // displace the richer wording for nothing — "working on ARC-AGI-2" must
+        // not supersede "working on ARC-AGI-2, targeting 95% with a 7B model",
+        // and it must not matter which of the two was written more recently.
+        if (neighbours.any { saysNoMore(content, it.content) }) return@withLock null
 
         // Delegate to store() so maybeStore-inserted rows carry the same
         // fields (embeddingModel/embeddingVersion) and fire the same
@@ -158,16 +168,21 @@ class MemoryStore @Inject constructor(
             scope = scope,
             provenance = provenance,
         )
-        if (neighbour != null) {
-            // The old row keeps an end date and a pointer to what replaced it,
-            // rather than being overwritten. Failing here must not lose the row
-            // that was just stored, so it is logged rather than thrown: the
-            // worst case is two live rows saying similar things, which is what
-            // the dedup existed to avoid and not what it existed to prevent.
+        // Each old row keeps an end date and a pointer to what replaced it,
+        // rather than being overwritten. Retiring all of them and not just one
+        // is what makes the promise true on a real install: an install with three
+        // live phrasings of the same preference must not answer with two of them
+        // after being told the preference changed.
+        //
+        // Each retirement is caught on its own so one failure does not strand the
+        // rest, and none of them can lose the row that was just stored: the worst
+        // case is a live row saying something stale, which is what the dedup
+        // existed to avoid and not what it existed to prevent.
+        for (stale in neighbours) {
             runCatching {
-                retire(neighbour.id, supersededBy = storedId, reason = REASON_SUPERSEDED)
+                retire(stale.id, supersededBy = storedId, reason = REASON_SUPERSEDED)
             }.onFailure {
-                Log.w("MemoryStore", "superseding ${neighbour.id} with $storedId failed: ${it.message}", it)
+                Log.w("MemoryStore", "superseding ${stale.id} with $storedId failed: ${it.message}", it)
             }
         }
         storedId

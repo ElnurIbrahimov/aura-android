@@ -766,6 +766,63 @@ over dated memories, read back in `DreamsScreen`, to see whether the dates actua
 survived. The second is the entire point of the first change and no unit test can answer
 it — these tests assert the prompt, not the model.
 
+*2026-08-22 (reviewing the above):* **3,660 unit tests / 547 suites, 0 failures.** A
+review pass over the three changes just described found two defects in them, both in the
+supersession branch and both proved with a failing test before anything was touched.
+
+**The containment guard only ever looked at the newest neighbour, and only the newest
+neighbour was retired.** `firstOrNull` picked one row out of the candidates above 0.92 and
+the rest were never considered. That is wrong in both directions, and the same history
+makes both reachable: the merge-by-length branch this work replaces spent the app's entire
+life leaving near-duplicates live, so *several* rows saying nearly the same thing is the
+normal case on any install old enough to matter, not the corner case.
+
+Reading the guard against one row let a terser restatement through whenever some other
+neighbour happened to be written more recently — storing a redundant row *and* retiring a
+different memory, while the fuller wording it duplicated stayed live. Retiring one row left
+every older duplicate retrievable, so an install holding three phrasings of a preference
+would still answer with two of them after being told the preference had changed. The
+headline claim of the change — that recall returns only the new statement — held only when
+exactly one near-duplicate existed.
+
+`filter` instead of `firstOrNull`, containment against `any` of them, retirement over all
+of them, each caught separately so one failure cannot strand the rest. Three tests, three
+mutants, all three killed.
+
+**The dream prompt announced a count it did not supply.** `"Compress the following
+${cluster.size} related memory entries"` while the input was `cluster.take(10)`. Carried
+forward verbatim from the old prompt and it should not have been: it is worse under the new
+wording than the old, because a model asked to preserve the order of 25 entries and handed
+10 has been given a contradiction, and the fifteen it cannot see are the ones it would have
+to invent to comply. `members.size` now, gated by a test that builds a 25-member cluster.
+
+Also reverted: `summarizeCluster` had been widened `private` → `internal` when only
+`buildSummaryPrompt` needed it. No test ever called it. A visibility widened for a test
+that does not exist is the smallest version of the thing §4 is about.
+
+**Checked and found sound**, recorded because a review that reports only hits is not
+evidence of much: `java.time` is safe at `minSdk = 26` with no desugaring;
+`recentWithEmbeddings` already filters `retiredAt IS NULL`, so retired rows cannot poison
+the scan or block a later store; `dao.retire` carries `AND retiredAt IS NULL` and is
+idempotent; `store()` always mints a fresh UUID, so a row can never supersede itself;
+`REASON_SUPERSEDED` is byte-identical to the `"superseded"` literal it replaced as
+`retire`'s default, so no existing row's reason changed meaning; `Turn.timestamp` does
+reach the compaction JSON, which is why that test asserts the literal epoch value rather
+than the word; and dream candidates arrive newest-first, so `take(10)` keeps the ten most
+recent rather than dating a summary of the ten oldest.
+
+**One gate says more than it can prove.** `check-hardcoded-strings.sh` reports "no plain
+hardcoded strings in Compose `Text(...)`" and matches only a literal written directly
+inside the call. `MindScreen`'s `correctionLabel` and `retiredLabel` return eight lines of
+user-visible English from a `when`, one function call away from where the scan looks, and
+the gate is structurally blind to them — as it is to every `SectionHeading("…")`. The new
+section follows the existing pattern exactly, so this is not a regression and it is not
+fixed here; it is recorded because the gate's OK line currently reads as a stronger claim
+than the scan supports, which is §2.6's shape in a script written to prevent §2.6.
+
+**Neither device item is closed by any of this.** Both defects above were found by reading
+and killed by unit tests; the two things that still need a phone are unchanged.
+
 `creative/livingworld` had been a complete strategy game with no player: beliefs
 already stored as deviations from truth, `ClaimPool` already resolving contested
 claims on what rivals *believe* each contender can bring, `SpreadLie` already

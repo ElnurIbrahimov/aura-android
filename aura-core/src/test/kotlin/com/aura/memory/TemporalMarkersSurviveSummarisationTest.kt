@@ -139,6 +139,27 @@ class TemporalMarkersSurviveSummarisationTest {
         assertTrue("duplicates should still be removed: $prompt", "duplicates" in prompt)
     }
 
+    @Test
+    fun `the announced entry count matches the number of entries shown`() {
+        // The prompt said `cluster.size` and showed at most MAX_MEMBERS_IN_PROMPT,
+        // so a large cluster asked for 25 entries to be compressed and supplied
+        // 10. Harmless while the model was only asked to summarise; not harmless
+        // now that it is also asked to keep the order of what it was given, since
+        // the missing fifteen are the ones it would have to invent.
+        val oversized = (1..25).map { memory("m$it", "entry $it", march14 + it * 1_000L) }
+
+        val prompt = consolidator().buildSummaryPrompt(oversized)
+
+        val shown = DreamConsolidator.MAX_MEMBERS_IN_PROMPT
+        assertTrue(
+            "the count must describe what follows, not the cluster it came from: $prompt",
+            "following $shown related memory entries" in prompt,
+        )
+        assertFalse("the full cluster size must not be announced: $prompt", "following 25 " in prompt)
+        assertTrue("entry $shown must be present", "entry $shown" in prompt)
+        assertFalse("entry ${shown + 1} was never shown", "entry ${shown + 1}" in prompt)
+    }
+
     // ── The conversation compactor ─────────────────────────────────
 
     private val compactor = ConversationCompactor(
