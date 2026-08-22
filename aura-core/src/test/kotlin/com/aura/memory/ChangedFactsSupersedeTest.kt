@@ -107,8 +107,19 @@ class ChangedFactsSupersedeTest {
             neighbour("old", "Working on ARC-AGI-2, targeting 95% with a 7B model"),
         )
 
-        val newId = store(dao).maybeStore("working on ARC-AGI-2", "user")
+        // Category and importance supplied, as the agentic loop's LLM write
+        // gate supplies them. Without that the heuristic gate can refuse the
+        // content outright and return null before the dedup scan is reached —
+        // which is a null for the wrong reason, and a test that passes with the
+        // guard deleted. The scan assertion below pins that it was reached.
+        val newId = store(dao).maybeStore(
+            "working on ARC-AGI-2",
+            "user",
+            category = "project",
+            importance = 0.6f,
+        )
 
+        coVerify(exactly = 1) { dao.recentWithEmbeddings(any()) }
         assertNull(newId, "a restatement that adds nothing should not be stored")
         coVerify(exactly = 0) { dao.insert(any()) }
         coVerify(exactly = 0) { dao.retire(any(), any(), any(), any()) }
@@ -124,8 +135,14 @@ class ChangedFactsSupersedeTest {
             neighbour("old", "I  prefer   Dark Mode because of eye strain"),
         )
 
-        val newId = store(dao).maybeStore("i prefer dark mode", "user")
+        val newId = store(dao).maybeStore(
+            "i prefer dark mode",
+            "user",
+            category = "preference",
+            importance = 0.8f,
+        )
 
+        coVerify(exactly = 1) { dao.recentWithEmbeddings(any()) }
         assertNull(newId)
         coVerify(exactly = 0) { dao.retire(any(), any(), any(), any()) }
     }
